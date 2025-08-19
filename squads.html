@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Squads Overview - PowerUp Dashboard Style</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap');
+
+        body {
+            font-family: 'Montserrat', sans-serif;
+            background-color: #1a1a2e; /* Dark background from dashboard */
+            color: #e0e0e0; /* Light text color */
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+        }
+
+        .main-content {
+            flex-grow: 1;
+            padding: 30px;
+            box-sizing: border-box; /* Include padding in element's total width/height */
+        }
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.1); /* Subtle separator */
+            padding-bottom: 15px;
+        }
+
+        .page-header h1 {
+            color: #00f08e; /* Green for main titles */
+            font-size: 28px;
+            font-weight: 700;
+            margin: 0;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 15px; /* Space between buttons */
+        }
+
+        .action-button {
+            background-color: #0f4c75; /* Blue button */
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            text-decoration: none;
+            font-size: 15px;
+            font-weight: 600;
+            transition: background-color 0.3s ease;
+        }
+
+        .action-button:hover {
+            background-color: #3282b8; /* Lighter blue on hover */
+        }
+
+        /* Squad Categories Container for Columns */
+        .squad-columns-container {
+            display: flex;
+            gap: 20px; /* Space between columns */
+            flex-wrap: wrap; /* Allow columns to wrap on smaller screens */
+        }
+
+        .squad-column {
+            flex: 1; /* Each column takes equal space */
+            min-width: 300px; /* Minimum width for columns before wrapping */
+            background-color: #16213e; /* Slightly lighter dark for column background */
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            display: flex; /* Use flexbox for content inside column */
+            flex-direction: column; /* Stack h2 and squads-list */
+        }
+
+        .squad-column h2 {
+            color: #00f08e; /* Green for column titles */
+            font-size: 22px;
+            margin-top: 0;
+            margin-bottom: 20px;
+            text-align: center;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .squads-list {
+            display: flex;
+            flex-direction: column; /* Stack cards vertically within a column */
+            gap: 15px; /* Space between squad cards within a column */
+            flex-grow: 1; /* Allows list to take available space */
+        }
+
+        .squad-card {
+            background-color: #1a1a2e; /* Card background, slightly darker than column */
+            padding: 15px;
+            border-radius: 6px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            transition: transform 0.2s ease;
+        }
+
+        .squad-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+        }
+
+        .squad-card h3 {
+            color: #0f4c75; /* Blue for squad names */
+            margin-top: 0;
+            margin-bottom: 8px;
+            font-size: 18px;
+        }
+
+        .squad-card p {
+            font-size: 13px;
+            color: #b0b0b0;
+            margin-bottom: 4px;
+        }
+
+        .squad-card .details-link {
+            display: block;
+            text-align: right;
+            margin-top: 10px;
+        }
+
+        .squad-card .details-link a {
+            color: #00f08e; /* Green for "View Details" link */
+            text-decoration: none;
+            font-size: 13px;
+            transition: color 0.3s ease;
+        }
+
+        .squad-card .details-link a:hover {
+            color: #99ffcc;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 992px) {
+            .squad-columns-container {
+                flex-direction: column; /* Stack columns vertically on smaller screens */
+            }
+            .squad-column {
+                min-width: unset; /* Remove min-width to allow full width */
+                width: 100%; /* Take full width */
+            }
+        }
+
+        @media (max-width: 600px) {
+            .page-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            .action-buttons {
+                margin-top: 15px;
+                flex-direction: column; /* Stack buttons on very small screens */
+                width: 100%;
+            }
+            .action-button {
+                width: 100%; /* Full width buttons */
+            }
+            .main-content {
+                padding: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="main-content">
+        <div class="page-header">
+            <h1>Squads Overview</h1>
+            <div class="action-buttons">
+                <a href="add-squad.html" class="action-button">Add New Squad</a>
+                <a href="manage-squads.html" class="action-button">Manage Squads</a>
+                <button class="action-button" onclick="alert('View All Activities functionality to be implemented!');">View All Activities</button>
+            </div>
+        </div>
+
+        <div class="squad-columns-container" id="squadColumnsContainer">
+            <!-- Squad columns will be dynamically loaded here by JavaScript -->
+        </div>
+    </div>
+
+    <script>
+        // Function to dynamically create a squad card HTML
+        function createSquadCard(squad) {
+            return `
+                <div class="squad-card">
+                    <h3>${squad.name}</h3>
+                    <p><strong>Leader:</strong> ${squad.leader}</p>
+                    <p><strong>Status:</strong> ${squad.status}</p>
+                    <p><strong>Focus:</strong> ${squad.objective}</p>
+                    <div class="details-link">
+                        <a href="squad-details.html?id=${squad.id}">View Details &rarr;</a>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Function to render all squads into their respective columns
+        function renderSquads(squads) {
+            const container = document.getElementById('squadColumnsContainer');
+            container.innerHTML = ''; // Clear existing content
+
+            // Create column elements if they don't exist
+            const categories = {
+                'ci': { title: 'Continuous Improvement (CI) Squads', element: null },
+                'quality': { title: 'Quality Squads', element: null },
+                'safety': { title: 'Safety Squads', element: null }
+            };
+
+            for (const key in categories) {
+                const column = document.createElement('div');
+                column.className = 'squad-column';
+                column.innerHTML = `<h2>${categories[key].title}</h2><div class="squads-list" id="squads-list-${key}"></div>`;
+                container.appendChild(column);
+                categories[key].element = column.querySelector('.squads-list');
+            }
+
+            // Populate columns with squad cards
+            squads.forEach(squad => {
+                const cardHTML = createSquadCard(squad);
+                if (categories[squad.category] && categories[squad.category].element) {
+                    categories[squad.category].element.innerHTML += cardHTML;
+                }
+            });
+        }
+
+        // --- Data Fetching Logic ---
+        // Placeholder for data fetching. In a real app, this would be an API call to Smartsheet.
+        function fetchSquads() {
+            // Check localStorage first for simulated persistence
+            let squads = JSON.parse(localStorage.getItem('squads')) || [];
+
+            if (squads.length === 0) {
+                // If localStorage is empty, use initial dummy data
+                squads = [
+                    { id: 'ci_automation', name: 'CI Automation Team', category: 'ci', leader: 'John Doe', status: 'Active', objective: 'Process Automation Initiatives' },
+                    { id: 'ci_efficiency', name: 'CI Efficiency Boosters', category: 'ci', leader: 'Sarah Brown', status: 'In Progress', objective: 'Reducing Bottlenecks' },
+                    { id: 'quality_qa', name: 'Quality Assurance Unit', category: 'quality', leader: 'Robert Davis', status: 'Active', objective: 'Product Inspection & Standards' },
+                    { id: 'quality_qc', name: 'Quality Control Team', category: 'quality', leader: 'Olivia Wilson', status: 'Pending Review', objective: 'Defect Analysis & Prevention' },
+                    { id: 'safety_compliance', name: 'Safety Compliance Taskforce', category: 'safety', leader: 'Alex Green', status: 'Active', objective: 'Regulatory Compliance & Audits' },
+                    { id: 'safety_incident', name: 'Safety Incident Response', category: 'safety', leader: 'Mia Rodriguez', status: 'In Progress', objective: 'Emergency Protocols & Training' }
+                ];
+                localStorage.setItem('squads', JSON.stringify(squads)); // Save dummy data to localStorage for future use
+            }
+
+            renderSquads(squads); // Render the fetched (or simulated) squads
+        }
+
+        // Load squads when the page loads
+        document.addEventListener('DOMContentLoaded', fetchSquads);
+    </script>
+</body>
+</html>

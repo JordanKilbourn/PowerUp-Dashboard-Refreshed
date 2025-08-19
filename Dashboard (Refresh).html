@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>PowerUp Dashboard (Refresh)</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <link rel="stylesheet" href="style.css">
+
+</head>
+
+<body class="dashboard">
+  <div class="container">
+<div class="sidebar" id="sidebar">
+  <div class="item" onclick="toggleSidebar()">
+    <i class="fas fa-bars"></i><span>Menu</span>
+  </div>
+  <div class="item active" onclick="location.href='duh 2.0.html'">
+    <i class="fas fa-home"></i><span>Dashboard</span>
+  </div>
+  <div class="item" onclick="location.href='level-tracker.html'">
+    <i class="fas fa-layer-group"></i><span>Level Tracker</span>
+  </div>
+  <div class="item" onclick="location.href='power-hours.html'">
+    <i class="fas fa-clock"></i><span>Power Hours</span>
+  </div>
+  <div class="item" onclick="location.href='notes.html'">
+    <i class="fas fa-sticky-note"></i><span>Notes</span>
+  </div>
+  <div class="item" onclick="location.href='squads.html'">
+    <i class="fas fa-users"></i><span>Squads</span>
+  </div>
+</div>
+
+<div class="main">
+      <div class="header">
+        <h1>PowerUp Dashboard</h1>
+        <p>Welcome: <span>Chris Weikel</span> Month: <span>July 2025</span> Level: <span>Lv 2</span></p>
+      </div>
+      <div class="top-cards">
+        <div class="card power-card">
+          <h3>Power Hours Logged</h3>
+          <p>1.0 / 8</p>
+          <div class="progress-bar"><div class="progress-bar-inner"></div></div>
+          <small>You're 7.0 hour(s) away from your goal. 30 day(s) left this month.</small>
+        </div>
+<div class="card token-card">
+  <h3>Tokens</h3>
+  <div class="token-tracker">
+    <i class="fas fa-coins"></i>
+    <span>20</span>
+  </div>
+</div>
+
+      </div>
+
+      <!-- ── Tabs ──────────────────────────────────────────────── -->
+      <div class="tab-buttons">
+        <button class="tab-button active" onclick="showTab('ci')">Continuous Improvement</button>
+        <button class="tab-button" onclick="showTab('safety')">Safety Concerns</button>
+        <button class="tab-button" onclick="showTab('quality')">Quality Catches</button>
+      </div>
+
+      <!-- ── CI Tab ────────────────────────────────────────────── -->
+      <div class="tab-panel active" id="tab-ci">
+        <div class="table-header-row">
+          <h3>Continuous Improvement (CI)</h3>
+          <div class="table-header-controls">
+            <select id="ci-filter" onchange="filterTable('ci')">
+              <option value="all">All Statuses</option>
+              <option value="approved">Approved</option>
+              <option value="pending">Pending</option>
+              <option value="denied">Denied</option>
+            </select>
+            <button class="add-btn">+ Add Submission</button>
+            <span id="ci-count" class="row-count">0 submissions</span>
+          </div>
+        </div>
+
+        <div class="table-scroll">
+          <table id="ci-table" class="dashboard-table"></table>
+        </div>
+      </div>
+
+      <!-- ── Safety Tab ────────────────────────────────────────── -->
+      <div class="tab-panel" id="tab-safety">
+        <div class="table-header-row">
+          <h3>Safety Concerns</h3>
+          <div class="table-header-controls">
+            <select id="safety-filter" onchange="filterTable('safety')">
+              <option value="all">All Statuses</option>
+              <option value="accepted">Accepted</option>
+              <option value="pending">Pending</option>
+              <option value="denied">Denied</option>
+            </select>
+            <button class="add-btn">+ Add Submission</button>
+            <span id="safety-count" class="row-count">0 submissions</span>
+          </div>
+        </div>
+
+        <div class="table-scroll">
+          <table id="safety-table" class="dashboard-table"></table>
+        </div>
+      </div>
+
+      <!-- ── Quality Catches Tab ───────────────────────────────── -->
+      <div class="tab-panel" id="tab-quality">
+        <div class="table-header-row">
+          <h3>Quality Catches</h3>
+          <div class="table-header-controls">
+            <select id="quality-filter" onchange="filterTable('quality')">
+              <option value="all">All</option>
+              <option value="pending">Pending</option>
+              <option value="closed">Closed</option>
+            </select>
+            <button class="add-btn">+ Add Submission</button>
+            <span id="quality-count" class="row-count">0 submissions</span>
+          </div>
+        </div>
+
+        <div class="table-scroll">
+          <table id="quality-table" class="dashboard-table"></table>
+        </div>
+      </div>
+
+ <script>
+// Sidebar toggle
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('expanded');
+}
+
+// Tab switching
+function showTab(tabId) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+  document.getElementById(`tab-${tabId}`).classList.add('active');
+  event.target.classList.add('active');
+  filterTable(tabId);
+  if (currentSort.tabId === tabId) sortTable(tabId, currentSort.colIndex);
+}
+
+// Data filtering
+const visibleCount = { ci: 10, safety: 10, quality: 10 };
+let currentSort = { tabId: null, colIndex: null, asc: true };
+
+function filterTable(type) {
+  const rows = Array.from(document.querySelectorAll(`#${type}-table tbody tr`));
+  const filter = document.getElementById(`${type}-filter`).value.toLowerCase();
+  let count = 0;
+  rows.forEach((r, idx) => {
+    const text = r.innerText.toLowerCase();
+    const show = (filter === 'all' || text.includes(filter));
+    r.style.display = show && idx < visibleCount[type] ? '' : 'none';
+    if (show && idx < visibleCount[type]) count++;
+  });
+  document.getElementById(`${type}-count`).innerText = `${count} submission${count !== 1 ? 's' : ''}`;
+}
+
+// Load more functionality
+function loadMore(type) {
+  visibleCount[type] += 10;
+  filterTable(type);
+  if (currentSort.tabId === type && currentSort.colIndex !== null) {
+    sortTable(type, currentSort.colIndex);
+  }
+}
+
+// Sorting logic
+function sortTable(type, colIndex) {
+  const table = document.getElementById(`${type}-table`);
+  const tbody = table.querySelector('tbody');
+  const visibleRows = Array.from(tbody.rows).filter(r => r.style.display !== 'none');
+  const numeric = visibleRows.every(r => !isNaN(r.cells[colIndex].innerText.replace(/[^0-9.-]/g, '')));
+  const asc = (currentSort.tabId === type && currentSort.colIndex === colIndex) ? !currentSort.asc : true;
+
+  visibleRows.sort((a, b) => {
+    const aVal = numeric ? parseFloat(a.cells[colIndex].innerText) : a.cells[colIndex].innerText;
+    const bVal = numeric ? parseFloat(b.cells[colIndex].innerText) : b.cells[colIndex].innerText;
+    return asc ? (aVal > bVal ? 1 : -1) : (aVal < bVal ? 1 : -1);
+  });
+
+  visibleRows.forEach(r => tbody.appendChild(r));
+  currentSort = { tabId: type, colIndex, asc };
+  updateSortIcons(type, colIndex, asc);
+  filterTable(type);
+}
+
+function updateSortIcons(type, colIndex, asc) {
+  document.querySelectorAll(`#${type}-table thead th`).forEach((th, idx) => {
+    th.classList.toggle('sorted-asc', idx === colIndex && asc);
+    th.classList.toggle('sorted-desc', idx === colIndex && !asc);
+  });
+}
+
+// Initialization logic
+document.addEventListener('DOMContentLoaded', () => {
+  ['ci', 'safety', 'quality'].forEach(type => {
+    document.querySelectorAll(`#${type}-table thead th`).forEach((th, idx) => {
+      th.classList.add('sortable');
+      th.addEventListener('click', () => sortTable(type, idx));
+    });
+    filterTable(type);
+  });
+});
+</script>
+
+  <!-- Existing table wiring -->
+  <script type="module" src="/scripts/init-dashboard.js?v=2025-08-07-1"></script>
+
+</body>
+</html>

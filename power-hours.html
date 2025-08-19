@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Power Hours – PowerUp Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <link rel="stylesheet" href="style.css">
+
+</head>
+<body class="power-hours">
+  <div class="container">
+    <div class="sidebar" id="sidebar">
+      <div class="item" onclick="toggleSidebar()"><i class="fas fa-bars"></i><span>Menu</span></div>
+      <div class="item" onclick="location.href='Dashboard (Refresh).html'"><i class="fas fa-home"></i><span>Dashboard</span></div>
+      <div class="item" onclick="location.href='level-tracker.html'"><i class="fas fa-layer-group"></i><span>Level Tracker</span></div>
+      <div class="item active"><i class="fas fa-clock"></i><span>Power Hours</span></div>
+      <div class="item" onclick="location.href='notes.html'"><i class="fas fa-sticky-note"></i><span>Notes</span></div>
+      <div class="item" onclick="location.href='squads.html'"><i class="fas fa-users"></i><span>Squads</span></div>
+    </div>
+    <div class="main">
+      <div class="header">
+ 	<h1>PowerUp Dashboard</h1>
+   	 <p>Welcome: <span>Chris Weikel</span> Month: <span>July 2025</span> Level: <span>Lv 2</span></p>
+      </div>
+      <div class="content">
+
+<div class="stats_bar">
+  <div class="power-card-small">
+    <h3>Power Hours Logged</h3>
+    <p>1.0 / 8</p>
+    <div class="progress-bar">
+      <div class="progress-bar-inner" style="width: 12.5%;"></div>
+    </div>
+    <small id="progress-info">0.0 hours to goal</small>
+  </div>
+
+  <div class="summary-details">
+    <span id="total-hours">Completed Hours: 0.0</span>
+    <select id="range-filter">
+      <option value="today">Today</option>
+      <option value="week" selected>This week</option>
+      <option value="month">This month</option>
+      <option value="all">All time</option>
+    </select>
+  </div>
+</div>
+
+        <div class="table-scroll">
+          <table id="power-table">
+            <thead>
+              <tr>
+                <th class="sortable">Date</th>
+                <th class="sortable">Start Time</th>
+                <th class="sortable">End Time</th>
+                <th class="sortable">Duration (hrs)</th>
+                <th class="sortable">Scheduled</th>
+                <th class="sortable">Completed</th>
+                <th class="sortable">Completed Hours</th>
+                <th class="sortable">Activity Description</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function toggleSidebar() {
+      document.getElementById('sidebar').classList.toggle('expanded');
+    }
+
+    // Dummy data for demonstration
+    const dummyPowerData = [
+      { date: '2025-08-01', start: '08:00', end: '10:00', duration: 2, scheduled: true, completed: true, completedHours: 2, activity: 'Process improvement' },
+      { date: '2025-08-02', start: '09:00', end: '12:00', duration: 3, scheduled: false, completed: true, completedHours: 3, activity: 'Safety training' },
+      { date: '2025-07-28', start: '14:00', end: '16:30', duration: 2.5, scheduled: true, completed: false, completedHours: 0, activity: 'Idle time' }
+    ];
+
+    const table = document.getElementById('power-table');
+    const tbody = table.querySelector('tbody');
+    const totalSpan = document.getElementById('total-hours');
+    const filter = document.getElementById('range-filter');
+
+    function renderTable(data) {
+      tbody.innerHTML = '';
+      data.forEach(r => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${r.date}</td>
+          <td>${r.start}</td>
+          <td>${r.end}</td>
+          <td>${r.duration}</td>
+          <td><input type="checkbox" disabled ${r.scheduled?'checked':''}></td>
+          <td><input type="checkbox" disabled ${r.completed?'checked':''}></td>
+          <td>${r.completedHours}</td>
+          <td>${r.activity}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function calculateTotal(data) {
+      const now = new Date();
+      let filtered = data;
+      if (filter.value === 'today') {
+        filtered = data.filter(r => new Date(r.date).toDateString() === now.toDateString());
+      } else if (filter.value === 'week') {
+        const weekAgo = new Date(now.getTime() - 6*24*60*60*1000);
+        filtered = data.filter(r => new Date(r.date) >= weekAgo && new Date(r.date) <= now);
+      } else if (filter.value === 'month') {
+        const start = new Date(now.getFullYear(), now.getMonth(), 1);
+        filtered = data.filter(r => new Date(r.date) >= start && new Date(r.date) <= now);
+      }
+      return filtered.reduce((sum, r) => sum + (r.completed ? r.completedHours : 0), 0).toFixed(1);
+    }
+
+    // Sorting
+    const headers = table.querySelectorAll('th');
+    headers.forEach((th, idx) => {
+      th.addEventListener('click', () => {
+        const asc = !th.classList.contains('sorted-asc');
+        const rows = Array.from(tbody.rows);
+        rows.sort((a, b) => {
+          let aVal = a.cells[idx].innerText, bVal = b.cells[idx].innerText;
+          if (idx === 3 || idx === 6) { aVal = parseFloat(aVal); bVal = parseFloat(bVal); }
+          return asc ? (aVal > bVal ? 1 : -1) : (aVal < bVal ? 1 : -1);
+        });
+        rows.forEach(r => tbody.appendChild(r));
+        headers.forEach(h => h.classList.remove('sorted-asc', 'sorted-desc'));
+        th.classList.add(asc ? 'sorted-asc' : 'sorted-desc');
+      });
+    });
+
+const GOAL_HOURS = 8; // Monthly goal
+const rangeSelect = document.getElementById('range-filter');
+
+function updateDashboardUI(data) {
+  const completedTotal = parseFloat(calculateTotal(data));
+  const pct = Math.min((completedTotal / GOAL_HOURS) * 100, 100);
+  document.getElementById('total-hours').textContent = `Completed Hours: ${completedTotal.toFixed(1)}`;
+  document.getElementById('summary-text').textContent = `${completedTotal.toFixed(1)} / ${GOAL_HOURS}`;
+  document.getElementById('progress-inner').style.width = pct + '%';
+  document.getElementById('progress-info').textContent = `${(GOAL_HOURS - completedTotal).toFixed(1)} hrs to goal`;
+}
+
+rangeSelect.addEventListener('change', () => {
+  renderTable(dummyPowerData);
+  updateDashboardUI(dummyPowerData);
+});
+
+// Call it in your initial load
+window.addEventListener('DOMContentLoaded', () => {
+  renderTable(dummyPowerData);
+  updateDashboardUI(dummyPowerData);
+  updateSortIcons();
+});
+
+  </script>
+
+</body>
+</html>

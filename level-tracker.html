@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Level Tracker – PowerUp Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <link rel="stylesheet" href="style.css">
+
+</head>
+<body class="level-tracker">
+  <div class="container">
+    <div class="sidebar" id="sidebar">
+      <div class="item" onclick="toggleSidebar()"><i class="fas fa-bars"></i><span>Menu</span></div>
+      <div class="item" onclick="location.href='Dashboard (Refresh).html'"><i class="fas fa-home"></i><span>Dashboard</span></div>
+      <div class="item active"><i class="fas fa-layer-group"></i><span>Level Tracker</span></div>
+      <div class="item" onclick="location.href='power-hours.html'"><i class="fas fa-clock"></i><span>Power Hours</span></div>
+      <div class="item" onclick="location.href='notes.html'"><i class="fas fa-sticky-note"></i><span>Notes</span></div>
+      <div class="item" onclick="location.href='squads.html'"><i class="fas fa-users"></i><span>Squads</span></div>
+    </div>
+
+    <div class="main">
+      <div class="header">
+        <h1>PowerUp Dashboard</h1>
+        <p>Welcome: <span>Chris Weikel</span> &nbsp; Month: <span>July 2025</span> &nbsp; Level: <span>Lv 2</span></p>
+      </div>
+
+      <div class="content">
+        <h2 style="color: var(--accent); margin-bottom: 12px;">Level Tracker</h2>
+        <p style="color: var(--info); margin-bottom: 20px;">Track performance across CI, Safety, and Quality submissions.</p>
+
+        <div class="table-scroll">
+          <table id="level-table">
+            <thead>
+              <tr>
+                <th class="sortable">Month Key</th>
+                <th class="sortable">CI Submissions</th>
+                <th class="sortable">Safety Submissions</th>
+                <th class="sortable">Quality Submissions</th>
+                <th class="sortable">Total Submissions</th>
+                <th class="sortable">Power Hours Logged</th>
+                <th class="sortable">Meets L1</th>
+                <th class="sortable">Meets L2</th>
+                <th class="sortable">Meets L3</th>
+                <th class="sortable">Level</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Data rows will be dynamically inserted here -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function toggleSidebar() {
+      document.getElementById('sidebar').classList.toggle('expanded');
+    }
+
+    // Sorting Logic
+    const table = document.getElementById('level-table');
+    let currentSort = { colIndex: null, asc: true };
+
+    table.querySelectorAll('th').forEach((th, idx) => {
+      th.addEventListener('click', () => {
+        const asc = currentSort.colIndex === idx ? !currentSort.asc : true;
+        const rows = Array.from(table.querySelectorAll('tbody tr'));
+        rows.sort((a, b) => {
+          const aText = a.cells[idx].innerText;
+          const bText = b.cells[idx].innerText;
+          return asc ? aText.localeCompare(bText) : bText.localeCompare(aText);
+        });
+        rows.forEach(row => table.querySelector('tbody').appendChild(row));
+        table.querySelectorAll('th').forEach(t => t.classList.remove('sorted-asc', 'sorted-desc'));
+        th.classList.add(asc ? 'sorted-asc' : 'sorted-desc');
+        currentSort = { colIndex: idx, asc };
+      });
+    });
+
+    // Simulated Data
+    const dummyData = [
+      ["Aug 2025", 5, 4, 3, 12, "4.5", "Yes", "Yes", "No", "Lv 2"],
+      ["Jul 2025", 3, 2, 4, 9, "8", "Yes", "No", "No", "Lv 1"],
+      ["Jun 2025", 6, 5, 4, 15, "7", "Yes", "Yes", "Yes", "Lv 3"]
+    ];
+    const tbody = document.querySelector('#level-table tbody');
+    dummyData.forEach(row => {
+      const tr = document.createElement('tr');
+      row.forEach(cell => {
+        const td = document.createElement('td');
+        td.textContent = cell;
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+  </script>
+</body>
+</html>

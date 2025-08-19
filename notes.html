@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Notes - PowerUp</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body class="notes">
+  <div class="container">
+    
+    <!-- Sidebar Nav -->
+    <div class="sidebar" id="sidebar">
+      <div class="item" onclick="toggleSidebar()"><i class="fas fa-bars"></i><span>Menu</span></div>
+      <div class="item" onclick="location.href='Dashboard (Refresh).html'"><i class="fas fa-home"></i><span>Dashboard</span></div>
+      <div class="item" onclick="location.href='level-tracker.html'"><i class="fas fa-layer-group"></i><span>Level Tracker</span></div>
+      <div class="item" onclick="location.href='power-hours.html'"><i class="fas fa-clock"></i><span>Power Hours</span></div>
+      <div class="item active"><i class="fas fa-sticky-note"></i><span>Notes</span></div>
+      <div class="item" onclick="location.href='squads.html'"><i class="fas fa-users"></i><span>Squads</span></div>
+    </div>
+
+    <!-- Main -->
+    <div class="main">
+      <div class="header">
+        <h1>PowerUp Notes</h1>
+        <p>Capture your ideas, reminders, and goals.</p>
+      </div>
+
+      <div class="content notes-layout">
+        <!-- Left: Sidebar Notes List -->
+        <aside class="notes-sidebar">
+          <div class="note-sidebar-header">
+            <h2>My Notes</h2>
+            <button class="add-btn" onclick="createNote()">➕ Add</button>
+          </div>
+          <ul id="notesList"></ul>
+        </aside>
+
+        <!-- Right: Editor Pane -->
+        <main class="notes-editor">
+
+<header class="notes-toolbar">
+  <div class="toolbar">
+    <button onclick="format('bold')"><i class="fas fa-bold"></i></button>
+    <button onclick="format('underline')"><i class="fas fa-underline"></i></button>
+    <button onclick="format('insertUnorderedList')"><i class="fas fa-list-ul"></i></button>
+    <button onclick="format('insertOrderedList')"><i class="fas fa-list-ol"></i></button>
+    <button onclick="format('undo')"><i class="fas fa-undo"></i></button>
+    <button onclick="format('redo')"><i class="fas fa-redo"></i></button>
+    <button onclick="format('removeFormat')"><i class="fas fa-eraser"></i></button>
+  </div>
+
+  <div class="controls">
+    <button class="save-btn" onclick="saveCurrentNote()">💾 Save</button>
+    <button class="delete-btn" onclick="deleteCurrentNote()">🗑 Delete</button>
+  </div>
+</header>
+
+          <div id="editor" class="note-editor" contenteditable="true" data-placeholder="Start writing your note..."></div>
+        </main>
+      </div>
+    </div>
+  </div>
+
+  <!-- Script -->
+  <script>
+    let notes = JSON.parse(localStorage.getItem("notes") || "[]");
+    let currentNoteId = null;
+
+    function renderNotes() {
+      const list = document.getElementById('notesList');
+      list.innerHTML = '';
+      notes.forEach(note => {
+        const li = document.createElement('li');
+li.innerHTML = `
+  <div class="note-card">
+    <div class="note-info">
+      <strong>${note.title || 'Untitled'}</strong>
+      <div class="note-meta">${new Date(note.updated).toLocaleString()}</div>
+    </div>
+    <button class="delete-icon" onclick="deleteNoteById(${note.id}, event)">
+      <i class="fas fa-trash-alt"></i>
+    </button>
+  </div>
+`;
+
+        li.classList.toggle('active', note.id === currentNoteId);
+        li.onclick = () => loadNote(note.id);
+        list.appendChild(li);
+      });
+    }
+
+    function createNote() {
+      const newNote = {
+        id: Date.now(),
+        title: 'Untitled Note',
+        content: '',
+        updated: new Date().toISOString()
+      };
+      notes.unshift(newNote);
+      currentNoteId = newNote.id;
+      renderNotes();
+      loadNote(currentNoteId);
+      saveNotes();
+    }
+
+    function loadNote(id) {
+      const note = notes.find(n => n.id === id);
+      if (note) {
+        currentNoteId = id;
+        document.getElementById('editor').innerHTML = note.content;
+        renderNotes();
+      }
+    }
+
+    function saveCurrentNote() {
+      const index = notes.findIndex(n => n.id === currentNoteId);
+      if (index !== -1) {
+        notes[index].content = document.getElementById('editor').innerHTML;
+        notes[index].title = document.getElementById('editor').innerText.split('\n')[0].slice(0, 30) || 'Untitled';
+        notes[index].updated = new Date().toISOString();
+        saveNotes();
+        renderNotes();
+      }
+    }
+
+    function deleteCurrentNote() {
+      if (!confirm("Delete this note?")) return;
+      notes = notes.filter(n => n.id !== currentNoteId);
+      currentNoteId = notes.length ? notes[0].id : null;
+      if (currentNoteId) loadNote(currentNoteId);
+      else document.getElementById('editor').innerHTML = '';
+      saveNotes();
+      renderNotes();
+    }
+
+function deleteNoteById(id, e) {
+  e.stopPropagation(); // Don’t open note when trash is clicked
+  if (!confirm("Delete this note?")) return;
+  notes = notes.filter(n => n.id !== id);
+  currentNoteId = notes.length ? notes[0].id : null;
+  if (currentNoteId) loadNote(currentNoteId);
+  else document.getElementById('editor').innerHTML = '';
+  saveNotes();
+  renderNotes();
+}
+
+    function saveNotes() {
+      localStorage.setItem("notes", JSON.stringify(notes));
+    }
+
+    function format(command) {
+      document.execCommand(command, false, null);
+    }
+
+    function formatBlock(tag) {
+      document.execCommand('formatBlock', false, tag);
+    }
+
+    function toggleSidebar() {
+      document.getElementById('sidebar').classList.toggle('expanded');
+    }
+
+    // Init
+    renderNotes();
+    if (notes.length) loadNote(notes[0].id);
+  </script>
+</body>
+</html>

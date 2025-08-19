@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Squad Details - PowerUp Dashboard Style</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap');
+
+        body {
+            font-family: 'Montserrat', sans-serif;
+            background-color: #1a1a2e; /* Dark background from dashboard */
+            color: #e0e0e0; /* Light text color */
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+        }
+
+        .main-content {
+            padding: 30px;
+            box-sizing: border-box;
+            max-width: 1200px; /* Limit content width for readability */
+            margin: 0 auto; /* Center the content */
+        }
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 15px;
+        }
+
+        .page-header h1 {
+            color: #00f08e; /* Green for main titles */
+            font-size: 28px;
+            font-weight: 700;
+            margin: 0;
+        }
+
+        .page-header .squad-category-tag {
+            background-color: #0f4c75;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 14px;
+            margin-left: 20px;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .action-button, .back-button {
+            background-color: #0f4c75; /* Blue button */
+            color: white;
+            padding: 8px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 600;
+            transition: background-color 0.3s ease;
+        }
+
+        .action-button:hover, .back-button:hover {
+            background-color: #3282b8; /* Lighter blue on hover */
+        }
+
+        .content-grid {
+            display: grid;
+            grid-template-columns: 1fr; /* Default to single column */
+            gap: 25px;
+        }
+
+        @media (min-width: 768px) {
+            .content-grid {
+                grid-template-columns: 2fr 1fr; /* Two columns on larger screens */
+            }
+        }
+
+        .card-panel {
+            background-color: #16213e; /* Card background */
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            margin-bottom: 20px; /* Space between cards in single column layout */
+        }
+
+        .card-panel h2 {
+            color: #00f08e; /* Green for section titles */
+            font-size: 22px;
+            margin-top: 0;
+            margin-bottom: 15px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 10px;
+        }
+
+        .detail-item {
+            display: flex;
+            margin-bottom: 8px;
+        }
+
+        .detail-item strong {
+            color: #b0b0b0;
+            min-width: 100px; /* Align labels */
+            margin-right: 10px;
+        }
+
+        .detail-item span {
+            color: #e0e0e0;
+        }
+
+        .members-table, .activity-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        .members-table th, .activity-table th {
+            background-color: #0f4c75; /* Blue header for tables */
+            color: white;
+            padding: 10px;
+            text-align: left;
+            font-size: 14px;
+        }
+
+        .members-table td, .activity-table td {
+            padding: 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            font-size: 13px;
+        }
+
+        .members-table tr:last-child td, .activity-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .members-table tbody tr:hover, .activity-table tbody tr:hover {
+            background-color: rgba(0, 0, 0, 0.2);
+        }
+
+        .add-button {
+            background-color: #00f08e; /* Green for positive actions */
+            color: #1a1a2e;
+            padding: 8px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            margin-top: 15px;
+            transition: background-color 0.3s ease;
+        }
+
+        .add-button:hover {
+            background-color: #99ffcc;
+        }
+    </style>
+</head>
+<body>
+    <div class="main-content">
+        <div class="page-header">
+            <div style="display: flex; align-items: center;">
+                <h1>CI Automation Team</h1>
+                <span class="squad-category-tag">Continuous Improvement Squad</span>
+            </div>
+            <div class="action-buttons">
+                <a href="manage-squads.html?edit=ci_automation" class="action-button">Edit Squad</a>
+                <button class="action-button" onclick="alert('Delete functionality to be implemented!');">Delete Squad</button>
+                <a href="squads.html" class="back-button">Back to Squads</a>
+            </div>
+        </div>
+
+        <div class="content-grid">
+            <!-- Left Column / Main Details -->
+            <div>
+                <div class="card-panel">
+                    <h2>Overview & Key Metrics</h2>
+                    <div class="detail-item"><strong>Leader:</strong><span>John Doe</span></div>
+                    <div class="detail-item"><strong>Status:</strong><span>Active</span></div>
+                    <div class="detail-item"><strong>Focus:</strong><span>Process Automation Initiatives to streamline workflows.</span></div>
+                    <div class="detail-item"><strong>Est. Completion:</strong><span>Q4 2025</span></div>
+                    <div class="detail-item"><strong>Approved Submissions:</strong><span>12</span></div>
+                    <div class="detail-item"><strong>Tokens Generated:</strong><span>150</span></div>
+                </div>
+
+                <div class="card-panel">
+                    <h2>Recent Activity Log</h2>
+                    <table class="activity-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Activity</th>
+                                <th>Performer</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>2025-07-30</td>
+                                <td>Completed "Automate Reporting" Task</td>
+                                <td>Jane Smith</td>
+                            </tr>
+                            <tr>
+                                <td>2025-07-28</td>
+                                <td>Submitted new CI proposal: "AI-driven Anomaly Detection"</td>
+                                <td>John Doe</td>
+                            </tr>
+                            <tr>
+                                <td>2025-07-25</td>
+                                <td>Approved budget for new software license</td>
+                                <td>Alex Green</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Right Column / Members -->
+            <div class="card-panel">
+                <h2>Squad Members</h2>
+                <table class="members-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Role</th>
+                            <th>CI Submissions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>John Doe</td>
+                            <td>Squad Leader</td>
+                            <td>5</td>
+                        </tr>
+                        <tr>
+                            <td>Jane Smith</td>
+                            <td>Automation Specialist</td>
+                            <td>4</td>
+                        </tr>
+                        <tr>
+                            <td>Alex Green</td>
+                            <td>Process Analyst</td>
+                            <td>3</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <button class="add-button" onclick="alert('Add Member functionality to be implemented!');">Add Member</button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
