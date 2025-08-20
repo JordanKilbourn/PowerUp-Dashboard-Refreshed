@@ -56,18 +56,19 @@
           </p>
 
           <!-- Progress bar with target markers -->
-          <div class="progress-bar progress-with-markers">
-            <div class="progress-bar-inner" data-hook="ph.barFill"></div>
-            <!-- target lines (positions are set by JS) -->
-            <div class="goal-marker min" data-hook="ph.minMarker" title="Min target"></div>
-            <div class="goal-marker max" data-hook="ph.maxMarker" title="Max target"></div>
-          </div>
-
-          <!-- Legend below bar -->
-          <div class="progress-legend">
-            <span data-hook="ph.minLegend">Min — 0h</span>
-            <span data-hook="ph.maxLegend">Max — 8h</span>
-          </div>
+<div class="progress-bar ph-track">
+  <!-- shaded band from min → max -->
+  <div class="progress-target-band" data-hook="ph.band"></div>
+  <!-- fill from 0 → current -->
+  <div class="progress-bar-inner" data-hook="ph.barFill"></div>
+  <!-- thumb at current point -->
+  <div class="progress-thumb" data-hook="ph.thumb" title="Current"></div>
+</div>
+<div class="progress-legend">
+  <span data-hook="ph.zeroLegend">0h</span>
+  <span data-hook="ph.minLegend">Min — 0h</span>
+  <span data-hook="ph.maxLegend">Max — 8h</span>
+</div>
 
           <small data-hook="ph.message">Keep going — 8.0 hrs to minimum</small>
         </div>
@@ -257,3 +258,4 @@
   </script>
 </body>
 </html>
+
