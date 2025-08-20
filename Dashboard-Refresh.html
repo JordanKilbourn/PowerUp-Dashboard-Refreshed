@@ -4,10 +4,27 @@
   <meta charset="UTF-8" />
   <title>PowerUp Dashboard</title>
 
-  <!-- Fonts / Icons / Styles -->
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+  <!-- Fonts / Icons / Base styles -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
   <link rel="stylesheet" href="style.css" />
+
+  <!-- Progress V2 color overrides (teal/blue theme) -->
+  <style>
+    /* bubbles + dots use teal */
+    .phv2-bubble-icon { background: rgba(8,214,182,0.10); border-color: rgba(8,214,182,0.35); }
+    .phv2-bubble-dot { background:#08d6b6; }
+
+    /* track fill (met/exceeded) already teal/blue in style.css; below left as-is */
+    .phv2-fill.below    { background:#2e4a49; }
+
+    /* min→max band in soft cyan instead of gold */
+    .phv2-band {
+      background: linear-gradient(to right, rgba(8,214,182,0.20), rgba(8,214,182,0.12));
+      border-left: 2px solid rgba(8,214,182,0.65);
+      border-right: 2px solid rgba(8,214,182,0.65);
+    }
+  </style>
 </head>
 
 <body class="dashboard">
@@ -55,54 +72,52 @@
             <span data-hook="ph.goalMax">8</span>
           </p>
 
-         <!-- ===== Progress V2 (pill, ticks, thumb, min/max bubbles) ===== -->
-<div class="phv2" aria-live="polite">
-  <!-- floating icon bubbles for min/max -->
-  <div class="phv2-bubbles">
-    <div class="phv2-bubble" data-hook="ph.minMarker" aria-hidden="true">
-      <div class="phv2-bubble-icon" title="Minimum target">
-        <!-- simple inline SVG, replace if you want -->
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-          <circle cx="12" cy="12" r="10" stroke="#08d6b6" stroke-width="2"/>
-          <path d="M7 12h10" stroke="#08d6b6" stroke-width="2" stroke-linecap="round"/>
-        </svg>
-      </div>
-      <span class="phv2-bubble-dot"></span>
-    </div>
+          <!-- ===== Progress V2 (pill, ticks, thumb, min/max bubbles) ===== -->
+          <div class="phv2" aria-live="polite">
+            <!-- floating min/max bubbles -->
+            <div class="phv2-bubbles">
+              <div class="phv2-bubble" data-hook="ph.minMarker" aria-hidden="true">
+                <div class="phv2-bubble-icon" title="Minimum target">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                    <circle cx="12" cy="12" r="10" stroke="#08d6b6" stroke-width="2"/>
+                    <path d="M7 12h10" stroke="#08d6b6" stroke-width="2" stroke-linecap="round"/>
+                  </svg>
+                </div>
+                <span class="phv2-bubble-dot"></span>
+              </div>
+              <div class="phv2-bubble" data-hook="ph.maxMarker" aria-hidden="true">
+                <div class="phv2-bubble-icon" title="Maximum target">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                    <circle cx="12" cy="12" r="10" stroke="#08d6b6" stroke-width="2"/>
+                    <path d="M7 12h10M12 7v10" stroke="#08d6b6" stroke-width="2" stroke-linecap="round"/>
+                  </svg>
+                </div>
+                <span class="phv2-bubble-dot"></span>
+              </div>
+            </div>
 
-    <div class="phv2-bubble" data-hook="ph.maxMarker" aria-hidden="true">
-      <div class="phv2-bubble-icon" title="Maximum target">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-          <circle cx="12" cy="12" r="10" stroke="#08d6b6" stroke-width="2"/>
-          <path d="M7 12h10M12 7v10" stroke="#08d6b6" stroke-width="2" stroke-linecap="round"/>
-        </svg>
-      </div>
-      <span class="phv2-bubble-dot"></span>
-    </div>
-  </div>
+            <!-- track -->
+            <div class="phv2-track"
+                 data-hook="ph.track"
+                 role="progressbar"
+                 aria-valuemin="0"
+                 aria-valuemax="8"
+                 aria-valuenow="0">
+              <div class="phv2-ticks"></div>
+              <div class="phv2-band"  data-hook="ph.band"></div>
+              <div class="phv2-fill"  data-hook="ph.fill"></div>
+              <div class="phv2-thumb" data-hook="ph.thumb" title="Current"></div>
+            </div>
 
-  <!-- the track -->
-  <div class="phv2-track"
-       data-hook="ph.track"
-       role="progressbar"
-       aria-valuemin="0"
-       aria-valuemax="8"
-       aria-valuenow="0">
-    <div class="phv2-ticks"></div>             <!-- static ticks -->
-    <div class="phv2-band"  data-hook="ph.band"></div>   <!-- min→max band -->
-    <div class="phv2-fill"  data-hook="ph.fill"></div>   <!-- 0→current fill -->
-    <div class="phv2-thumb" data-hook="ph.thumb" title="Current"></div>
-  </div>
+            <div class="phv2-legend">
+              <span data-hook="ph.zeroLegend">0h</span>
+              <span data-hook="ph.minLegend">Min — 0h</span>
+              <span data-hook="ph.maxLegend">Max — 8h</span>
+            </div>
 
-  <!-- labels -->
-  <div class="phv2-legend">
-    <span data-hook="ph.zeroLegend">0h</span>
-    <span data-hook="ph.minLegend">Min — 0h</span>
-    <span data-hook="ph.maxLegend">Max — 8h</span>
-  </div>
-
-  <small data-hook="ph.message">—</small>
-</div>
+            <small data-hook="ph.message">—</small>
+          </div>
+        </div>
 
         <!-- Tokens -->
         <div class="card token-card">
@@ -112,7 +127,7 @@
             <span data-hook="token.total">0</span>
           </div>
         </div>
-      </div> <!-- /top-cards -->
+      </div>
 
       <!-- Tabs -->
       <div class="tab-buttons">
@@ -289,4 +304,3 @@
   </script>
 </body>
 </html>
-
