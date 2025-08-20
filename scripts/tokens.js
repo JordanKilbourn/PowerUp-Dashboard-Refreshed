@@ -1,4 +1,4 @@
-<script>
+
 window.PowerUp = window.PowerUp || {};
 (function (ns) {
   const { fetchSheet, SHEETS } = ns.api;
@@ -16,4 +16,4 @@ window.PowerUp = window.PowerUp || {};
     if (el) el.textContent = total.toString();
   };
 })(window.PowerUp);
-</script>
+
