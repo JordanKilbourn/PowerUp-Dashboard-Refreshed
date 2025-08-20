@@ -90,7 +90,7 @@ body, html {
   color: var(--accent); font-weight: 600;
 }
 
-/* === 5. Dashboard specific (duh 2.0.html) === */
+/* === 5. Dashboard specific === */
 body.dashboard .top-cards {
   display: flex;
   gap: 20px;
@@ -169,7 +169,6 @@ body.dashboard .progress-bar-inner {
 }
 
 
-/* === 5.1 Dashboard Progress Bar (unscoped) === */
 /* ===     Progress Bars === */
 .progress-bar {
   height: 8px;
@@ -716,5 +715,6 @@ body.notes .note-editor:empty:before {
 .delete-icon:hover {
   opacity: 1;
 }
+
 
 
