@@ -21,15 +21,21 @@ window.PowerUp = window.PowerUp || {};
       "Token Payout",
       "Paid"
     ],
-    // Safety: use the displayed columns from your Safety sheet (adjust if names differ)
-    safety: [
-      "Entry Date",
-      "Submitted By",
-      "Area",
-      "Concern",            // if your column is literally "Concern"; change if different
-      "Description",
-      "Status"
-    ],
+    
+    // SAFETY: exact titles you provided
+  safety: [
+    "Date",
+    "Department/Area",
+    "Safety Concern",
+    "Describe the safety concern",
+    "Recommendations to correct/improve safety issue",
+    "Resolution",
+    "Who was the safety concern escalated to",
+    "Leadership update",
+    "Closed/Confirmed by- leadership only",
+    "Status"
+  ],
+    
     // Quality Catches: “all displayed” in your screenshot
     quality: [
       "Catch ID",
@@ -59,14 +65,18 @@ window.PowerUp = window.PowerUp || {};
       "Token Payout": "Tokens",
       "Paid": "Paid"
     },
-    safety: {
-      "Entry Date": "Date",
-      "Submitted By": "Submitted By",
-      "Area": "Area",
-      "Concern": "Concern",
-      "Description": "Description",
-      "Status": "Status"
-    },
+   safety: {
+    "Date": "Date",
+    "Department/Area": "Department/Area",
+    "Safety Concern": "Safety Concern",
+    "Describe the safety concern": "Description",
+    "Recommendations to correct/improve safety issue": "Recommendation",
+    "Resolution": "Resolution",
+    "Who was the safety concern escalated to": "Escalated To",
+    "Leadership update": "Leadership Update",
+    "Closed/Confirmed by- leadership only": "Closed/Confirmed",
+    "Status": "Status"
+  },
     quality: {
       "Catch ID": "ID",
       "Entry Date": "Date",
