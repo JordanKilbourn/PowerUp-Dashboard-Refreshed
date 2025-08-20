@@ -1,4 +1,4 @@
-<script>
+
 window.PowerUp = window.PowerUp || {};
 (function (ns) {
   const Session = {
@@ -43,4 +43,4 @@ window.PowerUp = window.PowerUp || {};
 
   ns.session = Session;
 })(window.PowerUp);
-</script>
+
