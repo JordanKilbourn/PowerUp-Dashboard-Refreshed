@@ -737,5 +737,41 @@ body.notes .note-editor:empty:before {
   margin-top: 6px;
 }
 
+/* ===== Target-band progress styling ===== */
+.ph-track { position: relative; }
+.progress-target-band {
+  position: absolute;
+  top: 0; bottom: 0;
+  left: 0; width: 0;
+  /* a subtle highlight for “in target” zone */
+  background: linear-gradient(to right, rgba(244,209,61,.28), rgba(244,209,61,.18));
+  border-left: 2px solid #f4d13d;
+  border-right: 2px solid #f4d13d;
+  pointer-events: none;
+  border-radius: 999px; /* follow bar rounding */
+}
+.progress-thumb {
+  position: absolute;
+  top: 50%;
+  width: 10px; height: 10px;
+  background: #eafef5;           /* bright dot */
+  border: 2px solid #0dd9a3;     /* matches your teal */
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 0 2px rgba(13,217,163,.18);
+  pointer-events: none;
+}
+.progress-legend {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  opacity: .88;
+  margin-top: 6px;
+}
+.progress-legend span:nth-child(2) { /* Min label centered under band start */
+  text-align: left;
+}
+
 
 
