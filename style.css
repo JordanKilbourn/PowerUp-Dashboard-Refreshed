@@ -716,5 +716,26 @@ body.notes .note-editor:empty:before {
   opacity: 1;
 }
 
+/* ===== Progress markers ===== */
+.progress-with-markers { position: relative; }
+.goal-marker {
+  position: absolute;
+  top: -2px;               /* extend slightly above the bar */
+  bottom: -2px;            /* and slightly below */
+  width: 2px;
+  background: rgba(255,255,255,0.7);
+  pointer-events: none;
+}
+.goal-marker.min { background: #f4d13d; }  /* accent for min */
+.goal-marker.max { background: #999; }     /* end cap at 100% */
+
+.progress-legend {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  opacity: 0.85;
+  margin-top: 6px;
+}
+
 
 
