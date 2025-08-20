@@ -1,4 +1,4 @@
-<script>
+
 window.PowerUp = window.PowerUp || {};
 (function (ns) {
   // If your proxy base is different, change this:
@@ -26,4 +26,4 @@ window.PowerUp = window.PowerUp || {};
 
   ns.api = { fetchSheet, SHEETS, Cache };
 })(window.PowerUp);
-</script>
+
