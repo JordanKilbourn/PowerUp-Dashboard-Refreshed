@@ -36,19 +36,28 @@ window.PowerUp = window.PowerUp || {};
     };
   }
 
-  function sumCompletedHours(rows, employeeId, mk) {
+  // Derive 'YYYY-MM' from Month Key / Month / Date
+  function rowMonthKey(r) {
+    const mk = r["MonthKey"] || r["Month Key"];
+    if (mk) return String(mk).slice(0, 7);
+    const m = r["Month"];
+    if (m) {
+      const d = new Date(m);
+      if (!isNaN(d)) return monthKey(d);
+    }
+    const d = new Date(r["Date"]);
+    if (!isNaN(d)) return monthKey(d);
+    return "";
+  }
+
+  function sumCompletedHours(rows, employeeId, targetMk) {
     return rows
       .filter(r => {
         const id = String(r["Employee ID"] || r["Position ID"] || "").trim();
-        const k  = String(r["MonthKey"] || r["Month Key"] || "").trim();
-        return id === employeeId && k === mk;
+        return id === employeeId && rowMonthKey(r) === targetMk;
       })
       .reduce((sum, r) => {
         const ch = Number(r["Completed Hours"]) || 0;
-        // If you want to fallback to Duration when Completed Hours is blank, uncomment next two lines:
-        // if (!ch) {
-        //   const dur = Number(String(r["Duration (hrs)"]).replace(/[^0-9.-]/g,"")) || 0; return sum + dur;
-        // }
         return sum + ch;
       }, 0);
   }
