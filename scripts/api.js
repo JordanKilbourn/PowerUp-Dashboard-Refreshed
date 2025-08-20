@@ -1,14 +1,16 @@
 <script>
 window.PowerUp = window.PowerUp || {};
 (function (ns) {
-  // 🔧 If your proxy base is different, change this:
+  // If your proxy base is different, change this:
   const API_BASE = "/api/smartsheet";
 
-  // Use your authoritative Smartsheet IDs here
+  // Keep these key names exactly (CI / SAFETY / QUALITY) so other scripts work
   const SHEETS = {
     EMPLOYEE_MASTER: "2195459817820036",
     GOALS:           "3542697273937796",
     POWER_HOURS:     "1240392906264452",
+
+    // ✅ your corrected IDs:
     CI:              "6797575881445252",
     SAFETY:          "3310696565526404",
     QUALITY:         "8096237664292740"
