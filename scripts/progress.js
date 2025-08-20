@@ -3,9 +3,8 @@ window.PowerUp = window.PowerUp || {};
 (function (ns) {
   const { fetchSheet, rowsByTitle, SHEETS } = ns.api;
 
-  function monthKey(d = new Date()) {
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-  }
+  const monthKey = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+
   function setBar(fillEl, pct, state) {
     if (!fillEl) return;
     fillEl.style.width = Math.max(0, Math.min(100, pct)) + "%";
@@ -37,9 +36,21 @@ window.PowerUp = window.PowerUp || {};
     };
   }
 
-  function sumHours(rows, filterFn) {
-    return rows.filter(filterFn)
-      .reduce((sum, r) => sum + (Number(r["Completed Hours"] || 0) || 0), 0);
+  function sumCompletedHours(rows, employeeId, mk) {
+    return rows
+      .filter(r => {
+        const id = String(r["Employee ID"] || r["Position ID"] || "").trim();
+        const k  = String(r["MonthKey"] || r["Month Key"] || "").trim();
+        return id === employeeId && k === mk;
+      })
+      .reduce((sum, r) => {
+        const ch = Number(r["Completed Hours"]) || 0;
+        // If you want to fallback to Duration when Completed Hours is blank, uncomment next two lines:
+        // if (!ch) {
+        //   const dur = Number(String(r["Duration (hrs)"]).replace(/[^0-9.-]/g,"")) || 0; return sum + dur;
+        // }
+        return sum + ch;
+      }, 0);
   }
 
   ns.renderDashboardPowerHours = async function () {
@@ -53,28 +64,24 @@ window.PowerUp = window.PowerUp || {};
     const phRows = rowsByTitle(phSheet);
     const mk = monthKey();
 
-    const myMonthHours = sumHours(phRows, r => {
-      const emp = String(r["Employee ID"] || r["Position ID"] || "").trim();
-      const mkCell = String(r["MonthKey"] || r["Month Key"] || "").trim();
-      return emp === employeeId && mkCell === mk;
-    });
+    const hours = sumCompletedHours(phRows, employeeId, mk);
 
     const totalEl   = document.querySelector('[data-hook="ph.total"]');
     const goalMaxEl = document.querySelector('[data-hook="ph.goalMax"]');
     const fillEl    = document.querySelector('[data-hook="ph.barFill"]');
     const msgEl     = document.querySelector('[data-hook="ph.message"]');
 
-    if (totalEl)   totalEl.textContent   = myMonthHours.toFixed(1);
+    if (totalEl)   totalEl.textContent   = hours.toFixed(1);
     if (goalMaxEl) goalMaxEl.textContent = String(goals.max);
 
-    const pct = (myMonthHours / (goals.max || 1)) * 100;
-    const state = pickState(myMonthHours, goals.min, goals.max);
+    const pct = (hours / (goals.max || 1)) * 100;
+    const state = pickState(hours, goals.min, goals.max);
     setBar(fillEl, pct, state);
 
     let msg = "";
-    if (state === "below") msg = `Keep going — ${(goals.min - myMonthHours).toFixed(1)} hrs to minimum`;
-    else if (state === "met") msg = `Target met! (${myMonthHours.toFixed(1)} hrs)`;
-    else msg = `Exceeded! (${myMonthHours.toFixed(1)} hrs)`;
+    if (state === "below") msg = `Keep going — ${(goals.min - hours).toFixed(1)} hrs to minimum`;
+    else if (state === "met") msg = `Target met! (${hours.toFixed(1)} hrs)`;
+    else msg = `Exceeded! (${hours.toFixed(1)} hrs)`;
     if (msgEl) msgEl.textContent = msg;
   };
 })(window.PowerUp);
