@@ -9,9 +9,9 @@ window.PowerUp = window.PowerUp || {};
     EMPLOYEE_MASTER: "2195459817820036",
     GOALS:           "3542697273937796",
     POWER_HOURS:     "1240392906264452",
-    CI:              "6584024920182660",
-    SAFETY:          "4089265651666820",
-    QUALITY:         "1431258165890948"
+    CI:              "6797575881445252",
+    SAFETY:          "3310696565526404",
+    QUALITY:         "8096237664292740"
   };
 
   async function fetchSheet(id) {
