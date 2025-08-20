@@ -3,131 +3,118 @@ window.PowerUp = window.PowerUp || {};
 (function (ns) {
   const { fetchSheet, rowsByTitle, SHEETS } = ns.api;
 
-  // --- helpers ---------------------------------------------------------------
+  // ---------- helpers ----------
+  const nowMonthNum = (new Date()).getMonth() + 1; // 1..12
 
-  // Current month key "YYYY-MM"
-  const thisMonthKey = (() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2, "0")}`;
-  })();
-
-  // Try to normalize any of ['Month Key','MonthKey','Month','Date'] to "YYYY-MM"
-  function rowMonthKey(r) {
-    const mk = r["Month Key"] || r["MonthKey"];
-    if (mk) return String(mk).slice(0, 7); // assume "YYYY-MM..." or exact
-
-    const m = r["Month"] ?? r["month"];
-    if (m) {
-      const d = tryParseDate(m);
-      if (d) return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2, "0")}`;
-    }
-
-    const d2 = tryParseDate(r["Date"]);
-    if (d2) return `${d2.getFullYear()}-${String(d2.getMonth()+1).padStart(2, "0")}`;
-
-    return ""; // unknown
-  }
-
-  function tryParseDate(v) {
-    if (!v) return null;
-    // Works for ISO, MM/DD/YYYY, YYYY-MM, Smartsheet's display, etc.
-    const d = new Date(v);
-    if (!isNaN(d)) return d;
-
-    // Try common "MM/YYYY"
-    const m = String(v).match(/^(\d{1,2})[\/\-](\d{4})$/);
-    if (m) {
-      const mm = Number(m[1]) - 1, yyyy = Number(m[2]);
-      const d2 = new Date(yyyy, mm, 1);
-      return isNaN(d2) ? null : d2;
-    }
-    return null;
-  }
-
-  function num(v) {
+  const toNum = (v) => {
     const n = Number(String(v).replace(/[^0-9.\-]/g, ""));
-    return isNaN(n) ? 0 : n;
-  }
+    return Number.isFinite(n) ? n : 0;
+  };
+  const toBool = (v) => {
+    if (v === true) return true;
+    const s = String(v).trim().toLowerCase();
+    return s === "true" || s === "yes" || s === "y" || s === "1" || s === "checked";
+  };
 
   function setBar(fillEl, pct, state) {
     if (!fillEl) return;
     fillEl.style.width = Math.max(0, Math.min(100, pct)) + "%";
-    fillEl.classList.remove("below", "met", "exceeded");
+    fillEl.classList.remove("below","met","exceeded");
     if (state) fillEl.classList.add(state);
   }
-
   function stateFor(hours, minGoal, maxGoal) {
     if (hours < minGoal) return "below";
     if (hours <= maxGoal) return "met";
     return "exceeded";
   }
 
-  // Optional goals by level; if that fetch fails we use 8
-  async function getGoalsOrDefault(employeeId) {
+  // Normalize "PowerUp Level (Select)" -> L1/L2/L3 for lookup in Power Hour Targets
+  function normalizeLevel(val) {
+    if (!val) return "";                   // unknown
+    const s = String(val).toUpperCase();   // e.g., "LVL 2", "L2", "Lvl 3"
+    const m = s.match(/(\d+)/);            // first digit
+    if (m) return `L${m[1]}`;              // -> "L2"
+    // If sheet already stores "L1"/"L2"/"L3" without digit elsewhere, pass through:
+    if (/^L[0-9]+$/.test(s)) return s;
+    return ""; // no match
+  }
+
+  // Read goals from Employee Master + Power Hour Targets
+  async function getMonthlyGoals(employeeId) {
     try {
-      const [emSheet, goalsSheet] = await Promise.all([
-        fetchSheet(SHEETS.EMPLOYEE_MASTER),
-        fetchSheet(SHEETS.GOALS)
+      const [emSheet, targetsSheet] = await Promise.all([
+        fetchSheet(SHEETS.EMPLOYEE_MASTER), // has "PowerUp Level (Select)"
+        fetchSheet(SHEETS.GOALS)            // your "Power Hour Targets" sheet
       ]);
-      const em = rowsByTitle(emSheet);
-      const goals = rowsByTitle(goalsSheet);
+      const emRows = rowsByTitle(emSheet);
+      const targets = rowsByTitle(targetsSheet);
 
-      const me = em.find(r => String(r["Position ID"] || "").trim() === String(employeeId).trim());
-      const level = me?.["PowerUp Level (Select)"] || "";
+      const me = emRows.find(r => String(r["Employee ID"] || r["Position ID"] || "").trim() === String(employeeId).trim());
+      const levelKey = normalizeLevel(me?.["PowerUp Level (Select)"]);
+      const row = targets.find(t => String(t["Level"] || "").toUpperCase() === levelKey);
 
-      const row = goals.find(g => String(g["Level"]||"").trim() === String(level).trim());
       if (row) {
-        const min = num(row["Min"]); const max = num(row["Max"]) || min;
-        if (min) return { min, max };
+        const min = toNum(row["Min Hours"]);
+        const max = toNum(row["Max Hours"]) || min || 8;
+        return { min: min || 8, max: max || 8, level: me?.["PowerUp Level (Select)"] || "Unknown" };
       }
-      return { min: 8, max: 8 };
+      return { min: 8, max: 8, level: me?.["PowerUp Level (Select)"] || "Unknown" };
     } catch {
-      return { min: 8, max: 8 };
+      return { min: 8, max: 8, level: "Unknown" };
     }
   }
 
-  // --- main ------------------------------------------------------------------
-
+  // ---------- main ----------
   ns.renderDashboardPowerHours = async function () {
     const { employeeId } = ns.session.get();
     if (!employeeId) return;
 
-    // 1) Get Power Hours rows
+    // 1) Read Power Hours Tracker
     const phSheet = await fetchSheet(SHEETS.POWER_HOURS);
-    const rows = rowsByTitle(phSheet);
+    const rows    = rowsByTitle(phSheet);
 
-    // 2) Filter: this employee + current month
-    const mineThisMonth = rows.filter(r => {
-      const id = String(r["Employee ID"] || r["Position ID"] || "").trim();
-      return id === String(employeeId).trim() && rowMonthKey(r) === thisMonthKey;
-    });
+    // Only this user's rows
+    const mine = rows.filter(r => String(r["Employee ID"] || "").trim() === String(employeeId).trim());
 
-    // 3) Sum Completed Hours
-    const hours = mineThisMonth.reduce((sum, r) => sum + num(r["Completed Hours"]), 0);
+    // 2) Current month completed hours
+    const monthCompleted = mine
+      .filter(r => Number(r["Month"]) === nowMonthNum)
+      .reduce((sum, r) => sum + toNum(r["Completed Hours"]), 0);
 
-    // 4) Goals (by level) with safe fallback
-    const { min, max } = await getGoalsOrDefault(employeeId);
+    // 3) All-time completed hours
+    const allTimeCompleted = mine.reduce((sum, r) => sum + toNum(r["Completed Hours"]), 0);
 
-    // 5) Update UI
+    // 4) Scheduled (not completed) hours — sum Duration (hrs)
+    const scheduledHours = mine
+      .filter(r => toBool(r["Scheduled"]) && !toBool(r["Completed"]))
+      .reduce((sum, r) => sum + toNum(r["Duration (hrs)"]), 0);
+
+    // Expose for later pages if needed
+    ns.powerHours = { monthCompleted, allTimeCompleted, scheduledHours };
+
+    // 5) Goals from Power Hour Targets (via level from Employee Master)
+    const { min, max } = await getMonthlyGoals(employeeId);
+
+    // 6) Update UI
     const totalEl   = document.querySelector('[data-hook="ph.total"]');
     const goalMaxEl = document.querySelector('[data-hook="ph.goalMax"]');
-    const barFill   = document.querySelector('[data-hook="ph.barFill"]');
+    const fillEl    = document.querySelector('[data-hook="ph.barFill"]');
     const msgEl     = document.querySelector('[data-hook="ph.message"]');
 
-    if (totalEl)   totalEl.textContent   = hours.toFixed(1);
+    if (totalEl)   totalEl.textContent   = monthCompleted.toFixed(1);
     if (goalMaxEl) goalMaxEl.textContent = String(max);
 
-    const pct = max ? (hours / max) * 100 : 0;
-    const state = stateFor(hours, min, max);
-    setBar(barFill, pct, state);
+    const pct   = max ? (monthCompleted / max) * 100 : 0;
+    const state = stateFor(monthCompleted, min, max);
+    setBar(fillEl, pct, state);
 
     let msg = "";
-    if (state === "below")   msg = `Keep going — ${(min - hours).toFixed(1)} hrs to minimum`;
-    else if (state === "met")      msg = `Target met! (${hours.toFixed(1)} hrs)`;
-    else                      msg = `Exceeded! (${hours.toFixed(1)} hrs)`;
+    if (state === "below")   msg = `Keep going — ${(min - monthCompleted).toFixed(1)} hrs to minimum`;
+    else if (state === "met")      msg = `Target met! (${monthCompleted.toFixed(1)} hrs)`;
+    else                      msg = `Exceeded! (${monthCompleted.toFixed(1)} hrs)`;
     if (msgEl) msgEl.textContent = msg;
 
-    // Optional: for quick diagnostics if something still shows 0
-    // console.debug("[PH] rows:", rows.length, "mineThisMonth:", mineThisMonth.length, "hours:", hours, "min/max:", min, max, "month:", thisMonthKey);
+    // Optional quick check:
+    // console.debug({ monthCompleted, allTimeCompleted, scheduledHours, min, max, nowMonthNum });
   };
 })(window.PowerUp);
