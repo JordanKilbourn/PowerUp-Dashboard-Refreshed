@@ -207,5 +207,30 @@ document.addEventListener('DOMContentLoaded', () => {
   <!-- Existing table wiring -->
   <script type="module" src="/scripts/init-dashboard.js?v=2025-08-07-1"></script>
 
+  <script src="/scripts/api.js"></script>          <!-- make sure you have this one -->
+<script src="/scripts/session.js"></script>
+<script src="/scripts/progress.js"></script>
+<script src="/scripts/tokens.js"></script>       <!-- and this one too -->
+<script src="/scripts/tables.js"></script>
+
+<script>
+  (async function () {
+    try {
+      await PowerUp.session.initHeader();
+      await PowerUp.renderDashboardPowerHours();
+      await PowerUp.renderTokenCard();
+      await PowerUp.hydrateDashboardTables();
+
+      ['ci','safety','quality'].forEach(type => {
+        const rebinder = window.__bindSortHeaders__ && window.__bindSortHeaders__[type];
+        if (rebinder) rebinder();
+        filterTable(type);
+      });
+    } catch (e) { console.error(e); }
+  })();
+</script>
+
+
 </body>
 </html>
+
