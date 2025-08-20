@@ -760,3 +760,102 @@ body.notes .note-editor:empty:before {
   margin-top: 6px;
 }
 
+/* ===== Progress V2 ======================================================= */
+.phv2 { margin-top: 6px; }
+
+.phv2-bubbles {               /* container for floating min/max bubbles */
+  position: relative;
+  height: 32px;               /* space above the track */
+  margin-bottom: 6px;
+}
+.phv2-bubble {
+  position: absolute;
+  transform: translateX(-50%);
+  text-align: center;
+}
+.phv2-bubble-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  background: rgba(8,214,182,0.10);
+  border: 1px solid rgba(8,214,182,0.35);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.25);
+  backdrop-filter: blur(2px);
+}
+.phv2-bubble-dot {
+  display: block;
+  width: 8px; height: 8px;
+  margin: 6px auto 0;
+  border-radius: 50%;
+  background: #08d6b6;
+}
+
+/* the track */
+.phv2-track {
+  position: relative;
+  height: 18px;
+  border-radius: 999px;
+  background: linear-gradient(#213331,#213331) padding-box,
+              linear-gradient(180deg, rgba(255,255,255,0.18), rgba(0,0,0,0.25)) border-box;
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 2px 10px rgba(0,0,0,0.25);
+  overflow: hidden;
+}
+.phv2-ticks { /* faint ticks under everything */
+  position: absolute; inset: 0;
+  background:
+    repeating-linear-gradient(
+      to right,
+      rgba(255,255,255,0.05) 0,
+      rgba(255,255,255,0.05) 2px,
+      transparent 2px,
+      transparent 14px
+    );
+  pointer-events: none;
+}
+
+/* target band (min→max) */
+.phv2-band {
+  position: absolute; top: 0; bottom: 0;
+  left: 0; width: 0;
+  background: linear-gradient(to right, rgba(244,209,61,0.28), rgba(244,209,61,0.18));
+  border-left: 2px solid #f4d13d;
+  border-right: 2px solid #f4d13d;
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+/* fill + thumb */
+.phv2-fill {
+  position: absolute; top: 0; left: 0; height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg,#14e2b5,#0dcaa1);
+  transition: width .35s ease;
+}
+.phv2-fill.below    { background: #2e4a49; }
+.phv2-fill.met      { background: linear-gradient(90deg,#14e2b5,#0dcaa1); }
+.phv2-fill.exceeded { background: linear-gradient(90deg,#21f1c2,#19d6ae); }
+
+.phv2-thumb {
+  position: absolute; top: 50%;
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  background: #eafef5;
+  border: 2px solid #0dd9a3;
+  box-shadow: 0 0 0 2px rgba(13,217,163,0.18);
+  transform: translate(-50%, -50%);
+  transition: left .35s ease;
+  pointer-events: none;
+}
+
+.phv2-legend {
+  display: flex; justify-content: space-between;
+  font-size: 12px; opacity: .88;
+  margin-top: 6px;
+}
+
+/* ===== END Progress V2 =================================================== */
+
+
