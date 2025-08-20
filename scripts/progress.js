@@ -3,12 +3,10 @@ window.PowerUp = window.PowerUp || {};
 (function (ns) {
   const { fetchSheet, rowsByTitle, SHEETS } = ns.api;
 
-  const nowMonthNum = (new Date()).getMonth() + 1; // 1..12
-
+  const nowMonthNum = (new Date()).getMonth() + 1;
   const toNum  = v => { const n = Number(String(v).replace(/[^0-9.\-]/g, "")); return Number.isFinite(n) ? n : 0; };
   const toBool = v => v === true || /^(true|yes|y|1|checked)$/i.test(String(v ?? "").trim());
-
-  function cap01(x){ return Math.max(0, Math.min(1, x)); }
+  const cap01  = x => Math.max(0, Math.min(1, x));
 
   function setBar(el, pct, state) {
     if (!el) return;
@@ -17,8 +15,6 @@ window.PowerUp = window.PowerUp || {};
     if (state) el.classList.add(state);
   }
   function stateFor(h, min, max) { return h < min ? "below" : (h <= max ? "met" : "exceeded"); }
-
-  // Normalize "LVL 2", "Lvl 2", "L2" -> "L2"
   function normalizeLevel(val) {
     const s = String(val || "").toUpperCase();
     const m = s.match(/(\d+)/);
@@ -26,21 +22,18 @@ window.PowerUp = window.PowerUp || {};
     if (/^L\d+$/.test(s)) return s;
     return "";
   }
-
-  // Prefer Month (1..12); if missing/invalid, derive from Date
   function rowMonthNumber(r) {
-    const m = Number(String(r["Month"] ?? "").replace(/^0+/, "")); // "08" -> 8
+    const m = Number(String(r["Month"] ?? "").replace(/^0+/, ""));
     if (m >= 1 && m <= 12) return m;
     const d = r["Date"] ? new Date(r["Date"]) : null;
     if (d && !isNaN(d)) return d.getMonth() + 1;
     return NaN;
   }
-
   async function getMonthlyGoals(employeeId) {
     try {
       const [emSheet, targetsSheet] = await Promise.all([
         fetchSheet(SHEETS.EMPLOYEE_MASTER),
-        fetchSheet(SHEETS.GOALS) // "Power Hour Targets"
+        fetchSheet(SHEETS.GOALS)
       ]);
       const em = rowsByTitle(emSheet);
       const targets = rowsByTitle(targetsSheet);
@@ -49,8 +42,8 @@ window.PowerUp = window.PowerUp || {};
       const row = targets.find(t => String(t["Level"] || "").toUpperCase() === lvlKey);
       const min = toNum(row?.["Min Hours"]) || 8;
       const max = toNum(row?.["Max Hours"]) || min || 8;
-      return { min, max, levelText: me?.["PowerUp Level (Select)"] || "" };
-    } catch { return { min: 8, max: 8, levelText: "" }; }
+      return { min, max };
+    } catch { return { min: 8, max: 8 }; }
   }
 
   ns.renderDashboardPowerHours = async function () {
@@ -59,58 +52,61 @@ window.PowerUp = window.PowerUp || {};
 
     const phSheet = await fetchSheet(SHEETS.POWER_HOURS);
     const allRows = rowsByTitle(phSheet);
-
     const mine = allRows.filter(r => String(r["Employee ID"] || "").trim() === String(employeeId).trim());
     const rowsThisMonth = mine.filter(r => rowMonthNumber(r) === nowMonthNum);
 
-    // scheduled & all-time (for later pages)
     const allTimeCompleted = mine.reduce((s, r) => s + toNum(r["Completed Hours"]), 0);
     const scheduledHours = mine
       .filter(r => toBool(r["Scheduled"]) && !toBool(r["Completed"]))
       .reduce((s, r) => s + toNum(r["Duration (hrs)"]), 0);
+    ns.powerHours = { monthCompleted: 0, allTimeCompleted, scheduledHours };
 
     const monthName = new Date(new Date().getFullYear(), nowMonthNum - 1, 1)
       .toLocaleString(undefined, { month: 'long' });
 
     const { min, max } = await getMonthlyGoals(employeeId);
+    const totalEl    = document.querySelector('[data-hook="ph.total"]');
+    const goalMaxEl  = document.querySelector('[data-hook="ph.goalMax"]');
+    const barEl      = document.querySelector('[data-hook="ph.barFill"]') || document.querySelector('.power-card .progress-bar .progress-bar-inner');
+    const msgEl      = document.querySelector('[data-hook="ph.message"]');
 
-    // UI targets
-    const totalEl   = document.querySelector('[data-hook="ph.total"]');
-    const goalMaxEl = document.querySelector('[data-hook="ph.goalMax"]');
-    const barEl     = document.querySelector('[data-hook="ph.barFill"]') || document.querySelector('.power-card .progress-bar .progress-bar-inner');
-    const msgEl     = document.querySelector('[data-hook="ph.message"]');
-    const minMark   = document.querySelector('[data-hook="ph.minMarker"]');
-    const maxMark   = document.querySelector('[data-hook="ph.maxMarker"]');
-    const minLegend = document.querySelector('[data-hook="ph.minLegend"]');
-    const maxLegend = document.querySelector('[data-hook="ph.maxLegend"]');
+    // NEW selectors for band + thumb + legends
+    const bandEl     = document.querySelector('[data-hook="ph.band"]');
+    const thumbEl    = document.querySelector('[data-hook="ph.thumb"]');
+    const zeroLegend = document.querySelector('[data-hook="ph.zeroLegend"]');
+    const minLegend  = document.querySelector('[data-hook="ph.minLegend"]');
+    const maxLegend  = document.querySelector('[data-hook="ph.maxLegend"]');
 
-    // Marker positions
-    if (minMark) minMark.style.left = (cap01(max ? (min/max) : 0) * 100) + '%';
-    if (maxMark) maxMark.style.left = '100%';
-    if (minLegend) minLegend.textContent = `Min — ${min.toFixed(1)}h`;
-    if (maxLegend) maxLegend.textContent = `Max — ${max.toFixed(1)}h`;
+    if (zeroLegend) zeroLegend.textContent = '0h';
+    if (minLegend)  minLegend.textContent  = `Min — ${min.toFixed(1)}h`;
+    if (maxLegend)  maxLegend.textContent  = `Max — ${max.toFixed(1)}h`;
+    if (goalMaxEl)  goalMaxEl.textContent  = String(max);
 
-    // Empty-state for the month
+    // Position target band (min → max)
+    const minPct = cap01(max ? (min / max) : 0); // 0..1
+    if (bandEl) {
+      bandEl.style.left  = (minPct * 100) + '%';
+      bandEl.style.width = ((1 - minPct) * 100) + '%';
+    }
+
     if (rowsThisMonth.length === 0) {
-      ns.powerHours = { monthCompleted: 0, allTimeCompleted, scheduledHours };
-      if (totalEl)   totalEl.textContent   = '0.0';
-      if (goalMaxEl) goalMaxEl.textContent = String(max);
+      if (totalEl) totalEl.textContent = '0.0';
       setBar(barEl, 0, 'below');
+      if (thumbEl) { thumbEl.style.left = '0%'; }
       if (msgEl) msgEl.textContent = `No Power Hours logged for ${monthName} yet.`;
       console.log('[PH] No current-month rows', { month: nowMonthNum, monthName, mine: mine.length });
       return;
     }
 
-    // Compute month
     const monthCompleted = rowsThisMonth.reduce((sum, r) => sum + toNum(r["Completed Hours"]), 0);
-    ns.powerHours = { monthCompleted, allTimeCompleted, scheduledHours };
+    ns.powerHours.monthCompleted = monthCompleted;
 
-    if (totalEl)   totalEl.textContent   = monthCompleted.toFixed(1);
-    if (goalMaxEl) goalMaxEl.textContent = String(max);
+    if (totalEl) totalEl.textContent = monthCompleted.toFixed(1);
 
     const pct   = max ? (monthCompleted / max) : 0;
     const state = stateFor(monthCompleted, min, max);
     setBar(barEl, pct, state);
+    if (thumbEl) thumbEl.style.left = (cap01(pct) * 100) + '%';
 
     let msg = '';
     if (state === 'below')      msg = `Keep going — ${(min - monthCompleted).toFixed(1)} hrs to minimum`;
