@@ -697,69 +697,6 @@ body.notes .note-editor:empty:before {
   opacity: 1;
 }
 
-/* ===== Progress markers ===== */
-.progress-with-markers { position: relative; }
-.goal-marker {
-  position: absolute;
-  top: -2px;               /* extend slightly above the bar */
-  bottom: -2px;            /* and slightly below */
-  width: 2px;
-  background: rgba(255,255,255,0.7);
-  pointer-events: none;
-}
-.goal-marker.min { background: #f4d13d; }  /* accent for min */
-.goal-marker.max { background: #999; }     /* end cap at 100% */
-
-.progress-legend {
-  display: flex;
-  justify-content: space-between;
-  font-size: 12px;
-  opacity: 0.85;
-  margin-top: 6px;
-}
-
-/* ===== Power Hours: target-band progress ===== */
-.ph-track { position: relative; }
-
-.progress-target-band {
-  position: absolute;
-  top: 0; bottom: 0;
-  left: 0; width: 0;
-  background: linear-gradient(to right, rgba(244,209,61,.28), rgba(244,209,61,.18));
-  border-left: 2px solid #f4d13d;   /* min marker edge */
-  border-right: 2px solid #f4d13d;  /* max (right edge of band) */
-  border-radius: 999px;
-  pointer-events: none;
-  transition: left .35s ease, width .35s ease;
-}
-
-/* your existing inner bar will keep its color; these optional state colors help */
-.progress-bar-inner.below    { background: #2e4a49; }
-.progress-bar-inner.met      { background: #16c79a; }
-.progress-bar-inner.exceeded { background: #37e0b0; }
-
-.progress-thumb {
-  position: absolute;
-  top: 50%;
-  width: 12px; height: 12px;
-  background: #eafef5;
-  border: 2px solid #0dd9a3;
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-  box-shadow: 0 0 0 2px rgba(13,217,163,.18);
-  pointer-events: none;
-  transition: left .35s ease;
-}
-
-.progress-legend {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  font-size: 12px;
-  opacity: .88;
-  margin-top: 6px;
-}
-
 /* ===== Progress V2 ======================================================= */
 .phv2 { margin-top: 6px; }
 
@@ -857,5 +794,6 @@ body.notes .note-editor:empty:before {
 }
 
 /* ===== END Progress V2 =================================================== */
+
 
 
