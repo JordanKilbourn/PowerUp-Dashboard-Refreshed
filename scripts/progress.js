@@ -45,7 +45,7 @@ window.PowerUp = window.PowerUp || {};
       .reduce((sum, r) => sum + (Number(r["Completed Hours"] || 0) || 0), 0);
   }
 
-  // ---------- Dashboard big card ----------
+  // Dashboard progress card
   ns.renderDashboardPowerHours = async function () {
     const { employeeId } = ns.session.get();
     if (!employeeId) return;
@@ -57,8 +57,7 @@ window.PowerUp = window.PowerUp || {};
     const mk = monthKey();
     const phRows = phSheet.rows || [];
 
-    // Power Hours sheet columns used:
-    // "Date", "Completed Hours" (+ an Employee key column; we’ll accept either)
+    // Accept either "Employee ID" or "Position ID" in Power Hours sheet
     const myMonthHours = sumHours(phRows, r => {
       const emp = String(r["Employee ID"] || r["Position ID"] || "").trim();
       const mkCell = String(r["MonthKey"] || r["Month Key"] || "").trim();
@@ -84,7 +83,7 @@ window.PowerUp = window.PowerUp || {};
     if (msgEl) msgEl.textContent = msg;
   };
 
-  // ---------- Power Hours page: compact with timeframe ----------
+  // OPTIONAL — for the Power Hours page with timeframe dropdown:
   ns.renderPowerHoursCompact = async function () {
     const { employeeId } = ns.session.get();
     if (!employeeId) return;
