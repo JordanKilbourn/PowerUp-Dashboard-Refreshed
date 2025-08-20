@@ -50,8 +50,25 @@
         <!-- Power Hours -->
         <div class="card power-card">
           <h3>Power Hours Logged</h3>
-          <p><span data-hook="ph.total">0.0</span> / <span data-hook="ph.goalMax">8</span></p>
-          <div class="progress-bar"><div class="progress-bar-inner" data-hook="ph.barFill"></div></div>
+          <p>
+            <span data-hook="ph.total">0.0</span> /
+            <span data-hook="ph.goalMax">8</span>
+          </p>
+
+          <!-- Progress bar with target markers -->
+          <div class="progress-bar progress-with-markers">
+            <div class="progress-bar-inner" data-hook="ph.barFill"></div>
+            <!-- target lines (positions are set by JS) -->
+            <div class="goal-marker min" data-hook="ph.minMarker" title="Min target"></div>
+            <div class="goal-marker max" data-hook="ph.maxMarker" title="Max target"></div>
+          </div>
+
+          <!-- Legend below bar -->
+          <div class="progress-legend">
+            <span data-hook="ph.minLegend">Min — 0h</span>
+            <span data-hook="ph.maxLegend">Max — 8h</span>
+          </div>
+
           <small data-hook="ph.message">Keep going — 8.0 hrs to minimum</small>
         </div>
 
@@ -191,20 +208,15 @@
 
   <!-- Minimal inline behavior: sidebar, tab switch, and per-tab status filtering -->
   <script>
-    // Sidebar toggle
     function toggleSidebar() {
       document.getElementById('sidebar').classList.toggle('expanded');
     }
-
-    // Tab switching only (no re-sorting/re-filtering here)
     function showTab(tabId) {
       document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
       document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
       document.getElementById(`tab-${tabId}`).classList.add('active');
       event.target.classList.add('active');
     }
-
-    // Status dropdown filter (no row cap)
     function filterTable(type) {
       const tbody = document.querySelector(`#${type}-table tbody`);
       const filter = (document.getElementById(`${type}-filter`)?.value || 'all').toLowerCase();
@@ -219,21 +231,19 @@
       const countEl = document.getElementById(`${type}-count`);
       if (countEl) countEl.innerText = `${count} submission${count !== 1 ? 's' : ''}`;
     }
-
-    // After data is rendered by tables.js, run the status filters once to set counts
     document.addEventListener('data-hydrated', () => {
       ['ci','safety','quality'].forEach(type => filterTable(type));
     });
   </script>
 
-  <!-- App scripts (must be raw JS files; no <script> wrappers inside them) -->
+  <!-- App scripts -->
   <script src="/scripts/api.js"></script>
   <script src="/scripts/session.js"></script>
   <script src="/scripts/progress.js"></script>
   <script src="/scripts/tokens.js"></script>
   <script src="/scripts/tables.js"></script>
 
-  <!-- Initialize app -->
+  <!-- Initialize -->
   <script>
     (async function () {
       try {
