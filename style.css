@@ -168,25 +168,6 @@ body.dashboard .progress-bar-inner {
   color: #facc15;
 }
 
-
-/* ===     Progress Bars === */
-.progress-bar {
-  height: 8px;
-  background-color: #2d3f3f;
-  border-radius: 4px;
-  overflow: hidden;
-  margin: 6px 0 10px 0;
-}
-
-.progress-bar-inner {
-  height: 100%;
-  background-color: var(--accent);
-  width: 18.5%; /* This matches 1.0 / 8 progress */
-  transition: width 0.3s ease-in-out;
-}
-
-
-
 /* === 6. Tabs (dashboard submission tabs) === */
 .tab-buttons {
   display: flex; gap: 2px;
@@ -778,3 +759,4 @@ body.notes .note-editor:empty:before {
   opacity: .88;
   margin-top: 6px;
 }
+
