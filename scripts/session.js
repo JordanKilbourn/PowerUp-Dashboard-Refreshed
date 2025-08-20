@@ -1,4 +1,4 @@
-
+// /scripts/session.js
 window.PowerUp = window.PowerUp || {};
 (function (ns) {
   const Session = {
@@ -21,26 +21,27 @@ window.PowerUp = window.PowerUp || {};
         sessionStorage.setItem("empID", employeeId);
       }
 
-      const { fetchSheet, SHEETS } = ns.api;
-      const em = await fetchSheet(SHEETS.EMPLOYEE_MASTER);
-      const rows = em.rows || [];
-      const row = rows.find(r =>
+      const { fetchSheet, rowsByTitle, SHEETS } = ns.api;
+      const emSheet = await fetchSheet(SHEETS.EMPLOYEE_MASTER);
+      const emRows  = rowsByTitle(emSheet);
+
+      const row = emRows.find(r =>
         String(r["Position ID"] || "").trim() === String(employeeId).trim()
-      ) || {};
+      );
 
-      displayName = displayName || (row["Display Name"] || employeeId);
-      sessionStorage.setItem("displayName", displayName);
+      // If a row isn’t found, keep the ID and show Unknown level
+      const name  = row?.["Display Name"] || employeeId;
+      const level = row?.["PowerUp Level (Select)"] || "Level Unknown";
 
-      const level = (row["PowerUp Level (Select)"] || "Unknown");
+      sessionStorage.setItem("displayName", name);
       sessionStorage.setItem("currentLevel", level);
 
       const nameEl  = document.querySelector('[data-hook="userName"]');
       const levelEl = document.querySelector('[data-hook="userLevel"]');
-      if (nameEl)  nameEl.textContent  = displayName;
-      if (levelEl) levelEl.textContent = String(level).startsWith("LVL") ? level : `Level ${level}`;
+      if (nameEl)  nameEl.textContent  = name;
+      if (levelEl) levelEl.textContent = level;
     }
   };
 
   ns.session = Session;
 })(window.PowerUp);
-
