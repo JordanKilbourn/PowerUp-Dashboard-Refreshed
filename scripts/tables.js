@@ -18,6 +18,7 @@ window.PowerUp = window.PowerUp || {};
     quality: ["Catch ID","Entry Date","Submitted By","Area","Quality Catch","Part Number","Description"]
   };
 
+  // ---- formatting helpers ----
   const money = v => {
     const n = Number(String(v).replace(/[^0-9.-]/g,"") || 0);
     return n ? `$${n}` : (v || "");
@@ -64,7 +65,7 @@ window.PowerUp = window.PowerUp || {};
     return String(rawValue || "").toLowerCase();
   }
 
-  // 🔒 ID-only ownership: Employee ID or Position ID must match session employeeId
+  // 🔒 ID-only scoping
   function belongsToUser(row, employeeId) {
     const id = String(employeeId || "").trim();
     if (!id) return false;
