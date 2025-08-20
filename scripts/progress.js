@@ -1,4 +1,4 @@
-<script>
+
 window.PowerUp = window.PowerUp || {};
 (function (ns) {
   const { fetchSheet, SHEETS } = ns.api;
@@ -150,4 +150,4 @@ window.PowerUp = window.PowerUp || {};
     if (sel) sel.addEventListener("change", () => paint(sel.value));
   };
 })(window.PowerUp);
-</script>
+
