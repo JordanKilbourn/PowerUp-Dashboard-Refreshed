@@ -3,7 +3,6 @@ window.PowerUp = window.PowerUp || {};
 (function (ns) {
   const { fetchSheet, rowsByTitle, SHEETS, Cache } = ns.api;
 
-  // Which columns to render, in order (must match your Smartsheet titles)
   const COLS = {
     ci: [
       "Submission Date","Submission ID","Problem Statements","Proposed Improvement",
@@ -19,7 +18,6 @@ window.PowerUp = window.PowerUp || {};
     quality: ["Catch ID","Entry Date","Submitted By","Area","Quality Catch","Part Number","Description"]
   };
 
-  // ---- helpers: formatting ---------------------------------------------------
   const money = v => {
     const n = Number(String(v).replace(/[^0-9.-]/g,"") || 0);
     return n ? `$${n}` : (v || "");
@@ -32,13 +30,9 @@ window.PowerUp = window.PowerUp || {};
   };
   const dateish = v => (v ? new Date(v) : null);
   const fmtDate = v => {
-    const d = dateish(v);
-    if (!d || isNaN(d)) return v ?? "";
-    // MM/DD/YYYY
+    const d = dateish(v); if (!d || isNaN(d)) return v ?? "";
     return `${String(d.getMonth()+1).padStart(2,"0")}/${String(d.getDate()).padStart(2,"0")}/${d.getFullYear()}`;
   };
-
-  // map status -> pill class (tweak colors in CSS if desired)
   const statusPill = (text) => {
     if (!text) return "";
     const t = String(text).toLowerCase();
@@ -48,8 +42,6 @@ window.PowerUp = window.PowerUp || {};
     else if (/denied|rejected|not.*started|cancel/.test(t)) cls = "pill--red";
     return `<span class="pill ${cls}">${text}</span>`;
   };
-
-  // pick the correct formatter per column (by title)
   function formatCell(colTitle, value) {
     if (value == null) return "";
     const t = colTitle.toLowerCase();
@@ -57,50 +49,30 @@ window.PowerUp = window.PowerUp || {};
     if (t.includes("token")) return money(value);
     if (t === "paid") return boolBadge(value);
     if (t.includes("status") || t.includes("approval")) return statusPill(value);
-    return value; // default
+    return value;
   }
-
-  // build a deterministic sort key per cell (numbers/dates > strings)
   function sortKey(colTitle, rawValue) {
     const t = colTitle.toLowerCase();
     if (t.includes("date")) {
       const d = dateish(rawValue);
-      return d && !isNaN(d) ? d.getTime() : -8.64e15; // oldest first
+      return d && !isNaN(d) ? d.getTime() : -8.64e15;
     }
-    // numeric/currency
     const num = Number(String(rawValue).replace(/[^0-9.-]/g,""));
     if (!Number.isNaN(num) && String(rawValue).match(/[0-9]/)) return num;
-    // booleans
     if (String(rawValue).toLowerCase() === "true") return 1;
     if (String(rawValue).toLowerCase() === "false") return 0;
-    // string
     return String(rawValue || "").toLowerCase();
   }
 
-  // Scope: rows that "belong" to the current user (ID or Display Name matches)
-  function belongsToUser(row, { employeeId, displayName }) {
-    const id   = String(employeeId || "").trim();
-    const name = String(displayName || "").trim().toLowerCase();
-    if (!id && !name) return false;
-
-    const fields = [
-      row["Employee ID"],
-      row["Position ID"],
-      row["Submitted By"],
-      row["Assigned To (Primary)"]
-    ].map(v => v == null ? "" : String(v));
-
-    // ID match
-    if (fields.some(v => v.trim() === id)) return true;
-
-    // Name match (normalize)
-    const norm = s => s.trim().toLowerCase();
-    if (fields.some(v => norm(v) === name)) return true;
-
-    return false;
+  // 🔒 ID-only ownership: Employee ID or Position ID must match session employeeId
+  function belongsToUser(row, employeeId) {
+    const id = String(employeeId || "").trim();
+    if (!id) return false;
+    const a = String(row["Employee ID"] || "").trim();
+    const b = String(row["Position ID"] || "").trim();
+    return a === id || b === id;
   }
 
-  // render tbody with formatters + data-sort keys
   function renderTbody(tbody, rows, columns) {
     if (!tbody) return;
     const html = rows.map(r => {
@@ -115,7 +87,6 @@ window.PowerUp = window.PowerUp || {};
     tbody.innerHTML = html || `<tr><td colspan="${columns.length}" style="text-align:center;opacity:.7;">No rows</td></tr>`;
   }
 
-  // default view: newest first by any date-like column
   function sortNewest(rows) {
     const dateCols = ["Submission Date","Entry Date","Date","Action Item Entry Date","Resourced Date","Created","Last Action"];
     return [...rows].sort((a,b) => {
@@ -132,7 +103,6 @@ window.PowerUp = window.PowerUp || {};
     });
   }
 
-  // wire per-table header sorting using data-sort attributes
   function bindHeaderSort(tableId) {
     const table = document.getElementById(tableId);
     if (!table) return;
@@ -149,15 +119,12 @@ window.PowerUp = window.PowerUp || {};
         rows.sort((ra, rb) => {
           const a = ra.children[idx]?.getAttribute("data-sort") ?? "";
           const b = rb.children[idx]?.getAttribute("data-sort") ?? "";
-          // numbers first, then strings
           const na = Number(a), nb = Number(b);
           const bothNum = !Number.isNaN(na) && !Number.isNaN(nb);
           const cmp = bothNum ? (na - nb) : String(a).localeCompare(String(b));
           return state.asc ? cmp : -cmp;
         });
         rows.forEach(r => tbody.appendChild(r));
-
-        // header arrows (CSS classes you already use)
         thead.querySelectorAll("th").forEach((h,i) => {
           h.classList.toggle("sorted-asc", i === state.col && state.asc);
           h.classList.toggle("sorted-desc", i === state.col && !state.asc);
@@ -166,7 +133,6 @@ window.PowerUp = window.PowerUp || {};
     });
   }
 
-  // filter control at the top of each tab (All / Pending / etc.)
   function applyStatusDropdownFiltering(typeKey) {
     const select = document.getElementById(`${typeKey}-filter`);
     const table  = document.getElementById(`${typeKey}-table`);
@@ -190,11 +156,9 @@ window.PowerUp = window.PowerUp || {};
     run();
   }
 
-  // ---------------- main entry ----------------
   ns.hydrateDashboardTables = async function () {
-    const { employeeId, displayName } = ns.session.get();
+    const { employeeId } = ns.session.get();
 
-    // Fetch + flatten
     const [ciSheet, safetySheet, qualitySheet] = await Promise.all([
       fetchSheet(SHEETS.CI),
       fetchSheet(SHEETS.SAFETY),
@@ -204,43 +168,24 @@ window.PowerUp = window.PowerUp || {};
     const safetyAll  = rowsByTitle(safetySheet);
     const qualityAll = rowsByTitle(qualitySheet);
 
-    // Scope to the signed-in user (ID or name)
-    const mineCI      = ciAll.filter(r => belongsToUser(r, { employeeId, displayName }));
-    const mineSafety  = safetyAll.filter(r => belongsToUser(r, { employeeId, displayName }));
-    const mineQuality = qualityAll.filter(r => belongsToUser(r, { employeeId, displayName }));
+    const mineCI      = ciAll.filter(r => belongsToUser(r, employeeId));
+    const mineSafety  = safetyAll.filter(r => belongsToUser(r, employeeId));
+    const mineQuality = qualityAll.filter(r => belongsToUser(r, employeeId));
 
-    // Default sort (newest first)
     const ciView      = sortNewest(mineCI);
     const safetyView  = sortNewest(mineSafety);
     const qualityView = sortNewest(mineQuality);
 
-    // Cache raw in case you want cross-tab reuse later
-    Cache.set("ci", ciAll);
-    Cache.set("safety", safetyAll);
-    Cache.set("quality", qualityAll);
+    Cache.set("ci", ciAll); Cache.set("safety", safetyAll); Cache.set("quality", qualityAll);
 
-    // Render
     renderTbody(document.querySelector('[data-hook="table.ci.tbody"]'),      ciView,      COLS.ci);
     renderTbody(document.querySelector('[data-hook="table.safety.tbody"]'),  safetyView,  COLS.safety);
     renderTbody(document.querySelector('[data-hook="table.quality.tbody"]'), qualityView, COLS.quality);
 
-    // Hook up sorting (stable, uses data-sort keys)
-    bindHeaderSort("ci-table");
-    bindHeaderSort("safety-table");
-    bindHeaderSort("quality-table");
+    bindHeaderSort("ci-table"); bindHeaderSort("safety-table"); bindHeaderSort("quality-table");
+    applyStatusDropdownFiltering("ci"); applyStatusDropdownFiltering("safety"); applyStatusDropdownFiltering("quality");
 
-    // Wire the “All Statuses” dropdown to the rendered rows
-    applyStatusDropdownFiltering("ci");
-    applyStatusDropdownFiltering("safety");
-    applyStatusDropdownFiltering("quality");
-
-    // Update counts immediately
-    const setCount = (id, n) => {
-      const el = document.getElementById(id);
-      if (el) el.textContent = `${n} submission${n === 1 ? "" : "s"}`;
-    };
-    setCount("ci-count", ciView.length);
-    setCount("safety-count", safetyView.length);
-    setCount("quality-count", qualityView.length);
+    const setCount = (id, n) => { const el = document.getElementById(id); if (el) el.textContent = `${n} submission${n === 1 ? "" : "s"}`; };
+    setCount("ci-count", ciView.length); setCount("safety-count", safetyView.length); setCount("quality-count", qualityView.length);
   };
 })(window.PowerUp);
