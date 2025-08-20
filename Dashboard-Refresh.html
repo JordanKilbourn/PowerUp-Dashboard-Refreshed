@@ -5,7 +5,7 @@
   <title>PowerUp Dashboard</title>
 
   <!-- Fonts / Icons / Styles -->
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -55,24 +55,22 @@
             <span data-hook="ph.goalMax">8</span>
           </p>
 
-<!-- Progress bar with target band + thumb -->
-<div class="progress-bar ph-track">
-  <!-- shaded band from min → max -->
-  <div class="progress-target-band" data-hook="ph.band"></div>
-  <!-- fill from 0 → current -->
-  <div class="progress-bar-inner" data-hook="ph.barFill"></div>
-  <!-- thumb at current -->
-  <div class="progress-thumb" data-hook="ph.thumb" title="Current"></div>
-</div>
+          <!-- Progress bar with target band + thumb -->
+          <div class="progress-bar ph-track">
+            <div class="progress-target-band" data-hook="ph.band"></div>
+            <div class="progress-bar-inner" data-hook="ph.barFill"></div>
+            <div class="progress-thumb" data-hook="ph.thumb" title="Current"></div>
+          </div>
 
-<!-- Legend below bar -->
-<div class="progress-legend">
-  <span data-hook="ph.zeroLegend">0h</span>
-  <span data-hook="ph.minLegend">Min — 0h</span>
-  <span data-hook="ph.maxLegend">Max — 8h</span>
-</div>
+          <!-- Legend below bar -->
+          <div class="progress-legend">
+            <span data-hook="ph.zeroLegend">0h</span>
+            <span data-hook="ph.minLegend">Min — 0h</span>
+            <span data-hook="ph.maxLegend">Max — 8h</span>
+          </div>
 
-<small data-hook="ph.message">Keep going — 8.0 hrs to minimum</small>
+          <small data-hook="ph.message">Keep going — 8.0 hrs to minimum</small>
+        </div> <!-- ✅ closes power-card -->
 
         <!-- Tokens -->
         <div class="card token-card">
@@ -82,7 +80,7 @@
             <span data-hook="token.total">0</span>
           </div>
         </div>
-      </div>
+      </div> <!-- /top-cards -->
 
       <!-- Tabs -->
       <div class="tab-buttons">
@@ -259,5 +257,3 @@
   </script>
 </body>
 </html>
-
-
