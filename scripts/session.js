@@ -13,7 +13,6 @@ window.PowerUp = window.PowerUp || {};
       };
     },
     async initHeader() {
-      // Prompt for Employee ID if missing (temporary until login page)
       let { employeeId, displayName } = this.get();
       if (!employeeId) {
         const entered = prompt("Enter your Employee ID (Position ID)");
@@ -22,13 +21,9 @@ window.PowerUp = window.PowerUp || {};
         sessionStorage.setItem("empID", employeeId);
       }
 
-      // Pull Display Name + Level from Employee Master
       const { fetchSheet, SHEETS } = ns.api;
       const em = await fetchSheet(SHEETS.EMPLOYEE_MASTER);
       const rows = em.rows || [];
-
-      // Employee Master keys per your screenshot
-      // Position ID (unique), Display Name, PowerUp Level (Select)
       const row = rows.find(r =>
         String(r["Position ID"] || "").trim() === String(employeeId).trim()
       ) || {};
@@ -39,7 +34,6 @@ window.PowerUp = window.PowerUp || {};
       const level = (row["PowerUp Level (Select)"] || "Unknown");
       sessionStorage.setItem("currentLevel", level);
 
-      // Paint header (NO month)
       const nameEl  = document.querySelector('[data-hook="userName"]');
       const levelEl = document.querySelector('[data-hook="userLevel"]');
       if (nameEl)  nameEl.textContent  = displayName;
