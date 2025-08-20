@@ -1,4 +1,4 @@
-<script>
+
 window.PowerUp = window.PowerUp || {};
 (function (ns) {
   const { fetchSheet, SHEETS, Cache } = ns.api;
@@ -222,4 +222,4 @@ window.PowerUp = window.PowerUp || {};
     });
   };
 })(window.PowerUp);
-</script>
+
