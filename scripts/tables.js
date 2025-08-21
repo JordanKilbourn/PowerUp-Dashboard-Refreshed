@@ -18,40 +18,49 @@ window.PowerUp = window.PowerUp || {};
     quality: ["Catch ID","Entry Date","Submitted By","Area","Quality Catch","Part Number","Description"]
   };
 
-  // ---- formatting helpers ----
-  const money = v => {
-    const n = Number(String(v).replace(/[^0-9.-]/g,"") || 0);
-    return Number.isFinite(n) && n !== 0 ? `$${n}` : (v || "");
+  /* ---------- HTML escaping (prevents column shift) ---------- */
+  const esc = (s) =>
+    String(s ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  const escAttr = (s) => esc(s).replace(/"/g, "&quot;");
+
+  /* ---------- formatting helpers ---------- */
+  const money = (v) => {
+    const n = Number(String(v).replace(/[^0-9.-]/g, "") || 0);
+    return Number.isFinite(n) && n !== 0 ? `$${n}` : (v ?? "");
   };
-  const boolBadge = v => {
+  const boolBadge = (v) => {
     const t = String(v).toLowerCase();
-    if (t === "true" || t === "yes") return `<span class="pill pill--green">Yes</span>`;
-    if (t === "false" || t === "no")  return `<span class="pill pill--gray">No</span>`;
-    return v ?? "";
+    if (t === "true" || t === "yes") return { html: true, value: `<span class="pill pill--green">Yes</span>` };
+    if (t === "false" || t === "no")  return { html: true, value: `<span class="pill pill--gray">No</span>`  };
+    return { html: false, value: v ?? "" };
   };
-  const dateish = v => (v ? new Date(v) : null);
-  const fmtDate = v => {
-    const d = dateish(v); if (!d || isNaN(d)) return v ?? "";
+  const dateish = (v) => (v ? new Date(v) : null);
+  const fmtDate = (v) => {
+    const d = dateish(v); if (!d || isNaN(d)) return String(v ?? "");
     return `${String(d.getMonth()+1).padStart(2,"0")}/${String(d.getDate()).padStart(2,"0")}/${d.getFullYear()}`;
   };
   const statusPill = (text) => {
-    if (!text) return "";
+    if (!text) return { html:false, value:"" };
     const t = String(text).toLowerCase();
     let cls = "pill--gray";
     if (/approved|accepted|closed|complete/.test(t)) cls = "pill--green";
     else if (/pending|in ?progress|open|new/.test(t)) cls = "pill--blue";
     else if (/denied|rejected|not.*started|cancel/.test(t)) cls = "pill--red";
-    return `<span class="pill ${cls}">${text}</span>`;
+    return { html:true, value:`<span class="pill ${cls}">${esc(text)}</span>` };
   };
+
   function formatCell(colTitle, value) {
-    if (value == null) return "";
     const t = colTitle.toLowerCase();
-    if (t.includes("date")) return fmtDate(value);
-    if (t.includes("token")) return money(value);
-    if (t === "paid") return boolBadge(value);
+    if (t.includes("date"))   return { html:false, value: fmtDate(value) };
+    if (t.includes("token"))  return { html:false, value: money(value)   };
+    if (t === "paid")         return boolBadge(value);
     if (t.includes("status") || t.includes("approval")) return statusPill(value);
-    return value;
+    return { html:false, value: String(value ?? "") };
   }
+
   function sortKey(colTitle, rawValue) {
     const t = colTitle.toLowerCase();
     if (t.includes("date")) {
@@ -74,23 +83,13 @@ window.PowerUp = window.PowerUp || {};
     return a === id || b === id;
   }
 
-  // Class/tooltip helper for readability
+  // class helper for readability
   function cellClasses(typeKey, colTitle) {
     const t = colTitle.toLowerCase();
-
-    // short numeric/id/date-ish
-    if (/(^id$|token|paid$|catch id|entry date|resourced on|action item entry date)/.test(t))
-      return "nowrap mono";
-
-    // align center for some status booleans/labels
-    if (/(status$|approval$|resourced$)/.test(t))
-      return "t-center";
-
-    // long text columns: clamp to 3 lines, expand on hover
-    if (
-      /problem|improvement|last meeting|describe|recommendations|resolution|leadership|quality catch|description/.test(t)
-    ) return "clip clip-3";
-
+    if (/(^id$|token|paid$|catch id|entry date|resourced on|action item entry date)/.test(t)) return "nowrap mono";
+    if (/(status$|approval$|resourced$)/.test(t)) return "t-center";
+    if (/problem|improvement|last meeting|describe|recommendations|resolution|leadership|quality catch|description/.test(t))
+      return "clip clip-3";
     return "";
   }
 
@@ -99,12 +98,17 @@ window.PowerUp = window.PowerUp || {};
     const html = rows.map(r => {
       const tds = columns.map(col => {
         const raw = r[col];
-        const display = formatCell(col, raw);
+        const { html:asHtml, value } = formatCell(col, raw);
         const key = sortKey(col, raw);
         const cls = cellClasses(typeKey, col);
-        // Title shows full text on hover (esp. for clipped cells)
-        const titleAttr = (cls.includes("clip") && raw) ? ` title="${String(raw).replace(/"/g,'&quot;')}"` : "";
-        return `<td class="${cls}" data-sort="${key}"${titleAttr}>${display}</td>`;
+
+        // content + title
+        const titleAttr = (cls.includes("clip") && raw != null && raw !== "")
+          ? ` title="${escAttr(raw)}"`
+          : "";
+
+        const cellInner = asHtml ? value : esc(value);
+        return `<td class="${cls}" data-sort="${key}"${titleAttr}>${cellInner}</td>`;
       }).join("");
       return `<tr>${tds}</tr>`;
     }).join("");
