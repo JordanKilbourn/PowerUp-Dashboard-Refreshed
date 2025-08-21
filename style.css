@@ -276,5 +276,155 @@ body.notes .note-editor:empty:before { content: attr(data-placeholder); color: v
 .ph-msg.exceeded { color: #7ee8fa; } /* aqua/celebratory */
 
 
+/* === TABLE READABILITY UPGRADE =============================== */
+
+/* Compact, balanced rhythm */
+.dashboard-table {
+  font-size: 13.5px;
+  line-height: 1.35;
+  table-layout: fixed;              /* predictable column sizing */
+}
+
+.dashboard-table th,
+.dashboard-table td {
+  padding: 10px 12px;               /* a touch more horizontal room */
+  vertical-align: top;
+}
+
+/* Zebra + hover */
+.table-scroll tbody tr:nth-child(odd) { background: rgba(255,255,255,0.03); }
+.table-scroll tbody tr:hover { background: rgba(0,0,0,0.18); }
+
+/* Sticky first column for context */
+.table-scroll .sticky-col {
+  position: sticky;
+  left: 0;
+  background: inherit;              /* keep row color when sticky */
+  z-index: 3;                       /* above other cells */
+  box-shadow: 2px 0 0 rgba(0,0,0,0.22); /* subtle divider on the right */
+}
+
+/* Utility columns: keep narrow, non-wrapping */
+.nowrap { white-space: nowrap; }
+.t-right { text-align: right; }
+.t-center { text-align: center; }
+.mono { font-variant-numeric: tabular-nums; }
+
+/* Clamp long text with a soft fade (click to expand) */
+.clamp-2, .clamp-3 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  position: relative;
+}
+.clamp-2 { -webkit-line-clamp: 2; }
+.clamp-3 { -webkit-line-clamp: 3; }
+.clamp-2::after, .clamp-3::after {
+  content: "";
+  position: absolute; right: 0; bottom: 0; width: 40%;
+  height: 1.2em;
+  pointer-events: none;
+  background: linear-gradient(to right, rgba(27,45,46,0), rgba(27,45,46,1));
+}
+.cell-expandable { cursor: zoom-in; }
+.cell-expanded { -webkit-line-clamp: unset; }
+.cell-expanded::after { display: none; }
+.cell-expanded { cursor: zoom-out; }
+
+/* Pill badges already exist; make sure status is centered and sized */
+td .badge { font-size: 12px; padding: 3px 8px; }
+
+/* Header: lock heights and avoid wrap */
+.dashboard-table thead th { white-space: nowrap; }
+
+/* Per-table column sizing (adjust as you like) */
+
+/* --- CI table --- */
+#ci-table thead th:nth-child(1),  /* Submitted */
+#ci-table tbody td:nth-child(1)  { width: 110px;  }
+#ci-table thead th:nth-child(2),  /* ID */
+#ci-table tbody td:nth-child(2)  { width: 64px;   text-align:center; }
+#ci-table thead th:nth-child(5),  /* Approval */
+#ci-table tbody td:nth-child(5)  { width: 110px;  }
+#ci-table thead th:nth-child(6),  /* Assigned */
+#ci-table tbody td:nth-child(6)  { width: 160px;  }
+#ci-table thead th:nth-child(7),  /* Status */
+#ci-table tbody td:nth-child(7)  { width: 120px;  text-align:center; }
+#ci-table thead th:nth-child(8),  /* Action Entered */
+#ci-table tbody td:nth-child(8)  { width: 120px;  }
+#ci-table thead th:nth-child(9)   { width: 140px; }
+#ci-table thead th:nth-child(10),
+#ci-table tbody td:nth-child(10) { width: 100px;  text-align:center; }
+#ci-table thead th:nth-child(11),
+#ci-table tbody td:nth-child(11) { width: 120px;  }
+#ci-table thead th:nth-child(12),
+#ci-table tbody td:nth-child(12) { width: 70px;   text-align:right; }
+#ci-table thead th:nth-child(13),
+#ci-table tbody td:nth-child(13) { width: 70px;   text-align:center; }
+
+/* Make the first column sticky (date) for CI */
+#ci-table tbody td:nth-child(1),
+#ci-table thead th:nth-child(1) { position: sticky; left: 0; z-index: 4; background: inherit; }
+
+/* Long-text fields clamp */
+#ci-table tbody td:nth-child(3),
+#ci-table tbody td:nth-child(4),
+#ci-table tbody td:nth-child(9) { /* Problem, Improvement, Last Action */
+  word-break: break-word;
+}
+
+/* --- Safety table --- */
+#safety-table thead th:nth-child(1),
+#safety-table tbody td:nth-child(1) { width: 110px; }
+#safety-table thead th:nth-child(2),
+#safety-table tbody td:nth-child(2) { width: 160px; }
+#safety-table thead th:nth-child(3),
+#safety-table tbody td:nth-child(3) { width: 160px; }
+#safety-table thead th:nth-child(10),
+#safety-table tbody td:nth-child(10){ width: 120px; text-align:center; }
+
+/* Make the date sticky in Safety too */
+#safety-table tbody td:nth-child(1),
+#safety-table thead th:nth-child(1) { position: sticky; left: 0; z-index: 4; background: inherit; }
+
+/* Clamp typical long text columns (Description, Reco, Resolution, Leadership) */
+#safety-table tbody td:nth-child(4),
+#safety-table tbody td:nth-child(5),
+#safety-table tbody td:nth-child(6),
+#safety-table tbody td:nth-child(8) { word-break: break-word; }
+
+/* --- Quality table --- */
+#quality-table thead th:nth-child(1),
+#quality-table tbody td:nth-child(1) { width: 70px;  text-align:center; } /* Catch ID */
+#quality-table thead th:nth-child(2),
+#quality-table tbody td:nth-child(2) { width: 110px; } /* Entry Date */
+#quality-table thead th:nth-child(3),
+#quality-table tbody td:nth-child(3) { width: 160px; } /* Submitted By */
+#quality-table thead th:nth-child(4),
+#quality-table tbody td:nth-child(4) { width: 140px; } /* Area */
+#quality-table thead th:nth-child(6),
+#quality-table tbody td:nth-child(6) { width: 140px; } /* Part Number */
+
+/* Sticky Entry Date for Quality */
+#quality-table tbody td:nth-child(2),
+#quality-table thead th:nth-child(2) { position: sticky; left: 0; z-index: 4; background: inherit; }
+
+/* Clamp long text (Quality Catch, Description) */
+#quality-table tbody td:nth-child(5),
+#quality-table tbody td:nth-child(7) { word-break: break-word; }
+
+/* Ensure “small” columns don’t wrap and align numbers right */
+#ci-table td:nth-child(1),
+#ci-table td:nth-child(2),
+#ci-table td:nth-child(8),
+#ci-table td:nth-child(11),
+#ci-table td:nth-child(12),
+#quality-table td:nth-child(1),
+#quality-table td:nth-child(2),
+#safety-table  td:nth-child(1) {
+  white-space: nowrap;
+}
+#ci-table td:nth-child(12) { text-align: right; } /* Tokens */
+
 
 
