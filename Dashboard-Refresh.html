@@ -55,34 +55,8 @@
             <span data-hook="ph.goalMax">8</span>
           </p>
 
-          <!-- ===== Progress V2 (pill, ticks, thumb, min/max bubbles) ===== -->
+          <!-- Clean progress bar (track + fill + thumb) -->
           <div class="phv2" aria-live="polite">
-            <!-- floating min/max bubbles -->
-            <div class="phv2-bubbles">
-              <div class="phv2-bubble" data-hook="ph.minMarker" aria-hidden="true">
-                <div class="phv2-bubble-icon" title="Minimum target">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <circle cx="12" cy="12" r="10" stroke="#08d6b6" stroke-width="2"/>
-                    <path d="M7 12h10" stroke="#08d6b6" stroke-width="2" stroke-linecap="round"/>
-                  </svg>
-                </div>
-                <span class="phv2-bubble-dot"></span>
-                <span class="phv2-bubble-label" data-hook="ph.minLabel">MIN</span>
-              </div>
-
-              <div class="phv2-bubble" data-hook="ph.maxMarker" aria-hidden="true">
-                <div class="phv2-bubble-icon" title="Maximum target">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <circle cx="12" cy="12" r="10" stroke="#08d6b6" stroke-width="2"/>
-                    <path d="M7 12h10M12 7v10" stroke="#08d6b6" stroke-width="2" stroke-linecap="round"/>
-                  </svg>
-                </div>
-                <span class="phv2-bubble-dot"></span>
-                <span class="phv2-bubble-label" data-hook="ph.maxLabel">MAX</span>
-              </div>
-            </div>
-
-            <!-- track -->
             <div class="phv2-track"
                  data-hook="ph.track"
                  role="progressbar"
@@ -90,12 +64,11 @@
                  aria-valuemax="8"
                  aria-valuenow="0">
               <div class="phv2-ticks"></div>
-              <div class="phv2-band"  data-hook="ph.band"></div>
               <div class="phv2-fill"  data-hook="ph.fill"></div>
               <div class="phv2-thumb" data-hook="ph.thumb" title="Current"></div>
             </div>
 
-            <!-- (legend removed by request; smart message stays) -->
+            <!-- Smart message stays -->
             <small data-hook="ph.message">—</small>
           </div>
         </div>
@@ -234,7 +207,7 @@
     </div>
   </div>
 
-  <!-- Minimal inline behavior: sidebar, tab switch, and per-tab status filtering -->
+  <!-- Minimal inline behavior -->
   <script>
     function toggleSidebar() {
       document.getElementById('sidebar').classList.toggle('expanded');
