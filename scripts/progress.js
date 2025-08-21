@@ -69,26 +69,20 @@ window.PowerUp = window.PowerUp || {};
     const band   = document.querySelector('[data-hook="ph.band"]');
     const thumb  = document.querySelector('[data-hook="ph.thumb"]');
 
-    const zeroLegend = document.querySelector('[data-hook="ph.zeroLegend"]');
-    const minLegend  = document.querySelector('[data-hook="ph.minLegend"]');
-    const maxLegend  = document.querySelector('[data-hook="ph.maxLegend"]');
-
     const minMarker = document.querySelector('[data-hook="ph.minMarker"]');
     const maxMarker = document.querySelector('[data-hook="ph.maxMarker"]');
+    const minLabel  = document.querySelector('[data-hook="ph.minLabel"]');
+    const maxLabel  = document.querySelector('[data-hook="ph.maxLabel"]');
 
     const state = stateFor(current, min, max);
 
-    if (zeroLegend) zeroLegend.textContent = '0h';
-    if (minLegend)  minLegend.textContent  = `Min — ${min.toFixed(1)}h`;
-    if (maxLegend)  maxLegend.textContent  = `Max — ${max.toFixed(1)}h`;
-
-    // min→max band
+    // band (min -> max)
     if (band) {
       band.style.left  = (minPct * 100) + '%';
       band.style.width = ((1 - minPct) * 100) + '%';
     }
 
-    // 0→current fill
+    // 0 -> current fill
     if (fill) {
       fill.style.width = (pct * 100) + '%';
       fill.classList.remove('below','met','exceeded');
@@ -101,14 +95,15 @@ window.PowerUp = window.PowerUp || {};
       thumb.title = `${current.toFixed(1)}h`;
     }
 
-    // floating min/max bubbles (position over the track)
-    function placeBubble(el, percent) {
+    // floating min/max bubbles positioning + labels
+    const placeBubble = (el, percent, labelEl, labelText) => {
       if (!el || !track) return;
       el.style.left = (percent * 100) + '%';
-      // vertically align: bubble container sits above track already
-    }
-    placeBubble(minMarker, minPct);
-    placeBubble(maxMarker, 1);
+      if (labelEl) labelEl.textContent = labelText;
+      el.title = labelText;
+    };
+    placeBubble(minMarker, minPct, minLabel, `MIN (${min.toFixed(1)}h)`);
+    placeBubble(maxMarker, 1,      maxLabel, `MAX (${max.toFixed(1)}h)`);
 
     // a11y progress values
     if (track) {
