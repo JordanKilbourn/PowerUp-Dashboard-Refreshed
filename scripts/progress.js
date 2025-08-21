@@ -59,59 +59,29 @@ window.PowerUp = window.PowerUp || {};
     }
   }
 
-  // ---------- visual renderer (Progress V2) ----------
-  function renderProgressV2({ min, max, current }) {
-    const pct    = cap01(max ? (current / max) : 0);
-    const minPct = cap01(max ? (min / max) : 0);
-
-    const track  = document.querySelector('[data-hook="ph.track"]');
-    const fill   = document.querySelector('[data-hook="ph.fill"]');
-    const band   = document.querySelector('[data-hook="ph.band"]');
-    const thumb  = document.querySelector('[data-hook="ph.thumb"]');
-
-    const minMarker = document.querySelector('[data-hook="ph.minMarker"]');
-    const maxMarker = document.querySelector('[data-hook="ph.maxMarker"]');
-    const minLabel  = document.querySelector('[data-hook="ph.minLabel"]');
-    const maxLabel  = document.querySelector('[data-hook="ph.maxLabel"]');
-
+  // ---------- simple progress renderer ----------
+  function renderProgressSimple({ min, max, current }) {
+    const pct   = cap01(max ? (current / max) : 0);
     const state = stateFor(current, min, max);
 
-    // band (min -> max)
-    if (band) {
-      band.style.left  = (minPct * 100) + '%';
-      band.style.width = ((1 - minPct) * 100) + '%';
-    }
+    const track = document.querySelector('[data-hook="ph.track"]');
+    const fill  = document.querySelector('[data-hook="ph.fill"]');
+    const thumb = document.querySelector('[data-hook="ph.thumb"]');
 
-    // 0 -> current fill
     if (fill) {
       fill.style.width = (pct * 100) + '%';
       fill.classList.remove('below','met','exceeded');
       fill.classList.add(state);
     }
-
-    // thumb position
     if (thumb) {
       thumb.style.left = (pct * 100) + '%';
       thumb.title = `${current.toFixed(1)}h`;
     }
-
-    // floating min/max bubbles positioning + labels
-    const placeBubble = (el, percent, labelEl, labelText) => {
-      if (!el || !track) return;
-      el.style.left = (percent * 100) + '%';
-      if (labelEl) labelEl.textContent = labelText;
-      el.title = labelText;
-    };
-    placeBubble(minMarker, minPct, minLabel, `MIN (${min.toFixed(1)}h)`);
-    placeBubble(maxMarker, 1,      maxLabel, `MAX (${max.toFixed(1)}h)`);
-
-    // a11y progress values
     if (track) {
       track.setAttribute('aria-valuemin', '0');
       track.setAttribute('aria-valuemax', String(max));
       track.setAttribute('aria-valuenow', String(Math.max(0, Math.min(current, max))));
     }
-
     return state;
   }
 
@@ -146,7 +116,7 @@ window.PowerUp = window.PowerUp || {};
     if (rowsThisMonth.length === 0) {
       ns.powerHours = { monthCompleted: 0, allTimeCompleted, scheduledHours };
       if (totalEl) totalEl.textContent = '0.0';
-      renderProgressV2({ min, max, current: 0 });
+      renderProgressSimple({ min, max, current: 0 });
       if (msgEl) msgEl.textContent = `No Power Hours logged for ${monthName} yet.`;
       return;
     }
@@ -156,7 +126,7 @@ window.PowerUp = window.PowerUp || {};
     ns.powerHours = { monthCompleted, allTimeCompleted, scheduledHours };
 
     if (totalEl) totalEl.textContent = monthCompleted.toFixed(1);
-    const state = renderProgressV2({ min, max, current: monthCompleted });
+    const state = renderProgressSimple({ min, max, current: monthCompleted });
 
     // Smart message
     let msg = '';
