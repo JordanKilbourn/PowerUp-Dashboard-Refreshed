@@ -427,4 +427,81 @@ td .badge { font-size: 12px; padding: 3px 8px; }
 #ci-table td:nth-child(12) { text-align: right; } /* Tokens */
 
 
+/* ===== Dashboard table readability pack ================================ */
+/* Compact type + fixed layout so widths are predictable */
+.table-scroll table.dashboard-table {
+  table-layout: fixed;
+}
+
+.dashboard-table thead th {
+  font-size: 13px;
+  line-height: 1.2;
+  padding: 10px 12px;
+}
+
+.dashboard-table tbody td {
+  font-size: 13px;
+  line-height: 1.35;
+  padding: 10px 12px;
+  vertical-align: top;
+}
+
+/* Utility classes injected by tables.js */
+.nowrap { white-space: nowrap; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
+.t-right { text-align: right; }
+.t-center { text-align: center; }
+
+/* Clamp long text (2–3 lines) with click-to-expand */
+.clamp-2, .clamp-3 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.clamp-2 { -webkit-line-clamp: 2; max-height: calc(1.35em * 2); }
+.clamp-3 { -webkit-line-clamp: 3; max-height: calc(1.35em * 3); }
+.cell-expandable { cursor: pointer; }
+.cell-expanded { -webkit-line-clamp: initial; max-height: none; }
+
+/* Sticky context column (applied to the first column in each table) */
+.dashboard-table .sticky-col {
+  position: sticky;
+  left: 0;                  /* stick to left edge */
+  background: #1a2a2a;     /* same family as header/body so it covers underlap */
+  z-index: 1;
+  box-shadow: 2px 0 0 #213331;  /* subtle divider to the right */
+}
+
+/* Keep sticky header above sticky column cells */
+.table-scroll thead th {
+  z-index: 2;
+}
+
+/* Slightly tighter zebra on hover for readability */
+.table-scroll tbody tr:hover {
+  background-color: rgba(255,255,255,0.035);
+}
+
+/* Optional: narrower numeric/status columns on wide screens */
+@media (min-width: 1100px) {
+  #ci-table th:nth-child(1),  #ci-table td:nth-child(1)  { width: 110px; } /* Submitted */
+  #ci-table th:nth-child(2),  #ci-table td:nth-child(2)  { width: 90px;  } /* ID */
+  #ci-table th:nth-child(6),  #ci-table td:nth-child(6)  { width: 140px; } /* Assigned */
+  #ci-table th:nth-child(7),  #ci-table td:nth-child(7)  { width: 120px; } /* Status */
+  #ci-table th:nth-child(9),  #ci-table td:nth-child(9)  { width: 160px; } /* Last Action */
+  #ci-table th:nth-child(11), #ci-table td:nth-child(11) { width: 120px; } /* Resourced On */
+  #ci-table th:nth-child(12), #ci-table td:nth-child(12) { width: 80px;  text-align:right; } /* Tokens */
+  #ci-table th:nth-child(13), #ci-table td:nth-child(13) { width: 70px;  text-align:center; } /* Paid */
+
+  #safety-table th:nth-child(1),  #safety-table td:nth-child(1)  { width: 110px; } /* Date */
+  #safety-table th:nth-child(2),  #safety-table td:nth-child(2)  { width: 160px; } /* Dept/Area */
+  #safety-table th:nth-child(10), #safety-table td:nth-child(10) { width: 120px; text-align:center; } /* Status */
+
+  #quality-table th:nth-child(1), #quality-table td:nth-child(1) { width: 80px;  text-align:center; } /* Catch ID */
+  #quality-table th:nth-child(2), #quality-table td:nth-child(2) { width: 110px; } /* Entry Date */
+  #quality-table th:nth-child(5), #quality-table td:nth-child(5) { width: 220px; } /* Quality Catch */
+  #quality-table th:nth-child(6), #quality-table td:nth-child(6) { width: 140px; } /* Part Number */
+}
+/* ======================================================================= */
+
 
