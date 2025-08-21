@@ -59,30 +59,96 @@ window.PowerUp = window.PowerUp || {};
     }
   }
 
-  // ---------- simple progress renderer ----------
-  function renderProgressSimple({ min, max, current }) {
-    const pct   = cap01(max ? (current / max) : 0);
+  // ---------- visual renderer (Progress V2) ----------
+  function renderProgressV2({ min, max, current }) {
+    const pct    = cap01(max ? (current / max) : 0);
+    const minPct = cap01(max ? (min / max) : 0);
+
+    const track  = document.querySelector('[data-hook="ph.track"]');
+    const fill   = document.querySelector('[data-hook="ph.fill"]');
+    const band   = document.querySelector('[data-hook="ph.band"]');
+    const thumb  = document.querySelector('[data-hook="ph.thumb"]');
+
     const state = stateFor(current, min, max);
 
-    const track = document.querySelector('[data-hook="ph.track"]');
-    const fill  = document.querySelector('[data-hook="ph.fill"]');
-    const thumb = document.querySelector('[data-hook="ph.thumb"]');
+    // min→max band
+    if (band) {
+      band.style.left  = (minPct * 100) + '%';
+      band.style.width = ((1 - minPct) * 100) + '%';
+    }
 
+    // 0→current fill
     if (fill) {
       fill.style.width = (pct * 100) + '%';
       fill.classList.remove('below','met','exceeded');
       fill.classList.add(state);
     }
+
+    // thumb position
     if (thumb) {
       thumb.style.left = (pct * 100) + '%';
       thumb.title = `${current.toFixed(1)}h`;
     }
+
+    // a11y progress values
     if (track) {
       track.setAttribute('aria-valuemin', '0');
       track.setAttribute('aria-valuemax', String(max));
       track.setAttribute('aria-valuenow', String(Math.max(0, Math.min(current, max))));
     }
+
     return state;
+  }
+
+  // ----- SMART message builder (days left, pace, urgency, colors) -----
+  function setSmartMessage({ monthCompleted, min, max }) {
+    const msgEl = document.querySelector('[data-hook="ph.message"]');
+    if (!msgEl) return;
+
+    // Days left this month
+    const year = now.getFullYear();
+    const lastDay = new Date(year, now.getMonth() + 1, 0).getDate(); // eom day number
+    const today = now.getDate();
+    const daysLeft = Math.max(0, lastDay - today); // exclude today for “left”
+
+    const remainingToMin = Math.max(0, min - monthCompleted);
+    const remainingToMax = Math.max(0, max - monthCompleted);
+    const dailyPaceMin = daysLeft > 0 ? (remainingToMin / daysLeft) : remainingToMin;
+    const dailyPaceMax = daysLeft > 0 ? (remainingToMax / daysLeft) : remainingToMax;
+
+    // choose message + color
+    let text = "";
+    let tone = "ok";
+
+    if (remainingToMin === 0 && remainingToMax === 0) {
+      text = `🔥 Amazing! You’ve exceeded the goal (${monthCompleted.toFixed(1)} / ${max}h).`;
+      tone = "exceeded";
+    } else if (remainingToMin === 0) {
+      text = `✅ Target met (≥ ${min.toFixed(1)}h). ${remainingToMax.toFixed(1)}h to reach the monthly max.`;
+      if (daysLeft > 0) text += ` ~${dailyPaceMax.toFixed(1)}h/day for the remaining ${daysLeft} day${daysLeft!==1?'s':''}.`;
+      tone = "ok";
+    } else {
+      // below minimum — add urgency based on time left & pace needed
+      const highUrgency = daysLeft <= 2 || dailyPaceMin >= 2;
+      const medUrgency  = daysLeft <= 5 || dailyPaceMin >= 1;
+
+      if (highUrgency) tone = "urgent";
+      else if (medUrgency) tone = "warn";
+      else tone = "ok";
+
+      const prefix = highUrgency ? "⏳" : (medUrgency ? "⚡" : "👉");
+      text = `${prefix} ${remainingToMin.toFixed(1)}h left to hit minimum (${min}h).`;
+      if (daysLeft > 0) {
+        text += ` ${daysLeft} day${daysLeft!==1?'s':''} left — that’s ~${dailyPaceMin.toFixed(1)}h/day.`;
+      } else {
+        text += ` Final day — push to finish!`;
+        tone = "urgent";
+      }
+    }
+
+    // apply
+    msgEl.textContent = text;
+    msgEl.className = `ph-msg ${tone}`;
   }
 
   // ---------- main entry ----------
@@ -108,7 +174,6 @@ window.PowerUp = window.PowerUp || {};
     // UI hooks
     const totalEl   = document.querySelector('[data-hook="ph.total"]');
     const goalMaxEl = document.querySelector('[data-hook="ph.goalMax"]');
-    const msgEl     = document.querySelector('[data-hook="ph.message"]');
 
     if (goalMaxEl) goalMaxEl.textContent = String(max);
 
@@ -116,8 +181,10 @@ window.PowerUp = window.PowerUp || {};
     if (rowsThisMonth.length === 0) {
       ns.powerHours = { monthCompleted: 0, allTimeCompleted, scheduledHours };
       if (totalEl) totalEl.textContent = '0.0';
-      renderProgressSimple({ min, max, current: 0 });
-      if (msgEl) msgEl.textContent = `No Power Hours logged for ${monthName} yet.`;
+      renderProgressV2({ min, max, current: 0 });
+
+      // SMART empty-message
+      setSmartMessage({ monthCompleted: 0, min, max });
       return;
     }
 
@@ -126,13 +193,9 @@ window.PowerUp = window.PowerUp || {};
     ns.powerHours = { monthCompleted, allTimeCompleted, scheduledHours };
 
     if (totalEl) totalEl.textContent = monthCompleted.toFixed(1);
-    const state = renderProgressSimple({ min, max, current: monthCompleted });
+    renderProgressV2({ min, max, current: monthCompleted });
 
-    // Smart message
-    let msg = '';
-    if (state === 'below')      msg = `Keep going — ${(min - monthCompleted).toFixed(1)} hrs to minimum`;
-    else if (state === 'met')   msg = `Target met (≥ ${min.toFixed(1)} hrs)`;
-    else                        msg = `Exceeded max (${monthCompleted.toFixed(1)} / ${max})`;
-    if (msgEl) msgEl.textContent = msg;
+    // SMART message
+    setSmartMessage({ monthCompleted, min, max });
   };
 })(window.PowerUp);
