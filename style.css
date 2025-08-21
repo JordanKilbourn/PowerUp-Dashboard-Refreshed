@@ -22,7 +22,7 @@
 }
 
 /* === 2) Reset / base === */
-* { box-sizing: border-box; margin: 5; padding: 0; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
 html, body {
   height: 100%;
   font-family: 'Inter', sans-serif;
@@ -253,5 +253,28 @@ body.notes .note-editor:empty:before { content: attr(data-placeholder); color: v
   pointer-events: none;
   transition: left .35s ease;
 }
+
+/* space the numbers above the bar */
+.power-card p {
+  margin-bottom: 10px;   /* tweak 8–12px to taste */
+  font-size: 15px;
+  font-weight: 500;
+}
+
+/* SMART message styling */
+.ph-msg {
+  display: block;
+  margin-top: 8px;
+  font-size: 13px;
+  opacity: 0.97;
+}
+
+/* color variants */
+.ph-msg.ok       { color: #a7f3d0; } /* mint/green */
+.ph-msg.warn     { color: #ffd166; } /* amber */
+.ph-msg.urgent   { color: #ff7b7b; } /* red */
+.ph-msg.exceeded { color: #7ee8fa; } /* aqua/celebratory */
+
+
 
 
