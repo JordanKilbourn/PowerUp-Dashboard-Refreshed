@@ -290,7 +290,7 @@ body.notes .note-editor:empty:before { content: attr(data-placeholder); color: v
 .mono     { font-variant-numeric: tabular-nums; }
 
 /* Tooltip-only clamp (no hover expand, no click) */
-.clip {
+/*.clip {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   overflow: hidden;
@@ -336,3 +336,4 @@ body.notes .note-editor:empty:before { content: attr(data-placeholder); color: v
 #ci-table td:nth-child(12) { text-align: right; } /* Tokens */
 
 /* ====================================================================== */
+
