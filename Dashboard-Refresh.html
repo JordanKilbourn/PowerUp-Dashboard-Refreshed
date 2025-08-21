@@ -55,22 +55,18 @@
             <span data-hook="ph.goalMax">8</span>
           </p>
 
-          <!-- Clean progress bar (track + fill + thumb) -->
-          <div class="phv2" aria-live="polite">
-            <div class="phv2-track"
-                 data-hook="ph.track"
-                 role="progressbar"
-                 aria-valuemin="0"
-                 aria-valuemax="8"
-                 aria-valuenow="0">
-              <div class="phv2-ticks"></div>
-              <div class="phv2-fill"  data-hook="ph.fill"></div>
-              <div class="phv2-thumb" data-hook="ph.thumb" title="Current"></div>
-            </div>
-
-            <!-- Smart message stays -->
-            <small data-hook="ph.message">—</small>
+          <!-- Simple progress bar (no bubbles/legends) -->
+          <div class="phbar"
+               data-hook="ph.track"
+               role="progressbar"
+               aria-valuemin="0"
+               aria-valuemax="8"
+               aria-valuenow="0">
+            <div class="phbar__fill"  data-hook="ph.fill"></div>
+            <div class="phbar__thumb" data-hook="ph.thumb" title="Current"></div>
           </div>
+
+          <small data-hook="ph.message">—</small>
         </div>
 
         <!-- Tokens -->
@@ -207,7 +203,7 @@
     </div>
   </div>
 
-  <!-- Minimal inline behavior -->
+  <!-- Minimal inline behavior: sidebar, tab switch, and per-tab status filtering -->
   <script>
     function toggleSidebar() {
       document.getElementById('sidebar').classList.toggle('expanded');
