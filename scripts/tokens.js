@@ -1,22 +1,33 @@
 // /scripts/tokens.js
 window.PowerUp = window.PowerUp || {};
 (function (ns) {
-  const { fetchSheet, rowsByTitle, SHEETS } = ns.api;
+  const { fetchSheet, rowsByTitle, SHEETS, Cache } = ns.api;
 
-  const toNumber = v => Number(String(v).replace(/[^0-9.-]/g,"")) || 0;
+  const num = v => {
+    const n = Number(String(v).replace(/[^0-9.-]/g, ''));
+    return Number.isFinite(n) ? n : 0;
+  };
+  const yes = v => /^(true|yes|y|1)$/i.test(String(v || '').trim());
+
+  async function getCIRows() {
+    if (Cache?.get) {
+      const cached = Cache.get('ci');
+      if (cached) return cached;
+    }
+    // Fallback if user lands on dashboard before tables hydrate
+    const sheet = await fetchSheet(SHEETS.CI);
+    return rowsByTitle(sheet);
+  }
 
   ns.renderTokenCard = async function () {
-    const { employeeId } = ns.session.get();
-    if (!employeeId) return;
+    const ci = await getCIRows();
 
-    const ciSheet = await fetchSheet(SHEETS.CI);
-    const ciRows  = rowsByTitle(ciSheet);
-
-    const total = ciRows
-      .filter(r => String(r["Employee ID"] || r["Position ID"] || "").trim() === employeeId)
-      .reduce((sum, r) => sum + toNumber(r["Token Payout"]), 0);
+    // Only count tokens from rows that are marked Paid
+    const totalPaid = ci.reduce((sum, r) => {
+      return yes(r['Paid']) ? sum + num(r['Token Payout']) : sum;
+    }, 0);
 
     const el = document.querySelector('[data-hook="token.total"]');
-    if (el) el.textContent = total.toString();
+    if (el) el.textContent = String(totalPaid);
   };
 })(window.PowerUp);
