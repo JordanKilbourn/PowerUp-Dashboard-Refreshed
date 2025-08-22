@@ -178,6 +178,15 @@
         </div>
     </div>
 
+    
+    <script>
+  document.addEventListener('DOMContentLoaded', async () => {
+    PowerUp.session.requireLogin();     // redirect to login.html if not logged in
+    await PowerUp.session.initHeader(); // fill user name & level; wire logout
+  });
+</script>
+
+    
     <script>
         document.getElementById('addSquadForm').addEventListener('submit', function(event) {
             event.preventDefault(); // Prevent default form submission
@@ -213,3 +222,4 @@
     </script>
 </body>
 </html>
+
