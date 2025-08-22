@@ -1,286 +1,216 @@
-// /scripts/tables.js
-window.PowerUp = window.PowerUp || {};
-(function (ns) {
-  const { fetchSheet, rowsByTitle, SHEETS, Cache } = ns.api;
-
-  // ------------------------------------------------------------------
-  // Column sets per table (titles must match your sheet headers)
-  // ------------------------------------------------------------------
+// scripts/tables.js
+(function (PowerUp) {
+  const P = PowerUp || (PowerUp = {});
+  // ---------- Column mappings (tolerant to minor name differences) ----------
   const COLS = {
-    ci: [
-      "Submission Date","Submission ID","Problem Statements","Proposed Improvement",
-      "CI Approval","Assigned To (Primary)","Status","Action Item Entry Date",
-      "Last Meeting Action Item's","Resourced","Resourced Date","Token Payout","Paid"
+    CI: [
+      "Submission Date", "Submission ID", "Problem Statements", "Proposed Improvement",
+      "CI Approval", "Assigned To (Primary)", "Status", "Action Item Entry Date",
+      "Last Meeting Action Item's", "Resourced", "Resourced Date", "Token Payout", "Paid"
     ],
-    safety: [
-      "Date","Department/Area","Safety Concern","Describe the safety concern",
-      "Recommendations to correct/improve safety issue","Resolution",
-      "Who was the safety concern escalated to","Leadership update",
-      "Closed/Confirmed by- leadership only","Status"
+    SAFETY: [
+      "Submission Date", "Department", "Description", "Recommendations",
+      "Status", "Assigned To (Primary)", "Action Item Entry Date", "Follow-up Date", "Severity"
     ],
-    quality: [
-      "Catch ID","Entry Date","Submitted By","Area","Quality Catch","Part Number","Description"
+    QUALITY: [
+      "Submission Date", "Part Number", "Part Description", "Issue",
+      "Status", "Assigned To (Primary)", "Containment", "Root Cause", "Corrective Action"
     ]
   };
 
-  // ------------------------------------------------------------------
-  // Helpers
-  // ------------------------------------------------------------------
-  const escapeHtml = (s) =>
-    String(s ?? "")
-      .replace(/&/g, "&amp;").replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  // Where to look up user IDs in sheets
+  const EMP_ID_KEYS = ["Employee ID", "Position ID"];
 
-  const num = v => {
-    const n = Number(String(v).replace(/[^0-9.-]/g, ""));
-    return Number.isFinite(n) ? n : 0;
-  };
-  const yes = v => /^(true|yes|y|1)$/i.test(String(v || "").trim());
+  // ---------- DOM helpers with graceful fallbacks ----------
+  function $q(sel, root = document) { return root.querySelector(sel); }
+  function findTable(kind) {
+    return (
+      $q(`table[data-table="${kind}"]`) ||
+      $q(`#${kind}-table`) ||
+      $q(`.${kind}-table`)
+    );
+  }
+  function findBody(kind, table) {
+    return (
+      (table && table.querySelector("tbody")) ||
+      $q(`#${kind}-rows`) ||
+      $q(`[data-body="${kind}"]`)
+    );
+  }
+  function findStatusSelect(kind) {
+    return (
+      $q(`select[data-filter="${kind}-status"]`) ||
+      $q(`#${kind}-status`) ||
+      null
+    );
+  }
+  function findCountBadge(kind) {
+    return (
+      $q(`[data-count="${kind}"]`) ||
+      $q(`#${kind}-count`) ||
+      null
+    );
+  }
 
-  const dateish = v => (v ? new Date(v) : null);
-  const fmtDate = v => {
-    const d = dateish(v);
-    if (!d || isNaN(d)) return v ?? "";
-    return `${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}/${d.getFullYear()}`;
-  };
+  // ---------- utilities ----------
+  const num = (v) => PowerUp.api.toNumber(v);
+  const isTrue = (v) => String(v).toLowerCase() === "true" || String(v).toLowerCase() === "yes";
+  const get = (row, key) => row[key] ?? "";
 
-  const money = v => {
-    const n = num(v);
-    return n ? `$${n}` : (v || "");
-  };
+  function belongsToUser(row, empId) {
+    const rid = (EMP_ID_KEYS.map(k => row[k]).find(v => v != null && v !== "") || "").toString().trim();
+    return rid === (empId || "").toString().trim();
+  }
 
-  const statusPill = (text) => {
-    if (!text) return "";
-    const t = String(text).toLowerCase();
-    let cls = "pill--gray";
-    if (/approved|accepted|closed|complete/.test(t)) cls = "pill--green";
-    else if (/pending|in ?progress|open|new|research/.test(t)) cls = "pill--blue";
-    else if (/denied|rejected|not.*started|cancel/.test(t)) cls = "pill--red";
-    return `<span class="pill ${cls}">${escapeHtml(text)}</span>`;
-  };
+  function pill(text, color) {
+    const cls = color === "green" ? "pill pill--green" :
+                color === "red"   ? "pill pill--red"   :
+                color === "blue"  ? "pill pill--blue"  : "pill";
+    return `<span class="${cls}">${text}</span>`;
+  }
 
-  const boolBadge = (v) => {
-    if (yes(v)) return `<span class="pill pill--green">Yes</span>`;
-    if (/^(false|no|n|0)$/i.test(String(v || ""))) return `<span class="pill pill--gray">No</span>`;
-    return escapeHtml(v ?? "");
-  };
-
-  function sortKey(colTitle, rawValue) {
-    const t = colTitle.toLowerCase();
-    if (t.includes("date")) {
-      const d = dateish(rawValue);
-      return d && !isNaN(d) ? d.getTime() : -8.64e15;
+  function formatCell(title, value) {
+    const t = title.toLowerCase();
+    if (t === "status") {
+      const v = String(value || "").toLowerCase();
+      if (/(approved|closed|complete|completed|done)/.test(v)) return pill(value, "green");
+      if (/(pending|open|in progress|scheduled)/.test(v))     return pill(value, "blue");
+      if (/(denied|rejected|cancelled|canceled)/.test(v))     return pill(value, "red");
+      return value || "";
     }
-    const n = Number(String(rawValue).replace(/[^0-9.-]/g, ""));
-    if (!Number.isNaN(n) && String(rawValue).match(/[0-9]/)) return n;
-    if (String(rawValue).toLowerCase() === "true") return 1;
-    if (String(rawValue).toLowerCase() === "false") return 0;
-    return String(rawValue || "").toLowerCase();
+    if (/^paid$/.test(t)) return isTrue(value) ? pill("Paid", "green") : "";
+    if (/^resourced$/.test(t)) return isTrue(value) ? pill("Resourced", "green") : "";
+    if (/token payout/i.test(t)) return num(value) ? `${num(value)}` : "";
+    return value ?? "";
   }
 
-  // Long-text columns get a tooltip
-  const LONG_TXT_RE = /(problem|improvement|description|recommend|resolution|leadership|quality catch)/i;
-
-  function formatCell(colTitle, value) {
-    if (value == null) return "";
-    const t = colTitle.toLowerCase();
-
-    // specific types
-    if (t.includes("date")) return fmtDate(value);
-    if (t.includes("token")) return money(value);
-    if (t === "paid") return boolBadge(value);
-    if (t.includes("status") || t.includes("approval")) return statusPill(value);
-
-    // long text: keep simple inline and add a hover title
-    const text = String(value);
-    if (LONG_TXT_RE.test(colTitle)) {
-      return `<span title="${escapeHtml(text)}">${escapeHtml(text)}</span>`;
+  // Build header row based on COLS
+  function ensureHeader(table, cols) {
+    const thead = table.querySelector("thead") || table.createTHead();
+    if (!thead.innerHTML.trim()) {
+      const tr = document.createElement("tr");
+      cols.forEach(c => {
+        const th = document.createElement("th");
+        th.textContent = c;
+        th.dataset.k = c; // for sorting
+        tr.appendChild(th);
+      });
+      thead.appendChild(tr);
     }
-    return escapeHtml(text);
   }
 
-  // Security: restrict to this user's rows
-  function belongsToUser(row, employeeId) {
-    const id = String(employeeId || "").trim();
-    if (!id) return false;
-    const a = String(row["Employee ID"] || "").trim();
-    const b = String(row["Position ID"] || "").trim();
-    return a === id || b === id;
-  }
-
-  // Render tbody (adds a single .empty row when there's no data)
-  function renderTbody(tbody, rows, columns) {
-    if (!tbody) return;
-
-    if (!rows || rows.length === 0) {
-      tbody.innerHTML =
-        `<tr class="empty"><td colspan="${columns.length}" style="text-align:center;opacity:.7;">No rows</td></tr>`;
+  function renderRows(tbody, cols, rows) {
+    if (!rows.length) {
+      tbody.innerHTML = `<tr><td colspan="${cols.length}" class="muted" style="text-align:center;padding:16px;">No rows</td></tr>`;
       return;
     }
-
     const html = rows.map(r => {
-      const tds = columns.map(col => {
-        const raw = r[col];
-        const display = formatCell(col, raw);
-        const key = sortKey(col, raw);
-        return `<td data-sort="${key}">${display}</td>`;
-      }).join("");
+      const tds = cols.map(col => `<td>${formatCell(col, get(r, col))}</td>`).join("");
       return `<tr>${tds}</tr>`;
     }).join("");
-
     tbody.innerHTML = html;
   }
 
-  // default sort by "newest" using the first date-like column found
-  function sortNewest(rows) {
-    const dateCols = [
-      "Submission Date","Entry Date","Date","Action Item Entry Date","Resourced Date","Created","Last Action"
-    ];
-    return [...rows].sort((a, b) => {
-      const getTime = (row) => {
-        for (const c of dateCols) {
-          if (row[c]) {
-            const d = new Date(row[c]);
-            if (!isNaN(d)) return d.getTime();
-          }
-        }
-        return -8.64e15;
-      };
-      return getTime(b) - getTime(a);
-    });
-  }
+  function attachSort(table, cols) {
+    const ths = table.querySelectorAll("thead th[data-k]");
+    ths.forEach(th => {
+      th.addEventListener("click", () => {
+        const key = th.dataset.k;
+        const tbody = table.querySelector("tbody");
+        const rows = Array.from(tbody.querySelectorAll("tr"));
+        // Determine column index
+        const headers = Array.from(table.querySelectorAll("thead th"));
+        const idx = headers.findIndex(h => (h.dataset.k || h.textContent.trim()) === key);
 
-  // click-to-sort on header
-  function bindHeaderSort(tableId) {
-    const table = document.getElementById(tableId);
-    if (!table) return;
-    const thead = table.querySelector("thead");
-    const tbody = table.querySelector("tbody");
-    if (!thead || !tbody) return;
+        // Current sort dir toggle
+        const asc = th.dataset.sort !== "asc";
+        headers.forEach(h => h.dataset.sort = "");
+        th.dataset.sort = asc ? "asc" : "desc";
 
-    let state = { col: 0, asc: false };
+        const getCellText = (tr) => (tr.children[idx]?.textContent || "").trim();
 
-    thead.querySelectorAll("th").forEach((th, idx) => {
-      th.style.cursor = "pointer";
-      th.onclick = () => {
-        state.asc = state.col === idx ? !state.asc : true;
-        state.col = idx;
-
-        const rows = Array.from(tbody.querySelectorAll("tr")).filter(r => !r.classList.contains("empty"));
-        rows.sort((ra, rb) => {
-          const a = ra.children[idx]?.getAttribute("data-sort") ?? "";
-          const b = rb.children[idx]?.getAttribute("data-sort") ?? "";
-          const na = Number(a), nb = Number(b);
-          const bothNum = !Number.isNaN(na) && !Number.isNaN(nb);
-          const cmp = bothNum ? (na - nb) : String(a).localeCompare(String(b));
-          return state.asc ? cmp : -cmp;
+        const sorted = rows.sort((a, b) => {
+          const av = getCellText(a);
+          const bv = getCellText(b);
+          // numeric if both numbers (e.g., Token Payout)
+          const an = parseFloat(av.replace(/[^0-9.\-]/g, "")); 
+          const bn = parseFloat(bv.replace(/[^0-9.\-]/g, ""));
+          const numMode = !Number.isNaN(an) && !Number.isNaN(bn) && (/\d/.test(av) || /\d/.test(bv));
+          if (numMode) return asc ? (an - bn) : (bn - an);
+          return asc ? av.localeCompare(bv) : bv.localeCompare(av);
         });
-        rows.forEach(r => tbody.appendChild(r));
 
-        thead.querySelectorAll("th").forEach((h, i) => {
-          h.classList.toggle("sorted-asc", i === state.col && state.asc);
-          h.classList.toggle("sorted-desc", i === state.col && !state.asc);
-        });
-      };
-    });
-  }
-
-  // status dropdown filter + accurate visible count (ignores .empty row)
-  function applyStatusDropdownFiltering(typeKey) {
-    const select = document.getElementById(`${typeKey}-filter`);
-    const table  = document.getElementById(`${typeKey}-table`);
-    const tbody  = table?.querySelector("tbody");
-    const count  = document.getElementById(`${typeKey}-count`);
-    if (!select || !tbody) return;
-
-    const run = () => {
-      const v = (select.value || "all").toLowerCase();
-      let visible = 0;
-
-      Array.from(tbody.rows).forEach(tr => {
-        const isEmpty = tr.classList.contains("empty");
-        if (isEmpty) {
-          // show placeholder only if everything else is hidden/absent
-          return;
-        }
-        const cells = Array.from(tr.cells).map(td => td.textContent.toLowerCase());
-        const show = v === "all" || cells.some(text => text.includes(v));
-        tr.style.display = show ? "" : "none";
-        if (show) visible++;
+        // reattach sorted rows
+        const frag = document.createDocumentFragment();
+        sorted.forEach(tr => frag.appendChild(tr));
+        tbody.innerHTML = ""; // clear
+        tbody.appendChild(frag);
       });
-
-      // toggle placeholder based on visibility
-      const placeholder = tbody.querySelector("tr.empty");
-      if (placeholder) placeholder.style.display = visible === 0 ? "" : "none";
-
-      if (count) count.textContent = `${visible} submission${visible === 1 ? "" : "s"}`;
-    };
-
-    select.onchange = run;
-    run();
+    });
   }
 
-  // helper to set count after initial render (uses actual visible rows)
-  const setCount = (id, n, tableId) => {
-    const el = document.getElementById(id);
-    if (!el) return;
+  function attachStatusFilter(kind, table, select) {
+    if (!select) return;
+    select.addEventListener("change", () => {
+      const val = select.value || "";
+      const tbody = table.querySelector("tbody");
+      const rows = Array.from(tbody.querySelectorAll("tr"));
+      // Find "Status" column index
+      const headers = Array.from(table.querySelectorAll("thead th"));
+      const sIdx = headers.findIndex(h => /status/i.test(h.textContent.trim()));
+      rows.forEach(tr => {
+        // Keep "No rows" visible logic consistent
+        if (tr.children.length === 1) { tr.style.display = ""; return; }
+        if (!val || val === "All") { tr.style.display = ""; return; }
+        const cellText = (tr.children[sIdx]?.textContent || tr.textContent || "").toLowerCase();
+        tr.style.display = cellText.includes(val.toLowerCase()) ? "" : "none";
+      });
+      // Update count after filter
+      const visible = rows.filter(tr => tr.style.display !== "none" && tr.children.length > 1).length;
+      const badge = findCountBadge(kind);
+      if (badge) badge.textContent = visible;
+    });
+  }
 
-    const tb = document.getElementById(tableId)?.querySelector("tbody");
-    if (tb) {
-      const visible = Array.from(tb.rows)
-        .filter(r => !r.classList.contains("empty") && r.style.display !== "none").length;
-      el.textContent = `${visible} submission${visible === 1 ? "" : "s"}`;
-    } else {
-      el.textContent = `${n} submission${n === 1 ? "" : "s"}`;
-    }
-  };
+  function updateCount(kind, table) {
+    const tbody = table.querySelector("tbody");
+    const rows = Array.from(tbody.querySelectorAll("tr"));
+    const count = rows.filter(tr => tr.children.length > 1).length; // ignore "No rows"
+    const badge = findCountBadge(kind);
+    if (badge) badge.textContent = count;
+  }
 
-  // ------------------------------------------------------------------
-  // Main entry
-  // ------------------------------------------------------------------
-  ns.hydrateDashboardTables = async function () {
-    const { employeeId } = ns.session.get();
+  async function hydrateOne(kind, sheetId, cols) {
+    const table = findTable(kind);
+    if (!table) return; // nothing to do if the page doesn't have this table
+    ensureHeader(table, cols);
+    const tbody = findBody(kind, table);
 
-    const [ciSheet, safetySheet, qualitySheet] = await Promise.all([
-      fetchSheet(SHEETS.CI),
-      fetchSheet(SHEETS.SAFETY),
-      fetchSheet(SHEETS.QUALITY)
+    const s = PowerUp.session.get();
+    const all = await PowerUp.api.getRowsByTitle(sheetId);
+    const mine = all.filter(r => belongsToUser(r, s.employeeId)).sort((a, b) => {
+      // Default newest first by "Submission Date" if present
+      const ad = new Date(a["Submission Date"] || a["Date"] || 0);
+      const bd = new Date(b["Submission Date"] || b["Date"] || 0);
+      return bd - ad;
+    });
+
+    renderRows(tbody, cols, mine);
+    updateCount(kind, table);
+    attachSort(table, cols);
+    attachStatusFilter(kind, table, findStatusSelect(kind));
+  }
+
+  async function hydrateDashboardTables() {
+    PowerUp.session.requireLogin();
+    await PowerUp.session.initHeader();
+    await Promise.all([
+      hydrateOne("ci",      PowerUp.api.SHEETS.CI,      COLS.CI),
+      hydrateOne("safety",  PowerUp.api.SHEETS.SAFETY,  COLS.SAFETY),
+      hydrateOne("quality", PowerUp.api.SHEETS.QUALITY, COLS.QUALITY)
     ]);
+  }
 
-    const ciAll      = rowsByTitle(ciSheet);
-    const safetyAll  = rowsByTitle(safetySheet);
-    const qualityAll = rowsByTitle(qualitySheet);
-
-    const mineCI      = ciAll.filter(r => belongsToUser(r, employeeId));
-    const mineSafety  = safetyAll.filter(r => belongsToUser(r, employeeId));
-    const mineQuality = qualityAll.filter(r => belongsToUser(r, employeeId));
-
-    const ciView      = sortNewest(mineCI);
-    const safetyView  = sortNewest(mineSafety);
-    const qualityView = sortNewest(mineQuality);
-
-    // cache for other modules (tokens.js uses this)
-    Cache.set("ci", ciAll);
-    Cache.set("safety", safetyAll);
-    Cache.set("quality", qualityAll);
-
-    // render
-    renderTbody(document.querySelector('[data-hook="table.ci.tbody"]'),      ciView,      COLS.ci);
-    renderTbody(document.querySelector('[data-hook="table.safety.tbody"]'),  safetyView,  COLS.safety);
-    renderTbody(document.querySelector('[data-hook="table.quality.tbody"]'), qualityView, COLS.quality);
-
-    // sorting + filtering
-    bindHeaderSort("ci-table");
-    bindHeaderSort("safety-table");
-    bindHeaderSort("quality-table");
-
-    applyStatusDropdownFiltering("ci");
-    applyStatusDropdownFiltering("safety");
-    applyStatusDropdownFiltering("quality");
-
-    // counts (uses visible rows)
-    setCount("ci-count",      ciView.length,      "ci-table");
-    setCount("safety-count",  safetyView.length,  "safety-table");
-    setCount("quality-count", qualityView.length, "quality-table");
-  };
-})(window.PowerUp);
+  P.tables = { hydrateDashboardTables };
+  window.PowerUp = P;
+}(window.PowerUp || {}));
