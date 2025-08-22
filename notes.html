@@ -66,6 +66,14 @@
   </div>
 
   <!-- Script -->
+
+  <script>
+  document.addEventListener('DOMContentLoaded', async () => {
+    PowerUp.session.requireLogin();     // redirect to login.html if not logged in
+    await PowerUp.session.initHeader(); // fill user name & level; wire logout
+  });
+</script>
+
   <script>
     let notes = JSON.parse(localStorage.getItem("notes") || "[]");
     let currentNoteId = null;
@@ -170,4 +178,5 @@ function deleteNoteById(id, e) {
   </script>
 </body>
 </html>
+
 
