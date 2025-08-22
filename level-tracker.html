@@ -13,11 +13,10 @@
     .title{ font-size:20px; font-weight:700;}
     .muted{ color:#94a3b8;}
     .card{ background:#0b1020; border:1px solid #1f2937; border-radius:12px; padding:14px; }
-    table{ width:100%; border-collapse:collapse; margin-top:12px;}
+    .table-scroll{ max-height:70vh; overflow:auto;}
+    table{ width:100%; border-collapse:collapse; }
     th,td{ padding:10px 12px; border-bottom:1px solid #1f2937;}
-    th{ text-align:left; }
-    .ok{ color:#22c55e;}
-    .no{ color:#ef4444;}
+    th{ position:sticky; top:0; background:#0b1020; cursor:pointer; user-select:none;}
     .right{ text-align:right;}
   </style>
 </head>
@@ -32,132 +31,72 @@
     </div>
 
     <div class="card">
-      <div class="muted">Goals for your level (<span id="lvl">—</span>): Min <strong id="g-min">—</strong>h / Max <strong id="g-max">—</strong>h per month</div>
-      <table id="t">
-        <thead>
-          <tr>
-            <th>Month</th>
-            <th class="right">Hours</th>
-            <th class="right">CI</th>
-            <th class="right">Safety</th>
-            <th class="right">Quality</th>
-            <th>Meets Min Hours?</th>
-          </tr>
-        </thead>
-        <tbody id="tb">
-          <tr><td colspan="6" class="muted" style="text-align:center;padding:20px;">Loading…</td></tr>
-        </tbody>
-      </table>
+      <div class="table-scroll">
+        <table id="ltbl">
+          <thead><tr id="lhead"></tr></thead>
+          <tbody id="lrows">
+            <tr><td class="muted" style="text-align:center;padding:20px;">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
-
-  <script>
-  document.addEventListener('DOMContentLoaded', async () => {
-    PowerUp.session.requireLogin();     // redirect to login.html if not logged in
-    await PowerUp.session.initHeader(); // fill user name & level; wire logout
-  });
-</script>
 
   <script src="scripts/api.js"></script>
   <script src="scripts/session.js"></script>
   <script>
-    // Column maps (robust to common naming variants)
-    const MAP = {
-      employeeId: ['Employee ID','Position ID'],
-      date: {
-        CI: ['Submission Date','Date'],
-        SAFETY: ['Submission Date','Date','Date Reported'],
-        QUALITY: ['Submission Date','Date'],
-        HOURS: ['Date','Session Date','Power Hour Date']
-      },
-      hours: ['Completed Hours','Hours','Duration (h)'],
-      levelCol: ['PowerUp Level (Select)','PowerUp Level']
-    };
-
-    function pick(row, names, def=''){ for(const k of names) if(row[k]!=null && row[k]!=='') return row[k]; return def; }
-    function toNum(x){ return PowerUp.api.toNumber(x); }
-    function parseDate(v){ const d=new Date(v); return isNaN(d)?null:d; }
-    function yyyymm(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
-    function labelMonth(ym){ const [y,m]=ym.split('-').map(Number); return new Date(y,m-1,1).toLocaleString(undefined,{month:'short', year:'numeric'}); }
-
-    function byUser(rows, empId){
-      return rows.filter(r=>{
-        const rid=(pick(r, MAP.employeeId)+'').trim();
-        return rid === (empId+'').trim();
+    function buildHeader(columns) {
+      const tr = document.getElementById('lhead');
+      tr.innerHTML = columns.map(c => `<th data-k="${c.title}">${c.title}</th>`).join('');
+    }
+    function renderRows(columns, rows) {
+      const tb = document.getElementById('lrows');
+      if (!rows.length) {
+        tb.innerHTML = `<tr><td class="muted" style="text-align:center;padding:20px;">No rows</td></tr>`;
+        return;
+      }
+      const html = rows.map(r => {
+        const tds = columns.map(c => `<td>${r[c.title] ?? ''}</td>`).join('');
+        return `<tr>${tds}</tr>`;
+      }).join('');
+      tb.innerHTML = html;
+    }
+    function attachSort(columns) {
+      const ths = document.querySelectorAll('#lhead th[data-k]');
+      ths.forEach((th, idx) => {
+        th.addEventListener('click', () => {
+          const key = th.dataset.k;
+          const asc = th.dataset.sort !== 'asc';
+          ths.forEach(h => h.dataset.sort = '');
+          th.dataset.sort = asc ? 'asc' : 'desc';
+          const tb = document.getElementById('lrows');
+          const rows = Array.from(tb.querySelectorAll('tr'));
+          const sorted = rows.sort((a,b) => {
+            const av = (a.children[idx]?.textContent || '').trim();
+            const bv = (b.children[idx]?.textContent || '').trim();
+            const an = parseFloat(av.replace(/[^0-9.\-]/g,'')), bn = parseFloat(bv.replace(/[^0-9.\-]/g,''));
+            const numMode = !Number.isNaN(an) && !Number.isNaN(bn) && (/\d/.test(av)||/\d/.test(bv));
+            return asc ? (numMode ? an - bn : av.localeCompare(bv))
+                       : (numMode ? bn - an : bv.localeCompare(av));
+          });
+          const frag = document.createDocumentFragment();
+          sorted.forEach(tr => frag.appendChild(tr));
+          tb.innerHTML = '';
+          tb.appendChild(frag);
+        });
       });
     }
-    function groupByMonth(rows, dateKeys){
-      const out = new Map();
-      for(const r of rows){
-        const v = pick(r, dateKeys);
-        const d = parseDate(v);
-        if(!d) continue;
-        const ym = yyyymm(d);
-        out.set(ym, (out.get(ym)||[]).concat([r]));
-      }
-      return out;
-    }
-
     async function load() {
       PowerUp.session.requireLogin();
       await PowerUp.session.initHeader();
-      const s = PowerUp.session.get();
-      document.getElementById('lvl').textContent = s.level || '—';
-
-      // Load goals + determine min/max for this level
-      const goals = await PowerUp.api.getRowsByTitle(PowerUp.api.SHEETS.POWER_HOUR_GOALS);
-      const lvlRow = goals.find(r => String(r['Level']||'').trim() === String(s.level||'').trim());
-      const MIN = toNum(lvlRow?.['Min Hours']);
-      const MAX = toNum(lvlRow?.['Max Hours']);
-      document.getElementById('g-min').textContent = MIN || 0;
-      document.getElementById('g-max').textContent = MAX || 0;
-
-      // Load all sheets once (uses de-dupe cache if already loaded elsewhere)
-      const [hoursAll, ciAll, saAll, quAll] = await Promise.all([
-        PowerUp.api.getRowsByTitle(PowerUp.api.SHEETS.POWER_HOURS),
-        PowerUp.api.getRowsByTitle(PowerUp.api.SHEETS.CI),
-        PowerUp.api.getRowsByTitle(PowerUp.api.SHEETS.SAFETY),
-        PowerUp.api.getRowsByTitle(PowerUp.api.SHEETS.QUALITY)
-      ]);
-
-      const H = byUser(hoursAll, s.employeeId);
-      const CI = byUser(ciAll, s.employeeId);
-      const SA = byUser(saAll, s.employeeId);
-      const QU = byUser(quAll, s.employeeId);
-
-      const gH = groupByMonth(H, MAP.date.HOURS);
-      const gCI = groupByMonth(CI, MAP.date.CI);
-      const gSA = groupByMonth(SA, MAP.date.SAFETY);
-      const gQU = groupByMonth(QU, MAP.date.QUALITY);
-
-      // last 3 months (including current)
-      const now = new Date();
-      const months = [0, -1, -2].map(offset => {
-        const d = new Date(now.getFullYear(), now.getMonth()+offset, 1);
-        return yyyymm(d);
-      });
-
-      const tbody = document.getElementById('tb');
-      tbody.innerHTML = months.map(ym => {
-        const hRows = gH.get(ym) || [];
-        const ciRows = gCI.get(ym) || [];
-        const saRows = gSA.get(ym) || [];
-        const quRows = gQU.get(ym) || [];
-        const totalHrs = hRows.reduce((a,r)=> a + toNum(pick(r, MAP.hours, 0)), 0);
-        const meets = (MIN ? totalHrs >= MIN : false);
-        return `<tr>
-          <td>${labelMonth(ym)}</td>
-          <td class="right">${totalHrs.toFixed(2)}</td>
-          <td class="right">${ciRows.length}</td>
-          <td class="right">${saRows.length}</td>
-          <td class="right">${quRows.length}</td>
-          <td>${meets ? '<span class="ok">Yes</span>' : '<span class="no">No</span>'}</td>
-        </tr>`;
-      }).join('');
+      const raw = await PowerUp.api.fetchSheet(PowerUp.api.SHEETS.LEVEL_TRACKER);
+      const columns = raw.columns; // Smartsheet order
+      const rows = PowerUp.api.rowsByTitle(raw);
+      buildHeader(columns);
+      renderRows(columns, rows);
+      attachSort(columns);
     }
-
     document.addEventListener('DOMContentLoaded', load);
   </script>
 </body>
 </html>
-
