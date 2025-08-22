@@ -392,5 +392,10 @@ body.notes .note-editor:empty:before { content: attr(data-placeholder); color: v
 .pill--red   { background: var(--error);  color: #fff; }
 .pill--gray  { background: #3a4e4e;      color: #fff; }
 
+/* Sort arrows (th[data-sort]) */
+th[data-sort="asc"]::after { content: " ▲"; opacity: .7; }
+th[data-sort="desc"]::after { content: " ▼"; opacity: .7; }
+
+
 
 
