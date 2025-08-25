@@ -1,7 +1,6 @@
 // scripts/layout.js
 (function (PowerUp) {
   const P = PowerUp || (PowerUp = {});
-
   const SHELL_HTML = `
     <aside class="sidebar" id="pu-sidebar">
       <div class="logo"><span class="dot"></span><span class="brand">PowerUp</span></div>
@@ -22,41 +21,16 @@
       </div>
     </header>
   `;
-
-  function injectLayout() {
-    // Avoid double-inject
+  function injectLayout(){
     if (document.querySelector('#pu-header') || document.querySelector('#pu-sidebar')) return;
-
-    // Shell container
-    const shell = document.createElement('div');
-    shell.className = 'layout-shell';
-    shell.innerHTML = SHELL_HTML;
-
-    // Insert shell at top of body
+    const shell = document.createElement('div'); shell.className='layout-shell'; shell.innerHTML=SHELL_HTML;
     document.body.prepend(shell);
-
-    // Create <main class="content"> and move all subsequent siblings into it
-    const main = document.createElement('main');
-    main.className = 'content';
-
-    const moving = [];
-    while (shell.nextSibling) {
-      moving.push(shell.nextSibling);
-      shell.parentNode.removeChild(shell.nextSibling);
-    }
-    moving.forEach(node => main.appendChild(node));
-    shell.after(main);
-
-    // Start collapsed (no body class). If you prefer expanded by default, add it here.
+    const main=document.createElement('main'); main.className='content';
+    const rest=[]; while (shell.nextSibling){ rest.push(shell.nextSibling); shell.parentNode.removeChild(shell.nextSibling); }
+    rest.forEach(n=>main.appendChild(n)); shell.after(main);
     document.body.classList.remove('sidebar-expanded');
-
-    // Toggle button wires a BODY class (so CSS can shift header/content reliably)
-    const btn = document.getElementById('pu-toggle');
-    btn.addEventListener('click', () => {
-      document.body.classList.toggle('sidebar-expanded');
-    });
+    document.getElementById('pu-toggle').addEventListener('click',()=>{ document.body.classList.toggle('sidebar-expanded'); });
   }
-
   P.layout = { injectLayout };
   window.PowerUp = P;
 }(window.PowerUp || {}));
