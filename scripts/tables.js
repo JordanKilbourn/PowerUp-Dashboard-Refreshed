@@ -113,7 +113,7 @@ window.PowerUp = window.PowerUp || {};
     }
   };
 
-  // === Helpers (KEEPING YOUR FORMATTERS) ===
+  // === Helpers (KEEPING / UPDATING FORMATTERS) ===
   const esc = (s) =>
     String(s ?? "")
       .replace(/&/g, "&amp;")
@@ -127,10 +127,16 @@ window.PowerUp = window.PowerUp || {};
       `${String(d.getMonth()+1).padStart(2,"0")}/${String(d.getDate()).padStart(2,"0")}/${d.getFullYear()}`;
   };
 
-  const boolBadge = (v) => {
-    const t = String(v).toLowerCase();
-    if (t === "true" || t === "yes" || t === "paid") return `<span class="pill pill--green">Yes</span>`;
-    if (t === "false" || t === "no") return `<span class="pill pill--gray">No</span>`;
+  // ✓ / ✗ for boolean-ish values (used by Resourced + Paid)
+  const boolMark = (v) => {
+    const t = String(v ?? "").trim().toLowerCase();
+    if (t === "true" || t === "yes" || t === "paid" || t === "1") {
+      return `<span class="pill pill--green" title="Yes">✓</span>`;
+    }
+    if (t === "false" || t === "no" || t === "0") {
+      return `<span class="pill pill--red" title="No">✗</span>`;
+    }
+    // If the sheet has something unexpected, show it raw (escaped)
     return esc(v);
   };
 
@@ -144,15 +150,32 @@ window.PowerUp = window.PowerUp || {};
   };
 
   function format(col, value) {
-    const t = col.toLowerCase();
+    const t = String(col || "").toLowerCase();
+
+    // Dates (handles "Submission Date", "Entry Date", etc.)
     if (t.includes("date")) return fmtDate(value);
-    if (t.includes("token")) return value ? `$${value}` : "";
-    if (t === "paid") return boolBadge(value);
-    if (t.includes("status") || t.includes("approval")) return statusPill(value);
+
+    // Tokens — ensure only one "$" by stripping any existing symbols first
+    if (t.includes("token")) {
+      const n = Number(String(value).replace(/[^0-9.\-]/g, ""));
+      return Number.isFinite(n) && n !== 0 ? `$${n}` : (n === 0 ? "$0" : "");
+    }
+
+    // Paid / Resourced — green ✓ or red ✗
+    if (t === "paid" || t === "resourced") {
+      return boolMark(value);
+    }
+
+    // Status / Approval — use colored pills
+    if (t.includes("status") || t.includes("approval")) {
+      return statusPill(value);
+    }
+
+    // Everything else
     return esc(value ?? "");
   }
 
-  // === Render function with sorting (KEEPING YOUR CODE) ===
+  // === Render function with sorting (KEEPING YOUR PATTERN) ===
   function renderTable(tbody, rows, colMap, tableId) {
     if (!tbody) return;
     const cols = Object.keys(colMap);
@@ -161,12 +184,16 @@ window.PowerUp = window.PowerUp || {};
     // Fill body
     const html = rows.map(r => {
       const tds = cols.map(c => {
-        const val = format(c, r[c]);
+        const raw = r[c];
+        const val = format(c, raw);
         // For sorting, also store a normalized value
-        let sortVal = (r[c] ?? "").toString().toLowerCase();
+        let sortVal = (raw ?? "").toString().toLowerCase();
         if (c.toLowerCase().includes("date")) {
-          const d = new Date(r[c]);
+          const d = new Date(raw);
           sortVal = isNaN(d) ? "" : d.getTime();
+        } else if (c.toLowerCase().includes("token")) {
+          const n = Number(String(raw).replace(/[^0-9.\-]/g, ""));
+          sortVal = Number.isFinite(n) ? String(n) : "";
         }
         return `<td data-sort="${sortVal}">${val}</td>`;
       }).join("");
@@ -214,7 +241,7 @@ window.PowerUp = window.PowerUp || {};
     });
   }
 
-  // === Filtering (NEW) — operates on rendered rows using friendly header to find the column ===
+  // === Filtering (operates on rendered rows using friendly header to find the column) ===
   function findHeaderIndexByText(tableEl, friendlyHeader) {
     const ths = tableEl?.querySelectorAll('thead th');
     if (!ths) return -1;
@@ -278,7 +305,7 @@ window.PowerUp = window.PowerUp || {};
     });
   }
 
-  // === Main hydrate function (KEEPING yours, plus wiring filters after render) ===
+  // === Main hydrate function (RENDERS + WIRE FILTERS + DISPATCH) ===
   ns.tables = ns.tables || {};
   ns.tables.hydrateDashboardTables = async function () {
     console.log("[tables] Hydrating dashboard tables…");
@@ -311,7 +338,7 @@ window.PowerUp = window.PowerUp || {};
     setCount("safety-count", safetyRows.length);
     setCount("quality-count", qualityRows.length);
 
-    // Now wire the dropdowns and apply filters once
+    // Wire the dropdowns and apply filters once
     wireFilters();
 
     // Let the page know data is ready (your HTML listens for this)
