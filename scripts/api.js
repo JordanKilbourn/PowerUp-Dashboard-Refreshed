@@ -47,68 +47,60 @@
   }
 
   // ---------- Core fetchers ----------
-  async function fetchSheet(sheetIdOrKey, { force = false } = {}) {
-    const id = resolveSheetId(sheetIdOrKey);
-    assertValidId(id);
 
-    if (!force) {
-      if (_rawCache.has(id)) return _rawCache.get(id);
-      if (_inflight.has(id)) return _inflight.get(id);
-    }
+function resolveSheetId(sheetIdOrKey) {
+  if (sheetIdOrKey == null) return "";
+  const s = String(sheetIdOrKey).trim();
+  if (SHEETS.hasOwnProperty(s)) return String(SHEETS[s]).trim();
+  return s; // assume raw ID
+}
 
-    const p = (async () => {
-      const res = await fetch(`${API_BASE}/sheet/${id}`, { credentials: "omit" });
-      if (!res.ok) {
-        let detail = "";
-        try { detail = await res.text(); } catch (_) {}
-        throw new Error(`Proxy error ${res.status} for sheet ${id}${detail ? `: ${detail}` : ""}`);
-      }
-      const json = await res.json();
-      _rawCache.set(id, json);
-      _inflight.delete(id);
-      return json;
-    })();
-
-    _inflight.set(id, p);
-    return p;
-  }
-
-  function rowsByTitle(rawSheet) {
-    const byId = new Map(rawSheet.columns.map((c) => [c.id, c.title]));
-    return rawSheet.rows.map((r) => {
-      const o = {};
-      for (const cell of r.cells) {
-        const title = byId.get(cell.columnId);
-        if (!title) continue;
-        o[title] = cell.displayValue ?? cell.value ?? "";
-      }
-      return o;
+function assertValidId(id, hint) {
+  if (!id || id.toLowerCase() === "undefined" || id.toLowerCase() === "null") {
+    const mapping = Object.entries(SHEETS).map(([k, v]) => `${k}: ${v || "MISSING"}`).join(" | ");
+    console.error("Missing Smartsheet ID: a call was made with an empty/undefined id.", {
+      hint,
+      id,
+      mapping,
     });
+    console.trace("Call stack for missing sheetId");
+    throw new Error("Missing Smartsheet ID (see console for mapping and stack).");
   }
+}
 
-  async function getRowsByTitle(sheetIdOrKey, { force = false } = {}) {
-    const id = resolveSheetId(sheetIdOrKey);
-    assertValidId(id);
+async function fetchSheet(sheetIdOrKey, { force = false } = {}) {
+  const id = resolveSheetId(sheetIdOrKey);
+  assertValidId(id, `fetchSheet(arg=${String(sheetIdOrKey)})`);
 
-    if (!force && _rowsCache.has(id)) return _rowsCache.get(id);
-    const raw = await fetchSheet(id, { force });
-    const rows = rowsByTitle(raw);
-    _rowsCache.set(id, rows);
-    return rows;
+  if (!force) {
+    if (_rawCache.has(id)) return _rawCache.get(id);
+    if (_inflight.has(id)) return _inflight.get(id);
   }
-
-  function clearCache(sheetIdOrKey) {
-    if (!sheetIdOrKey) {
-      _rawCache.clear();
-      _rowsCache.clear();
-      _inflight.clear();
-      return;
+  const p = (async () => {
+    const res = await fetch(`${API_BASE}/sheet/${id}`, { credentials: "omit" });
+    if (!res.ok) {
+      let detail = ""; try { detail = await res.text(); } catch {}
+      throw new Error(`Proxy error ${res.status} for sheet ${id}${detail ? `: ${detail}` : ""}`);
     }
-    const id = resolveSheetId(sheetIdOrKey);
-    _rawCache.delete(id);
-    _rowsCache.delete(id);
+    const json = await res.json();
+    _rawCache.set(id, json);
     _inflight.delete(id);
-  }
+    return json;
+  })();
+  _inflight.set(id, p);
+  return p;
+}
+
+async function getRowsByTitle(sheetIdOrKey, { force = false } = {}) {
+  const id = resolveSheetId(sheetIdOrKey);
+  assertValidId(id, `getRowsByTitle(arg=${String(sheetIdOrKey)})`);
+
+  if (!force && _rowsCache.has(id)) return _rowsCache.get(id);
+  const raw = await fetchSheet(id, { force });
+  const rows = rowsByTitle(raw);
+  _rowsCache.set(id, rows);
+  return rows;
+}
 
   // ---------- Utils ----------
   function toNumber(x) {
