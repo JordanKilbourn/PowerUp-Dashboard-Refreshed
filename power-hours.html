@@ -8,25 +8,6 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
-  <style>
-    .page-wrap { padding: 20px; }
-    .header-row { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
-    .title { font-size:20px; font-weight:700; }
-    .filters { display:flex; gap:8px; align-items:center; }
-    .filters select, .filters button { padding:8px 10px; border-radius:8px; border:1px solid #2a354b; background:#0b1328; color:#e5e7eb; }
-    .metrics { display:flex; gap:12px; flex-wrap:wrap; margin:14px 0; }
-    .metric { background:#0b1020; border:1px solid #1f2937; padding:12px 14px; border-radius:12px; }
-    .table-card { background:#0b1020; border:1px solid #1f2937; border-radius:12px; overflow:hidden; }
-    .table-scroll { max-height: 60vh; overflow:auto; }
-    table { width:100%; border-collapse:collapse; }
-    th, td { padding:10px 12px; border-bottom:1px solid #1f2937; }
-    th { position:sticky; top:0; background:#0b1020; z-index:1; cursor:pointer; user-select:none;}
-    .right { text-align:right; }
-    .muted { color:#94a3b8; }
-    .pill { display:inline-flex; align-items:center; padding:2px 8px; border-radius:999px; font-size:12px; border:1px solid #334155;}
-    .pill--green { background: rgba(34,197,94,.15); border-color:#14532d; }
-    .pill--blue { background: rgba(59,130,246,.15); border-color:#1d4ed8; }
-  </style>
 </head>
 <body>
   <div class="page-wrap">
@@ -35,7 +16,6 @@
         <div class="title">Power Hours</div>
         <div class="muted">Signed in as <span data-hook="userName">—</span> · <span data-hook="userLevel">—</span></div>
       </div>
-      <button class="filters" data-hook="logout">Logout</button>
     </div>
 
     <div class="filters">
@@ -76,18 +56,14 @@
     </div>
   </div>
 
-<script>
-  document.addEventListener('DOMContentLoaded', async () => {
-    PowerUp.session.requireLogin();     // redirect to login.html if not logged in
-    await PowerUp.session.initHeader(); // fill user name & level; wire logout
-  });
-</script>
-
-  
+  <!-- ===== JS ===== -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/js/all.min.js" defer></script>
   <script src="scripts/api.js"></script>
   <script src="scripts/session.js"></script>
+  <script src="scripts/layout.js"></script>
+
   <script>
-    // Column name fallbacks – tweak if your sheet uses different labels
+    // ---- column name map (adjust if your titles differ) ----
     const COLS = {
       employeeId: ['Employee ID','Position ID'],
       date: ['Date','Session Date','Power Hour Date'],
@@ -99,12 +75,9 @@
       topic: ['Topic','Description','Notes']
     };
 
-    function pick(row, candidates, fallback='') {
-      for (const k of candidates) if (row[k] != null && row[k] !== '') return row[k];
-      return fallback;
-    }
-    function isTrue(v){ return String(v).toLowerCase() === 'true' || v === true || String(v).toLowerCase()==='yes'; }
-    function parseDate(v){ const d = new Date(v); return isNaN(d) ? null : d; }
+    const pick = (row, list, d='') => { for (const k of list) if (row[k]!=null && row[k]!=='') return row[k]; return d; };
+    const isTrue = (v) => String(v).toLowerCase()==='true' || v===true || String(v).toLowerCase()==='yes';
+    const parseDate = (v)=>{ const d=new Date(v); return isNaN(d)?null:d; };
 
     const state = { all: [], view: [] };
 
@@ -119,9 +92,7 @@
       if (!d) return false;
       const now = new Date();
       const firstOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-      if (range === 'this-month') {
-        return d >= firstOfThisMonth && d <= now;
-      }
+      if (range === 'this-month') return d >= firstOfThisMonth && d <= now;
       if (range === 'last-3') {
         const start = new Date(now.getFullYear(), now.getMonth()-2, 1);
         return d >= start && d <= now;
@@ -153,7 +124,6 @@
           </tr>`;
         }).join('');
       }
-      // metrics
       const totalHrs = state.view.reduce((a,r)=> a + PowerUp.api.toNumber(pick(r, COLS.completedHours, 0)), 0);
       const sessions = state.view.length;
       const now = new Date();
@@ -178,7 +148,7 @@
         th.addEventListener('click', () => {
           const key = th.dataset.k;
           const asc = th.dataset.sort !== 'asc';
-          ths.forEach(h => h.dataset.sort=''); // clear
+          ths.forEach(h => h.dataset.sort='');
           th.dataset.sort = asc ? 'asc' : 'desc';
           state.view.sort((a,b)=>{
             const av = String(a[key] ?? '');
@@ -195,17 +165,37 @@
     }
 
     async function load() {
-      PowerUp.session.requireLogin();
-      await PowerUp.session.initHeader();
       const s = PowerUp.session.get();
       const rows = await PowerUp.api.getRowsByTitle(PowerUp.api.SHEETS.POWER_HOURS);
       state.all = rows.filter(r => byCurrentUser(r, s.employeeId));
       applyRange();
       wireSort();
     }
-    document.getElementById('range').addEventListener('change', applyRange);
-    document.getElementById('refresh').addEventListener('click', load);
-    document.addEventListener('DOMContentLoaded', load);
+
+    function bindControls() {
+      const rangeEl = document.getElementById('range');
+      const refreshEl = document.getElementById('refresh');
+      if (!rangeEl.dataset.bound) {
+        rangeEl.dataset.bound = '1';
+        rangeEl.addEventListener('change', applyRange);
+      }
+      if (!refreshEl.dataset.bound) {
+        refreshEl.dataset.bound = '1';
+        refreshEl.addEventListener('click', async () => {
+          refreshEl.disabled = true;
+          await load();
+          refreshEl.disabled = false;
+        });
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      PowerUp.session.requireLogin();
+      PowerUp.layout.injectLayout();
+      await PowerUp.session.initHeader();
+      await load();
+      bindControls();
+    });
   </script>
 </body>
 </html>
