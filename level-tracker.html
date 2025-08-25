@@ -8,6 +8,17 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+  <style>
+    .page-wrap{ padding:20px;}
+    .title{ font-size:20px; font-weight:700;}
+    .muted{ color:#94a3b8;}
+    .card{ background:#0b1020; border:1px solid #1f2937; border-radius:12px; padding:14px; }
+    .table-scroll{ max-height:70vh; overflow:auto;}
+    table{ width:100%; border-collapse:collapse; }
+    th,td{ padding:10px 12px; border-bottom:1px solid #1f2937;}
+    th{ position:sticky; top:0; background:#0b1020; cursor:pointer; user-select:none;}
+    .right{ text-align:right;}
+  </style>
 </head>
 <body>
   <div class="page-wrap">
@@ -16,6 +27,7 @@
         <div class="title">Level Tracker</div>
         <div class="muted">Signed in as <span data-hook="userName">—</span> · <span data-hook="userLevel">—</span></div>
       </div>
+      <button class="btn" data-hook="logout">Logout</button>
     </div>
 
     <div class="card">
@@ -30,11 +42,8 @@
     </div>
   </div>
 
-  <!-- ===== JS ===== -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/js/all.min.js" defer></script>
   <script src="scripts/api.js"></script>
   <script src="scripts/session.js"></script>
-  <script src="scripts/layout.js"></script>
   <script>
     function buildHeader(columns) {
       const tr = document.getElementById('lhead');
@@ -78,19 +87,16 @@
       });
     }
     async function load() {
+      PowerUp.session.requireLogin();
+      await PowerUp.session.initHeader();
       const raw = await PowerUp.api.fetchSheet(PowerUp.api.SHEETS.LEVEL_TRACKER);
-      const columns = raw.columns; // Smartsheet column order
+      const columns = raw.columns; // Smartsheet order
       const rows = PowerUp.api.rowsByTitle(raw);
       buildHeader(columns);
       renderRows(columns, rows);
       attachSort(columns);
     }
-    document.addEventListener('DOMContentLoaded', async () => {
-      PowerUp.session.requireLogin();
-      PowerUp.layout.injectLayout();
-      await PowerUp.session.initHeader();
-      await load();
-    });
+    document.addEventListener('DOMContentLoaded', load);
   </script>
 </body>
 </html>
