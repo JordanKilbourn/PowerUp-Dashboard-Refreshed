@@ -1,107 +1,86 @@
 // /scripts/session.js
 window.PowerUp = window.PowerUp || {};
 (function (ns) {
-  const STORAGE_KEY = "pu.session.v1";
+  // Guard: api must exist
+  if (!ns.api) ns.api = {};
+  const { fetchSheet, rowsByTitle, SHEETS } = ns.api;
 
-  // --- tiny helpers --------------------------------------------------------
-  const normalizeId = (v) => String(v || "").toUpperCase().replace(/[^A-Z0-9]/g, "").trim();
-  const pick = (row, ...names) => {
-    for (const n of names) {
-      if (row[n] != null && String(row[n]).trim() !== "") return String(row[n]).trim();
-    }
-    return "";
-  };
+  const STORE_KEY = 'pu.session';
 
+  // ---- storage helpers ----------------------------------------------------
+  function save(session) {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(session || {})); } catch {}
+  }
   function load() {
-    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"); }
-    catch { return {}; }
+    try { return JSON.parse(localStorage.getItem(STORE_KEY) || '{}'); } catch { return {}; }
   }
-  function save(s) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(s || {}));
+  function clear() {
+    try { localStorage.removeItem(STORE_KEY); } catch {}
   }
 
-  // --- public session accessors -------------------------------------------
-  function get() { return load(); }
-  function set(s) { save({ ...(load()), ...(s || {}) }); }
-  function clear() { localStorage.removeItem(STORAGE_KEY); }
+  // ---- public: read session ----------------------------------------------
+  function get() {
+    return load();
+  }
 
-  // --- login by Position ID OR Employee ID --------------------------------
-  async function loginWithId(idInput) {
-    const id = normalizeId(idInput);
-    if (!id) throw new Error("Please enter your Position ID or Employee ID.");
+  // ---- login by Position ID or Employee ID --------------------------------
+  async function loginWithId(idOrEmp) {
+    if (!fetchSheet || !rowsByTitle || !SHEETS || !SHEETS.EMPLOYEE_MASTER) {
+      throw new Error("Smartsheet API not available (api.js not loaded).");
+    }
+    const raw = await fetchSheet(SHEETS.EMPLOYEE_MASTER);
+    const rows = rowsByTitle(raw);
 
-    const { SHEETS, getRowsByTitle } = ns.api;
-    // Pull Employee Master using your current proxy & helper
-    const rows = await getRowsByTitle(SHEETS.EMPLOYEE_MASTER);
+    const needle = String(idOrEmp || '').trim().toLowerCase();
+    if (!needle) throw new Error('Please enter your Position ID or Employee ID.');
 
-    // We’ll try to match against “Position ID” or “Employee ID”
-    // (Handles different column names you’ve used across sheets)
-    const match = rows.find((r) => {
-      const pos = normalizeId(pick(r, "Position ID", "PositionID"));
-      const emp = normalizeId(pick(r, "Employee ID", "EmployeeID"));
-      return pos === id || emp === id;
+    // Try matching by Position ID or Employee ID (exact string compare after trim)
+    const me = rows.find(r => {
+      const pos = String(r['Position ID'] || '').trim().toLowerCase();
+      const emp = String(r['Employee ID'] || '').trim().toLowerCase();
+      return pos === needle || emp === needle;
     });
 
-    if (!match) {
-      throw new Error("We couldn’t find that ID in Employee Master. Double-check and try again.");
-    }
+    if (!me) throw new Error('ID not found. Double-check your Position/Employee ID.');
 
-    // derive display name / level from common columns you’ve used
-    const displayName = pick(
-      match,
-      "Preferred Name",
-      "Employee Name",
-      "Display Name",
-      "Name"
-    ) || "—";
-
-    const level = pick(match, "Level", "Lvl", "Level (calc)", "PowerUp Level") || "—";
-
-    const positionId = pick(match, "Position ID", "PositionID");
-    const employeeId = pick(match, "Employee ID", "EmployeeID") || positionId;
-
-    // store session
-    const session = { employeeId, positionId, displayName, level };
+    const session = {
+      employeeId: String(me['Employee ID'] || me['Position ID'] || '').trim(),
+      positionId: String(me['Position ID'] || '').trim(),
+      name:       String(me['Employee Name'] || me['Name'] || '').trim(),
+      level:      String(me['Level'] || me['Lvl'] || '').trim()
+    };
     save(session);
 
-    // bounce to dashboard (login.html calls this and expects us to redirect)
-    location.href = "Dashboard-Refresh.html";
+    // redirect to dashboard
+    location.href = 'Dashboard-Refresh.html';
   }
 
-  // --- protect pages that require auth ------------------------------------
+  // ---- logout -------------------------------------------------------------
+  function logout() {
+    clear();
+    location.href = 'login.html';
+  }
+
+  // ---- require & header fill ---------------------------------------------
   function requireLogin() {
     const s = load();
-    if (!s || !s.employeeId) {
-      if (!/login\.html$/i.test(location.pathname)) {
-        location.href = "login.html";
-      }
+    if (!s.employeeId) {
+      location.href = 'login.html';
       return false;
     }
     return true;
   }
 
-  // --- header wiring for your current dashboard markup --------------------
   async function initHeader() {
     const s = load();
-    const $ = (sel) => document.querySelector(sel);
+    const nameEl  = document.querySelector('[data-hook="userName"]');
+    const levelEl = document.querySelector('[data-hook="userLevel"]');
+    if (nameEl)  nameEl.textContent  = s.name || '—';
+    if (levelEl) levelEl.textContent = s.level ? `Level: ${s.level}` : 'Level Unknown';
 
-    const nameEl  = $('[data-hook="userName"]');
-    const levelEl = $('[data-hook="userLevel"]');
-
-    if (nameEl)  nameEl.textContent  = s.displayName || "—";
-    if (levelEl) levelEl.textContent = s.level ? `Lvl ${s.level}`.replace(/^Lvl Lvl/i, "Lvl ") : "Level Unknown";
-
-    // Optional logout button if present
-    const logoutBtn = $('[data-hook="logout"]');
-    if (logoutBtn && !logoutBtn.__wired) {
-      logoutBtn.__wired = true;
-      logoutBtn.addEventListener("click", (e) => {
-        e.preventDefault();
-        clear();
-        location.href = "login.html";
-      });
-    }
+    const logoutBtn = document.querySelector('[data-hook="logout"]');
+    if (logoutBtn) logoutBtn.addEventListener('click', logout);
   }
 
-  ns.session = { get, set, clear, loginWithId, requireLogin, initHeader };
+  ns.session = { get, loginWithId, logout, requireLogin, initHeader };
 })(window.PowerUp);
