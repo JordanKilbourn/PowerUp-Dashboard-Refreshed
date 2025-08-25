@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>PowerUp Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <!-- Fonts / Icons / Base styles -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
@@ -10,255 +11,202 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 
+<!-- NOTE: no embedded sidebar/header here. layout.js injects them. -->
 <body class="dashboard">
-  <div class="container">
-    <!-- Sidebar -->
-    <div class="sidebar" id="sidebar">
-      <div class="item" onclick="toggleSidebar()">
-        <i class="fas fa-bars"></i><span>Menu</span>
+
+  <!-- Page content only -->
+  <div class="page-wrap content">
+    <!-- Title / user line shows in the injected header automatically -->
+    <div class="top-cards">
+      <!-- Power Hours -->
+      <div class="card power-card">
+        <h3>Power Hours Logged</h3>
+        <p>
+          <span data-hook="ph-now">0.0</span> /
+          <span data-hook="ph-max">8</span>
+        </p>
+
+        <!-- Simple progress bar -->
+        <div class="phbar" role="progressbar" aria-valuemin="0" aria-valuemax="8" aria-valuenow="0">
+          <div class="phbar__fill"></div>
+          <div class="phbar__thumb" title="Current"></div>
+        </div>
+
+        <small class="ph-msg" data-hook="ph-msg">—</small>
       </div>
-      <div class="item active" onclick="location.href='Dashboard-Refresh.html'">
-        <i class="fas fa-home"></i><span>Dashboard</span>
-      </div>
-      <div class="item" onclick="location.href='level-tracker.html'">
-        <i class="fas fa-layer-group"></i><span>Level Tracker</span>
-      </div>
-      <div class="item" onclick="location.href='power-hours.html'">
-        <i class="fas fa-clock"></i><span>Power Hours</span>
-      </div>
-      <div class="item" onclick="location.href='notes.html'">
-        <i class="fas fa-sticky-note"></i><span>Notes</span>
-      </div>
-      <div class="item" onclick="location.href='squads.html'">
-        <i class="fas fa-users"></i><span>Squads</span>
+
+      <!-- Tokens -->
+      <div class="card token-card">
+        <h3>Tokens</h3>
+        <div class="token-tracker">
+          <i class="fas fa-coins"></i>
+          <span data-hook="token-total">0</span>
+        </div>
       </div>
     </div>
 
-    <!-- Main -->
-    <div class="main">
-      <!-- Header -->
-      <div class="header">
-        <h1>PowerUp Dashboard</h1>
-        <p>
-          Welcome: <span data-hook="userName">—</span>
-          &emsp; Level: <span data-hook="userLevel">Level Unknown</span>
-        </p>
-      </div>
+    <!-- Tabs -->
+    <div class="tab-buttons">
+      <button class="tab-button active" data-tab="ci">Continuous Improvement</button>
+      <button class="tab-button" data-tab="safety">Safety Concerns</button>
+      <button class="tab-button" data-tab="quality">Quality Catches</button>
+    </div>
 
-      <!-- Top cards -->
-      <div class="top-cards">
-        <!-- Power Hours -->
-        <div class="card power-card">
-          <h3>Power Hours Logged</h3>
-          <p>
-            <span data-hook="ph.total">0.0</span> /
-            <span data-hook="ph.goalMax">8</span>
-          </p>
-
-          <!-- Simple progress bar (no bubbles/legends) -->
-          <div class="phbar"
-               data-hook="ph.track"
-               role="progressbar"
-               aria-valuemin="0"
-               aria-valuemax="8"
-               aria-valuenow="0">
-            <div class="phbar__fill"  data-hook="ph.fill"></div>
-            <div class="phbar__thumb" data-hook="ph.thumb" title="Current"></div>
-          </div>
-
-          <small data-hook="ph.message">—</small>
-        </div>
-
-        <!-- Tokens -->
-        <div class="card token-card">
-          <h3>Tokens</h3>
-          <div class="token-tracker">
-            <i class="fas fa-coins"></i>
-            <span data-hook="token.total">0</span>
-          </div>
+    <!-- CI Tab -->
+    <div class="tab-panel active" data-panel="ci">
+      <div class="table-header-row">
+        <h3>Continuous Improvement (CI)</h3>
+        <div class="table-header-controls">
+          <select id="ci-filter">
+            <option value="all">All Statuses</option>
+            <option value="approved">Approved</option>
+            <option value="pending">Pending</option>
+            <option value="denied">Denied</option>
+            <option value="not started">Not Started</option>
+            <option value="completed">Completed</option>
+          </select>
+          <button class="add-btn">+ Add Submission</button>
+          <span id="ci-count" class="row-count">0 submissions</span>
         </div>
       </div>
 
-      <!-- Tabs -->
-      <div class="tab-buttons">
-        <button class="tab-button active" onclick="showTab('ci')">Continuous Improvement</button>
-        <button class="tab-button" onclick="showTab('safety')">Safety Concerns</button>
-        <button class="tab-button" onclick="showTab('quality')">Quality Catches</button>
+      <div class="table-scroll">
+        <table id="ci-table" class="dashboard-table">
+          <thead>
+            <tr>
+              <th>Submitted</th>
+              <th>ID</th>
+              <th>Problem</th>
+              <th>Improvement</th>
+              <th>Approval</th>
+              <th>Assigned</th>
+              <th>Status</th>
+              <th>Action Entered</th>
+              <th>Last Action</th>
+              <th>Resourced</th>
+              <th>Resourced On</th>
+              <th>Tokens</th>
+              <th>Paid</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
       </div>
+    </div>
 
-      <!-- CI Tab -->
-      <div class="tab-panel active" id="tab-ci">
-        <div class="table-header-row">
-          <h3>Continuous Improvement (CI)</h3>
-          <div class="table-header-controls">
-            <select id="ci-filter" onchange="filterTable('ci')">
-              <option value="all">All Statuses</option>
-              <option value="approved">Approved</option>
-              <option value="pending">Pending</option>
-              <option value="denied">Denied</option>
-              <option value="not started">Not Started</option>
-              <option value="completed">Completed</option>
-            </select>
-            <button class="add-btn">+ Add Submission</button>
-            <span id="ci-count" class="row-count">0 submissions</span>
-          </div>
-        </div>
-
-        <div class="table-scroll">
-          <table id="ci-table" class="dashboard-table">
-            <thead>
-              <tr>
-                <th>Submitted</th>
-                <th>ID</th>
-                <th>Problem</th>
-                <th>Improvement</th>
-                <th>Approval</th>
-                <th>Assigned</th>
-                <th>Status</th>
-                <th>Action Entered</th>
-                <th>Last Action</th>
-                <th>Resourced</th>
-                <th>Resourced On</th>
-                <th>Tokens</th>
-                <th>Paid</th>
-              </tr>
-            </thead>
-            <tbody data-hook="table.ci.tbody"></tbody>
-          </table>
+    <!-- Safety Tab -->
+    <div class="tab-panel" data-panel="safety">
+      <div class="table-header-row">
+        <h3>Safety Concerns</h3>
+        <div class="table-header-controls">
+          <select id="safety-filter">
+            <option value="all">All Statuses</option>
+            <option value="accepted">Accepted</option>
+            <option value="pending">Pending</option>
+            <option value="denied">Denied</option>
+            <option value="closed">Closed</option>
+            <option value="open">Open</option>
+          </select>
+          <button class="add-btn">+ Add Submission</button>
+          <span id="safety-count" class="row-count">0 submissions</span>
         </div>
       </div>
 
-      <!-- Safety Tab -->
-      <div class="tab-panel" id="tab-safety">
-        <div class="table-header-row">
-          <h3>Safety Concerns</h3>
-          <div class="table-header-controls">
-            <select id="safety-filter" onchange="filterTable('safety')">
-              <option value="all">All Statuses</option>
-              <option value="accepted">Accepted</option>
-              <option value="pending">Pending</option>
-              <option value="denied">Denied</option>
-              <option value="closed">Closed</option>
-              <option value="open">Open</option>
-            </select>
-            <button class="add-btn">+ Add Submission</button>
-            <span id="safety-count" class="row-count">0 submissions</span>
-          </div>
-        </div>
+      <div class="table-scroll">
+        <table id="safety-table" class="dashboard-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Department/Area</th>
+              <th>Safety Concern</th>
+              <th>Description</th>
+              <th>Recommendations</th>
+              <th>Resolution</th>
+              <th>Escalated To</th>
+              <th>Leadership Update</th>
+              <th>Closed/Confirmed</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
 
-        <div class="table-scroll">
-          <table id="safety-table" class="dashboard-table">
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Department/Area</th>
-                <th>Safety Concern</th>
-                <th>Description</th>
-                <th>Recommendations</th>
-                <th>Resolution</th>
-                <th>Escalated To</th>
-                <th>Leadership Update</th>
-                <th>Closed/Confirmed</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody data-hook="table.safety.tbody"></tbody>
-          </table>
+    <!-- Quality Catches Tab -->
+    <div class="tab-panel" data-panel="quality">
+      <div class="table-header-row">
+        <h3>Quality Catches</h3>
+        <div class="table-header-controls">
+          <select id="quality-filter">
+            <option value="all">All</option>
+            <option value="pending">Pending</option>
+            <option value="closed">Closed</option>
+            <option value="open">Open</option>
+          </select>
+          <button class="add-btn">+ Add Submission</button>
+          <span id="quality-count" class="row-count">0 submissions</span>
         </div>
       </div>
 
-      <!-- Quality Catches Tab -->
-      <div class="tab-panel" id="tab-quality">
-        <div class="table-header-row">
-          <h3>Quality Catches</h3>
-          <div class="table-header-controls">
-            <select id="quality-filter" onchange="filterTable('quality')">
-              <option value="all">All</option>
-              <option value="pending">Pending</option>
-              <option value="closed">Closed</option>
-              <option value="open">Open</option>
-            </select>
-            <button class="add-btn">+ Add Submission</button>
-            <span id="quality-count" class="row-count">0 submissions</span>
-          </div>
-        </div>
-
-        <div class="table-scroll">
-          <table id="quality-table" class="dashboard-table">
-            <thead>
-              <tr>
-                <th>Catch ID</th>
-                <th>Entry Date</th>
-                <th>Submitted By</th>
-                <th>Area</th>
-                <th>Quality Catch</th>
-                <th>Part Number</th>
-                <th>Description</th>
-              </tr>
-            </thead>
-            <tbody data-hook="table.quality.tbody"></tbody>
-          </table>
-        </div>
+      <div class="table-scroll">
+        <table id="quality-table" class="dashboard-table">
+          <thead>
+            <tr>
+              <th>Catch ID</th>
+              <th>Entry Date</th>
+              <th>Submitted By</th>
+              <th>Area</th>
+              <th>Quality Catch</th>
+              <th>Part Number</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
       </div>
     </div>
   </div>
 
-  <!-- Minimal inline behavior: sidebar, tab switch, and per-tab status filtering -->
- <script>
-  document.addEventListener('DOMContentLoaded', async () => {
-    PowerUp.session.requireLogin();     // redirect to login.html if not logged in
-    await PowerUp.session.initHeader(); // fill user name & level; wire logout
-  });
-</script>
-  
-  <script>
-    function toggleSidebar() {
-      document.getElementById('sidebar').classList.toggle('expanded');
-    }
-    function showTab(tabId) {
-      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-      document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
-      document.getElementById(`tab-${tabId}`).classList.add('active');
-      event.target.classList.add('active');
-    }
-    function filterTable(type) {
-      const tbody = document.querySelector(`#${type}-table tbody`);
-      const filter = (document.getElementById(`${type}-filter`)?.value || 'all').toLowerCase();
-      const rows = Array.from(tbody?.rows || []);
-      let count = 0;
-      rows.forEach(r => {
-        const text = r.innerText.toLowerCase();
-        const show = (filter === 'all' || text.includes(filter));
-        r.style.display = show ? '' : 'none';
-        if (show) count++;
-      });
-      const countEl = document.getElementById(`${type}-count`);
-      if (countEl) countEl.innerText = `${count} submission${count !== 1 ? 's' : ''}`;
-    }
-    document.addEventListener('data-hydrated', () => {
-      ['ci','safety','quality'].forEach(type => filterTable(type));
-    });
-  </script>
-
   <!-- App scripts -->
-  <script src="/scripts/api.js"></script>
-  <script src="/scripts/session.js"></script>
-  <script src="/scripts/progress.js"></script>
-  <script src="/scripts/tokens.js"></script>
-  <script src="/scripts/tables.js"></script>
+  <script src="scripts/api.js"></script>
+  <script src="scripts/session.js"></script>
+  <script src="scripts/layout.js"></script>
+  <script src="scripts/progress.js"></script>
+  <script src="scripts/tokens.js"></script>
+  <script src="scripts/tables.js"></script>
 
   <!-- Initialize -->
   <script>
-    (async function () {
-      try {
-        await PowerUp.session.initHeader();
-        await PowerUp.renderDashboardPowerHours();
-        await PowerUp.renderTokenCard();
-        await PowerUp.hydrateDashboardTables();
-        document.dispatchEvent(new Event('data-hydrated'));
-      } catch (e) { console.error(e); }
-    })();
+    document.addEventListener('DOMContentLoaded', async () => {
+      PowerUp.session.requireLogin();
+      PowerUp.layout.injectLayout();
+      await PowerUp.session.initHeader();
+
+      // Tabs
+      const tabs = document.querySelectorAll('.tab-button');
+      const panels = document.querySelectorAll('.tab-panel');
+      tabs.forEach(btn => {
+        btn.addEventListener('click', () => {
+          tabs.forEach(b => b.classList.remove('active'));
+          panels.forEach(p => p.classList.remove('active'));
+          btn.classList.add('active');
+          document.querySelector(`[data-panel="${btn.dataset.tab}"]`).classList.add('active');
+        });
+      });
+
+      // Cards + tables
+      if (window.PowerUp.progress?.renderDashboardPowerHours) {
+        await PowerUp.progress.renderDashboardPowerHours();
+      }
+      if (window.PowerUp.tokens?.renderTokenCard) {
+        await PowerUp.tokens.renderTokenCard();
+      }
+      if (window.PowerUp.tables?.hydrateDashboardTables) {
+        await PowerUp.tables.hydrateDashboardTables();
+      }
+      document.dispatchEvent(new Event('data-hydrated'));
+    });
   </script>
 </body>
 </html>
-
