@@ -1,86 +1,86 @@
-// /scripts/session.js
-window.PowerUp = window.PowerUp || {};
-(function (ns) {
-  // Guard: api must exist
-  if (!ns.api) ns.api = {};
-  const { fetchSheet, rowsByTitle, SHEETS } = ns.api;
+// scripts/session.js
+(function (PowerUp) {
+  const P = PowerUp || (PowerUp = {});
+  const SKEY = 'pu.session';
 
-  const STORE_KEY = 'pu.session';
-
-  // ---- storage helpers ----------------------------------------------------
-  function save(session) {
-    try { localStorage.setItem(STORE_KEY, JSON.stringify(session || {})); } catch {}
-  }
-  function load() {
-    try { return JSON.parse(localStorage.getItem(STORE_KEY) || '{}'); } catch { return {}; }
-  }
-  function clear() {
-    try { localStorage.removeItem(STORE_KEY); } catch {}
-  }
-
-  // ---- public: read session ----------------------------------------------
   function get() {
-    return load();
+    try { return JSON.parse(sessionStorage.getItem(SKEY) || '{}'); }
+    catch { return {}; }
   }
+  function set(obj) { sessionStorage.setItem(SKEY, JSON.stringify(obj || {})); }
+  function clear() { sessionStorage.removeItem(SKEY); }
 
-  // ---- login by Position ID or Employee ID --------------------------------
-  async function loginWithId(idOrEmp) {
-    if (!fetchSheet || !rowsByTitle || !SHEETS || !SHEETS.EMPLOYEE_MASTER) {
-      throw new Error("Smartsheet API not available (api.js not loaded).");
+  function requireLogin() {
+    const s = get();
+    if (!s.employeeId) {
+      // keep their intended destination so we can bounce back later if you want
+      sessionStorage.setItem('pu.postLoginRedirect', location.pathname.split('/').pop());
+      location.href = 'login.html';
     }
-    const raw = await fetchSheet(SHEETS.EMPLOYEE_MASTER);
-    const rows = rowsByTitle(raw);
-
-    const needle = String(idOrEmp || '').trim().toLowerCase();
-    if (!needle) throw new Error('Please enter your Position ID or Employee ID.');
-
-    // Try matching by Position ID or Employee ID (exact string compare after trim)
-    const me = rows.find(r => {
-      const pos = String(r['Position ID'] || '').trim().toLowerCase();
-      const emp = String(r['Employee ID'] || '').trim().toLowerCase();
-      return pos === needle || emp === needle;
-    });
-
-    if (!me) throw new Error('ID not found. Double-check your Position/Employee ID.');
-
-    const session = {
-      employeeId: String(me['Employee ID'] || me['Position ID'] || '').trim(),
-      positionId: String(me['Position ID'] || '').trim(),
-      name:       String(me['Employee Name'] || me['Name'] || '').trim(),
-      level:      String(me['Level'] || me['Lvl'] || '').trim()
-    };
-    save(session);
-
-    // redirect to dashboard
-    location.href = 'Dashboard-Refresh.html';
   }
 
-  // ---- logout -------------------------------------------------------------
+  async function loginWithId(inputId) {
+    const id = String(inputId || '').trim();
+    if (!id) throw new Error('Please enter your Position ID or Employee ID.');
+    // Find in Employee Master by Position ID or Employee ID
+    const rows = await PowerUp.api.getRowsByTitle(PowerUp.api.SHEETS.EMPLOYEE_MASTER);
+    const row = rows.find(r => {
+      const pid = String(r['Position ID'] ?? '').trim();
+      const eid = String(r['Employee ID'] ?? '').trim();
+      return pid === id || eid === id;
+    });
+    if (!row) throw new Error('ID not found. Double-check your Position ID or Employee ID.');
+    const displayName = row['Display Name'] || row['Name'] || id;
+    const level = row['PowerUp Level (Select)'] || row['PowerUp Level'] || 'Level Unknown';
+
+    set({ employeeId: id, displayName, level });
+
+    const dest = sessionStorage.getItem('pu.postLoginRedirect') || 'Dashboard-Refresh.html';
+    sessionStorage.removeItem('pu.postLoginRedirect');
+    location.href = dest;
+  }
+
+  async function initHeader() {
+    const s = get();
+    // If we don't have name/level yet (e.g., they came from old session), backfill
+    if (!s.displayName || !s.level) {
+      try {
+        const rows = await PowerUp.api.getRowsByTitle(PowerUp.api.SHEETS.EMPLOYEE_MASTER);
+        const row = rows.find(r => {
+          const pid = String(r['Position ID'] ?? '').trim();
+          const eid = String(r['Employee ID'] ?? '').trim();
+          return pid === s.employeeId || eid === s.employeeId;
+        });
+        if (row) {
+          s.displayName = row['Display Name'] || row['Name'] || s.employeeId;
+          s.level = row['PowerUp Level (Select)'] || row['PowerUp Level'] || 'Level Unknown';
+          set(s);
+        }
+      } catch (e) {
+        // non-fatal, fall back to whatever we have
+        console.error('initHeader: Employee lookup failed', e);
+      }
+    }
+
+    // Fill any header placeholders if present
+    const $name = document.querySelector('[data-hook="userName"]');
+    const $level = document.querySelector('[data-hook="userLevel"]');
+    if ($name) $name.textContent = s.displayName || s.employeeId || 'Unknown User';
+    if ($level) $level.textContent = s.level || 'Level Unknown';
+
+    // Wire logout button if present
+    const $logout = document.querySelector('[data-hook="logout"]');
+    if ($logout && !$logout.dataset.bound) {
+      $logout.dataset.bound = '1';
+      $logout.addEventListener('click', logout);
+    }
+  }
+
   function logout() {
     clear();
     location.href = 'login.html';
   }
 
-  // ---- require & header fill ---------------------------------------------
-  function requireLogin() {
-    const s = load();
-    if (!s.employeeId) {
-      location.href = 'login.html';
-      return false;
-    }
-    return true;
-  }
-
-  async function initHeader() {
-    const s = load();
-    const nameEl  = document.querySelector('[data-hook="userName"]');
-    const levelEl = document.querySelector('[data-hook="userLevel"]');
-    if (nameEl)  nameEl.textContent  = s.name || '—';
-    if (levelEl) levelEl.textContent = s.level ? `Level: ${s.level}` : 'Level Unknown';
-
-    const logoutBtn = document.querySelector('[data-hook="logout"]');
-    if (logoutBtn) logoutBtn.addEventListener('click', logout);
-  }
-
-  ns.session = { get, loginWithId, logout, requireLogin, initHeader };
-})(window.PowerUp);
+  PowerUp.session = { get, set, clear, requireLogin, loginWithId, initHeader, logout };
+  window.PowerUp = P;
+}(window.PowerUp || {}));
