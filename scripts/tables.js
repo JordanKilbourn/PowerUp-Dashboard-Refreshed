@@ -3,7 +3,7 @@ window.PowerUp = window.PowerUp || {};
 (function (ns) {
   const { fetchSheet, rowsByTitle, SHEETS } = ns.api;
 
-  // === Column dictionaries ===
+  // === Column dictionaries (KEEPING YOUR FRIENDLY LABELS) ===
   const COL_MAP = {
     ci: {
       "Submission Date": "Submitted",
@@ -43,7 +43,77 @@ window.PowerUp = window.PowerUp || {};
     }
   };
 
-  // === Helpers ===
+  // === Centralized filtering config (lists + which column to filter on) ===
+  const FILTER_CONFIG = {
+    ci: {
+      selectId: "ci-filter",
+      countId: "ci-count",
+      friendlyHeader: "Status",    // filter column header (friendly)
+      options: [
+        "All",
+        "Not Started",
+        "Open",
+        "Needs Researched",
+        "Completed",
+        "Denied/Cancelled"
+      ],
+      match(cellText, selected) {
+        const t = (cellText || "").toLowerCase();
+        const s = (selected || "").toLowerCase();
+        if (s === "all") return true;
+        if (s === "denied/cancelled") return /(denied|reject|cancel)/.test(t);
+        if (s === "needs researched") return /needs\s*research/.test(t);
+        // exact-ish contains for others
+        return t.includes(s);
+      }
+    },
+    safety: {
+      selectId: "safety-filter",
+      countId: "safety-count",
+      friendlyHeader: "Safety Concern",
+      options: [
+        "All",
+        "Hand tool in disrepair",
+        "Machine in disrepair",
+        "Electrical hazard",
+        "Ergonomic",
+        "Guarding missing",
+        "Guarding in disrepair",
+        "PPE missing",
+        "PPE suggested improvement",
+        "Missing GHS label",
+        "Missing SDS"
+      ],
+      match(cellText, selected) {
+        if ((selected || "").toLowerCase() === "all") return true;
+        return (cellText || "").toLowerCase().trim() === (selected || "").toLowerCase().trim();
+      }
+    },
+    quality: {
+      selectId: "quality-filter",
+      countId: "quality-count",
+      friendlyHeader: "Area",
+      options: [
+        "All",
+        "Assembly",
+        "Customs",
+        "Dip Line",
+        "Fab",
+        "Office",
+        "Powder Coat",
+        "Router",
+        "Roto Mold",
+        "SMF",
+        "Welding"
+      ],
+      match(cellText, selected) {
+        if ((selected || "").toLowerCase() === "all") return true;
+        return (cellText || "").toLowerCase().trim() === (selected || "").toLowerCase().trim();
+      }
+    }
+  };
+
+  // === Helpers (KEEPING YOUR FORMATTERS) ===
   const esc = (s) =>
     String(s ?? "")
       .replace(/&/g, "&amp;")
@@ -53,7 +123,7 @@ window.PowerUp = window.PowerUp || {};
   const fmtDate = (v) => {
     if (!v) return "";
     const d = new Date(v);
-    return isNaN(d) ? String(v) : 
+    return isNaN(d) ? String(v) :
       `${String(d.getMonth()+1).padStart(2,"0")}/${String(d.getDate()).padStart(2,"0")}/${d.getFullYear()}`;
   };
 
@@ -82,10 +152,11 @@ window.PowerUp = window.PowerUp || {};
     return esc(value ?? "");
   }
 
-  // === Render function with sorting ===
+  // === Render function with sorting (KEEPING YOUR CODE) ===
   function renderTable(tbody, rows, colMap, tableId) {
     if (!tbody) return;
     const cols = Object.keys(colMap);
+    const friendly = Object.values(colMap);
 
     // Fill body
     const html = rows.map(r => {
@@ -107,15 +178,13 @@ window.PowerUp = window.PowerUp || {};
     // Fill header
     const thead = tbody.closest("table")?.querySelector("thead tr");
     if (thead) {
-      thead.innerHTML = Object.values(colMap)
-        .map(label => `<th>${label}</th>`).join("");
-
+      thead.innerHTML = friendly.map(label => `<th>${label}</th>`).join("");
       // Bind sorting
       bindHeaderSort(thead, tbody);
     }
   }
 
-  // === Sorting logic ===
+  // === Sorting logic (KEEPING YOUR CODE) ===
   function bindHeaderSort(thead, tbody) {
     let state = { col: 0, asc: true };
 
@@ -145,7 +214,71 @@ window.PowerUp = window.PowerUp || {};
     });
   }
 
-  // === Main hydrate function ===
+  // === Filtering (NEW) — operates on rendered rows using friendly header to find the column ===
+  function findHeaderIndexByText(tableEl, friendlyHeader) {
+    const ths = tableEl?.querySelectorAll('thead th');
+    if (!ths) return -1;
+    const needle = String(friendlyHeader || "").toLowerCase().trim();
+    for (let i = 0; i < ths.length; i++) {
+      const txt = (ths[i].textContent || "").toLowerCase().trim();
+      if (txt === needle) return i;
+    }
+    return -1;
+  }
+
+  function updateCount(countId, tableEl) {
+    const tbody = tableEl?.querySelector('tbody');
+    if (!tbody) return;
+    const visible = Array.from(tbody.rows)
+      .filter(tr => tr.style.display !== 'none' && tr.children.length > 1).length;
+    const el = document.getElementById(countId);
+    if (el) el.textContent = `${visible} submission${visible === 1 ? "" : "s"}`;
+  }
+
+  function repopulateSelect(selectEl, options) {
+    if (!selectEl) return;
+    const current = selectEl.value;
+    selectEl.innerHTML = options.map(o => `<option value="${o}">${o}</option>`).join("");
+    selectEl.value = options.includes(current) ? current : options[0];
+  }
+
+  function applyFilterFor(kind) {
+    const cfg = FILTER_CONFIG[kind];
+    if (!cfg) return;
+    const tableEl = document.getElementById(`${kind}-table`);
+    const selectEl = document.getElementById(cfg.selectId);
+    if (!tableEl || !selectEl) return;
+
+    const colIdx = findHeaderIndexByText(tableEl, cfg.friendlyHeader);
+    const tbody = tableEl.querySelector('tbody');
+    if (colIdx < 0 || !tbody) return;
+
+    const selected = selectEl.value || "";
+    Array.from(tbody.rows).forEach(tr => {
+      if (tr.children.length <= colIdx) { tr.style.display = ""; return; }
+      const cellText = (tr.children[colIdx]?.textContent || "");
+      tr.style.display = cfg.match(cellText, selected) ? "" : "none";
+    });
+
+    updateCount(cfg.countId, tableEl);
+  }
+
+  function wireFilters() {
+    Object.entries(FILTER_CONFIG).forEach(([kind, cfg]) => {
+      const selectEl = document.getElementById(cfg.selectId);
+      if (selectEl) {
+        repopulateSelect(selectEl, cfg.options);
+        if (!selectEl.dataset.bound) {
+          selectEl.dataset.bound = "1";
+          selectEl.addEventListener("change", () => applyFilterFor(kind));
+        }
+      }
+      // run once
+      applyFilterFor(kind);
+    });
+  }
+
+  // === Main hydrate function (KEEPING yours, plus wiring filters after render) ===
   ns.tables = ns.tables || {};
   ns.tables.hydrateDashboardTables = async function () {
     console.log("[tables] Hydrating dashboard tables…");
@@ -169,7 +302,7 @@ window.PowerUp = window.PowerUp || {};
     renderTable(document.querySelector('[data-hook="table.safety.tbody"]'), safetyRows, COL_MAP.safety, "safety-table");
     renderTable(document.querySelector('[data-hook="table.quality.tbody"]'), qualityRows, COL_MAP.quality, "quality-table");
 
-    // Auto row counts
+    // Initial counts before filters
     const setCount = (id, n) => {
       const el = document.getElementById(id);
       if (el) el.textContent = `${n} submission${n === 1 ? "" : "s"}`;
@@ -177,5 +310,15 @@ window.PowerUp = window.PowerUp || {};
     setCount("ci-count", ciRows.length);
     setCount("safety-count", safetyRows.length);
     setCount("quality-count", qualityRows.length);
+
+    // Now wire the dropdowns and apply filters once
+    wireFilters();
+
+    // Let the page know data is ready (your HTML listens for this)
+    document.dispatchEvent(new Event('data-hydrated'));
   };
+
+  // Optional: expose filter trigger
+  ns.tables.applyFilterFor = applyFilterFor;
+
 })(window.PowerUp);
