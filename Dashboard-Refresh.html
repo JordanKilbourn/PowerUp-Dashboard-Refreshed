@@ -91,7 +91,7 @@
         <div class="table-header-row">
           <h3>Continuous Improvement (CI)</h3>
           <div class="table-header-controls">
-            <select id="ci-filter" onchange="filterTable('ci')">
+            <select id="ci-filter">
               <option value="all">All Statuses</option>
               <option value="approved">Approved</option>
               <option value="pending">Pending</option>
@@ -133,7 +133,7 @@
         <div class="table-header-row">
           <h3>Safety Concerns</h3>
           <div class="table-header-controls">
-            <select id="safety-filter" onchange="filterTable('safety')">
+            <select id="safety-filter">
               <option value="all">All Statuses</option>
               <option value="accepted">Accepted</option>
               <option value="pending">Pending</option>
@@ -172,7 +172,7 @@
         <div class="table-header-row">
           <h3>Quality Catches</h3>
           <div class="table-header-controls">
-            <select id="quality-filter" onchange="filterTable('quality')">
+            <select id="quality-filter">
               <option value="all">All</option>
               <option value="pending">Pending</option>
               <option value="closed">Closed</option>
@@ -203,14 +203,14 @@
     </div>
   </div>
 
-  <!-- Minimal inline behavior: sidebar, tab switch, and per-tab status filtering -->
- <script>
-  document.addEventListener('DOMContentLoaded', async () => {
-    PowerUp.session.requireLogin();     // redirect to login.html if not logged in
-    await PowerUp.session.initHeader(); // fill user name & level; wire logout
-  });
-</script>
-  
+  <!-- Minimal inline behavior: sidebar + tab switch (filtering removed) -->
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      PowerUp.session.requireLogin();     // redirect to login.html if not logged in
+      await PowerUp.session.initHeader(); // fill user name & level; wire logout
+    });
+  </script>
+
   <script>
     function toggleSidebar() {
       document.getElementById('sidebar').classList.toggle('expanded');
@@ -221,23 +221,8 @@
       document.getElementById(`tab-${tabId}`).classList.add('active');
       event.target.classList.add('active');
     }
-    function filterTable(type) {
-      const tbody = document.querySelector(`#${type}-table tbody`);
-      const filter = (document.getElementById(`${type}-filter`)?.value || 'all').toLowerCase();
-      const rows = Array.from(tbody?.rows || []);
-      let count = 0;
-      rows.forEach(r => {
-        const text = r.innerText.toLowerCase();
-        const show = (filter === 'all' || text.includes(filter));
-        r.style.display = show ? '' : 'none';
-        if (show) count++;
-      });
-      const countEl = document.getElementById(`${type}-count`);
-      if (countEl) countEl.innerText = `${count} submission${count !== 1 ? 's' : ''}`;
-    }
-    document.addEventListener('data-hydrated', () => {
-      ['ci','safety','quality'].forEach(type => filterTable(type));
-    });
+    /* filterTable(...) and its data-hydrated listener were removed;
+       filtering is now handled in scripts/tables.js */
   </script>
 
   <!-- App scripts -->
@@ -261,5 +246,3 @@
   </script>
 </body>
 </html>
-
-
