@@ -1,5 +1,5 @@
 <!-- /scripts/api.js -->
-<script>
+
 window.PowerUp = window.PowerUp || {};
 (function (ns) {
   const API_BASE = "https://powerup-proxy.onrender.com"; // your proxy
@@ -56,4 +56,4 @@ window.PowerUp = window.PowerUp || {};
 
   ns.api = { API_BASE, SHEETS, fetchSheet, rowsByTitle, getRowsByTitle, toNumber, Cache };
 })(window.PowerUp);
-</script>
+
