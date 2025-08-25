@@ -1,4 +1,4 @@
-// scripts/tables.js (diagnostic header dump)
+// scripts/tables.js (diagnostic header dump just to get headers)
 (function (PowerUp) {
   const P = PowerUp || (PowerUp = {});
 
