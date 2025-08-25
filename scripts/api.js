@@ -1,9 +1,8 @@
 // scripts/api.js
 (function (PowerUp) {
   const P = PowerUp || (PowerUp = {});
-  const API_BASE = "https://powerup-proxy.onrender.com";
-
-  // 🔐 Smartsheet IDs (verify these match your sheets)
+  const API_BASE = "https://powerup-proxy.onrender.com"; // keep your current proxy
+  // Smartsheet IDs (leave as-is if these match your repo; adjust if needed)
   const SHEETS = {
     EMPLOYEE_MASTER: "2195459817820036",
     POWER_HOUR_GOALS: "3542697273937796",
@@ -11,123 +10,74 @@
     CI: "6797575881445252",
     SAFETY: "3310696565526404",
     QUALITY: "8096237664292740",
-    LEVEL_TRACKER: "8346763116105604",
+    LEVEL_TRACKER: "8346763116105604"
   };
 
-  // ---------- Caching ----------
-  const _rawCache = new Map();   // id -> raw sheet json
-  const _inflight = new Map();   // id -> Promise
-  const _rowsCache = new Map();  // id -> array of row objects keyed by column title
+  // Lightweight caches
+  const _rawCache = new Map();      // id -> raw sheet json
+  const _inflight = new Map();      // id -> Promise
+  const _rowsCache = new Map();     // id -> array of row objects keyed by column title
 
-  // ---------- Helpers ----------
-  function resolveSheetId(sheetIdOrKey) {
-    // Allow calling with a key ("CI") or a raw numeric string id ("6797...")
-    if (sheetIdOrKey == null) return "";
-    const s = String(sheetIdOrKey).trim();
-
-    // If they passed the key name, map to the real ID
-    if (SHEETS.hasOwnProperty(s)) return String(SHEETS[s]).trim();
-
-    // Otherwise assume it's already an ID
-    return s;
-  }
-
-  function assertValidId(id) {
-    if (!id || id.toLowerCase() === "undefined" || id.toLowerCase() === "null") {
-      const mapping = Object.entries(SHEETS)
-        .map(([k, v]) => `${k}: ${v ? v : "MISSING"}`)
-        .join(" | ");
-      const msg =
-        "Missing Smartsheet ID: a call was made with an empty/undefined id.\n" +
-        "Check scripts/api.js SHEETS{...} and the caller’s argument.\n" +
-        `Current SHEETS -> ${mapping}`;
-      console.error(msg);
-      throw new Error("Missing Smartsheet ID (see console for mapping).");
-    }
-  }
-
-  // ---------- Core fetchers ----------
-  async function fetchSheet(sheetIdOrKey, { force = false } = {}) {
-    const id = resolveSheetId(sheetIdOrKey);
-    assertValidId(id);
-
+  async function fetchSheet(sheetId, { force = false } = {}) {
     if (!force) {
-      if (_rawCache.has(id)) return _rawCache.get(id);
-      if (_inflight.has(id)) return _inflight.get(id);
+      if (_rawCache.has(sheetId)) return _rawCache.get(sheetId);
+      if (_inflight.has(sheetId)) return _inflight.get(sheetId);
     }
-
     const p = (async () => {
-      const res = await fetch(`${API_BASE}/sheet/${id}`, { credentials: "omit" });
-      if (!res.ok) {
-        let detail = "";
-        try { detail = await res.text(); } catch (_) {}
-        throw new Error(`Proxy error ${res.status} for sheet ${id}${detail ? `: ${detail}` : ""}`);
-      }
+      const res = await fetch(`${API_BASE}/sheet/${sheetId}`, { credentials: "omit" });
+      if (!res.ok) throw new Error(`Proxy error ${res.status} for sheet ${sheetId}`);
       const json = await res.json();
-      _rawCache.set(id, json);
-      _inflight.delete(id);
+      _rawCache.set(sheetId, json);
+      _inflight.delete(sheetId);
       return json;
     })();
-
-    _inflight.set(id, p);
+    _inflight.set(sheetId, p);
     return p;
   }
 
   function rowsByTitle(rawSheet) {
-    const byId = new Map(rawSheet.columns.map((c) => [c.id, c.title]));
-    return rawSheet.rows.map((r) => {
+    // Map columnId -> title
+    const byId = new Map(rawSheet.columns.map(c => [c.id, c.title]));
+    // Build simple objects keyed by column title
+    return rawSheet.rows.map(r => {
       const o = {};
       for (const cell of r.cells) {
         const title = byId.get(cell.columnId);
         if (!title) continue;
-        o[title] = cell.displayValue ?? cell.value ?? "";
+        // Prefer .displayValue when present; fallback to .value
+        const v = (cell.displayValue ?? cell.value ?? "");
+        o[title] = v;
       }
       return o;
     });
   }
 
-  async function getRowsByTitle(sheetIdOrKey, { force = false } = {}) {
-    const id = resolveSheetId(sheetIdOrKey);
-    assertValidId(id);
-
-    if (!force && _rowsCache.has(id)) return _rowsCache.get(id);
-    const raw = await fetchSheet(id, { force });
+  async function getRowsByTitle(sheetId, { force = false } = {}) {
+    if (!force && _rowsCache.has(sheetId)) return _rowsCache.get(sheetId);
+    const raw = await fetchSheet(sheetId, { force });
     const rows = rowsByTitle(raw);
-    _rowsCache.set(id, rows);
+    _rowsCache.set(sheetId, rows);
     return rows;
   }
 
-  function clearCache(sheetIdOrKey) {
-    if (!sheetIdOrKey) {
-      _rawCache.clear();
-      _rowsCache.clear();
-      _inflight.clear();
-      return;
+  function clearCache(sheetId) {
+    if (!sheetId) {
+      _rawCache.clear(); _rowsCache.clear(); _inflight.clear(); return;
     }
-    const id = resolveSheetId(sheetIdOrKey);
-    _rawCache.delete(id);
-    _rowsCache.delete(id);
-    _inflight.delete(id);
+    _rawCache.delete(sheetId);
+    _rowsCache.delete(sheetId);
+    _inflight.delete(sheetId);
   }
 
-  // ---------- Utils ----------
+  // Utility: safe number parse for currency/integers in text
   function toNumber(x) {
     if (x == null) return 0;
-    if (typeof x === "number") return x;
-    const m = String(x).replace(/[^0-9.\-]/g, "");
+    if (typeof x === 'number') return x;
+    const m = String(x).replace(/[^0-9.\-]/g, '');
     const n = parseFloat(m);
     return isFinite(n) ? n : 0;
   }
 
-  P.api = {
-    API_BASE,
-    SHEETS,
-    resolveSheetId,
-    fetchSheet,
-    rowsByTitle,
-    getRowsByTitle,
-    clearCache,
-    toNumber,
-  };
+  P.api = { API_BASE, SHEETS, fetchSheet, rowsByTitle, getRowsByTitle, clearCache, toNumber };
   window.PowerUp = P;
-})(window.PowerUp || {});
+}(window.PowerUp || {}));
