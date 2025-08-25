@@ -1,207 +1,181 @@
-// scripts/tables.js
-(function (PowerUp) {
-  const P = PowerUp || (PowerUp = {});
+// /scripts/tables.js
+window.PowerUp = window.PowerUp || {};
+(function (ns) {
+  const { fetchSheet, rowsByTitle, SHEETS } = ns.api;
 
-  // --- Define the exact headers to display for each sheet ---
-  const DISPLAY = {
-    CI: [
-      "Submission Date",
-      "Submission ID",
-      "Problem Statements",
-      "Proposed Improvement",
-      "CI Approval",
-      "Assigned To (Primary)",
-      "Status",
-      "Action Item Entry Date",
-      "Last Meeting Action Item's",
-      "Resourced",
-      "Resourced Date",
-      "Token Payout",
-      "Paid"
-    ],
-    SAFETY: [
-      "Date",
-      "Department/Area",
-      "Safety Concern",
-      "Describe the safety concern",
-      "Recommendations to correct/improve safety issue",
-      "Resolution",
-      "Who was the safety concern escalated to",
-      "Leadership update",
-      "Closed/Confirmed by- leadership only",
-      "Status"
-    ],
-    QUALITY: [
-      "Catch ID",
-      "Entry Date",
-      "Submitted By",
-      "Area",
-      "Quality Catch",
-      "Part Number",
-      "Description"
-    ]
+  // === Column dictionaries ===
+  const COL_MAP = {
+    ci: {
+      "Submission Date": "Submitted",
+      "Submission ID": "ID",
+      "Problem Statements": "Problem",
+      "Proposed Improvement": "Improvement",
+      "CI Approval": "Approval",
+      "Assigned To (Primary)": "Assigned",
+      "Status": "Status",
+      "Action Item Entry Date": "Action Entered",
+      "Last Meeting Action Item's": "Last Action",
+      "Resourced": "Resourced",
+      "Resourced Date": "Resourced On",
+      "Token Payout": "Tokens",
+      "Paid": "Paid"
+    },
+    safety: {
+      "Date": "Date",
+      "Department/Area": "Dept/Area",
+      "Safety Concern": "Safety Concern",
+      "Describe the safety concern": "Description",
+      "Recommendations to correct/improve safety issue": "Recommendations",
+      "Resolution": "Resolution",
+      "Who was the safety concern escalated to": "Escalated To",
+      "Leadership update": "Leadership Update",
+      "Closed/Confirmed by- leadership only": "Closed/Confirmed",
+      "Status": "Status"
+    },
+    quality: {
+      "Catch ID": "Catch ID",
+      "Entry Date": "Entry Date",
+      "Submitted By": "Submitted By",
+      "Area": "Area",
+      "Quality Catch": "Quality Catch",
+      "Part Number": "Part Number",
+      "Description": "Description"
+    }
   };
 
-  const $q = (s, r = document) => r.querySelector(s);
-  const num = (v) => PowerUp.api.toNumber(v);
-  const isTrue = (v) => /^(true|yes|1|paid)$/i.test(String(v ?? "").trim());
-  const norm = (s) => String(s || "").trim().toLowerCase();
+  // === Helpers ===
+  const esc = (s) =>
+    String(s ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
 
-  // --- Belongs-to-user filter ---
-  function belongsToUser(row, session) {
-    const meId = norm(session.employeeId);
-    const meName = norm(session.displayName);
-    if (!meId && !meName) return false;
-    for (const k of ["Employee ID", "Position ID"]) {
-      if (meId && norm(row[k]) === meId) return true;
+  const fmtDate = (v) => {
+    if (!v) return "";
+    const d = new Date(v);
+    return isNaN(d) ? String(v) : 
+      `${String(d.getMonth()+1).padStart(2,"0")}/${String(d.getDate()).padStart(2,"0")}/${d.getFullYear()}`;
+  };
+
+  const boolBadge = (v) => {
+    const t = String(v).toLowerCase();
+    if (t === "true" || t === "yes" || t === "paid") return `<span class="pill pill--green">Yes</span>`;
+    if (t === "false" || t === "no") return `<span class="pill pill--gray">No</span>`;
+    return esc(v);
+  };
+
+  const statusPill = (v) => {
+    if (!v) return "";
+    const t = String(v).toLowerCase();
+    if (/approved|accepted|closed|complete/.test(t)) return `<span class="pill pill--green">${esc(v)}</span>`;
+    if (/pending|progress|open|new/.test(t)) return `<span class="pill pill--blue">${esc(v)}</span>`;
+    if (/denied|rejected|cancel/.test(t)) return `<span class="pill pill--red">${esc(v)}</span>`;
+    return esc(v);
+  };
+
+  function format(col, value) {
+    const t = col.toLowerCase();
+    if (t.includes("date")) return fmtDate(value);
+    if (t.includes("token")) return value ? `$${value}` : "";
+    if (t === "paid") return boolBadge(value);
+    if (t.includes("status") || t.includes("approval")) return statusPill(value);
+    return esc(value ?? "");
+  }
+
+  // === Render function with sorting ===
+  function renderTable(tbody, rows, colMap, tableId) {
+    if (!tbody) return;
+    const cols = Object.keys(colMap);
+
+    // Fill body
+    const html = rows.map(r => {
+      const tds = cols.map(c => {
+        const val = format(c, r[c]);
+        // For sorting, also store a normalized value
+        let sortVal = (r[c] ?? "").toString().toLowerCase();
+        if (c.toLowerCase().includes("date")) {
+          const d = new Date(r[c]);
+          sortVal = isNaN(d) ? "" : d.getTime();
+        }
+        return `<td data-sort="${sortVal}">${val}</td>`;
+      }).join("");
+      return `<tr>${tds}</tr>`;
+    }).join("");
+
+    tbody.innerHTML = html || `<tr><td colspan="${cols.length}" style="text-align:center;opacity:.7;">No rows</td></tr>`;
+
+    // Fill header
+    const thead = tbody.closest("table")?.querySelector("thead tr");
+    if (thead) {
+      thead.innerHTML = Object.values(colMap)
+        .map(label => `<th>${label}</th>`).join("");
+
+      // Bind sorting
+      bindHeaderSort(thead, tbody);
     }
-    for (const k of ["Employee Name", "Display Name", "Submitted By", "Name"]) {
-      if (meName && norm(row[k]) === meName) return true;
-    }
-    return false;
   }
 
-  // --- Cell formatting (pills, tokens, etc.) ---
-  function pill(text, color) {
-    const cls =
-      color === "green"
-        ? "pill pill--green"
-        : color === "red"
-        ? "pill pill--red"
-        : color === "blue"
-        ? "pill pill--blue"
-        : "pill";
-    return `<span class="${cls}">${text}</span>`;
-  }
+  // === Sorting logic ===
+  function bindHeaderSort(thead, tbody) {
+    let state = { col: 0, asc: true };
 
-  function formatCell(title, value) {
-    const t = title.toLowerCase();
-    if (t === "status") {
-      const v = String(value || "").toLowerCase();
-      if (/(approved|closed|complete|completed|done)/.test(v))
-        return pill(value, "green");
-      if (/(pending|open|in progress|scheduled)/.test(v))
-        return pill(value, "blue");
-      if (/(denied|rejected|cancelled|canceled)/.test(v))
-        return pill(value, "red");
-      return value || "";
-    }
-    if (/^paid$/.test(t)) return isTrue(value) ? pill("Paid", "green") : "";
-    if (/^resourced$/.test(t))
-      return isTrue(value) ? pill("Resourced", "green") : "";
-    if (/token payout/i.test(t))
-      return num(value) ? `${num(value)}` : "";
-    return value ?? "";
-  }
+    thead.querySelectorAll("th").forEach((th, idx) => {
+      th.style.cursor = "pointer";
+      th.onclick = () => {
+        state.asc = state.col === idx ? !state.asc : true;
+        state.col = idx;
 
-  // --- Render helpers ---
-  function ensureHeader(table, cols) {
-    const thead = table.querySelector("thead") || table.createTHead();
-    thead.innerHTML = "";
-    const tr = document.createElement("tr");
-    cols.forEach((c) => {
-      const th = document.createElement("th");
-      th.textContent = c;
-      th.dataset.k = c;
-      tr.appendChild(th);
-    });
-    thead.appendChild(tr);
-  }
-
-  function renderRows(tbody, cols, rows) {
-    if (!rows.length) {
-      tbody.innerHTML = `<tr><td colspan="${cols.length}" class="muted" style="text-align:center;padding:16px;">No rows</td></tr>`;
-      return;
-    }
-    tbody.innerHTML = rows
-      .map(
-        (r) =>
-          `<tr>${cols
-            .map((c) => `<td>${formatCell(c, r[c])}</td>`)
-            .join("")}</tr>`
-      )
-      .join("");
-  }
-
-  function attachSort(table, cols) {
-    const ths = table.querySelectorAll("thead th[data-k]");
-    ths.forEach((th) => {
-      th.addEventListener("click", () => {
-        const key = th.dataset.k;
-        const headers = Array.from(table.querySelectorAll("thead th"));
-        const idx = headers.findIndex(
-          (h) => (h.dataset.k || h.textContent.trim()) === key
-        );
-        const asc = th.dataset.sort !== "asc";
-        headers.forEach((h) => (h.dataset.sort = ""));
-        th.dataset.sort = asc ? "asc" : "desc";
-        const tb = table.querySelector("tbody");
-        const rows = Array.from(tb.querySelectorAll("tr"));
-        const sorted = rows.sort((a, b) => {
-          const av = (a.children[idx]?.textContent || "").trim();
-          const bv = (b.children[idx]?.textContent || "").trim();
-          const an = parseFloat(av.replace(/[^0-9.\-]/g, ""));
-          const bn = parseFloat(bv.replace(/[^0-9.\-]/g, ""));
-          const numMode =
-            !Number.isNaN(an) && !Number.isNaN(bn) && (/\d/.test(av) || /\d/.test(bv));
-          return asc
-            ? numMode
-              ? an - bn
-              : av.localeCompare(bv)
-            : numMode
-            ? bn - an
-            : bv.localeCompare(av);
+        const rows = Array.from(tbody.querySelectorAll("tr"));
+        rows.sort((ra, rb) => {
+          const a = ra.children[idx]?.getAttribute("data-sort") ?? "";
+          const b = rb.children[idx]?.getAttribute("data-sort") ?? "";
+          const na = Number(a), nb = Number(b);
+          const bothNum = !isNaN(na) && !isNaN(nb);
+          const cmp = bothNum ? (na - nb) : a.localeCompare(b);
+          return state.asc ? cmp : -cmp;
         });
-        const frag = document.createDocumentFragment();
-        sorted.forEach((tr) => frag.appendChild(tr));
-        tb.innerHTML = "";
-        tb.appendChild(frag);
-      });
+
+        rows.forEach(r => tbody.appendChild(r));
+
+        thead.querySelectorAll("th").forEach((h,i) => {
+          h.removeAttribute("data-sort-dir");
+          if (i === state.col) h.setAttribute("data-sort-dir", state.asc ? "asc" : "desc");
+        });
+      };
     });
   }
 
-  // --- Hydration for one table ---
-  async function hydrateOne(kind, sheetId, cols) {
-    const table =
-      document.querySelector(`#${kind}-table`) ||
-      document.querySelector(`table[data-table="${kind}"]`);
-    if (!table) return;
+  // === Main hydrate function ===
+  ns.tables = ns.tables || {};
+  ns.tables.hydrateDashboardTables = async function () {
+    console.log("[tables] Hydrating dashboard tables…");
 
-    ensureHeader(table, cols);
-    const tbody = table.querySelector("tbody");
-    const s = PowerUp.session.get();
-    const all = await PowerUp.api.getRowsByTitle(sheetId);
+    const { employeeId } = ns.session.get();
 
-    // Warn if any requested display column is missing
-    cols.forEach((c) => {
-      if (!all[0] || !(c in all[0])) {
-        console.warn(`[PowerUp] Column "${c}" not found in ${kind} sheet!`);
-      }
-    });
-
-    const mine = all
-      .filter((r) => belongsToUser(r, s))
-      .sort(
-        (a, b) =>
-          new Date(b["Submission Date"] || b["Date"] || b["Entry Date"] || 0) -
-          new Date(a["Submission Date"] || a["Date"] || a["Entry Date"] || 0)
-      );
-
-    renderRows(tbody, cols, mine);
-    attachSort(table, cols);
-  }
-
-  // --- Main entry ---
-  async function hydrateDashboardTables() {
-    PowerUp.session.requireLogin();
-    await PowerUp.session.initHeader();
-    await Promise.all([
-      hydrateOne("ci", PowerUp.api.SHEETS.CI, DISPLAY.CI),
-      hydrateOne("safety", PowerUp.api.SHEETS.SAFETY, DISPLAY.SAFETY),
-      hydrateOne("quality", PowerUp.api.SHEETS.QUALITY, DISPLAY.QUALITY),
+    const [ciSheet, safetySheet, qualitySheet] = await Promise.all([
+      fetchSheet(SHEETS.CI),
+      fetchSheet(SHEETS.SAFETY),
+      fetchSheet(SHEETS.QUALITY)
     ]);
-  }
 
-  PowerUp.tables = { hydrateDashboardTables };
-  window.PowerUp = P;
-})(window.PowerUp || {});
+    const filterMine = (rows) =>
+      rows.filter(r => r["Employee ID"] === employeeId || r["Position ID"] === employeeId);
+
+    const ciRows = filterMine(rowsByTitle(ciSheet));
+    const safetyRows = filterMine(rowsByTitle(safetySheet));
+    const qualityRows = filterMine(rowsByTitle(qualitySheet));
+
+    renderTable(document.querySelector('[data-hook="table.ci.tbody"]'), ciRows, COL_MAP.ci, "ci-table");
+    renderTable(document.querySelector('[data-hook="table.safety.tbody"]'), safetyRows, COL_MAP.safety, "safety-table");
+    renderTable(document.querySelector('[data-hook="table.quality.tbody"]'), qualityRows, COL_MAP.quality, "quality-table");
+
+    // Auto row counts
+    const setCount = (id, n) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = `${n} submission${n === 1 ? "" : "s"}`;
+    };
+    setCount("ci-count", ciRows.length);
+    setCount("safety-count", safetyRows.length);
+    setCount("quality-count", qualityRows.length);
+  };
+})(window.PowerUp);
