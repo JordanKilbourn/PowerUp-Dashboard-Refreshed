@@ -377,3 +377,24 @@ body.notes .note-editor:empty:before { content: attr(data-placeholder); color: v
   background: rgba(255,255,255,0.035);
 }
 
+/* Pill badges for status/approval */
+.pill {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+.pill--green { background: var(--success); color: #000; }
+.pill--blue  { background: #56ccf2; color: #000; }
+.pill--red   { background: var(--error);  color: #fff; }
+.pill--gray  { background: #3a4e4e;      color: #fff; }
+
+/* Sort arrows (th[data-sort]) */
+th[data-sort="asc"]::after { content: " ▲"; opacity: .7; }
+th[data-sort="desc"]::after { content: " ▼"; opacity: .7; }
+
+
+
