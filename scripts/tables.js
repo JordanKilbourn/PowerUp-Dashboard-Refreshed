@@ -1,138 +1,151 @@
-// scripts/tables.js
+// scripts/tables.js (Hybrid Whitelist Approach)
 (function (PowerUp) {
   const P = PowerUp || (PowerUp = {});
-  const COLS = {
-    CI: ["Submission Date","Submission ID","Problem Statements","Proposed Improvement","CI Approval","Assigned To (Primary)","Status","Action Item Entry Date","Last Meeting Action Item's","Resourced","Resourced Date","Token Payout","Paid"],
-    SAFETY: ["Submission Date","Department","Description","Recommendations","Status","Assigned To (Primary)","Action Item Entry Date","Follow-up Date","Severity"],
-    QUALITY: ["Submission Date","Part Number","Part Description","Issue","Status","Assigned To (Primary)","Containment","Root Cause","Corrective Action"]
+
+  // ✅ Whitelist of columns to display (exact names from Smartsheet)
+  const DISPLAY = {
+    CI: [
+      "Submission Date", "Submission ID", "Problem Statements", "Proposed Improvement",
+      "CI Approval", "Assigned To (Primary)", "Status", "Action Item Entry Date",
+      "Last Meeting Action Item's", "Resourced", "Resourced Date", "Token Payout", "Paid"
+    ],
+    SAFETY: [
+      "Date", "Department/Area", "Safety Concern", "Describe the safety concern",
+      "Recommendations to correct/improve safety issue", "Resolution",
+      "Who was the safety concern escalated to", "Leadership update",
+      "Closed/Confirmed by- leadership only", "Status"
+    ],
+    QUALITY: [
+      "Catch ID", "Entry Date", "Submitted By", "Area",
+      "Quality Catch", "Part Number", "Description"
+    ]
   };
-  const USER_MATCH_KEYS = ["Employee ID","Position ID","Employee Name","Display Name"];
 
-  const $q = (s,r=document)=>r.querySelector(s);
-  const num = (v)=>PowerUp.api.toNumber(v);
-  const isTrue = (v)=>String(v).toLowerCase()==='true'||String(v).toLowerCase()==='yes';
-  const norm = (s)=>String(s||'').trim().toLowerCase();
+  const $q = (s, r = document) => r.querySelector(s);
+  const num = (v) => PowerUp.api.toNumber(v);
+  const isTrue = (v) => /^(true|yes|1|paid)$/i.test(String(v ?? "").trim());
 
-  function findTable(kind){ return $q(`table[data-table="${kind}"]`)||$q(`#${kind}-table`)||$q(`.${kind}-table`); }
-  function findBody(kind,table){ return (table&&table.querySelector('tbody'))||$q(`#${kind}-rows`)||$q(`[data-body="${kind}"]`); }
-  function findStatusSelect(kind){ return $q(`select[data-filter="${kind}-status"]`)||$q(`#${kind}-status`)||null; }
-  function findCountBadge(kind){ return $q(`[data-count="${kind}"]`)||$q(`#${kind}-count`)||null; }
+  // Match row to logged in user
+  function belongsToUser(row, session) {
+    const meId = String(session.employeeId || "").trim().toLowerCase();
+    const meName = String(session.displayName || "").trim().toLowerCase();
+    if (!meId && !meName) return false;
 
-  function belongsToUser(row, session){
-    const meId = norm(session.employeeId);
-    const meName = norm(session.displayName);
-    // exact ID match on EmpID/PosID
-    for (const k of ["Employee ID","Position ID"]) if (meId && norm(row[k])===meId) return true;
-    // fallback: name match (Employee Name/Display Name)
-    for (const k of ["Employee Name","Display Name"]) if (meName && meName && norm(row[k])===meName) return true;
+    for (const k of ["Employee ID", "Position ID"]) {
+      if (String(row[k] || "").trim().toLowerCase() === meId) return true;
+    }
+    for (const k of ["Employee Name", "Display Name"]) {
+      if (String(row[k] || "").trim().toLowerCase() === meName) return true;
+    }
     return false;
   }
 
-  function pill(text,color){
-    const cls = color==='green'?'pill pill--green':color==='red'?'pill pill--red':color==='blue'?'pill pill--blue':'pill';
+  // Formatting helpers
+  function pill(text, color) {
+    const cls = color === "green" ? "pill pill--green" :
+                color === "red"   ? "pill pill--red"   :
+                color === "blue"  ? "pill pill--blue"  :
+                "pill";
     return `<span class="${cls}">${text}</span>`;
   }
-  function formatCell(title,value){
+
+  function formatCell(title, value) {
     const t = title.toLowerCase();
-    if (t==="status"){
-      const v = String(value||"").toLowerCase();
-      if (/(approved|closed|complete|completed|done)/.test(v)) return pill(value,"green");
-      if (/(pending|open|in progress|scheduled)/.test(v)) return pill(value,"blue");
-      if (/(denied|rejected|cancelled|canceled)/.test(v)) return pill(value,"red");
-      return value||"";
+    if (t === "status") {
+      const v = String(value || "").toLowerCase();
+      if (/approved|closed|complete|done/.test(v)) return pill(value, "green");
+      if (/pending|open|in progress|scheduled/.test(v)) return pill(value, "blue");
+      if (/denied|rejected|cancelled|canceled/.test(v)) return pill(value, "red");
+      return value || "";
     }
-    if (/^paid$/.test(t)) return isTrue(value)?pill("Paid","green"):"";
-    if (/^resourced$/.test(t)) return isTrue(value)?pill("Resourced","green"):"";
-    if (/token payout/i.test(t)) return num(value)?`${num(value)}`:"";
-    return value??"";
+    if (/^paid$/.test(t)) return isTrue(value) ? pill("Paid", "green") : "";
+    if (/^resourced$/.test(t)) return isTrue(value) ? pill("Resourced", "green") : "";
+    if (/token payout/i.test(t)) return num(value) ? `${num(value)}` : "";
+    return value ?? "";
   }
 
-  function ensureHeader(table, cols){
-    const thead = table.querySelector('thead')||table.createTHead();
-    if (!thead.innerHTML.trim()){
-      const tr = document.createElement('tr');
-      cols.forEach(c=>{ const th=document.createElement('th'); th.textContent=c; th.dataset.k=c; tr.appendChild(th);});
-      thead.appendChild(tr);
+  function renderRows(tbody, cols, rows) {
+    if (!rows.length) {
+      tbody.innerHTML = `<tr><td colspan="${cols.length}" style="text-align:center;padding:16px;">No rows</td></tr>`;
+      return;
     }
+    tbody.innerHTML = rows.map(r =>
+      `<tr>${cols.map(c => `<td>${formatCell(c, r[c])}</td>`).join("")}</tr>`
+    ).join("");
   }
-  function renderRows(tbody, cols, rows){
-    if (!rows.length){ tbody.innerHTML = `<tr><td colspan="${cols.length}" class="muted" style="text-align:center;padding:16px;">No rows</td></tr>`; return; }
-    tbody.innerHTML = rows.map(r=>`<tr>${cols.map(c=>`<td>${formatCell(c, r[c])}</td>`).join('')}</tr>`).join('');
-  }
-  function attachSort(table, cols){
-    const ths = table.querySelectorAll('thead th[data-k]');
-    ths.forEach(th=>{
-      th.addEventListener('click',()=>{
+
+  // Sorting support
+  function attachSort(table, cols) {
+    const ths = table.querySelectorAll("thead th[data-k]");
+    ths.forEach(th => {
+      th.addEventListener("click", () => {
         const key = th.dataset.k;
-        const headers = Array.from(table.querySelectorAll('thead th'));
-        const idx = headers.findIndex(h=> (h.dataset.k||h.textContent.trim())===key);
-        const asc = th.dataset.sort!=="asc";
-        headers.forEach(h=>h.dataset.sort="");
-        th.dataset.sort = asc?'asc':'desc';
-        const tb = table.querySelector('tbody');
-        const rows = Array.from(tb.querySelectorAll('tr'));
-        const sorted = rows.sort((a,b)=>{
-          const av = (a.children[idx]?.textContent||"").trim();
-          const bv = (b.children[idx]?.textContent||"").trim();
-          const an = parseFloat(av.replace(/[^0-9.\-]/g,'')), bn = parseFloat(bv.replace(/[^0-9.\-]/g,''));
-          const numMode = !Number.isNaN(an)&&!Number.isNaN(bn)&&(/\d/.test(av)||/\d/.test(bv));
-          return asc ? (numMode?an-bn:av.localeCompare(bv)) : (numMode?bn-an:bv.localeCompare(av));
+        const idx = cols.indexOf(key);
+        const asc = th.dataset.sort !== "asc";
+        ths.forEach(h => h.dataset.sort = "");
+        th.dataset.sort = asc ? "asc" : "desc";
+
+        const tb = table.querySelector("tbody");
+        const rows = Array.from(tb.querySelectorAll("tr"));
+        const sorted = rows.sort((a, b) => {
+          const av = a.children[idx]?.textContent || "";
+          const bv = b.children[idx]?.textContent || "";
+          const an = parseFloat(av.replace(/[^0-9.\-]/g, "")),
+                bn = parseFloat(bv.replace(/[^0-9.\-]/g, ""));
+          const numMode = !isNaN(an) && !isNaN(bn);
+          return asc ? (numMode ? an - bn : av.localeCompare(bv))
+                     : (numMode ? bn - an : bv.localeCompare(av));
         });
-        const frag = document.createDocumentFragment(); sorted.forEach(tr=>frag.appendChild(tr));
-        tb.innerHTML=''; tb.appendChild(frag);
+        tb.innerHTML = "";
+        sorted.forEach(tr => tb.appendChild(tr));
       });
     });
-  }
-  function attachStatusFilter(kind, table, select){
-    if (!select) return;
-    select.addEventListener('change',()=>{
-      const val = (select.value||"").toLowerCase();
-      const tb = table.querySelector('tbody');
-      const rows = Array.from(tb.querySelectorAll('tr'));
-      const headers = Array.from(table.querySelectorAll('thead th'));
-      const sIdx = headers.findIndex(h=>/status/i.test(h.textContent.trim()));
-      rows.forEach(tr=>{
-        if (tr.children.length===1){ tr.style.display=''; return; }
-        if (!val || val==='all'){ tr.style.display=''; return; }
-        const cellText = (tr.children[sIdx]?.textContent || tr.textContent || "").toLowerCase();
-        tr.style.display = cellText.includes(val) ? '' : 'none';
-      });
-      const visible = rows.filter(tr=>tr.style.display!=='none' && tr.children.length>1).length;
-      const badge = findCountBadge(kind); if (badge) badge.textContent = visible;
-    });
-  }
-  function updateCount(kind, table){
-    const tb = table.querySelector('tbody');
-    const rows = Array.from(tb.querySelectorAll('tr'));
-    const count = rows.filter(tr=>tr.children.length>1).length;
-    const badge = findCountBadge(kind); if (badge) badge.textContent = count;
   }
 
-  async function hydrateOne(kind, sheetId, cols){
-    const table = findTable(kind); if (!table) return;
-    ensureHeader(table, cols);
-    const tbody = findBody(kind, table);
+  async function hydrateOne(kind, sheetId) {
+    const table = document.getElementById(`${kind}-table`);
+    if (!table) return;
+
+    const tbody = table.querySelector("tbody");
+    const raw = await PowerUp.api.fetchSheet(sheetId);
+    const allHeaders = raw.columns.map(c => c.title);
+    const rows = PowerUp.api.rowsByTitle(raw);
+
+    // Filter only whitelisted columns
+    const display = DISPLAY[kind] || allHeaders;
+    const valid = display.filter(h => {
+      if (!allHeaders.includes(h)) {
+        console.warn(`[tables.js] Column "${h}" not found in ${kind} sheet. Available:`, allHeaders);
+        return false;
+      }
+      return true;
+    });
+
+    // Build header if not already
+    if (!table.querySelector("thead tr")) {
+      const thead = table.querySelector("thead");
+      thead.innerHTML = `<tr>${valid.map(h => `<th data-k="${h}">${h}</th>`).join("")}</tr>`;
+    }
+
+    // Filter rows for logged in user
     const s = PowerUp.session.get();
-    const all = await PowerUp.api.getRowsByTitle(sheetId);
-    const mine = all.filter(r=>belongsToUser(r, s)).sort((a,b)=>{
-      const ad = new Date(a["Submission Date"]||a["Date"]||0), bd = new Date(b["Submission Date"]||b["Date"]||0);
-      return bd - ad;
-    });
-    renderRows(tbody, cols, mine);
-    updateCount(kind, table);
-    attachSort(table, cols);
-    attachStatusFilter(kind, table, findStatusSelect(kind));
+    const mine = rows.filter(r => belongsToUser(r, s))
+      .sort((a, b) => new Date(b["Submission Date"] || b["Date"] || 0) - new Date(a["Submission Date"] || a["Date"] || 0));
+
+    renderRows(tbody, valid, mine);
+    attachSort(table, valid);
   }
 
-  async function hydrateDashboardTables(){
+  async function hydrateDashboardTables() {
     PowerUp.session.requireLogin();
     await PowerUp.session.initHeader();
     await Promise.all([
-      hydrateOne("ci", PowerUp.api.SHEETS.CI, COLS.CI),
-      hydrateOne("safety", PowerUp.api.SHEETS.SAFETY, COLS.SAFETY),
-      hydrateOne("quality", PowerUp.api.SHEETS.QUALITY, COLS.QUALITY)
+      hydrateOne("ci", PowerUp.api.SHEETS.CI),
+      hydrateOne("safety", PowerUp.api.SHEETS.SAFETY),
+      hydrateOne("quality", PowerUp.api.SHEETS.QUALITY),
     ]);
   }
-  PowerUp.tables = { hydrateDashboardTables };
+
+  P.tables = { hydrateDashboardTables };
   window.PowerUp = P;
 }(window.PowerUp || {}));
