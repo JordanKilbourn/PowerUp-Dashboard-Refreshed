@@ -33,11 +33,11 @@
         <div class="dot"></div>
         <h1>PowerUp</h1>
       </div>
-      <div class="muted">Sign in with your <strong>Position ID</strong> (or Employee ID).</div>
+      <div class="muted">Sign in with your <strong>Employee ID</strong></div>
 
       <div class="field">
-        <label for="empId">Position ID or Employee ID</label>
-        <input id="empId" type="text" placeholder="e.g., 12345" autocomplete="off" />
+        <label for="empId">Employee ID</label>
+        <input id="empId" type="text" placeholder="e.g., IX12345" autocomplete="off" />
       </div>
 
       <div class="actions">
@@ -57,13 +57,13 @@
       const $ = (s) => document.querySelector(s);
       const $error = $('#error');
       $('#help').addEventListener('click', () => {
-        alert("Your Position ID is shown in the Employee Master sheet and in your profile. If unsure, ask HR/CI.");
+        alert("If you have not been given your Employee ID number, ask you supervisor or manager and they can provide it to you.");
       });
 
       async function doLogin() {
         $error.style.display = 'none';
         const id = ($('#empId').value || '').trim();
-        if (!id) { $error.textContent = 'Please enter your Position ID or Employee ID.'; $error.style.display='block'; return; }
+        if (!id) { $error.textContent = 'Please enter your Employee ID.'; $error.style.display='block'; return; }
         try {
           await PowerUp.session.loginWithId(id);
           // If it returns, it means we handled redirect inside. If not found, it will throw.
