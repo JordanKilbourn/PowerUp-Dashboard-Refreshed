@@ -56,14 +56,14 @@
     </div>
   </div>
 
-  <!-- ========== JS includes ========== -->
+  <!-- ===== JS ===== -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/js/all.min.js" defer></script>
   <script src="scripts/api.js"></script>
   <script src="scripts/session.js"></script>
   <script src="scripts/layout.js"></script>
-  
+
   <script>
-    // Column name fallbacks – tweak if your sheet uses different labels
+    // ---- column name map (adjust if your titles differ) ----
     const COLS = {
       employeeId: ['Employee ID','Position ID'],
       date: ['Date','Session Date','Power Hour Date'],
@@ -75,12 +75,9 @@
       topic: ['Topic','Description','Notes']
     };
 
-    function pick(row, candidates, fallback='') {
-      for (const k of candidates) if (row[k] != null && row[k] !== '') return row[k];
-      return fallback;
-    }
-    function isTrue(v){ return String(v).toLowerCase() === 'true' || v === true || String(v).toLowerCase()==='yes'; }
-    function parseDate(v){ const d = new Date(v); return isNaN(d) ? null : d; }
+    const pick = (row, list, d='') => { for (const k of list) if (row[k]!=null && row[k]!=='') return row[k]; return d; };
+    const isTrue = (v) => String(v).toLowerCase()==='true' || v===true || String(v).toLowerCase()==='yes';
+    const parseDate = (v)=>{ const d=new Date(v); return isNaN(d)?null:d; };
 
     const state = { all: [], view: [] };
 
@@ -95,9 +92,7 @@
       if (!d) return false;
       const now = new Date();
       const firstOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-      if (range === 'this-month') {
-        return d >= firstOfThisMonth && d <= now;
-      }
+      if (range === 'this-month') return d >= firstOfThisMonth && d <= now;
       if (range === 'last-3') {
         const start = new Date(now.getFullYear(), now.getMonth()-2, 1);
         return d >= start && d <= now;
@@ -129,7 +124,6 @@
           </tr>`;
         }).join('');
       }
-      // metrics
       const totalHrs = state.view.reduce((a,r)=> a + PowerUp.api.toNumber(pick(r, COLS.completedHours, 0)), 0);
       const sessions = state.view.length;
       const now = new Date();
@@ -154,7 +148,7 @@
         th.addEventListener('click', () => {
           const key = th.dataset.k;
           const asc = th.dataset.sort !== 'asc';
-          ths.forEach(h => h.dataset.sort=''); // clear
+          ths.forEach(h => h.dataset.sort='');
           th.dataset.sort = asc ? 'asc' : 'desc';
           state.view.sort((a,b)=>{
             const av = String(a[key] ?? '');
@@ -171,19 +165,14 @@
     }
 
     async function load() {
-      PowerUp.session.requireLogin();
-      await PowerUp.session.initHeader();
       const s = PowerUp.session.get();
       const rows = await PowerUp.api.getRowsByTitle(PowerUp.api.SHEETS.POWER_HOURS);
       state.all = rows.filter(r => byCurrentUser(r, s.employeeId));
       applyRange();
       wireSort();
     }
-    document.getElementById('range').addEventListener('change', applyRange);
-    document.getElementById('refresh').addEventListener('click', load);
-    document.addEventListener('DOMContentLoaded', load);
-  
-  function bindControls() {
+
+    function bindControls() {
       const rangeEl = document.getElementById('range');
       const refreshEl = document.getElementById('refresh');
       if (!rangeEl.dataset.bound) {
@@ -207,10 +196,6 @@
       await load();
       bindControls();
     });
-  
-  
   </script>
-
 </body>
 </html>
-
