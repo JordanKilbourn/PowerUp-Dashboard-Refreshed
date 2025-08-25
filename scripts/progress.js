@@ -39,7 +39,7 @@ window.PowerUp = window.PowerUp || {};
     try {
       const [emSheet, targetsSheet] = await Promise.all([
         fetchSheet(SHEETS.EMPLOYEE_MASTER),
-        fetchSheet(SHEETS.GOALS) // Power Hour Targets
+        fetchSheet(SHEETS.POWER_HOUR_GOALS) // Power Hour Targets
       ]);
       const em = rowsByTitle(emSheet);
       const targets = rowsByTitle(targetsSheet);
