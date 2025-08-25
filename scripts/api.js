@@ -3,7 +3,7 @@
   const P = PowerUp || (PowerUp = {});
   const API_BASE = "https://powerup-proxy.onrender.com";
 
-  // 🔐 Smartsheet IDs (verify these match your sheets)
+  // ✅ Smartsheet IDs
   const SHEETS = {
     EMPLOYEE_MASTER: "2195459817820036",
     POWER_HOUR_GOALS: "3542697273937796",
@@ -14,103 +14,94 @@
     LEVEL_TRACKER: "8346763116105604",
   };
 
-  // ---------- Caching ----------
-  const _rawCache = new Map();   // id -> raw sheet json
-  const _inflight = new Map();   // id -> Promise
-  const _rowsCache = new Map();  // id -> array of row objects keyed by column title
+  // ---------- caches ----------
+  const _rawCache  = new Map();  // id -> raw sheet json
+  const _inflight  = new Map();  // id -> Promise
+  const _rowsCache = new Map();  // id -> [{title:value,...}]
 
-  // ---------- Helpers ----------
+  // ---------- utils ----------
   function resolveSheetId(sheetIdOrKey) {
-    // Allow calling with a key ("CI") or a raw numeric string id ("6797...")
     if (sheetIdOrKey == null) return "";
     const s = String(sheetIdOrKey).trim();
-
-    // If they passed the key name, map to the real ID
-    if (SHEETS.hasOwnProperty(s)) return String(SHEETS[s]).trim();
-
-    // Otherwise assume it's already an ID
-    return s;
+    return Object.prototype.hasOwnProperty.call(SHEETS, s) ? String(SHEETS[s]).trim() : s;
   }
 
-  function assertValidId(id) {
+  function assertValidId(id, hint) {
     if (!id || id.toLowerCase() === "undefined" || id.toLowerCase() === "null") {
-      const mapping = Object.entries(SHEETS)
-        .map(([k, v]) => `${k}: ${v ? v : "MISSING"}`)
-        .join(" | ");
-      const msg =
-        "Missing Smartsheet ID: a call was made with an empty/undefined id.\n" +
-        "Check scripts/api.js SHEETS{...} and the caller’s argument.\n" +
-        `Current SHEETS -> ${mapping}`;
-      console.error(msg);
+      const mapping = Object.entries(SHEETS).map(([k,v]) => `${k}: ${v || "MISSING"}`).join(" | ");
+      console.error("Missing Smartsheet ID", { hint, id, mapping });
       throw new Error("Missing Smartsheet ID (see console for mapping).");
     }
   }
 
-  // ---------- Core fetchers ----------
-
-function resolveSheetId(sheetIdOrKey) {
-  if (sheetIdOrKey == null) return "";
-  const s = String(sheetIdOrKey).trim();
-  if (SHEETS.hasOwnProperty(s)) return String(SHEETS[s]).trim();
-  return s; // assume raw ID
-}
-
-function assertValidId(id, hint) {
-  if (!id || id.toLowerCase() === "undefined" || id.toLowerCase() === "null") {
-    const mapping = Object.entries(SHEETS).map(([k, v]) => `${k}: ${v || "MISSING"}`).join(" | ");
-    console.error("Missing Smartsheet ID: a call was made with an empty/undefined id.", {
-      hint,
-      id,
-      mapping,
+  // Convert Smartsheet rows into objects keyed by column title
+  function rowsByTitle(sheetJson) {
+    const colTitleById = {};
+    (sheetJson.columns || []).forEach(c => { colTitleById[c.id] = c.title; });
+    return (sheetJson.rows || []).map(r => {
+      const o = {};
+      (r.cells || []).forEach(cell => {
+        const t = colTitleById[cell.columnId];
+        if (!t) return;
+        o[t] = cell.displayValue ?? cell.value ?? "";
+      });
+      return o;
     });
-    console.trace("Call stack for missing sheetId");
-    throw new Error("Missing Smartsheet ID (see console for mapping and stack).");
   }
-}
 
-async function fetchSheet(sheetIdOrKey, { force = false } = {}) {
-  const id = resolveSheetId(sheetIdOrKey);
-  assertValidId(id, `fetchSheet(arg=${String(sheetIdOrKey)})`);
+  // ---------- core fetchers ----------
+  async function fetchSheet(sheetIdOrKey, { force = false } = {}) {
+    const id = resolveSheetId(sheetIdOrKey);
+    assertValidId(id, `fetchSheet(${String(sheetIdOrKey)})`);
 
-  if (!force) {
-    if (_rawCache.has(id)) return _rawCache.get(id);
-    if (_inflight.has(id)) return _inflight.get(id);
-  }
-  const p = (async () => {
-    const res = await fetch(`${API_BASE}/sheet/${id}`, { credentials: "omit" });
-    if (!res.ok) {
-      let detail = ""; try { detail = await res.text(); } catch {}
-      throw new Error(`Proxy error ${res.status} for sheet ${id}${detail ? `: ${detail}` : ""}`);
+    if (!force) {
+      if (_rawCache.has(id))   return _rawCache.get(id);
+      if (_inflight.has(id))   return _inflight.get(id);
     }
-    const json = await res.json();
-    _rawCache.set(id, json);
-    _inflight.delete(id);
-    return json;
-  })();
-  _inflight.set(id, p);
-  return p;
-}
 
-async function getRowsByTitle(sheetIdOrKey, { force = false } = {}) {
-  const id = resolveSheetId(sheetIdOrKey);
-  assertValidId(id, `getRowsByTitle(arg=${String(sheetIdOrKey)})`);
+    const p = (async () => {
+      const res = await fetch(`${API_BASE}/sheet/${id}`, { credentials: "omit" });
+      if (!res.ok) {
+        let detail = ""; try { detail = await res.text(); } catch {}
+        throw new Error(`Proxy error ${res.status} for sheet ${id}${detail ? `: ${detail}` : ""}`);
+      }
+      const json = await res.json();
+      _rawCache.set(id, json);
+      _inflight.delete(id);
+      return json;
+    })();
 
-  if (!force && _rowsCache.has(id)) return _rowsCache.get(id);
-  const raw = await fetchSheet(id, { force });
-  const rows = rowsByTitle(raw);
-  _rowsCache.set(id, rows);
-  return rows;
-}
+    _inflight.set(id, p);
+    return p;
+  }
 
-  // ---------- Utils ----------
+  async function getRowsByTitle(sheetIdOrKey, { force = false } = {}) {
+    const id = resolveSheetId(sheetIdOrKey);
+    assertValidId(id, `getRowsByTitle(${String(sheetIdOrKey)})`);
+
+    if (!force && _rowsCache.has(id)) return _rowsCache.get(id);
+    const raw  = await fetchSheet(id, { force });
+    const rows = rowsByTitle(raw);
+    _rowsCache.set(id, rows);
+    return rows;
+  }
+
+  function clearCache(sheetIdOrKey) {
+    if (!sheetIdOrKey) {
+      _rawCache.clear(); _inflight.clear(); _rowsCache.clear(); return;
+    }
+    const id = resolveSheetId(sheetIdOrKey);
+    _rawCache.delete(id); _inflight.delete(id); _rowsCache.delete(id);
+  }
+
   function toNumber(x) {
     if (x == null) return 0;
     if (typeof x === "number") return x;
-    const m = String(x).replace(/[^0-9.\-]/g, "");
-    const n = parseFloat(m);
-    return isFinite(n) ? n : 0;
+    const n = parseFloat(String(x).replace(/[^0-9.\-]/g, ""));
+    return Number.isFinite(n) ? n : 0;
   }
 
+  // ---------- export ----------
   P.api = {
     API_BASE,
     SHEETS,
