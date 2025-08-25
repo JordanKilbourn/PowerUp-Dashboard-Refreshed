@@ -50,8 +50,10 @@
     </div>
   </div>
 
-  <script src="scripts/api.js"></script>
-  <script src="scripts/session.js"></script>
+<!-- put these BEFORE any code that calls PowerUp.session.* -->
+<script src="scripts/api.js?v=2025-08-25-a"></script>
+<script src="scripts/session.js?v=2025-08-25-a"></script>
+
   <script>
     (function () {
       const $ = (s) => document.querySelector(s);
