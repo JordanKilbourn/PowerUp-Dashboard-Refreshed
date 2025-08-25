@@ -254,11 +254,12 @@
         await PowerUp.session.initHeader();
         await PowerUp.renderDashboardPowerHours();
         await PowerUp.renderTokenCard();
-        await PowerUp.hydrateDashboardTables();
+        await PowerUp.tables.hydrateDashboardTables();
         document.dispatchEvent(new Event('data-hydrated'));
       } catch (e) { console.error(e); }
     })();
   </script>
 </body>
 </html>
+
 
