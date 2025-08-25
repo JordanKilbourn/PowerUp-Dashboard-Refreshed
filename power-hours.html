@@ -11,14 +11,10 @@
 </head>
 <body>
   <div class="page-wrap">
-    <div class="header-row">
-      <div>
-        <div class="title">Power Hours</div>
-        <div class="muted">Signed in as <span data-hook="userName">—</span> · <span data-hook="userLevel">—</span></div>
-      </div>
-    </div>
+    <div class="title">Power Hours</div>
+    <div class="muted">Signed in as <span data-hook="userName">—</span> · <span data-hook="userLevel">—</span></div>
 
-    <div class="filters">
+    <div class="filters" style="margin-top:10px;">
       <label class="muted">Range:</label>
       <select id="range">
         <option value="this-month">This Month</option>
@@ -56,14 +52,14 @@
     </div>
   </div>
 
-  <!-- ===== JS ===== -->
+  <!-- Shared libs + core -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/js/all.min.js" defer></script>
   <script src="scripts/api.js"></script>
   <script src="scripts/session.js"></script>
   <script src="scripts/layout.js"></script>
 
   <script>
-    // ---- column name map (adjust if your titles differ) ----
+    // Column names (adjust if your Smartsheet titles differ)
     const COLS = {
       employeeId: ['Employee ID','Position ID'],
       date: ['Date','Session Date','Power Hour Date'],
@@ -74,7 +70,6 @@
       completed: ['Completed','Is Completed?','Done'],
       topic: ['Topic','Description','Notes']
     };
-
     const pick = (row, list, d='') => { for (const k of list) if (row[k]!=null && row[k]!=='') return row[k]; return d; };
     const isTrue = (v) => String(v).toLowerCase()==='true' || v===true || String(v).toLowerCase()==='yes';
     const parseDate = (v)=>{ const d=new Date(v); return isNaN(d)?null:d; };
@@ -85,7 +80,6 @@
       const rid = (pick(row, COLS.employeeId, '')+'').trim();
       return rid === (empId+'').trim();
     }
-
     function withinRange(row, range) {
       if (range === 'all') return true;
       const d = parseDate(pick(row, COLS.date));
