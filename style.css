@@ -25,31 +25,6 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); }
 
-/* === 3) Layout / Sidebar === */
-.container { display: flex; height: 100%; }
-.sidebar { width: 60px; background: var(--sidebar-bg); transition: width .3s; overflow: hidden; box-shadow: 2px 0 8px rgba(0,0,0,.6); }
-.sidebar.expanded { width: 220px; }
-.sidebar .item { display: flex; align-items: center; gap: 12px; padding: 15px; cursor: pointer; color: var(--text); transition: background .2s, transform .2s, box-shadow .2s; }
-.sidebar .item:hover { background: var(--card-bg-hover); box-shadow: 0 0 8px var(--accent); transform: scale(1.05); }
-.sidebar .item i { font-size: 20px; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; color: rgba(255,255,255,.7); }
-.sidebar .item:hover i { color: var(--accent); }
-.sidebar .item span { font-size: 16px; display: none; }
-.sidebar.expanded .item span { display: inline; }
-.sidebar .item.active { background: var(--card-bg-hover); font-weight: 700; }
-.sidebar .item.active i { color: var(--accent); }
-
-/* === 4) Main / Header === */
-.main { flex: 1; display: flex; flex-direction: column; overflow: hidden; width: 100%; }
-.header {
-  background: rgba(16,22,23,.8);
-  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
-  padding: 15px 20px; position: sticky; top: 0; z-index: 10;
-  border-bottom: 1px solid rgba(0,255,198,.1); box-shadow: 0 4px 12px rgba(0,255,198,.08);
-}
-.header h1 { font-size: 24px; color: var(--accent); margin-bottom: 5px; }
-.header p  { font-size: 14px; color: var(--info); }
-.header p span { color: var(--accent); font-weight: 600; }
-
 /* === 5) Top cards row === */
 body.dashboard .top-cards {
   display: flex; gap: 20px; padding: 15px 20px 35px 20px; background: var(--bg);
@@ -174,7 +149,6 @@ body.notes .note-editor:empty:before { content: attr(data-placeholder); color: v
 .note-info { flex: 1; }
 .delete-icon { background: none; border: none; color: #e74c3c; font-size: 14px; cursor: pointer; padding: 4px; opacity: .8; transition: .2s; }
 .delete-icon:hover { opacity: 1; }
-
 
 /* === 9) SIMPLE PROGRESS BAR (no bubbles/legends) === */
 .phbar {
@@ -396,73 +370,87 @@ body.notes .note-editor:empty:before { content: attr(data-placeholder); color: v
 th[data-sort="asc"]::after { content: " ▲"; opacity: .7; }
 th[data-sort="desc"]::after { content: " ▼"; opacity: .7; }
 
-.layout-shell { position: relative; z-index: 10; }
-.sidebar { position: fixed; left: 0; top:0; bottom:0; width: 72px; background:#0b1020; border-right:1px solid #1f2937; padding:12px; transition: width .2s ease; }
-.sidebar.expanded { width: 220px; }
-.sidebar .logo { display:flex; align-items:center; gap:10px; color:#e5e7eb; margin-bottom:10px; }
-.sidebar .logo .dot { width:10px; height:10px; background:#FF6600; border-radius:50%; box-shadow:0 0 12px #FF6600; }
-.sidebar .menu { display:flex; flex-direction:column; gap:6px; }
-.sidebar .menu .item { display:flex; align-items:center; gap:10px; color:#cbd5e1; text-decoration:none; padding:10px; border-radius:10px; }
-.sidebar .menu .item:hover { background:#0b1328; }
-.sidebar .menu .item i { width:16px; text-align:center; }
-.sidebar .menu .item span { display:none; }
-.sidebar.expanded .menu .item span { display:inline; }
-.header { position: sticky; top:0; z-index: 5; display:flex; align-items:center; gap:10px; padding:10px 14px; background:rgba(11,16,32,.8); border-bottom:1px solid #1f2937; backdrop-filter: blur(8px); margin-left:72px; }
-.sidebar.expanded ~ .header { margin-left:220px; }
-#pu-toggle { background:#0b1328; border:1px solid #2a354b; color:#e5e7eb; border-radius:10px; padding:8px 10px; }
-.content { padding:16px; margin-left:72px; }
-.sidebar.expanded ~ .content { margin-left:220px; }
-.btn.small { padding:6px 10px; border:1px solid #2a354b; background:#111a2f; border-radius:8px; color:#e5e7eb; }
+/* ===== SHARED LAYOUT (sidebar + header) — unified, works with layout.js ===== */
 
+/* Keep the page spanning full height */
+.container { display: flex; min-height: 100vh; }
 
-/* ===== Layout (works with layout.js) ===== */
-.layout-shell { position: relative; z-index: 10; }
-
-/* Sidebar */
+/* Sidebar (fixed left) — also supports .sidebar.expanded for legacy toggle */
 .sidebar {
   position: fixed; left: 0; top: 0; bottom: 0;
   width: 72px;
+  display: flex;              /* support bottom-anchored logout */
+  flex-direction: column;
   background: #0b1020; border-right: 1px solid #1f2937;
   padding: 12px; transition: width .2s ease;
+  box-shadow: 2px 0 8px rgba(0,0,0,.6);
 }
+.sidebar.expanded,
 body.sidebar-expanded .sidebar { width: 220px; }
-.sidebar .logo { display:flex; align-items:center; gap:10px; color:#e5e7eb; margin-bottom:10px; }
-.sidebar .logo .dot { width:10px; height:10px; background:#FF6600; border-radius:50%; box-shadow:0 0 12px #FF6600; }
-.sidebar .brand { font-weight:700; letter-spacing:.2px; display:none; }
-body.sidebar-expanded .sidebar .brand { display:inline; }
 
-.sidebar .menu { display:flex; flex-direction:column; gap:6px; margin-top:6px; }
-.sidebar .menu .item { display:flex; align-items:center; gap:10px; color:#cbd5e1; text-decoration:none; padding:10px; border-radius:10px; }
-.sidebar .menu .item:hover { background:#0b1328; }
-.sidebar .menu .item i { width:16px; text-align:center; }
-.sidebar .menu .item span { display:none; }
-body.sidebar-expanded .sidebar .menu .item span { display:inline; }
+.sidebar .item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 15px; cursor: pointer; color: var(--text);
+  transition: background .2s, transform .2s, box-shadow .2s;
+}
+.sidebar .item i {
+  font-size: 20px; width: 24px; height: 24px;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: rgba(255,255,255,.7);
+}
+.sidebar .item span { font-size: 16px; display: none; }
+.sidebar.expanded .item span,
+body.sidebar-expanded .sidebar .item span { display: inline; }
 
-/* Header */
+.sidebar .item:hover { background: var(--card-bg-hover); box-shadow: 0 0 8px var(--accent); transform: scale(1.05); }
+.sidebar .item:hover i { color: var(--accent); }
+.sidebar .item.active { background: var(--card-bg-hover); font-weight: 700; }
+.sidebar .item.active i { color: var(--accent); }
+
+/* Spacer + logout pinned to bottom */
+.sidebar-spacer { flex: 1; }
+.sidebar .item.logout {
+  margin-top: auto;
+  border-top: 1px solid rgba(255,255,255,0.1);
+}
+.sidebar .item.logout:hover {
+  background: rgba(255,0,0,0.12);
+  color: #ff6b6b;
+}
+
+/* Header: sticky, below top, shifts with sidebar */
 .header {
-  position: sticky; top: 0;
-  display:flex; align-items:center; gap:10px;
-  padding:10px 14px;
-  background: rgba(11,16,32,.8); border-bottom:1px solid #1f2937;
-  backdrop-filter: blur(8px);
-  /* Shift with sidebar */
-  margin-left: 72px; transition: margin-left .2s ease;
-  z-index: 5;
+  position: sticky; top: 0; z-index: 10;
+  display:flex; flex-direction: column; gap: 6px;
+  padding: 15px 20px;
+  background: rgba(16,22,23,.8);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  border-bottom: 1px solid rgba(0,255,198,.1);
+  box-shadow: 0 4px 12px rgba(0,255,198,.08);
+  margin-left: 72px;                 /* collapsed width */
+  transition: margin-left .2s ease;
 }
-body.sidebar-expanded .header { margin-left: 220px; }
-.header #pu-toggle { background:#0b1328; border:1px solid #2a354b; color:#e5e7eb; border-radius:10px; padding:8px 10px; }
-.header .grow { flex: 1; }
-.btn.small { padding:6px 10px; border:1px solid #2a354b; background:#111a2f; border-radius:8px; color:#e5e7eb; }
+/* Expanded states supported by body flag and legacy .sidebar.expanded sibling */
+body.sidebar-expanded .header,
+.sidebar.expanded ~ .main .header { margin-left: 220px; }
 
-/* Main content shifts with sidebar, and leaves room under the sticky header */
+.header h1 { font-size: 24px; color: var(--accent); margin-bottom: 0; }
+.header p  { font-size: 14px; color: var(--info); }
+.header p span { color: var(--accent); font-weight: 600; }
+
+/* Main region wraps header + page content */
+.main { flex: 1; display: flex; flex-direction: column; width: 100%; overflow: hidden; }
+
+/* Content shifts with sidebar; scrollable area under header */
 .content {
-  margin-left: 72px; transition: margin-left .2s ease;
+  margin-left: 72px;
+  transition: margin-left .2s ease;
   padding: 16px;
-  padding-top: 14px; /* avoids visual overlap under sticky header */
+  padding-top: 14px;   /* breathing room under sticky header */
+  overflow-y: auto;
 }
-body.sidebar-expanded .content { margin-left: 220px; }
+body.sidebar-expanded .content,
+.sidebar.expanded ~ .main .content { margin-left: 220px; }
 
-
-
-
-
+/* Keep your small button style */
+.btn.small { padding:6px 10px; border:1px solid #2a354b; background:#111a2f; border-radius:8px; color:#e5e7eb; }
