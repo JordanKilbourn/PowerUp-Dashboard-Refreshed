@@ -121,27 +121,29 @@ window.PowerUp = window.PowerUp || {};
       .replace(/>/g, "&gt;");
 
   const fmtDate = (v) => {
-    if (!v) return "";
+    if (v == null || String(v).trim() === "") return "-";
     const d = new Date(v);
-    return isNaN(d) ? String(v) :
-      `${String(d.getMonth()+1).padStart(2,"0")}/${String(d.getDate()).padStart(2,"0")}/${d.getFullYear()}`;
+    return isNaN(d)
+      ? "-"
+      : `${String(d.getMonth()+1).padStart(2,"0")}/${String(d.getDate()).padStart(2,"0")}/${d.getFullYear()}`;
   };
 
   // ✓ / ✗ for boolean-ish values (used by Resourced + Paid)
   const boolMark = (v) => {
-    const t = String(v ?? "").trim().toLowerCase();
-    if (t === "true" || t === "yes" || t === "paid" || t === "1") {
+    const raw = String(v ?? "").trim().toLowerCase();
+    if (raw === "") return "-";
+    if (raw === "true" || raw === "yes" || raw === "paid" || raw === "1") {
       return `<span class="pill pill--green" title="Yes">✓</span>`;
     }
-    if (t === "false" || t === "no" || t === "0") {
+    if (raw === "false" || raw === "no" || raw === "0") {
       return `<span class="pill pill--red" title="No">✗</span>`;
     }
-    // If the sheet has something unexpected, show it raw (escaped)
+    // Unexpected values — show raw text (escaped)
     return esc(v);
   };
 
   const statusPill = (v) => {
-    if (!v) return "";
+    if (v == null || String(v).trim() === "") return "-";
     const t = String(v).toLowerCase();
     if (/approved|accepted|closed|complete/.test(t)) return `<span class="pill pill--green">${esc(v)}</span>`;
     if (/pending|progress|open|new/.test(t)) return `<span class="pill pill--blue">${esc(v)}</span>`;
@@ -158,7 +160,8 @@ window.PowerUp = window.PowerUp || {};
     // Tokens — ensure only one "$" by stripping any existing symbols first
     if (t.includes("token")) {
       const n = Number(String(value).replace(/[^0-9.\-]/g, ""));
-      return Number.isFinite(n) && n !== 0 ? `$${n}` : (n === 0 ? "$0" : "");
+      if (Number.isFinite(n)) return n !== 0 ? `$${n}` : "$0";
+      return "-";
     }
 
     // Paid / Resourced — green ✓ or red ✗
@@ -172,7 +175,8 @@ window.PowerUp = window.PowerUp || {};
     }
 
     // Everything else
-    return esc(value ?? "");
+    const blank = value == null || String(value).trim() === "";
+    return blank ? "-" : esc(value);
   }
 
   // === Render function with sorting (KEEPING YOUR PATTERN) ===
