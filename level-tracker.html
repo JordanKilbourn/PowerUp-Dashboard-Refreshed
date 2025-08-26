@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <title>PowerUp — Level Tracker</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-
   <!-- Your existing assets -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
@@ -12,12 +11,12 @@
 </head>
 
 <body>
-  <!-- PAGE-SPECIFIC CONTENT ONLY -->
+  <!-- Page content only (header/sidebar are injected by scripts/layout.js) -->
   <div class="page-block">
     <div class="header-row">
       <div>
         <div class="title">Level Tracker</div>
-        <div class="muted">Filtered to the signed-in user. Boolean/checkbox fields render as ✓ or ✕.</div>
+        <div class="muted" id="lt-status">Filtering by Employee ID…</div>
       </div>
     </div>
 
@@ -32,36 +31,16 @@
   </div>
 
   <!-- Your existing scripts -->
-  <script src="scripts/api.js?v=2025-08-25-a"></script>
-  <script src="scripts/session.js?v=2025-08-25-a"></script>
+  <script src="scripts/api.js?v=2025-08-26"></script>
+  <script src="scripts/session.js?v=2025-08-26"></script>
   <script src="scripts/layout.js"></script>
 
   <script>
-    // --- utilities (mirror your existing table rendering style) ---
-    function isTrueish(v){
-      const t = String(v ?? "").trim().toLowerCase();
-      return v === true || t === "true" || t === "yes" || t === "y" || t === "1";
-    }
-    function boolPill(v){
-      // Use the same pill classes already defined in style.css
-      return isTrueish(v)
-        ? '<span class="pill pill--green">✓</span>'
-        : '<span class="pill pill--red">✕</span>';
-    }
-    function fmtCell(v){
-      const t = String(v ?? "").trim().toLowerCase();
-      if (v === true || v === false || t === "true" || t === "false" || t === "yes" || t === "no" || t === "1" || t === "0") {
-        return boolPill(v);
-      }
-      return String(v ?? "");
-    }
-    function eq(a,b){ return String(a||"").trim().toLowerCase() === String(b||"").trim().toLowerCase(); }
-
-    // Choose which columns to show (adjust this list to your liking).
-    // If a column doesn't exist, it will be ignored gracefully.
+    // Columns to show (only rendered if they exist on the sheet)
     const DISPLAY_COLUMNS = [
+      "Employee ID",
       "Display Name",
-      "PowerUp Level (Select)",   // or "PowerUp Level"
+      "PowerUp Level",
       "Mentor",
       "Enrolled PowerUp",
       "Tier 1 Complete",
@@ -69,41 +48,86 @@
       "Tier 3 Complete"
     ];
 
+    // Reuse your pill visual for booleans
+    function isTrueish(v){
+      const t = String(v ?? "").trim().toLowerCase();
+      return v === true || t === "true" || t === "yes" || t === "y" || t === "1";
+    }
+    function boolPill(v){
+      return isTrueish(v)
+        ? '<span class="pill pill--green">✓</span>'
+        : '<span class="pill pill--red">✕</span>';
+    }
+    function fmtCell(v){
+      const t = String(v ?? "").trim().toLowerCase();
+      if (v === true || v === false || ["true","false","yes","no","1","0"].includes(t)) return boolPill(v);
+      return String(v ?? "");
+    }
+
+    function chooseIdColumn(sheetCols){
+      // Exactly how your dashboard does it
+      if (sheetCols.includes("Employee ID")) return "Employee ID";
+      if (sheetCols.includes("Position ID")) return "Position ID";
+      return null;
+    }
+
     async function loadLevelTracker(){
-      const raw = await PowerUp.api.fetchSheet(PowerUp.api.SHEETS.LEVEL_TRACKER);
-      const rows = PowerUp.api.rowsByTitle(raw); // [{colTitle: value,...}]
-      const session = PowerUp.session.get();
+      try{
+        // 1) Require session and get the employeeId just like your dashboard code
+        const { employeeId } = PowerUp.session.get() || {};
+        if (!employeeId){
+          document.getElementById("lt-status").textContent = "No employeeId in session. Please sign in.";
+          document.getElementById("level-tbody").innerHTML =
+            `<tr><td style="opacity:.7;">No rows</td></tr>`;
+          return;
+        }
 
-      // Filter to signed-in user (by Display Name). If no name, show nothing.
-      const userName = session?.displayName || "";
-      const filtered = rows.filter(r => eq(r["Display Name"], userName));
+        // 2) Fetch sheet + rows (your api.js helpers)
+        const raw   = await PowerUp.api.fetchSheet(PowerUp.api.SHEETS.LEVEL_TRACKER);
+        const rows  = PowerUp.api.rowsByTitle(raw);
+        const sheetCols = (raw.columns || []).map(c => c.title);
 
-      // Build column order: only columns that exist in the sheet
-      const sheetCols = (raw.columns || []).map(c => c.title);
-      const columns = DISPLAY_COLUMNS.filter(c => sheetCols.includes(c) || sheetCols.includes("PowerUp Level") && c==="PowerUp Level (Select)")
-                                     .map(c => (c==="PowerUp Level (Select)" && sheetCols.includes("PowerUp Level")) ? "PowerUp Level" : c);
+        // 3) Pick ID column and filter (same rule as dashboard: Employee ID OR Position ID)
+        const idCol = chooseIdColumn(sheetCols);
+        if (!idCol){
+          document.getElementById("lt-status").textContent =
+            "This sheet has neither 'Employee ID' nor 'Position ID'.";
+          document.getElementById("level-tbody").innerHTML =
+            `<tr><td style="opacity:.7;">No rows</td></tr>`;
+          return;
+        }
+        const mine = rows.filter(r => String(r[idCol] || "").trim() === String(employeeId).trim());
 
-      // Header
-      const thead = document.getElementById("level-thead");
-      thead.innerHTML = columns.map(c => `<th>${c}</th>`).join("");
+        // 4) Decide visible columns (only those present)
+        let cols = DISPLAY_COLUMNS.filter(c => sheetCols.includes(c));
+        if (!cols.length && rows.length) cols = Object.keys(rows[0]).slice(0, 8);
+        document.getElementById("level-thead").innerHTML = cols.map(c => `<th>${c}</th>`).join("");
 
-      // Body
-      const tbody = document.getElementById("level-tbody");
-      if (!filtered.length){
-        tbody.innerHTML = `<tr><td colspan="${columns.length}" style="text-align:center;opacity:.7;">No rows</td></tr>`;
-        return;
+        // 5) Render
+        if (!mine.length){
+          document.getElementById("lt-status").textContent =
+            `No rows for Employee ID ${employeeId} (column “${idCol}”).`;
+          document.getElementById("level-tbody").innerHTML =
+            `<tr><td colspan="${cols.length}" style="text-align:center;opacity:.7;">No rows</td></tr>`;
+          return;
+        }
+
+        document.getElementById("lt-status").textContent = `Filtered by ${idCol}: ${employeeId}`;
+        const html = mine.map(r => `<tr>${cols.map(c => `<td>${fmtCell(r[c])}</td>`).join('')}</tr>`).join('');
+        document.getElementById("level-tbody").innerHTML = html;
+
+      }catch(err){
+        console.error("[LevelTracker] error", err);
+        document.getElementById("lt-status").textContent = "Error loading Level Tracker.";
+        document.getElementById("level-tbody").innerHTML =
+          `<tr><td style="color:#f88;">${(err && err.message) || String(err)}</td></tr>`;
       }
-
-      const html = filtered.map(r => {
-        return `<tr>${columns.map(c => `<td>${fmtCell(r[c])}</td>`).join("")}</tr>`;
-      }).join("");
-      tbody.innerHTML = html;
     }
 
     document.addEventListener('DOMContentLoaded', async () => {
       PowerUp.session.requireLogin();
-      PowerUp.layout.injectLayout();          // same header + sidebar as dashboard
-      await PowerUp.session.initHeader();     // fill Welcome/Level in header
+      PowerUp.layout.injectLayout();      // identical header + sidebar as dashboard
+      await PowerUp.session.initHeader();
       await loadLevelTracker();
     });
   </script>
