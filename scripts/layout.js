@@ -1,11 +1,13 @@
-// scripts/layout.js  — Shared shell (sidebar + header) with NO month line + Logout button
+// scripts/layout.js — Shared shell (sidebar + header) with NO month line + Logout button
 (function (PowerUp) {
   const P = PowerUp || (PowerUp = {});
 
+  // The shell HTML. We include a .content container so your CSS margin-left rules apply.
+  // We also make the sidebar a flex column so the logout can be pinned to the bottom.
   const SHELL_HTML = `
     <div class="container" id="pu-shell">
       <!-- Sidebar -->
-      <div class="sidebar" id="sidebar">
+      <div class="sidebar" id="sidebar" style="display:flex;flex-direction:column;">
         <div class="item" id="pu-toggle-item">
           <i class="fas fa-bars"></i><span>Menu</span>
         </div>
@@ -26,7 +28,7 @@
         </div>
 
         <!-- Spacer pushes logout to bottom -->
-        <div class="sidebar-spacer"></div>
+        <div class="sidebar-spacer" style="flex:1 1 auto;"></div>
 
         <!-- Logout button -->
         <div class="item logout" id="pu-logout">
@@ -43,51 +45,56 @@
             &emsp; Level: <span data-hook="userLevel">Level Unknown</span>
           </p>
         </div>
-        <div id="pu-content-anchor"></div>
+
+        <!-- All page-specific content will be moved into here -->
+        <div class="content" id="pu-content"></div>
       </div>
     </div>
   `;
 
   function injectLayout() {
+    // Prevent double injection
     if (document.getElementById('pu-shell')) return;
 
+    // Insert shell at the top of <body>
     const wrap = document.createElement('div');
     wrap.innerHTML = SHELL_HTML;
     const shell = wrap.firstElementChild;
     document.body.prepend(shell);
 
-    // Move page content into .main below header
-    const main = shell.querySelector('.main');
-    const toMove = [];
+    // Move existing page content into .content (under the header, right of sidebar)
+    const content = shell.querySelector('#pu-content');
+    const nodesToMove = [];
     let n = shell.nextSibling;
-    while (n) { toMove.push(n); n = n.nextSibling; }
-    toMove.forEach(node => main.appendChild(node));
+    while (n) { nodesToMove.push(n); n = n.nextSibling; }
+    nodesToMove.forEach(node => content.appendChild(node));
 
-    // Sidebar toggle
+    // Sidebar toggle wiring (adds/removes .sidebar-expanded on <body>)
     function toggleSidebar() {
       const sb = document.getElementById('sidebar');
       const expanded = sb.classList.toggle('expanded');
       document.body.classList.toggle('sidebar-expanded', expanded);
     }
-    document.getElementById('pu-toggle-item').addEventListener('click', toggleSidebar);
+    const toggleEl = document.getElementById('pu-toggle-item');
+    if (toggleEl) toggleEl.addEventListener('click', toggleSidebar);
 
-    // Nav highlighting
+    // Nav click + active highlight
     shell.querySelectorAll('.sidebar .item[data-link]').forEach(el => {
       const href = el.getAttribute('data-link') || '';
-      el.addEventListener('click', () => (href ? (location.href = href) : null));
+      el.addEventListener('click', () => { if (href) location.href = href; });
       const here = location.pathname.split('/').pop();
       if (here && href.split('?')[0] === here.split('?')[0]) el.classList.add('active');
     });
 
-    // Logout button wiring
+    // Logout button
     const logoutBtn = document.getElementById('pu-logout');
     if (logoutBtn) {
       logoutBtn.addEventListener('click', () => {
-        PowerUp.session?.logout?.(); // calls your session logout
+        try { PowerUp.session?.logout?.(); } catch (e) { console.error(e); }
       });
     }
 
-    // Set default page title from document.title
+    // Set default page title from document.title (can be overridden via setPageTitle)
     const h1 = document.getElementById('pu-page-title');
     if (h1 && document.title) h1.textContent = document.title;
   }
