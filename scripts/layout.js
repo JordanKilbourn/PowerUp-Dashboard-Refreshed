@@ -2,12 +2,10 @@
 (function (PowerUp) {
   const P = PowerUp || (PowerUp = {});
 
-  // The shell HTML. We include a .content container so your CSS margin-left rules apply.
-  // We also make the sidebar a flex column so the logout can be pinned to the bottom.
   const SHELL_HTML = `
     <div class="container" id="pu-shell">
       <!-- Sidebar -->
-      <div class="sidebar" id="sidebar" style="display:flex;flex-direction:column;">
+      <div class="sidebar" id="sidebar">
         <div class="item" id="pu-toggle-item">
           <i class="fas fa-bars"></i><span>Menu</span>
         </div>
@@ -28,7 +26,7 @@
         </div>
 
         <!-- Spacer pushes logout to bottom -->
-        <div class="sidebar-spacer" style="flex:1 1 auto;"></div>
+        <div class="sidebar-spacer"></div>
 
         <!-- Logout button -->
         <div class="item logout" id="pu-logout">
@@ -45,64 +43,88 @@
             &emsp; Level: <span data-hook="userLevel">Level Unknown</span>
           </p>
         </div>
-
-        <!-- All page-specific content will be moved into here -->
+        <!-- All page-specific content will be moved into .content -->
         <div class="content" id="pu-content"></div>
       </div>
     </div>
   `;
 
   function injectLayout() {
-    // Prevent double injection
     if (document.getElementById('pu-shell')) return;
 
-    // Insert shell at the top of <body>
     const wrap = document.createElement('div');
     wrap.innerHTML = SHELL_HTML;
     const shell = wrap.firstElementChild;
     document.body.prepend(shell);
 
-    // Move existing page content into .content (under the header, right of sidebar)
-    const content = shell.querySelector('#pu-content');
-    const nodesToMove = [];
+    // Move page content into .content below the header
+    const content = document.getElementById('pu-content');
+    const toMove = [];
+    // everything after the shell becomes page content
     let n = shell.nextSibling;
-    while (n) { nodesToMove.push(n); n = n.nextSibling; }
-    nodesToMove.forEach(node => content.appendChild(node));
+    while (n) { toMove.push(n); n = n.nextSibling; }
+    toMove.forEach(node => content.appendChild(node));
 
-    // Sidebar toggle wiring (adds/removes .sidebar-expanded on <body>)
+    // Sidebar toggle
     function toggleSidebar() {
       const sb = document.getElementById('sidebar');
       const expanded = sb.classList.toggle('expanded');
       document.body.classList.toggle('sidebar-expanded', expanded);
+      // Recompute layout since sidebar width changes margins
+      requestAnimationFrame(fitDashboardBlocks);
     }
-    const toggleEl = document.getElementById('pu-toggle-item');
-    if (toggleEl) toggleEl.addEventListener('click', toggleSidebar);
+    document.getElementById('pu-toggle-item').addEventListener('click', toggleSidebar);
 
-    // Nav click + active highlight
+    // Nav highlighting
     shell.querySelectorAll('.sidebar .item[data-link]').forEach(el => {
       const href = el.getAttribute('data-link') || '';
-      el.addEventListener('click', () => { if (href) location.href = href; });
+      el.addEventListener('click', () => (href ? (location.href = href) : null));
       const here = location.pathname.split('/').pop();
       if (here && href.split('?')[0] === here.split('?')[0]) el.classList.add('active');
     });
 
-    // Logout button
+    // Logout button wiring
     const logoutBtn = document.getElementById('pu-logout');
     if (logoutBtn) {
       logoutBtn.addEventListener('click', () => {
-        try { PowerUp.session?.logout?.(); } catch (e) { console.error(e); }
+        PowerUp.session?.logout?.();
       });
     }
 
-    // Set default page title from document.title (can be overridden via setPageTitle)
+    // Set default page title from document.title
     const h1 = document.getElementById('pu-page-title');
     if (h1 && document.title) h1.textContent = document.title;
+
+    // Initial layout sizing
+    requestAnimationFrame(fitDashboardBlocks);
   }
 
   function setPageTitle(text) {
     const h1 = document.getElementById('pu-page-title');
     if (h1) h1.textContent = text || 'PowerUp';
   }
+
+  // ---- Fit dashboard table to the viewport (no page scroll) ----
+  function fitDashboardBlocks() {
+    const root = document.documentElement;
+    const header = document.getElementById('pu-header');
+    const cards  = document.querySelector('.top-cards');
+    const tabs   = document.querySelector('.tab-buttons');
+
+    const vh = window.innerHeight;
+    const headerH = header ? header.offsetHeight : 64;
+    const cardsH  = cards  ? cards.offsetHeight  : 0;
+    const tabsH   = tabs   ? tabs.offsetHeight   : 0;
+
+    // Leave a little breathing room for margins/padding
+    const gutter = 24;
+    const tableMax = Math.max(240, vh - headerH - cardsH - tabsH - gutter);
+
+    // Expose to CSS
+    root.style.setProperty('--header-h', `${headerH}px`);
+    root.style.setProperty('--table-max', `${tableMax}px`);
+  }
+  window.addEventListener('resize', fitDashboardBlocks);
 
   P.layout = { injectLayout, setPageTitle };
   window.PowerUp = P;
