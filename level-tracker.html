@@ -11,12 +11,12 @@
 </head>
 
 <body>
-  <!-- Page content only (header/sidebar are injected by scripts/layout.js) -->
+  <!-- Content only; header/sidebar injected by scripts/layout.js -->
   <div class="page-block">
     <div class="header-row">
       <div>
         <div class="title">Level Tracker</div>
-        <div class="muted" id="lt-status">Filtering by Employee ID…</div>
+        <div class="muted" id="lt-status">Filtering…</div>
       </div>
     </div>
 
@@ -36,19 +36,21 @@
   <script src="scripts/layout.js"></script>
 
   <script>
-    // Columns to show (only rendered if they exist on the sheet)
-    const DISPLAY_COLUMNS = [
-      "Employee ID",
-      "Display Name",
-      "PowerUp Level",
-      "Mentor",
-      "Enrolled PowerUp",
-      "Tier 1 Complete",
-      "Tier 2 Complete",
-      "Tier 3 Complete"
+    /************ DESIRED COLUMNS IN FINAL ORDER (display names) ************/
+    const DESIRED_COLS = [
+      "CI Submissions",
+      "Safety Submissions",
+      "Quality Submissions",
+      "Total Submissions",
+      "Tuesday Tutorial Attended",
+      "Power Hours Logged",
+      "On Team",
+      "Leads Team",
+      "Job Relations Follow-up"
     ];
+    /************************************************************************/
 
-    // Reuse your pill visual for booleans
+    // === helpers (match your dashboard behavior) ===
     function isTrueish(v){
       const t = String(v ?? "").trim().toLowerCase();
       return v === true || t === "true" || t === "yes" || t === "y" || t === "1";
@@ -63,57 +65,84 @@
       if (v === true || v === false || ["true","false","yes","no","1","0"].includes(t)) return boolPill(v);
       return String(v ?? "");
     }
+    function normalize(s){ return String(s||"").toLowerCase().replace(/[^a-z0-9]/g, ""); }
 
     function chooseIdColumn(sheetCols){
-      // Exactly how your dashboard does it
       if (sheetCols.includes("Employee ID")) return "Employee ID";
       if (sheetCols.includes("Position ID")) return "Position ID";
       return null;
     }
 
+    // map desired display headers -> actual sheet column titles
+    function resolveColumns(desiredList, sheetCols){
+      const byNorm = new Map(sheetCols.map(c => [normalize(c), c]));
+      const resolved = [];
+      const missing = [];
+      for (const want of desiredList){
+        const direct = sheetCols.includes(want) ? want : null;
+        if (direct){ resolved.push({ display: want, sheet: want }); continue; }
+        const alt = byNorm.get(normalize(want));
+        if (alt){ resolved.push({ display: want, sheet: alt }); continue; }
+        resolved.push({ display: want, sheet: null });
+        missing.push(want);
+      }
+      return { resolved, missing };
+    }
+
     async function loadLevelTracker(){
       try{
-        // 1) Require session and get the employeeId just like your dashboard code
+        // session has employeeId (your session.js)
         const { employeeId } = PowerUp.session.get() || {};
         if (!employeeId){
           document.getElementById("lt-status").textContent = "No employeeId in session. Please sign in.";
-          document.getElementById("level-tbody").innerHTML =
-            `<tr><td style="opacity:.7;">No rows</td></tr>`;
+          document.getElementById("level-tbody").innerHTML = `<tr><td style="opacity:.7;">No rows</td></tr>`;
           return;
         }
 
-        // 2) Fetch sheet + rows (your api.js helpers)
-        const raw   = await PowerUp.api.fetchSheet(PowerUp.api.SHEETS.LEVEL_TRACKER);
-        const rows  = PowerUp.api.rowsByTitle(raw);
+        const raw  = await PowerUp.api.fetchSheet(PowerUp.api.SHEETS.LEVEL_TRACKER);
+        const rows = PowerUp.api.rowsByTitle(raw);
         const sheetCols = (raw.columns || []).map(c => c.title);
-
-        // 3) Pick ID column and filter (same rule as dashboard: Employee ID OR Position ID)
         const idCol = chooseIdColumn(sheetCols);
-        if (!idCol){
-          document.getElementById("lt-status").textContent =
-            "This sheet has neither 'Employee ID' nor 'Position ID'.";
-          document.getElementById("level-tbody").innerHTML =
-            `<tr><td style="opacity:.7;">No rows</td></tr>`;
+
+        if (!rows.length){
+          document.getElementById("lt-status").textContent = "No data returned from Level Tracker sheet.";
+          document.getElementById("level-tbody").innerHTML = `<tr><td style="opacity:.7;">No rows</td></tr>`;
           return;
         }
+        if (!idCol){
+          document.getElementById("lt-status").textContent = "Sheet missing 'Employee ID'/'Position ID' column.";
+          document.getElementById("level-tbody").innerHTML = `<tr><td style="opacity:.7;">No rows</td></tr>`;
+          return;
+        }
+
+        // Filter to signed-in employee (exact match, same as dashboard tables)
         const mine = rows.filter(r => String(r[idCol] || "").trim() === String(employeeId).trim());
 
-        // 4) Decide visible columns (only those present)
-        let cols = DISPLAY_COLUMNS.filter(c => sheetCols.includes(c));
-        if (!cols.length && rows.length) cols = Object.keys(rows[0]).slice(0, 8);
-        document.getElementById("level-thead").innerHTML = cols.map(c => `<th>${c}</th>`).join("");
+        // Resolve desired column headers to actual sheet titles
+        const { resolved, missing } = resolveColumns(DESIRED_COLS, sheetCols);
+        // Build the table header using the display names (even if mapped to a slightly different sheet title)
+        document.getElementById("level-thead").innerHTML =
+          resolved.map(({display}) => `<th>${display}</th>`).join("");
 
-        // 5) Render
+        // Status line
+        document.getElementById("lt-status").textContent =
+          `Filtered by ${idCol}: ${employeeId}` + (missing.length ? ` — Missing columns: ${missing.join(", ")}` : "");
+
         if (!mine.length){
-          document.getElementById("lt-status").textContent =
-            `No rows for Employee ID ${employeeId} (column “${idCol}”).`;
           document.getElementById("level-tbody").innerHTML =
-            `<tr><td colspan="${cols.length}" style="text-align:center;opacity:.7;">No rows</td></tr>`;
+            `<tr><td colspan="${resolved.length}" style="text-align:center;opacity:.7;">No rows</td></tr>`;
           return;
         }
 
-        document.getElementById("lt-status").textContent = `Filtered by ${idCol}: ${employeeId}`;
-        const html = mine.map(r => `<tr>${cols.map(c => `<td>${fmtCell(r[c])}</td>`).join('')}</tr>`).join('');
+        // Render rows in requested order; blanks for any unresolved columns
+        const html = mine.map(r => {
+          return `<tr>${
+            resolved.map(({sheet}) => {
+              const v = sheet ? r[sheet] : "";
+              return `<td>${fmtCell(v)}</td>`;
+            }).join("")
+          }</tr>`;
+        }).join("");
         document.getElementById("level-tbody").innerHTML = html;
 
       }catch(err){
@@ -126,7 +155,7 @@
 
     document.addEventListener('DOMContentLoaded', async () => {
       PowerUp.session.requireLogin();
-      PowerUp.layout.injectLayout();      // identical header + sidebar as dashboard
+      PowerUp.layout.injectLayout();      // same header + sidebar as dashboard
       await PowerUp.session.initHeader();
       await loadLevelTracker();
     });
