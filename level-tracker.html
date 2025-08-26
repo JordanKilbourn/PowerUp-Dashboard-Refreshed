@@ -11,20 +11,21 @@
 </head>
 
 <body>
-  <!-- Content only; header/sidebar injected by scripts/layout.js -->
+  <!-- Content only; header/sidebar are injected by scripts/layout.js -->
   <div class="page-block">
     <div class="header-row">
-      <div>
-        <div class="title">Level Tracker</div>
-        <div class="muted" id="lt-status">Filtering…</div>
-      </div>
+      <div class="title">Level Tracker</div>
     </div>
 
     <div class="card">
-      <div id="level-table-wrap" class="table-wrap">
-        <table class="data-table">
-          <thead><tr id="level-thead"></tr></thead>
-          <tbody id="level-tbody"><tr><td>Loading…</td></tr></tbody>
+      <div class="table-scroll">
+        <table id="lt-table" class="dashboard-table">
+          <thead>
+            <tr id="lt-thead"></tr>
+          </thead>
+          <tbody id="lt-tbody">
+            <tr><td>Loading…</td></tr>
+          </tbody>
         </table>
       </div>
     </div>
@@ -36,36 +37,36 @@
   <script src="scripts/layout.js"></script>
 
   <script>
-    /************ DESIRED COLUMNS IN FINAL ORDER (display names) ************/
-    const DESIRED_COLS = [
-      "CI Submissions",
-      "Safety Submissions",
-      "Quality Submissions",
-      "Total Submissions",
-      "Tuesday Tutorial Attended",
-      "Power Hours Logged",
-      "On Team",
-      "Leads Team",
-      "Job Relations Follow-up"
+    // ---- Desired columns in final order (display header -> sheet column) ----
+    const COLS = [
+      { label: "Month",   sources: ["Month Key","Month"] }, // map sheet "Month Key" to header "Month"
+      { label: "CI Submissions",              sources: ["CI Submissions"] },
+      { label: "Safety Submissions",          sources: ["Safety Submissions"] },
+      { label: "Quality Submissions",         sources: ["Quality Submissions"] },
+      { label: "Total Submissions",           sources: ["Total Submissions"] },
+      { label: "Tuesday Tutorial Attended",   sources: ["Tuesday Tutorial Attended"] },
+      { label: "Power Hours Logged",          sources: ["Power Hours Logged"] },
+      { label: "On Team",                     sources: ["On Team"] },
+      { label: "Leads Team",                  sources: ["Leads Team"] },
+      { label: "Job Relations Follow-up",     sources: ["Job Relations Follow-up","Job Relations Follow-up"] } // handle hyphen variant
     ];
-    /************************************************************************/
 
-    // === helpers (match your dashboard behavior) ===
-    function isTrueish(v){
+    // ==== helpers consistent with your dashboard ====
+    const esc = (s) => String(s ?? "")
+      .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    const isTrueish = (v) => {
       const t = String(v ?? "").trim().toLowerCase();
       return v === true || t === "true" || t === "yes" || t === "y" || t === "1";
-    }
-    function boolPill(v){
-      return isTrueish(v)
-        ? '<span class="pill pill--green">✓</span>'
-        : '<span class="pill pill--red">✕</span>';
-    }
+    };
+    const boolPill = (v) => isTrueish(v)
+      ? '<span class="pill pill--green">✓</span>'
+      : '<span class="pill pill--red">✗</span>';
     function fmtCell(v){
       const t = String(v ?? "").trim().toLowerCase();
       if (v === true || v === false || ["true","false","yes","no","1","0"].includes(t)) return boolPill(v);
-      return String(v ?? "");
+      return esc(v);
     }
-    function normalize(s){ return String(s||"").toLowerCase().replace(/[^a-z0-9]/g, ""); }
+    const normalize = (s) => String(s||"").toLowerCase().replace(/[^a-z0-9]/g,"");
 
     function chooseIdColumn(sheetCols){
       if (sheetCols.includes("Employee ID")) return "Employee ID";
@@ -73,90 +74,66 @@
       return null;
     }
 
-    // map desired display headers -> actual sheet column titles
-    function resolveColumns(desiredList, sheetCols){
+    function resolveSheetColumn(sources, sheetCols){
+      // Try exact, then normalized match
+      for (const s of sources) if (sheetCols.includes(s)) return s;
       const byNorm = new Map(sheetCols.map(c => [normalize(c), c]));
-      const resolved = [];
-      const missing = [];
-      for (const want of desiredList){
-        const direct = sheetCols.includes(want) ? want : null;
-        if (direct){ resolved.push({ display: want, sheet: want }); continue; }
-        const alt = byNorm.get(normalize(want));
-        if (alt){ resolved.push({ display: want, sheet: alt }); continue; }
-        resolved.push({ display: want, sheet: null });
-        missing.push(want);
+      for (const s of sources){
+        const hit = byNorm.get(normalize(s));
+        if (hit) return hit;
       }
-      return { resolved, missing };
+      return null;
     }
 
     async function loadLevelTracker(){
-      try{
-        // session has employeeId (your session.js)
-        const { employeeId } = PowerUp.session.get() || {};
-        if (!employeeId){
-          document.getElementById("lt-status").textContent = "No employeeId in session. Please sign in.";
-          document.getElementById("level-tbody").innerHTML = `<tr><td style="opacity:.7;">No rows</td></tr>`;
-          return;
-        }
-
-        const raw  = await PowerUp.api.fetchSheet(PowerUp.api.SHEETS.LEVEL_TRACKER);
-        const rows = PowerUp.api.rowsByTitle(raw);
-        const sheetCols = (raw.columns || []).map(c => c.title);
-        const idCol = chooseIdColumn(sheetCols);
-
-        if (!rows.length){
-          document.getElementById("lt-status").textContent = "No data returned from Level Tracker sheet.";
-          document.getElementById("level-tbody").innerHTML = `<tr><td style="opacity:.7;">No rows</td></tr>`;
-          return;
-        }
-        if (!idCol){
-          document.getElementById("lt-status").textContent = "Sheet missing 'Employee ID'/'Position ID' column.";
-          document.getElementById("level-tbody").innerHTML = `<tr><td style="opacity:.7;">No rows</td></tr>`;
-          return;
-        }
-
-        // Filter to signed-in employee (exact match, same as dashboard tables)
-        const mine = rows.filter(r => String(r[idCol] || "").trim() === String(employeeId).trim());
-
-        // Resolve desired column headers to actual sheet titles
-        const { resolved, missing } = resolveColumns(DESIRED_COLS, sheetCols);
-        // Build the table header using the display names (even if mapped to a slightly different sheet title)
-        document.getElementById("level-thead").innerHTML =
-          resolved.map(({display}) => `<th>${display}</th>`).join("");
-
-        // Status line
-        document.getElementById("lt-status").textContent =
-          `Filtered by ${idCol}: ${employeeId}` + (missing.length ? ` — Missing columns: ${missing.join(", ")}` : "");
-
-        if (!mine.length){
-          document.getElementById("level-tbody").innerHTML =
-            `<tr><td colspan="${resolved.length}" style="text-align:center;opacity:.7;">No rows</td></tr>`;
-          return;
-        }
-
-        // Render rows in requested order; blanks for any unresolved columns
-        const html = mine.map(r => {
-          return `<tr>${
-            resolved.map(({sheet}) => {
-              const v = sheet ? r[sheet] : "";
-              return `<td>${fmtCell(v)}</td>`;
-            }).join("")
-          }</tr>`;
-        }).join("");
-        document.getElementById("level-tbody").innerHTML = html;
-
-      }catch(err){
-        console.error("[LevelTracker] error", err);
-        document.getElementById("lt-status").textContent = "Error loading Level Tracker.";
-        document.getElementById("level-tbody").innerHTML =
-          `<tr><td style="color:#f88;">${(err && err.message) || String(err)}</td></tr>`;
+      // 1) Ensure session and get employeeId
+      PowerUp.session.requireLogin();
+      const { employeeId } = PowerUp.session.get() || {};
+      if (!employeeId){
+        document.getElementById("lt-tbody").innerHTML =
+          `<tr><td style="opacity:.7;">No rows (not signed in)</td></tr>`;
+        return;
       }
+
+      // 2) Fetch Level Tracker rows via your API helper
+      const raw  = await PowerUp.api.fetchSheet(PowerUp.api.SHEETS.LEVEL_TRACKER);
+      const rows = PowerUp.api.rowsByTitle(raw);
+      const sheetCols = (raw.columns || []).map(c => c.title);
+      const idCol = chooseIdColumn(sheetCols);
+
+      if (!rows.length || !idCol){
+        document.getElementById("lt-tbody").innerHTML =
+          `<tr><td style="opacity:.7;">No rows</td></tr>`;
+        return;
+      }
+
+      // 3) Filter to this employee (exact match), like your dashboard tables
+      const mine = rows.filter(r => String(r[idCol]||"").trim() === String(employeeId).trim());
+      if (!mine.length){
+        document.getElementById("lt-tbody").innerHTML =
+          `<tr><td style="opacity:.7;">No rows</td></tr>`;
+        return;
+      }
+
+      // 4) Resolve headers to actual sheet columns and render in your dashboard style
+      const resolved = COLS.map(c => ({ label: c.label, sheet: resolveSheetColumn(c.sources, sheetCols) }));
+      const thead = document.getElementById("lt-thead");
+      thead.innerHTML = resolved.map(c => `<th>${c.label}</th>`).join("");
+
+      const tbody = document.getElementById("lt-tbody");
+      tbody.innerHTML = mine.map(r => {
+        return `<tr>${
+          resolved.map(c => {
+            const v = c.sheet ? r[c.sheet] : "";
+            return `<td>${fmtCell(v)}</td>`;
+          }).join("")
+        }</tr>`;
+      }).join("");
     }
 
     document.addEventListener('DOMContentLoaded', async () => {
-      PowerUp.session.requireLogin();
-      PowerUp.layout.injectLayout();      // same header + sidebar as dashboard
-      await PowerUp.session.initHeader();
+      PowerUp.layout.injectLayout();      // identical header + sidebar as dashboard
+      await PowerUp.session.initHeader(); // fills header info
       await loadLevelTracker();
     });
   </script>
