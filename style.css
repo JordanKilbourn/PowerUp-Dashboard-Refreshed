@@ -14,6 +14,9 @@
   --accent-fade: rgba(0,255,190,0.1);
   --highlight: #00ffc3;
 
+  /* Layout constants */
+  --header-h: 64px;  /* used by sticky elements */
+
   /* Progress colors */
   --ph-track: #213331;
   --ph-track-border: rgba(255,255,255,0.08);
@@ -27,8 +30,17 @@ html, body { height: 100%; font-family: 'Inter', sans-serif; background: var(--b
 
 /* === 5) Top cards row === */
 body.dashboard .top-cards {
-  display: flex; gap: 20px; padding: 15px 20px 35px 20px; background: var(--bg);
-  position: sticky; top: 75px; z-index: 9;
+  display: flex;
+  gap: 20px;
+  padding: 15px 20px 20px 20px;
+  background: var(--bg);
+  /* FIX: remove sticky that created large gap/overlap */
+  position: static;
+  top: auto;
+  z-index: auto;
+  /* small spacing relative to header/tabs */
+  margin-top: 8px;
+  margin-bottom: 6px;
 }
 .card { background: var(--card-bg); padding: 15px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,.4); transition: transform .3s, box-shadow .3s; }
 .card:hover { transform: translateY(-2px); box-shadow: 0 4px 10px rgba(255,140,66,.3); }
@@ -43,7 +55,17 @@ body.dashboard .power-card h3 { font-size: 16px; margin-bottom: 5px; color: var(
 .token-tracker i { font-size: 28px; color: #facc15; }
 
 /* === 6) Tabs === */
-.tab-buttons { display: flex; gap: 2px; padding: 0 20px; background: var(--bg); border-bottom: 2px solid var(--accent); position: sticky; top: 140px; z-index: 8; }
+.tab-buttons {
+  display: flex;
+  gap: 2px;
+  padding: 0 20px;
+  background: var(--bg);
+  border-bottom: 2px solid var(--accent);
+  /* FIX: keep tabs sticky but align just under the header height */
+  position: sticky;
+  top: calc(var(--header-h) + 8px);
+  z-index: 8;
+}
 .tab-button {
   background: var(--card-bg); border: 2px solid transparent; border-bottom: none;
   color: #aaa; padding: 10px 16px; border-top-left-radius: 8px; border-top-right-radius: 8px;
@@ -257,21 +279,7 @@ body.notes .note-editor:empty:before { content: attr(data-placeholder); color: v
   white-space: nowrap;
 }
 
-/* ---- CI table column plan --------------------------------------------
-  1 Submitted  110px
-  2 ID          80px (center)
-  3 Problem     28%
-  4 Improvement 28%
-  5 Approval   120px
-  6 Assigned   200px  (wrap emails; no overlap)
-  7 Status     130px (center)
-  8 Action Dt  110px
-  9 Last Action 16%
- 10 Resourced   90px (center)
- 11 Res On     120px
- 12 Tokens      70px (right)
- 13 Paid        70px (center)
------------------------------------------------------------------------ */
+/* ---- CI table column plan -------------------------------------------- */
 #ci-table { table-layout: fixed; }
 #ci-table thead th:nth-child(1),
 #ci-table tbody td:nth-child(1)  { width:110px; }
@@ -312,15 +320,7 @@ body.notes .note-editor:empty:before { content: attr(data-placeholder); color: v
 #ci-table thead th:nth-child(13),
 #ci-table tbody td:nth-child(13) { width:70px;  text-align:center; }
 
-/* ---- Quality table column plan ---------------------------------------
-  1 Catch ID     80px (center)
-  2 Entry Date  110px
-  3 Submitted By 160px
-  4 Area        140px
-  5 Quality Catch 26%
-  6 Part Number 140px (nowrap)
-  7 Description  38%
------------------------------------------------------------------------ */
+/* ---- Quality table column plan --------------------------------------- */
 #quality-table { table-layout: fixed; }
 #quality-table thead th:nth-child(1),
 #quality-table tbody td:nth-child(1) { width:80px; text-align:center; }
@@ -423,6 +423,7 @@ body.sidebar-expanded .sidebar .item span { display: inline; }
   position: sticky; top: 0; z-index: 10;
   display:flex; flex-direction: column; gap: 6px;
   padding: 15px 20px;
+  min-height: var(--header-h);    /* FIX: consistent header height */
   background: rgba(16,22,23,.8);
   backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
   border-bottom: 1px solid rgba(0,255,198,.1);
