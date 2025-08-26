@@ -43,7 +43,7 @@ body.dashboard .top-cards {
   margin-bottom: 6px;
 }
 .card { background: var(--card-bg); padding: 15px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,.4); transition: transform .3s, box-shadow .3s; }
-.card:hover { transform: translateY(-2px); box-shadow: 0 4px 10px rgba(255,140,66,.3); }
+.card:hover { transform: translateY(-2px); box-shadow: 0 4px 10px rgba(20,226,181,.3); }
 
 /* Power Hours + Tokens */
 body.dashboard .power-card { flex: 1; max-width: 500px; border: 2px solid var(--accent); }
@@ -455,3 +455,4 @@ body.sidebar-expanded .content,
 
 /* Keep your small button style */
 .btn.small { padding:6px 10px; border:1px solid #2a354b; background:#111a2f; border-radius:8px; color:#e5e7eb; }
+
