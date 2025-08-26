@@ -364,7 +364,7 @@ body.sidebar-expanded .header,
   /* height of viewport minus actual header height (JS keeps --header-h updated) */
   height: calc(100vh - var(--header-h, 64px));
 
-  padding: 16px 16px 12px 16px;
+  padding: 10px 10px 10px 10px;
   overflow: hidden; /* the page doesn’t scroll; inner blocks manage their own scroll */
 }
 body.sidebar-expanded .content,
@@ -372,3 +372,4 @@ body.sidebar-expanded .content,
 
 /* Keep your small button style */
 .btn.small { padding:6px 10px; border:1px solid #2a354b; background:#111a2f; border-radius:8px; color:#e5e7eb; }
+
