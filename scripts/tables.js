@@ -63,7 +63,6 @@ window.PowerUp = window.PowerUp || {};
         if (s === "all") return true;
         if (s === "denied/cancelled") return /(denied|reject|cancel)/.test(t);
         if (s === "needs researched") return /needs\s*research/.test(t);
-        // exact-ish contains for others
         return t.includes(s);
       }
     },
@@ -215,9 +214,21 @@ window.PowerUp = window.PowerUp || {};
     }
   }
 
-  // === Sorting logic (KEEPING YOUR CODE) ===
+  // === Sorting logic (arrows use th[data-sort]="asc|desc") ===
   function bindHeaderSort(thead, tbody) {
     let state = { col: 0, asc: true };
+
+    // updates the ▲ / ▼ indicators on the header
+    const applyIndicators = () => {
+      thead.querySelectorAll("th").forEach((h, i) => {
+        h.removeAttribute("data-sort");
+        h.removeAttribute("aria-sort");
+        if (i === state.col) {
+          h.setAttribute("data-sort", state.asc ? "asc" : "desc");
+          h.setAttribute("aria-sort", state.asc ? "ascending" : "descending"); // a11y
+        }
+      });
+    };
 
     thead.querySelectorAll("th").forEach((th, idx) => {
       th.style.cursor = "pointer";
@@ -236,13 +247,12 @@ window.PowerUp = window.PowerUp || {};
         });
 
         rows.forEach(r => tbody.appendChild(r));
-
-        thead.querySelectorAll("th").forEach((h,i) => {
-          h.removeAttribute("data-sort-dir");
-          if (i === state.col) h.setAttribute("data-sort-dir", state.asc ? "asc" : "desc");
-        });
+        applyIndicators(); // draw the arrows
       };
     });
+
+    // If you want an initial arrow on first column, uncomment:
+    // applyIndicators();
   }
 
   // === Filtering (operates on rendered rows using friendly header to find the column) ===
