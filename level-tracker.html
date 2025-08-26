@@ -4,136 +4,86 @@
   <meta charset="UTF-8" />
   <title>PowerUp — Level Tracker</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <!-- Your existing assets -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
   <link href="style.css" rel="stylesheet" />
 </head>
-
 <body>
-  <!-- Content only; header/sidebar are injected by scripts/layout.js -->
   <div class="page-block">
-    <div class="header-row">
-      <div class="title">Level Tracker</div>
-    </div>
-
     <div class="card">
       <div class="table-scroll">
         <table id="lt-table" class="dashboard-table">
-          <thead>
-            <tr id="lt-thead"></tr>
-          </thead>
-          <tbody id="lt-tbody">
-            <tr><td>Loading…</td></tr>
-          </tbody>
+          <thead><tr id="lt-thead"></tr></thead>
+          <tbody id="lt-tbody"><tr><td>Loading…</td></tr></tbody>
         </table>
       </div>
     </div>
   </div>
 
-  <!-- Your existing scripts -->
   <script src="scripts/api.js?v=2025-08-26"></script>
   <script src="scripts/session.js?v=2025-08-26"></script>
   <script src="scripts/layout.js"></script>
 
   <script>
-    // ---- Desired columns in final order (display header -> sheet column) ----
     const COLS = [
-      { label: "Month",   sources: ["Month Key","Month"] }, // map sheet "Month Key" to header "Month"
-      { label: "CI Submissions",              sources: ["CI Submissions"] },
-      { label: "Safety Submissions",          sources: ["Safety Submissions"] },
-      { label: "Quality Submissions",         sources: ["Quality Submissions"] },
-      { label: "Total Submissions",           sources: ["Total Submissions"] },
-      { label: "Tuesday Tutorial Attended",   sources: ["Tuesday Tutorial Attended"] },
-      { label: "Power Hours Logged",          sources: ["Power Hours Logged"] },
-      { label: "On Team",                     sources: ["On Team"] },
-      { label: "Leads Team",                  sources: ["Leads Team"] },
-      { label: "Job Relations Follow-up",     sources: ["Job Relations Follow-up","Job Relations Follow-up"] } // handle hyphen variant
+      { label: "Month",   sources: ["Month Key","Month"] },
+      { label: "CI Submissions",            sources: ["CI Submissions"] },
+      { label: "Safety Submissions",        sources: ["Safety Submissions"] },
+      { label: "Quality Submissions",       sources: ["Quality Submissions"] },
+      { label: "Total Submissions",         sources: ["Total Submissions"] },
+      { label: "Tuesday Tutorial Attended", sources: ["Tuesday Tutorial Attended"] },
+      { label: "Power Hours Logged",        sources: ["Power Hours Logged"] },
+      { label: "On Team",                   sources: ["On Team"] },
+      { label: "Leads Team",                sources: ["Leads Team"] },
+      { label: "Job Relations Follow-up",   sources: ["Job Relations Follow-up"] }
     ];
 
-    // ==== helpers consistent with your dashboard ====
-    const esc = (s) => String(s ?? "")
-      .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-    const isTrueish = (v) => {
-      const t = String(v ?? "").trim().toLowerCase();
-      return v === true || t === "true" || t === "yes" || t === "y" || t === "1";
-    };
-    const boolPill = (v) => isTrueish(v)
-      ? '<span class="pill pill--green">✓</span>'
-      : '<span class="pill pill--red">✗</span>';
+    const esc = (s) => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    const isTrueish = (v) => { const t = String(v ?? "").trim().toLowerCase(); return v === true || ["true","yes","y","1"].includes(t); };
+    const boolPill = (v) => isTrueish(v) ? '<span class="pill pill--green">✓</span>' : '<span class="pill pill--red">✗</span>';
     function fmtCell(v){
       const t = String(v ?? "").trim().toLowerCase();
       if (v === true || v === false || ["true","false","yes","no","1","0"].includes(t)) return boolPill(v);
-      return esc(v);
+      return (v == null || String(v).trim() === "") ? "-" : esc(v);
     }
     const normalize = (s) => String(s||"").toLowerCase().replace(/[^a-z0-9]/g,"");
 
-    function chooseIdColumn(sheetCols){
-      if (sheetCols.includes("Employee ID")) return "Employee ID";
-      if (sheetCols.includes("Position ID")) return "Position ID";
+    function chooseIdColumn(cols){
+      if (cols.includes("Employee ID")) return "Employee ID";
+      if (cols.includes("Position ID")) return "Position ID";
       return null;
     }
-
     function resolveSheetColumn(sources, sheetCols){
-      // Try exact, then normalized match
       for (const s of sources) if (sheetCols.includes(s)) return s;
       const byNorm = new Map(sheetCols.map(c => [normalize(c), c]));
-      for (const s of sources){
-        const hit = byNorm.get(normalize(s));
-        if (hit) return hit;
-      }
+      for (const s of sources){ const hit = byNorm.get(normalize(s)); if (hit) return hit; }
       return null;
     }
 
     async function loadLevelTracker(){
-      // 1) Ensure session and get employeeId
-      PowerUp.session.requireLogin();
       const { employeeId } = PowerUp.session.get() || {};
-      if (!employeeId){
-        document.getElementById("lt-tbody").innerHTML =
-          `<tr><td style="opacity:.7;">No rows (not signed in)</td></tr>`;
-        return;
-      }
+      if (!employeeId){ document.getElementById("lt-tbody").innerHTML = `<tr><td>-</td></tr>`; return; }
 
-      // 2) Fetch Level Tracker rows via your API helper
       const raw  = await PowerUp.api.fetchSheet(PowerUp.api.SHEETS.LEVEL_TRACKER);
       const rows = PowerUp.api.rowsByTitle(raw);
       const sheetCols = (raw.columns || []).map(c => c.title);
       const idCol = chooseIdColumn(sheetCols);
+      if (!rows.length || !idCol){ document.getElementById("lt-tbody").innerHTML = `<tr><td>-</td></tr>`; return; }
 
-      if (!rows.length || !idCol){
-        document.getElementById("lt-tbody").innerHTML =
-          `<tr><td style="opacity:.7;">No rows</td></tr>`;
-        return;
-      }
-
-      // 3) Filter to this employee (exact match), like your dashboard tables
       const mine = rows.filter(r => String(r[idCol]||"").trim() === String(employeeId).trim());
-      if (!mine.length){
-        document.getElementById("lt-tbody").innerHTML =
-          `<tr><td style="opacity:.7;">No rows</td></tr>`;
-        return;
-      }
+      if (!mine.length){ document.getElementById("lt-tbody").innerHTML = `<tr><td>-</td></tr>`; return; }
 
-      // 4) Resolve headers to actual sheet columns and render in your dashboard style
       const resolved = COLS.map(c => ({ label: c.label, sheet: resolveSheetColumn(c.sources, sheetCols) }));
-      const thead = document.getElementById("lt-thead");
-      thead.innerHTML = resolved.map(c => `<th>${c.label}</th>`).join("");
+      document.getElementById("lt-thead").innerHTML = resolved.map(c => `<th>${c.label}</th>`).join("");
 
-      const tbody = document.getElementById("lt-tbody");
-      tbody.innerHTML = mine.map(r => {
-        return `<tr>${
-          resolved.map(c => {
-            const v = c.sheet ? r[c.sheet] : "";
-            return `<td>${fmtCell(v)}</td>`;
-          }).join("")
-        }</tr>`;
+      document.getElementById("lt-tbody").innerHTML = mine.map(r => {
+        return `<tr>${resolved.map(c => `<td>${fmtCell(c.sheet ? r[c.sheet] : "")}</td>`).join("")}</tr>`;
       }).join("");
     }
 
     document.addEventListener('DOMContentLoaded', async () => {
-      PowerUp.layout.injectLayout();      // identical header + sidebar as dashboard
-      await PowerUp.session.initHeader(); // fills header info
+      PowerUp.layout.injectLayout();
+      await PowerUp.session.initHeader();
       await loadLevelTracker();
     });
   </script>
