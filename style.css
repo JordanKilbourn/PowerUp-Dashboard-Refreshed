@@ -15,7 +15,7 @@
   --highlight: #00ffc3;
 
   /* Layout constants */
-  --header-h: 64px;  /* used by sticky elements */
+  --header-h: 64px;  /* used by sticky elements; JS updates this */
 
   /* Progress colors */
   --ph-track: #213331;
@@ -26,24 +26,25 @@
 
 /* === 2) Reset / base === */
 * { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { height: 100%; font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); }
+html, body {
+  height: 100%;
+  font-family: 'Inter', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  /* Stop the PAGE from scrolling; only inner blocks (table rows) will scroll */
+  overflow: hidden;
+}
 
 /* === 5) Top cards row === */
+/* Not sticky — sits in normal flow so we can compute table height cleanly */
 body.dashboard .top-cards {
   display: flex;
   gap: 20px;
-  padding: 15px 20px 20px 20px;
+  padding: 15px 20px 16px 20px;
   background: var(--bg);
-  /* FIX: remove sticky that created large gap/overlap */
-  position: static;
-  top: auto;
-  z-index: auto;
-  /* small spacing relative to header/tabs */
-  margin-top: 8px;
-  margin-bottom: 6px;
 }
 .card { background: var(--card-bg); padding: 15px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,.4); transition: transform .3s, box-shadow .3s; }
-.card:hover { transform: translateY(-2px); box-shadow: 0 4px 10px rgba(20,226,181,.3); }
+.card:hover { transform: translateY(-2px); box-shadow: 0 4px 10px rgba(255,140,66,.3); }
 
 /* Power Hours + Tokens */
 body.dashboard .power-card { flex: 1; max-width: 500px; border: 2px solid var(--accent); }
@@ -55,16 +56,13 @@ body.dashboard .power-card h3 { font-size: 16px; margin-bottom: 5px; color: var(
 .token-tracker i { font-size: 28px; color: #facc15; }
 
 /* === 6) Tabs === */
+/* Not sticky — keeps layout height predictable */
 .tab-buttons {
   display: flex;
   gap: 2px;
   padding: 0 20px;
   background: var(--bg);
   border-bottom: 2px solid var(--accent);
-  /* FIX: keep tabs sticky but align just under the header height */
-  position: sticky;
-  top: calc(var(--header-h) + 8px);
-  z-index: 8;
 }
 .tab-button {
   background: var(--card-bg); border: 2px solid transparent; border-bottom: none;
@@ -85,7 +83,18 @@ body.dashboard .power-card h3 { font-size: 16px; margin-bottom: 5px; color: var(
 .add-btn:hover { background: #ffa364; transform: scale(1.05); }
 .row-count { font-size: 14px; color: var(--accent); }
 
-.table-scroll { max-height: 600px; overflow-y: auto; border: 1px solid #2d3f3f; border-radius: 6px; }
+/* The table “block” owns the only scrollbar on the page */
+.table-scroll {
+  /* JS sets --table-max so the full frame is visible; this is a safe fallback */
+  --table-max: 520px;
+
+  height: var(--table-max);
+  max-height: var(--table-max);
+  overflow-y: auto;
+
+  border: 1px solid #2d3f3f;
+  border-radius: 6px;
+}
 .table-scroll table { width: 100%; border-collapse: collapse; }
 .table-scroll th, .table-scroll td { padding: 10px; text-align: left; border-bottom: 1px solid #3a4e4e; }
 .table-scroll thead th { position: sticky; top: 0; background: #213331; z-index: 2; color: var(--accent); cursor: pointer; }
@@ -94,7 +103,7 @@ body.dashboard .power-card h3 { font-size: 16px; margin-bottom: 5px; color: var(
 .table-scroll th.sorted-desc::after { content: ' ↓'; color: var(--accent); }
 .table-scroll tbody tr:hover { background-color: rgba(255,255,255,.05); }
 
-/* Hide scrollbars */
+/* Hide scrollbars (cosmetic) */
 .table-scroll::-webkit-scrollbar { display: none; }
 .table-scroll { scrollbar-width: none; -ms-overflow-style: none; }
 body::-webkit-scrollbar, .main::-webkit-scrollbar { width: 0; height: 0; }
@@ -107,8 +116,6 @@ body::-webkit-scrollbar, .main::-webkit-scrollbar { width: 0; height: 0; }
 .denied   { background: var(--error); color: #fff; }
 .pending  { background: var(--warning); color: #000; }
 .completed{ background: var(--success); color: #000; }
-
-.content { padding: 20px; overflow-y: auto; }
 
 /* === 8) Notes page (unchanged) === */
 body.notes .notes-controls { padding: 20px; background: var(--card-bg); border-bottom: 2px solid var(--accent); }
@@ -270,101 +277,10 @@ body.notes .note-editor:empty:before { content: attr(data-placeholder); color: v
 }
 
 /* Utility: keep tiny columns on one line */
-.dashboard-table .nowrap {
-  white-space: nowrap;
-}
+.dashboard-table .nowrap { white-space: nowrap; }
 
 /* Make the header a touch tighter and single-line */
-.dashboard-table thead th {
-  white-space: nowrap;
-}
-
-/* ---- CI table column plan -------------------------------------------- */
-#ci-table { table-layout: fixed; }
-#ci-table thead th:nth-child(1),
-#ci-table tbody td:nth-child(1)  { width:110px; }
-
-#ci-table thead th:nth-child(2),
-#ci-table tbody td:nth-child(2)  { width:80px; text-align:center; }
-
-#ci-table thead th:nth-child(3),
-#ci-table tbody td:nth-child(3)  { width:28%; }
-
-#ci-table thead th:nth-child(4),
-#ci-table tbody td:nth-child(4)  { width:28%; }
-
-#ci-table thead th:nth-child(5),
-#ci-table tbody td:nth-child(5)  { width:120px; }
-
-#ci-table thead th:nth-child(6),
-#ci-table tbody td:nth-child(6)  { width:200px; }
-
-#ci-table thead th:nth-child(7),
-#ci-table tbody td:nth-child(7)  { width:130px; text-align:center; }
-
-#ci-table thead th:nth-child(8),
-#ci-table tbody td:nth-child(8)  { width:110px; }
-
-#ci-table thead th:nth-child(9),
-#ci-table tbody td:nth-child(9)  { width:16%; }
-
-#ci-table thead th:nth-child(10),
-#ci-table tbody td:nth-child(10) { width:90px;  text-align:center; }
-
-#ci-table thead th:nth-child(11),
-#ci-table tbody td:nth-child(11) { width:120px; }
-
-#ci-table thead th:nth-child(12),
-#ci-table tbody td:nth-child(12) { width:70px;  text-align:right; }
-
-#ci-table thead th:nth-child(13),
-#ci-table tbody td:nth-child(13) { width:70px;  text-align:center; }
-
-/* ---- Quality table column plan --------------------------------------- */
-#quality-table { table-layout: fixed; }
-#quality-table thead th:nth-child(1),
-#quality-table tbody td:nth-child(1) { width:80px; text-align:center; }
-
-#quality-table thead th:nth-child(2),
-#quality-table tbody td:nth-child(2) { width:110px; }
-
-#quality-table thead th:nth-child(3),
-#quality-table tbody td:nth-child(3) { width:160px; }
-
-#quality-table thead th:nth-child(4),
-#quality-table tbody td:nth-child(4) { width:140px; }
-
-#quality-table thead th:nth-child(5),
-#quality-table tbody td:nth-child(5) { width:26%; }
-
-#quality-table thead th:nth-child(6),
-#quality-table tbody td:nth-child(6) { width:140px; white-space:nowrap; }
-
-#quality-table thead th:nth-child(7),
-#quality-table tbody td:nth-child(7) { width:38%; }
-
-/* Optional: slightly smaller body type for dense tables */
-.table-scroll .dashboard-table td { font-size: 13px; line-height: 1.35; }
-
-/* Hover row readability */
-.table-scroll tbody tr:hover {
-  background: rgba(255,255,255,0.035);
-}
-
-/* Pill badges for status/approval */
-.pill {
-  display: inline-block;
-  padding: 3px 8px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1;
-  white-space: nowrap;
-}
-.pill--green { background: var(--success); color: #000; }
-.pill--blue  { background: #56ccf2; color: #000; }
-.pill--red   { background: var(--error);  color: #fff; }
-.pill--gray  { background: #3a4e4e;      color: #fff; }
+.dashboard-table thead th { white-space: nowrap; }
 
 /* Sort arrows (th[data-sort]) */
 th[data-sort="asc"]::after { content: " ▲"; opacity: .7; }
@@ -418,12 +334,11 @@ body.sidebar-expanded .sidebar .item span { display: inline; }
   color: #ff6b6b;
 }
 
-/* Header: sticky, below top, shifts with sidebar */
+/* Header: sticky, shifts with sidebar width */
 .header {
   position: sticky; top: 0; z-index: 10;
   display:flex; flex-direction: column; gap: 6px;
   padding: 15px 20px;
-  min-height: var(--header-h);    /* FIX: consistent header height */
   background: rgba(16,22,23,.8);
   backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
   border-bottom: 1px solid rgba(0,255,198,.1);
@@ -431,7 +346,6 @@ body.sidebar-expanded .sidebar .item span { display: inline; }
   margin-left: 72px;                 /* collapsed width */
   transition: margin-left .2s ease;
 }
-/* Expanded states supported by body flag and legacy .sidebar.expanded sibling */
 body.sidebar-expanded .header,
 .sidebar.expanded ~ .main .header { margin-left: 220px; }
 
@@ -442,17 +356,19 @@ body.sidebar-expanded .header,
 /* Main region wraps header + page content */
 .main { flex: 1; display: flex; flex-direction: column; width: 100%; overflow: hidden; }
 
-/* Content shifts with sidebar; scrollable area under header */
+/* Content fills the viewport below the sticky header; it does not scroll */
 .content {
-  margin-left: 72px;
+  margin-left: 72px;                 /* keep in sync with header/sidebar */
   transition: margin-left .2s ease;
-  padding: 16px;
-  padding-top: 14px;   /* breathing room under sticky header */
-  overflow-y: auto;
+
+  /* height of viewport minus actual header height (JS keeps --header-h updated) */
+  height: calc(100vh - var(--header-h, 64px));
+
+  padding: 16px 16px 12px 16px;
+  overflow: hidden; /* the page doesn’t scroll; inner blocks manage their own scroll */
 }
 body.sidebar-expanded .content,
 .sidebar.expanded ~ .main .content { margin-left: 220px; }
 
 /* Keep your small button style */
 .btn.small { padding:6px 10px; border:1px solid #2a354b; background:#111a2f; border-radius:8px; color:#e5e7eb; }
-
