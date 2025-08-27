@@ -10,75 +10,55 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
   <link rel="preconnect" href="https://powerup-proxy.onrender.com" crossorigin>
+
+  <style>
+    /* Page-local tweaks that reuse your .card aesthetic */
+    .squads-actions { display:flex; gap:10px; justify-content:flex-end; margin-bottom:12px; }
+    .squads-actions .btn { padding:8px 12px; border-radius:6px; border:1px solid var(--accent); background:var(--card-bg); color:var(--text); cursor:pointer; }
+    .squads-actions .btn:hover { background: var(--card-bg-hover); }
+
+    .grid-panels {
+      display:grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 18px;
+    }
+    .panel.card { padding: 12px 14px; }
+    .panel h3 { font-size: 18px; color: var(--accent); margin-bottom: 10px; }
+    .panel .panel-body { display: grid; gap: 12px; }
+    .squad-card.card { padding: 12px 14px; }
+    .squad-card h4 { font-size: 16px; color: #9ffbe6; margin-bottom: 6px; }
+    .squad-meta { font-size: 13px; color: var(--text); }
+    .squad-meta b { color: var(--info); font-weight: 600; }
+    .squad-foot { display:flex; justify-content:flex-end; margin-top: 6px; }
+    .squad-link { font-size: 13px; color: var(--accent); text-decoration: none; }
+    .squad-link:hover { text-decoration: underline; }
+
+    .status-pill { display:inline-block; padding:3px 8px; border-radius:999px; font-size:12px; font-weight:700; }
+    .status-on  { background: var(--success); color:#000; }
+    .status-off { background: #3a4e4e; color:#fff; }
+  </style>
 </head>
 <body>
-  <!-- layout.js will inject the shared shell; everything below becomes the page .content -->
+  <!-- layout.js injects the shell; everything below becomes .content -->
   <div class="content-inner" style="padding: 12px 14px 16px;">
+    <h2 style="margin:0 0 10px;">Squads Overview</h2>
 
-    <!-- Header row -->
-    <div class="table-header-row" style="margin: 6px 0 10px;">
-      <h3 style="font-size:16px;">Squads</h3>
-      <div class="table-header-controls" style="margin-left:auto; gap:10px;">
-        <label class="muted" for="s-status">Status</label>
-        <select id="s-status">
-          <option>All</option>
-          <option>Active</option>
-          <option>Paused</option>
-          <option>Completed</option>
-          <option>Blocked</option>
-        </select>
-
-        <label class="muted" for="s-view">View</label>
-        <select id="s-view">
-          <option value="all">All Squads</option>
-          <option value="mine">My Squads</option>
-        </select>
-
-        <input id="s-q" type="search" placeholder="Search name, lead, members…" style="padding:6px 10px;background:#213331;color:var(--text);border:1px solid var(--accent);border-radius:4px;min-width:220px;">
-        <button id="s-add" class="add-btn" type="button"><i class="fa fa-plus"></i> Add Squad</button>
-      </div>
+    <div class="squads-actions">
+      <button id="btn-add" class="btn"><i class="fa fa-plus"></i> Add New Squad</button>
+      <button id="btn-manage" class="btn"><i class="fa fa-table-list"></i> Manage Squads</button>
+      <button id="btn-activities" class="btn"><i class="fa fa-list-check"></i> View All Activities</button>
     </div>
 
-    <!-- Metrics strip -->
-    <div class="card" style="margin:0 0 10px;">
-      <div class="metrics" style="display:flex;gap:18px;flex-wrap:wrap;align-items:center;">
-        <div><span class="label" style="color:var(--info);margin-right:6px;">Total:</span> <span class="value" id="m-total" style="font-weight:700;">0</span></div>
-        <div><span class="label" style="color:var(--info);margin-right:6px;">Active:</span> <span class="value" id="m-active" style="font-weight:700;">0</span></div>
-        <div><span class="label" style="color:var(--info);margin-right:6px;">Upcoming mtgs (30d):</span> <span class="value" id="m-next" style="font-weight:700;">0</span></div>
-      </div>
+    <div id="panels" class="grid-panels">
+      <!-- JS renders one panel per Category: CI / Quality / Safety / Other -->
     </div>
 
-    <!-- Table -->
-    <div class="card table-card">
-      <div class="table-scroll">
-        <table id="squads-table" class="dashboard-table">
-          <thead>
-          <tr>
-            <th data-k="Squad" data-sort="none">Squad</th>
-            <th data-k="Lead" data-sort="none">Lead</th>
-            <th data-k="Members" data-sort="none">Members</th>
-            <th data-k="Status" data-sort="none">Status</th>
-            <th data-k="Start" data-sort="none">Started</th>
-            <th data-k="Next Meeting" data-sort="none">Next Meeting</th>
-            <th data-k="Progress" data-sort="none" class="t-right">Progress</th>
-            <th data-k="Open Tasks" data-sort="none" class="t-right">Open Tasks</th>
-          </tr>
-          </thead>
-          <tbody id="squads-rows">
-            <tr><td colspan="8" class="muted" style="text-align:center;padding:20px;">Loading…</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- Empty / error message -->
     <div id="s-msg" class="muted" style="margin-top:10px; display:none;"></div>
   </div>
 
-  <!-- Scripts -->
   <script src="scripts/api.js"></script>
   <script src="scripts/session.js"></script>
   <script src="scripts/layout.js"></script>
-  <script src="scripts/squads.js"></script>
+  <script src="scripts/squads-cards.js"></script>
 </body>
 </html>
