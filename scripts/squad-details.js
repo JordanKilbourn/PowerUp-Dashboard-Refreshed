@@ -1,41 +1,25 @@
 // scripts/squad-details.js
 (function (PowerUp) {
   const P = (window.PowerUp = PowerUp || {});
+  const { SHEETS, getRowsByTitle } = P.api;
 
-  // 👉 Your Smartsheet FORM URL for "PowerUp Squad Members"
+  // Your Smartsheet form for "PowerUp Squad Members"
   const SQUAD_MEMBER_FORM_URL = "https://app.smartsheet.com/b/form/fc4952f03a3c4e85a548d492c848b536";
 
-  // ---------- tiny helpers ----------
+  // helpers
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;', "'":'&#39;'}[m]));
   const fmtDate = (v) => {
     if (!v) return "-";
-    const d = new Date(v);
-    if (isNaN(d)) return esc(v);
+    const d = new Date(v); if (isNaN(d)) return esc(v);
     const mm = String(d.getMonth()+1).padStart(2,'0');
     const dd = String(d.getDate()).padStart(2,'0');
     const yy = d.getFullYear();
     return `${mm}/${dd}/${yy}`;
   };
-  const boolPill = (v) => {
-    const t = String(v ?? "").toLowerCase();
-    if (t === "true" || t === "yes" || t === "1") return `<span class="pill pill--green">Active</span>`;
-    if (t === "false" || t === "no"  || t === "0") return `<span class="pill pill--gray">Inactive</span>`;
-    return esc(v ?? "-");
-  };
-  const rolePill = (r) => {
-    const t = String(r || "").toLowerCase().trim();
-    if (t === "leader") return `<span class="pill pill--blue">Leader</span>`;
-    return `<span class="pill pill--green">Member</span>`;
-  };
-  const byId = (id) => document.getElementById(id);
-
-  // ---------- data access ----------
-  const { SHEETS, getRowsByTitle } = P.api;
-
-  function getQueryParam(name) {
-    const u = new URL(location.href);
-    return u.searchParams.get(name) || "";
-  }
+  const isTrue = (v) => v === true || /^(true|yes|y|checked|1)$/i.test(String(v ?? "").trim());
+  const rolePill = (r) => (String(r||"").toLowerCase()==="leader" ? `<span class="pill pill--blue">Leader</span>` : `<span class="pill pill--green">Member</span>`);
+  const byId = (x) => document.getElementById(x);
+  const qparam = (k) => new URL(location.href).searchParams.get(k) || "";
 
   function normalizeEmployees(rows) {
     const m = new Map();
@@ -50,21 +34,19 @@
     });
     return m;
   }
-
-  function normalizeSquadRow(r) {
+  function normSquad(r){
     return {
       id:        String(r["Squad ID"] || r["ID"] || "").trim(),
       name:      String(r["Squad Name"] || r["Name"] || "").trim(),
       category:  String(r["Category"] || "").trim(),
-      leaderId:  String(r["Squad Leader"] || "").trim(), // Employee ID
+      leaderId:  String(r["Squad Leader"] || "").trim(),
       active:    String(r["Active"] || "").trim(),
       objective: String(r["Objective"] || "").trim(),
       notes:     String(r["Notes"] || "").trim(),
       created:   r["Created Date"] || r["Created"] || ""
     };
   }
-
-  function normalizeMemberRow(r) {
+  function normMember(r){
     return {
       squadId:   String(r["Squad ID"] || "").trim(),
       empId:     String(r["Employee ID"] || "").trim(),
@@ -76,26 +58,14 @@
     };
   }
 
-  async function userIsAdmin() {
-    const me = P.session.get();
-    const rows = await getRowsByTitle(SHEETS.EMPLOYEE_MASTER);
-    const r = rows.find(x =>
-      String(x["Position ID"] || x["Employee ID"] || "").trim() === String(me.employeeId || "").trim()
-    );
-    const flag = String(r?.["Is Admin?"] ?? r?.["Admin"] ?? r?.["Is Admin"] ?? "").toLowerCase();
-    return flag === "true" || flag === "yes" || flag === "1";
-  }
-
-  // ---------- render ----------
   function renderSkeleton(squad, leaderName) {
-    const title = squad?.name ? `Squad: ${esc(squad.name)}` : "Squad";
-    P.layout.setPageTitle(title);
-
+    P.layout.setPageTitle(`Squad: ${esc(squad.name || squad.id)}`);
     const html = `
       <div class="card" style="margin:12px 12px 0 12px; padding:12px;">
         <div style="display:flex; gap:12px; align-items:center; justify-content:flex-end;">
           <button id="btn-back" class="btn small">← Back</button>
           <button id="btn-addmember" class="btn small" style="display:none;">＋ Add Member</button>
+          <button id="btn-addleader" class="btn small" style="display:none;">★ Add Leader</button>
         </div>
       </div>
 
@@ -104,41 +74,26 @@
           <h3 style="margin-bottom:8px;">Squad</h3>
           <div>Name: <strong>${esc(squad.name || "-")}</strong></div>
           <div>Leader: <strong>${esc(leaderName || squad.leaderId || "-")}</strong></div>
-          <div>Status: ${boolPill(squad.active)}</div>
+          <div>Status: ${isTrue(squad.active) ? '<span class="pill pill--green">Active</span>' : '<span class="pill pill--gray">Inactive</span>'}</div>
           <div>Category: <strong>${esc(squad.category || "-")}</strong></div>
           <div>Created: ${fmtDate(squad.created)}</div>
         </div>
 
-        <div class="card">
-          <h3 style="margin-bottom:8px;">Objective</h3>
-          <div>${esc(squad.objective || "-")}</div>
-        </div>
-
-        <div class="card">
-          <h3 style="margin-bottom:8px;">Notes</h3>
-          <div>${esc(squad.notes || "-")}</div>
-        </div>
+        <div class="card"><h3 style="margin-bottom:8px;">Objective</h3><div>${esc(squad.objective || "-")}</div></div>
+        <div class="card"><h3 style="margin-bottom:8px;">Notes</h3><div>${esc(squad.notes || "-")}</div></div>
       </div>
 
       <div class="card" style="margin: 0 12px 12px 12px;">
         <h3 style="margin-bottom:8px;">Members</h3>
         <div class="table-scroll">
           <table class="dashboard-table" id="squad-members-table">
-            <thead><tr>
-              <th>Member</th>
-              <th>Employee ID</th>
-              <th>Role</th>
-              <th>Status</th>
-              <th>Start</th>
-            </tr></thead>
+            <thead><tr><th>Member</th><th>Employee ID</th><th>Role</th><th>Status</th><th>Start</th></tr></thead>
             <tbody data-hook="members.tbody"></tbody>
           </table>
         </div>
       </div>
     `;
-    const content = document.querySelector(".content");
-    content.innerHTML = html;
-
+    document.querySelector(".content").innerHTML = html;
     byId("btn-back").onclick = () => history.length > 1 ? history.back() : (location.href = "squads.html");
   }
 
@@ -150,14 +105,14 @@
         <td>${esc(name)}</td>
         <td class="mono">${esc(r.empId || "-")}</td>
         <td>${rolePill(r.role)}</td>
-        <td>${boolPill(r.active)}</td>
+        <td>${isTrue(r.active) ? '<span class="pill pill--green">Active</span>' : '<span class="pill pill--gray">Inactive</span>'}</td>
         <td>${fmtDate(r.start)}</td>
       </tr>`;
     }).join("");
     tbody.innerHTML = html || `<tr><td colspan="5" style="text-align:center;opacity:.7;">No members yet.</td></tr>`;
   }
 
-  // ---------- member picker (search Employee Master) ----------
+  // -------- Member picker (search Employee Master) --------
   function injectPickerStylesOnce() {
     if (document.getElementById("pu-member-picker-css")) return;
     const css = `
@@ -180,32 +135,7 @@
     style.textContent = css;
     document.head.appendChild(style);
   }
-
-  function formatMMDDYYYY(d){
-    const mm = String(d.getMonth()+1).padStart(2,'0');
-    const dd = String(d.getDate()).padStart(2,'0');
-    const yy = d.getFullYear();
-    return `${mm}/${dd}/${yy}`;
-  }
-
-  function openPrefilledMemberForm({ squad, empId, role = "Member" }) {
-    if (!SQUAD_MEMBER_FORM_URL) {
-      alert("Add Member form URL is missing in squad-details.js");
-      return;
-    }
-    const qp = new URLSearchParams();
-    // IMPORTANT: these keys MUST match your Smartsheet form field titles exactly
-    qp.set("Squad ID", squad.id || "");
-    qp.set("Employee ID", empId || "");
-    qp.set("Role", role);
-    qp.set("Active", "true");
-    qp.set("Start Date", formatMMDDYYYY(new Date()));
-
-    const url = `${SQUAD_MEMBER_FORM_URL}?${qp.toString()}`;
-    window.open(url, "_blank", "noopener");
-  }
-
-  function openMemberPicker({ squad, employeesById, activeEmpIds, allowRoleOverride = false }) {
+  function openMemberPicker({ squad, employeesById, activeEmpIds, allowLeader = false }) {
     injectPickerStylesOnce();
 
     const people = Array.from(employeesById.values())
@@ -222,18 +152,17 @@
         </div>
         <div id="pu-mp-list" class="pu-mp__list"></div>
         <div class="pu-mp__actions">
-          ${allowRoleOverride ? `
-            <label style="margin-right:auto;display:flex;gap:6px;align-items:center;">
-              <input type="checkbox" id="pu-mp-leader"> Add as Leader
-            </label>` : ``}
+          ${allowLeader ? `<label style="margin-right:auto;display:flex;gap:6px;align-items:center;">
+            <input type="checkbox" id="pu-mp-leader"> Add as Leader
+          </label>` : ``}
           <button id="pu-mp-cancel" class="btn small">Cancel</button>
         </div>
       </div>
     `;
     document.body.appendChild(overlay);
 
-    const $q = byId("pu-mp-q");
-    const $list = byId("pu-mp-list");
+    const $q = document.getElementById("pu-mp-q");
+    const $list = document.getElementById("pu-mp-list");
 
     const render = (term = "") => {
       const t = term.trim().toLowerCase();
@@ -247,15 +176,13 @@
       ).slice(0, 200);
 
       $list.innerHTML = list.map(p => {
-        const disabled = activeEmpIds.has(p.id);
-        return `<div class="pu-mp__row" data-id="${esc(p.id)}" data-disabled="${disabled ? '1' : ''}">
+        const already = activeEmpIds.has(p.id);
+        return `<div class="pu-mp__row" data-id="${esc(p.id)}" data-disabled="${already ? '1' : ''}">
           <div>
             <div class="pu-mp__title">${esc(p.name)}</div>
             <div class="pu-mp__meta">${esc(p.dept || "—")} • ${esc(p.id)}</div>
           </div>
-          ${disabled
-            ? `<span class="pill pill--gray">Already a member</span>`
-            : `<button class="btn small">Select</button>`}
+          ${already ? `<span class="pill pill--gray">Already a member</span>` : `<button class="btn small">Select</button>`}
         </div>`;
       }).join("") || `<div class="pu-mp__row"><div class="pu-mp__meta" style="padding:10px;">No matches</div></div>`;
     };
@@ -265,33 +192,41 @@
     overlay.addEventListener("click", e => {
       if (e.target.id === "pu-mp-cancel" || e.target === overlay) { close(); return; }
       const row = e.target.closest(".pu-mp__row");
-      if (!row) return;
-      if (row.getAttribute("data-disabled") === "1") return;
+      if (!row || row.getAttribute("data-disabled")==="1") return;
       const empId = row.getAttribute("data-id");
-      const asLeader = allowRoleOverride && byId("pu-mp-leader")?.checked;
+      const asLeader = allowLeader && document.getElementById("pu-mp-leader")?.checked;
       openPrefilledMemberForm({ squad, empId, role: asLeader ? "Leader" : "Member" });
       close();
     });
-    window.addEventListener("keydown", function escClose(ev){
-      if (ev.key === "Escape") { close(); window.removeEventListener("keydown", escClose); }
-    });
+    window.addEventListener("keydown", function escClose(ev){ if (ev.key==="Escape"){ close(); window.removeEventListener("keydown", escClose);} });
 
     render();
     $q.focus();
   }
 
-  // ---------- boot ----------
+  // Open Smartsheet form with prefilled hidden fields
+  function openPrefilledMemberForm({ squad, empId, role = "Member" }) {
+    if (!SQUAD_MEMBER_FORM_URL) { alert("Add Member form URL missing."); return; }
+    const qp = new URLSearchParams();
+    // MUST match your form field titles exactly:
+    qp.set("Squad ID", squad.id || "");
+    qp.set("Employee ID", empId || "");
+    qp.set("Role", role);
+    qp.set("Active", "true");
+    qp.set("Start Date", (() => {
+      const d=new Date(); const mm=String(d.getMonth()+1).padStart(2,'0'); const dd=String(d.getDate()).padStart(2,'0'); return `${mm}/${dd}/${d.getFullYear()}`;
+    })());
+    window.open(`${SQUAD_MEMBER_FORM_URL}?${qp.toString()}`, "_blank", "noopener");
+  }
+
+  // boot
   document.addEventListener("DOMContentLoaded", async () => {
-    // ensure layout is present
-    P.layout?.injectLayout?.();
+    P.session.requireLogin();
+    P.layout.injectLayout();
 
-    const squadId = getQueryParam("id");
-    if (!squadId) {
-      document.querySelector(".content").innerHTML = `<div class="card" style="margin:12px;">Missing squad id.</div>`;
-      return;
-    }
+    const id = qparam("id");
+    if (!id) { document.querySelector(".content").innerHTML = `<div class="card" style="margin:12px;">Missing squad id.</div>`; return; }
 
-    // load data
     const [squadsRows, membersRows, employeeRows] = await Promise.all([
       getRowsByTitle(SHEETS.SQUADS),
       getRowsByTitle(SHEETS.SQUAD_MEMBERS),
@@ -299,26 +234,21 @@
     ]);
 
     const employeesById = normalizeEmployees(employeeRows);
-    const squadRow = squadsRows.find(r => String(r["Squad ID"] || r["ID"] || "").trim() === squadId);
-    if (!squadRow) {
-      document.querySelector(".content").innerHTML = `<div class="card" style="margin:12px;">Squad not found.</div>`;
-      return;
-    }
-    const squad = normalizeSquadRow(squadRow);
-    const leaderName = employeesById.get(squad.leaderId)?.name;
+    const squadRow = squadsRows.find(r => String(r["Squad ID"] || r["ID"] || "").trim() === id);
+    if (!squadRow) { document.querySelector(".content").innerHTML = `<div class="card" style="margin:12px;">Squad not found.</div>`; return; }
 
-    // render base
+    const squad = normSquad(squadRow);
+    const leaderName = employeesById.get(squad.leaderId)?.name;
     renderSkeleton(squad, leaderName);
 
-    // render members
+    // Members (active first; leader first)
     const activeMembers = membersRows
-      .map(normalizeMemberRow)
+      .map(normMember)
       .filter(m => m.squadId === squad.id && String(m.active).toLowerCase() !== "false")
       .sort((a,b) => {
-        // leader first, then name
-        const ra = (a.role || "").toLowerCase() === "leader" ? 0 : 1;
-        const rb = (b.role || "").toLowerCase() === "leader" ? 0 : 1;
-        if (ra !== rb) return ra - rb;
+        const ra = (a.role||"").toLowerCase()==="leader" ? 0 : 1;
+        const rb = (b.role||"").toLowerCase()==="leader" ? 0 : 1;
+        if (ra!==rb) return ra-rb;
         const na = employeesById.get(a.empId)?.name || a.empId;
         const nb = employeesById.get(b.empId)?.name || b.empId;
         return na.localeCompare(nb);
@@ -326,25 +256,29 @@
 
     renderMembers(document.querySelector('[data-hook="members.tbody"]'), activeMembers, employeesById);
 
-    // permissions: only leader or admin sees Add Member
+    // Permissions
     const me = P.session.get();
     const amLeader = String(squad.leaderId || "").trim() === String(me.employeeId || "").trim();
-    const amAdmin = await userIsAdmin();
+    const amAdmin  = !!(P.auth && P.auth.isAdmin && P.auth.isAdmin());
 
-    const addBtn = byId("btn-addmember");
+    const addMemberBtn = byId("btn-addmember");
+    const addLeaderBtn = byId("btn-addleader");
+
     if (amLeader || amAdmin) {
-      addBtn.style.display = "";
-      addBtn.onclick = () => {
+      addMemberBtn.style.display = "";
+      addMemberBtn.onclick = () => {
         const activeIds = new Set(activeMembers.map(m => m.empId));
-        openMemberPicker({
-          squad,
-          employeesById,
-          activeEmpIds: activeIds,
-          allowRoleOverride: amAdmin // admins can tick "Add as Leader"
-        });
+        openMemberPicker({ squad, employeesById, activeEmpIds: activeIds, allowLeader: false });
       };
-    } else {
-      addBtn.style.display = "none";
+    }
+    if (amAdmin) {
+      addLeaderBtn.style.display = "";
+      addLeaderBtn.onclick = () => {
+        const activeIds = new Set(activeMembers.map(m => m.empId));
+        openMemberPicker({ squad, employeesById, activeEmpIds: activeIds, allowLeader: true });
+      };
+      // Make header show admin mode
+      P.layout.setPageTitle(`Squad: ${esc(squad.name)} (Admin)`);
     }
   });
 })(window.PowerUp || {});
