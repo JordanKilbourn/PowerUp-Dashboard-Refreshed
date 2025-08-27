@@ -286,6 +286,10 @@ body.notes .note-editor:empty:before { content: attr(data-placeholder); color: v
 th[data-sort="asc"]::after { content: " ▲"; opacity: .7; }
 th[data-sort="desc"]::after { content: " ▼"; opacity: .7; }
 
+/* Neutral indicator so users know headers are clickable */
+th[data-sort="none"]::after { content: " ⇅"; opacity: .35; }
+
+
 /* ===== SHARED LAYOUT (sidebar + header) — unified, works with layout.js ===== */
 
 /* Keep the page spanning full height */
@@ -388,5 +392,6 @@ body.sidebar-expanded .content,
 .dashboard-table .pill--red   { background: var(--error)  !important;   color: #fff !important; }
 .dashboard-table .pill--gray  { background: #3a4e4e      !important;    color: #fff !important; }
 .dashboard-table td { vertical-align: middle; }  /* nicer line-up for chips */
+
 
 
