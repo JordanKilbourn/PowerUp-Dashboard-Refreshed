@@ -24,80 +24,92 @@
   <script src="scripts/session.js?v=2025-08-26"></script>
   <script src="scripts/layout.js"></script>
 
-  <script>
-    const COLS = [
-      { label: "Month",   sources: ["Month Key","Month"] },
-      { label: "CI Submissions",            sources: ["CI Submissions"] },
-      { label: "Safety Submissions",        sources: ["Safety Submissions"] },
-      { label: "Quality Submissions",       sources: ["Quality Submissions"] },
-      { label: "Total Submissions",         sources: ["Total Submissions"] },
-      { label: "Tuesday Tutorial Attended", sources: ["Tuesday Tutorial Attended"] },
-      { label: "Power Hours Logged",        sources: ["Power Hours Logged"] },
-      { label: "On Team",                   sources: ["On Team"] },
-      { label: "Leads Team",                sources: ["Leads Team"] },
-      { label: "Job Relations Follow-up",   sources: ["Job Relations Follow-up"] }
-    ];
+ <script>
+  // ---- Desired columns (display header -> sheet column) ----
+  const COLS = [
+    { label: "Month",   sources: ["Month Key","Month"] },
+    { label: "CI Submissions",            sources: ["CI Submissions"] },
+    { label: "Safety Submissions",        sources: ["Safety Submissions"] },
+    { label: "Quality Submissions",       sources: ["Quality Submissions"] },
+    { label: "Total Submissions",         sources: ["Total Submissions"] },
+    { label: "Tuesday Tutorial Attended", sources: ["Tuesday Tutorial Attended"] },
+    { label: "Power Hours Logged",        sources: ["Power Hours Logged"] },
+    { label: "On Team",                   sources: ["On Team"] },
+    { label: "Leads Team",                sources: ["Leads Team"] },
+    { label: "Job Relations Follow-up",   sources: ["Job Relations Follow-up"] }
+  ];
 
-    const esc = (s) => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-    
-    const isTrueish = (v) => {
-  const t = String(v ?? "").trim().toLowerCase();
-  return v === true || t === "true" || t === "yes";
-};
-const boolPill = (v) =>
-  isTrueish(v)
-    ? '<span class="pill pill--green">✓</span>'
-    : '<span class="pill pill--red">✗</span>';
+  // ==== helpers ====
+  const esc = (s) => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  const isTrueish = (v) => { const t = String(v ?? "").trim().toLowerCase(); return v === true || t === "true" || t === "yes"; };
+  const boolPill = (v) => isTrueish(v) ? '<span class="pill pill--green">✓</span>' : '<span class="pill pill--red">✗</span>';
 
-function fmtCell(v){
-  const t = String(v ?? "").trim().toLowerCase();
-  // Only treat explicit booleans/yes/no as boolean pills
-  if (v === true || v === false || t === "true" || t === "false" || t === "yes" || t === "no") {
-    return boolPill(v);
+  // Only treat explicit boolean words as boolean; numbers like 1/0 stay numbers
+  function fmtCell(v){
+    const t = String(v ?? "").trim().toLowerCase();
+    if (v === true || v === false || t === "true" || t === "false" || t === "yes" || t === "no") return boolPill(v);
+    return (v == null || String(v).trim() === "") ? "-" : esc(v);
   }
-  return (v == null || String(v).trim() === "") ? "-" : esc(v);
-}
-    const normalize = (s) => String(s||"").toLowerCase().replace(/[^a-z0-9]/g,"");
 
-    function chooseIdColumn(cols){
-      if (cols.includes("Employee ID")) return "Employee ID";
-      if (cols.includes("Position ID")) return "Position ID";
-      return null;
+  // Month formatter: "Aug 2025" (use {month:'long'} for "August 2025")
+  function fmtMonth(v){
+    if (v == null || String(v).trim() === "") return "-";
+    let s = String(v).trim();
+    let d = new Date(s);
+    if (isNaN(d)) {
+      // Handle "YYYY-MM" or "YYYY-MM-DD"
+      const m = s.match(/^(\d{4})-(\d{1,2})(?:-(\d{1,2}))?$/);
+      if (m) d = new Date(Number(m[1]), Number(m[2]) - 1, 1);
     }
-    function resolveSheetColumn(sources, sheetCols){
-      for (const s of sources) if (sheetCols.includes(s)) return s;
-      const byNorm = new Map(sheetCols.map(c => [normalize(c), c]));
-      for (const s of sources){ const hit = byNorm.get(normalize(s)); if (hit) return hit; }
-      return null;
-    }
+    if (isNaN(d)) return esc(v);
+    return d.toLocaleDateString(undefined, { month: 'short', year: 'numeric' }); // change 'short' -> 'long' if you prefer
+  }
 
-    async function loadLevelTracker(){
-      const { employeeId } = PowerUp.session.get() || {};
-      if (!employeeId){ document.getElementById("lt-tbody").innerHTML = `<tr><td>-</td></tr>`; return; }
+  const normalize = (s) => String(s||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+  function chooseIdColumn(cols){ if (cols.includes("Employee ID")) return "Employee ID"; if (cols.includes("Position ID")) return "Position ID"; return null; }
+  function resolveSheetColumn(sources, sheetCols){
+    for (const s of sources) if (sheetCols.includes(s)) return s;
+    const byNorm = new Map(sheetCols.map(c => [normalize(c), c]));
+    for (const s of sources){ const hit = byNorm.get(normalize(s)); if (hit) return hit; }
+    return null;
+  }
 
-      const raw  = await PowerUp.api.fetchSheet(PowerUp.api.SHEETS.LEVEL_TRACKER);
-      const rows = PowerUp.api.rowsByTitle(raw);
-      const sheetCols = (raw.columns || []).map(c => c.title);
-      const idCol = chooseIdColumn(sheetCols);
-      if (!rows.length || !idCol){ document.getElementById("lt-tbody").innerHTML = `<tr><td>-</td></tr>`; return; }
+  async function loadLevelTracker(){
+    PowerUp.session.requireLogin();
+    const { employeeId } = PowerUp.session.get() || {};
+    if (!employeeId){ document.getElementById("lt-tbody").innerHTML = `<tr><td>-</td></tr>`; return; }
 
-      const mine = rows.filter(r => String(r[idCol]||"").trim() === String(employeeId).trim());
-      if (!mine.length){ document.getElementById("lt-tbody").innerHTML = `<tr><td>-</td></tr>`; return; }
+    const raw  = await PowerUp.api.fetchSheet(PowerUp.api.SHEETS.LEVEL_TRACKER);
+    const rows = PowerUp.api.rowsByTitle(raw);
+    const sheetCols = (raw.columns || []).map(c => c.title);
+    const idCol = chooseIdColumn(sheetCols);
+    if (!rows.length || !idCol){ document.getElementById("lt-tbody").innerHTML = `<tr><td>-</td></tr>`; return; }
 
-      const resolved = COLS.map(c => ({ label: c.label, sheet: resolveSheetColumn(c.sources, sheetCols) }));
-      document.getElementById("lt-thead").innerHTML = resolved.map(c => `<th>${c.label}</th>`).join("");
+    const mine = rows.filter(r => String(r[idCol]||"").trim() === String(employeeId).trim());
+    if (!mine.length){ document.getElementById("lt-tbody").innerHTML = `<tr><td>-</td></tr>`; return; }
 
-      document.getElementById("lt-tbody").innerHTML = mine.map(r => {
-        return `<tr>${resolved.map(c => `<td>${fmtCell(c.sheet ? r[c.sheet] : "")}</td>`).join("")}</tr>`;
-      }).join("");
-    }
+    const resolved = COLS.map(c => ({ label: c.label, sheet: resolveSheetColumn(c.sources, sheetCols) }));
+    document.getElementById("lt-thead").innerHTML = resolved.map(c => `<th>${c.label}</th>`).join("");
 
-    document.addEventListener('DOMContentLoaded', async () => {
-      PowerUp.layout.injectLayout();
-      await PowerUp.session.initHeader();
-      await loadLevelTracker();
-    });
-  </script>
+    document.getElementById("lt-tbody").innerHTML = mine.map(r => {
+      return `<tr>${
+        resolved.map(c => {
+          const v = c.sheet ? r[c.sheet] : "";
+          if (c.label === "Month") return `<td>${fmtMonth(v)}</td>`;
+          return `<td>${fmtCell(v)}</td>`;
+        }).join("")
+      }</tr>`;
+    }).join("");
+  }
+
+  document.addEventListener('DOMContentLoaded', async () => {
+    PowerUp.layout.injectLayout();
+    await PowerUp.session.initHeader();
+    await loadLevelTracker();
+  });
+</script>
+
 </body>
 </html>
+
 
