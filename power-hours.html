@@ -5,34 +5,54 @@
   <title>PowerUp — Power Hours</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link href="style.css" rel="stylesheet" />
-  <!-- Match Dashboard FA include so icon sizing is identical -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
   <link rel="preconnect" href="https://powerup-proxy.onrender.com" crossorigin>
+
+  <!-- Page-local tweaks to make the card a bit smaller than the dashboard version -->
+  <style>
+    /* mini clone of dashboard Power Hours card */
+    .power-card.power-mini { max-width: 560px; padding: 12px 14px; }
+    .power-card.power-mini h3 { font-size: 14px; margin-bottom: 6px; }
+    .power-card.power-mini p { font-size: 14px; margin-bottom: 8px; }
+    .power-card.power-mini .phbar { height: 12px; }
+    .power-card.power-mini .phbar__thumb { width: 12px; height: 12px; }
+
+    /* metrics strip */
+    .metrics { display:flex; gap:18px; flex-wrap:wrap; align-items:center; }
+    .metrics .label { color: var(--info); margin-right: 6px; }
+    .metrics .value { font-weight: 700; }
+  </style>
 </head>
 <body>
-  <!-- Layout is injected; this block becomes .content -->
+  <!-- layout.js injects sidebar + header; everything below becomes .content -->
   <div class="content-inner" style="padding: 12px 14px 16px;">
 
-    <!-- Mini progress card -->
-    <div class="card power-card" style="max-width:600px; margin-bottom: 14px;">
-      <h3 style="margin-bottom:8px;">Power Hours — This Month</h3>
+    <!-- === PROGRESS CARD (EXACT REPLICA OF DASHBOARD, just smaller) === -->
+    <div class="card power-card power-mini" style="margin-bottom: 14px;">
+      <h3>Power Hours Logged</h3>
+      <p>
+        <span data-hook="ph.total">0.0</span> /
+        <span data-hook="ph.goalMax">8</span>
+      </p>
 
-      <div class="phbar" data-hook="ph.track" role="progressbar" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0">
-        <div class="phbar__fill below" data-hook="ph.band" style="position:absolute;top:0;height:100%;left:0;width:0%;opacity:.28;"></div>
-        <div class="phbar__fill" data-hook="ph.fill" style="width:0%;"></div>
-        <div class="phbar__thumb" data-hook="ph.thumb" style="left:0%;"></div>
+      <!-- same markup & hooks used by scripts/progress.js -->
+      <div class="phbar"
+           data-hook="ph.track"
+           role="progressbar"
+           aria-valuemin="0"
+           aria-valuemax="8"
+           aria-valuenow="0">
+        <div class="phbar__fill"  data-hook="ph.fill"></div>
+        <div class="phbar__thumb" data-hook="ph.thumb" title="Current"></div>
       </div>
 
-      <div style="display:flex; gap:12px; align-items:center; margin-top:10px; font-size:14px;">
-        <div><strong><span data-hook="ph.total">0.0</span></strong> / <span data-hook="ph.goalMax">0</span> h</div>
-        <span class="ph-msg ok" data-hook="ph.message"></span>
-      </div>
+      <small data-hook="ph.message">—</small>
     </div>
 
-    <!-- Filters -->
+    <!-- Header row with Date Range filter -->
     <div class="table-header-row" style="margin: 8px 0 10px;">
       <h3 style="font-size:16px;">Your Power Hour Sessions</h3>
       <div class="table-header-controls" style="margin-left:auto; gap:8px;">
@@ -51,30 +71,36 @@
       </div>
     </div>
 
-    <!-- Metrics strip -->
-    <div class="card" style="margin: 0 0 10px; display:flex; gap:18px; flex-wrap:wrap; align-items:center;">
-      <div>Sessions: <strong id="m-sessions">0</strong></div>
-      <div>Hours: <strong id="m-hours">0.00</strong></div>
-      <div>Upcoming scheduled: <strong id="m-sched">0</strong> / <strong id="m-sched-hours">0.00</strong> h</div>
+    <!-- compact metrics strip -->
+    <div class="card" style="margin:0 0 10px;">
+      <div class="metrics">
+        <div><span class="label">Sessions:</span> <span class="value" id="m-sessions">0</span></div>
+        <div><span class="label">Hours:</span> <span class="value" id="m-hours">0.00</span></div>
+        <div>
+          <span class="label">Upcoming scheduled:</span>
+          <span class="value" id="m-sched">0</span> /
+          <span class="value" id="m-sched-hours">0.00</span> h
+        </div>
+      </div>
     </div>
 
-    <!-- Table -->
+    <!-- Sessions table -->
     <div class="card table-card">
       <div class="table-scroll">
         <table id="ph-table" class="dashboard-table">
           <thead>
-            <tr>
-              <th data-k="Date" data-sort="none">Date</th>
-              <th data-k="Start" data-sort="none">Start</th>
-              <th data-k="End" data-sort="none">End</th>
-              <th class="t-right" data-k="Completed Hours" data-sort="none">Completed Hours</th>
-              <th data-k="Scheduled" data-sort="none">Scheduled</th>
-              <th data-k="Completed" data-sort="none">Completed</th>
-              <th data-k="Topic" data-sort="none">Topic</th>
-            </tr>
+          <tr>
+            <th data-k="Date" data-sort="none">Date</th>
+            <th data-k="Start" data-sort="none">Start</th>
+            <th data-k="End" data-sort="none">End</th>
+            <th class="t-right" data-k="Completed Hours" data-sort="none">Completed Hours</th>
+            <th data-k="Scheduled" data-sort="none">Scheduled</th>
+            <th data-k="Completed" data-sort="none">Completed</th>
+            <th data-k="Topic" data-sort="none">Topic</th>
+          </tr>
           </thead>
           <tbody id="rows">
-            <tr><td colspan="7" class="muted" style="text-align:center;padding:20px;">Loading…</td></tr>
+          <tr><td colspan="7" class="muted" style="text-align:center;padding:20px;">Loading…</td></tr>
           </tbody>
         </table>
       </div>
@@ -85,9 +111,11 @@
   <script src="scripts/api.js"></script>
   <script src="scripts/session.js"></script>
   <script src="scripts/layout.js"></script>
+  <!-- Use the SAME logic as the dashboard card -->
+  <script src="scripts/progress.js"></script>
 
   <script>
-    // ---- Column map ----
+    // ----- column aliases -----
     const COLS = {
       employeeId: ['Employee ID','Position ID'],
       date: ['Date','Session Date','Power Hour Date'],
@@ -97,16 +125,15 @@
       durationPlanned: ['Duration (hrs)','Duration (h)','Duration','Planned Hours','Scheduled Hours'],
       scheduled: ['Scheduled','Is Scheduled?','Planned'],
       completed: ['Completed','Is Completed?','Done'],
-      topic: ['Topic','Description','Notes']
+      topic: ['Activity Description','Activity','Topic','Description','Notes'] // <- ensures Topic shows
     };
 
-    // ---- Helpers ----
+    // ----- helpers -----
     const pick = (row, list, d='') => { for (const k of list) if (row[k]!=null && row[k]!=='' ) return row[k]; return d; };
     const isTrue = (v) => v === true || /^(true|yes|y|checked)$/i.test(String(v ?? "").trim());
     const toNum  = PowerUp.api.toNumber;
     const fmt    = (v) => (v==null || String(v).trim()==='') ? '-' : String(v);
 
-    // Local-date parse (prevents UTC drift on "YYYY-MM-DD")
     function parseDateLocal(s){
       if (s==null || s==='') return null;
       const t = String(s).trim();
@@ -125,7 +152,7 @@
       return rid === (empId+'').trim();
     }
 
-    // Range helpers
+    // ----- ranges -----
     function firstOfMonth(y, m){ return new Date(y, m, 1); }
     function lastOfMonth(y, m){ return new Date(y, m+1, 0, 23,59,59,999); }
 
@@ -135,34 +162,16 @@
       const todayEnd = new Date(y, m, now.getDate(), 23,59,59,999);
 
       switch (kind) {
-        case 'this-month':
-          return { start: firstOfMonth(y, m), end: todayEnd };
-        case 'last-month': {
-          const lm = m-1, ly = lm<0 ? y-1 : y, lmm = (lm+12)%12;
-          return { start: firstOfMonth(ly, lmm), end: lastOfMonth(ly, lmm) };
-        }
-        case 'last-3':
-          return { start: firstOfMonth(y, m-2), end: todayEnd };
-        case 'last-6':
-          return { start: firstOfMonth(y, m-5), end: todayEnd };
-        case 'this-quarter': {
-          const qStartMonth = Math.floor(m/3)*3;
-          return { start: firstOfMonth(y, qStartMonth), end: todayEnd };
-        }
-        case 'ytd':
-          return { start: new Date(y, 0, 1), end: todayEnd };
-        case 'next-month': {
-          const nm = m+1, ny = nm>11 ? y+1 : y, nmm = nm%12;
-          return { start: firstOfMonth(ny, nmm), end: lastOfMonth(ny, nmm) };
-        }
-        case 'next-90': {
-          const start = new Date(y, m, now.getDate());
-          const end = new Date(start); end.setDate(end.getDate()+89); end.setHours(23,59,59,999);
-          return { start, end };
-        }
+        case 'this-month':   return { start: firstOfMonth(y, m), end: todayEnd };
+        case 'last-month': { const lm=m-1, ly=lm<0?y-1:y, lmm=(lm+12)%12; return { start:firstOfMonth(ly,lmm), end:lastOfMonth(ly,lmm) }; }
+        case 'last-3':       return { start: firstOfMonth(y, m-2), end: todayEnd };
+        case 'last-6':       return { start: firstOfMonth(y, m-5), end: todayEnd };
+        case 'this-quarter': { const q=Math.floor(m/3)*3; return { start:firstOfMonth(y,q), end:todayEnd }; }
+        case 'ytd':          return { start: new Date(y, 0, 1), end: todayEnd };
+        case 'next-month': { const nm=m+1, ny=nm>11?y+1:y, nmm=nm%12; return { start:firstOfMonth(ny,nmm), end:lastOfMonth(ny,nmm) }; }
+        case 'next-90':    { const s=new Date(y,m,now.getDate()); const e=new Date(s); e.setDate(e.getDate()+89); e.setHours(23,59,59,999); return { start:s, end:e }; }
         case 'all':
-        default:
-          return { start: null, end: null };
+        default:             return { start: null, end: null };
       }
     }
 
@@ -206,11 +215,11 @@
         </tr>`;
       }).join('');
 
-      // Metrics (for the FILTERED set)
+      // metrics
       const totalHrs = state.view.reduce((a,r)=> a + toNum(pick(r, COLS.completedHours, 0)), 0);
       const sessions = state.view.length;
 
-      // Upcoming scheduled: from ALL rows (not just filtered)
+      // upcoming scheduled from ALL rows (future, scheduled, not completed)
       const now = new Date();
       const upcoming = state.all.filter(r=>{
         const d = parseDateLocal(pick(r, COLS.date));
@@ -256,111 +265,20 @@
       renderTable();
     }
 
-    // ---- Match dashboard logic for goals (normalize "Level 1" -> "L1") ----
-    function normalizeLevel(val) {
-      const s = String(val || "").toUpperCase();
-      const m = s.match(/(\d+)/);
-      if (m) return `L${m[1]}`;
-      if (/^L\d+$/.test(s)) return s;
-      return "";
-    }
-
-    // Mini progress card (this month only) — now identical to dashboard logic
-    async function hydrateMiniProgress() {
-      const { fetchSheet, rowsByTitle, SHEETS } = PowerUp.api;
-      const { employeeId } = PowerUp.session.get();
-
-      const num  = (v) => { const n = Number(String(v).replace(/[^0-9.\-]/g,"")); return Number.isFinite(n)?n:0; };
-      const now  = new Date();
-      const thisMonth = now.getMonth() + 1;
-
-      const [emSheet, goalsSheet, phSheet] = await Promise.all([
-        fetchSheet(SHEETS.EMPLOYEE_MASTER).then(rowsByTitle),
-        fetchSheet(SHEETS.POWER_HOUR_GOALS).then(rowsByTitle),
-        fetchSheet(SHEETS.POWER_HOURS).then(rowsByTitle),
-      ]);
-
-      const me = emSheet.find(r =>
-        String(r["Employee ID"] || r["Position ID"] || "").trim() === String(employeeId).trim()
-      );
-      const lvlKey = normalizeLevel(me?.["PowerUp Level (Select)"] || me?.["PowerUp Level"]);
-
-      const goalRow = goalsSheet.find(g =>
-        String(g["Level"] || "").toUpperCase() === String(lvlKey).toUpperCase()
-      );
-
-      const min = num(goalRow?.["Min Hours"]) || 8;
-      const max = num(goalRow?.["Max Hours"]) || min;
-
-      const mine = phSheet.filter(r =>
-        String(r["Employee ID"] || r["Position ID"] || "").trim() === String(employeeId).trim()
-      );
-      const rowsThisMonth = mine.filter(r => {
-        const d = parseDateLocal(r["Date"] || r["Session Date"] || r["Power Hour Date"]);
-        return d && (d.getMonth()+1) === thisMonth && d.getFullYear() === now.getFullYear();
-      });
-
-      const monthCompleted = rowsThisMonth.reduce((s, r) => s + num(r["Completed Hours"] || r["Hours"] || r["Duration (h)"] || r["Duration (hrs)"]), 0);
-
-      const track  = document.querySelector('[data-hook="ph.track"]');
-      const fill   = document.querySelector('[data-hook="ph.fill"]');
-      const band   = document.querySelector('[data-hook="ph.band"]');
-      const thumb  = document.querySelector('[data-hook="ph.thumb"]');
-      const total  = document.querySelector('[data-hook="ph.total"]');
-      const goalEl = document.querySelector('[data-hook="ph.goalMax"]');
-      const msg    = document.querySelector('[data-hook="ph.message"]');
-
-      const pct    = max ? Math.max(0, Math.min(1, monthCompleted / max)) : 0;
-      const minPct = max ? Math.max(0, Math.min(1, min / max)) : 0;
-
-      if (band) { band.style.left = (minPct*100)+'%'; band.style.width = ((1-minPct)*100)+'%'; }
-      if (fill) { fill.style.width = (pct*100)+'%'; fill.classList.toggle('below', monthCompleted < min); }
-      if (thumb){ thumb.style.left = (pct*100)+'%'; thumb.title = `${monthCompleted.toFixed(1)}h`; }
-      if (track){
-        track.setAttribute('aria-valuemin','0');
-        track.setAttribute('aria-valuemax', String(max));
-        track.setAttribute('aria-valuenow', String(Math.max(0, Math.min(monthCompleted, max))));
-      }
-      if (total) total.textContent = monthCompleted.toFixed(1);
-      if (goalEl) goalEl.textContent = String(max);
-
-      // message
-      const year = now.getFullYear();
-      const lastDay = new Date(year, now.getMonth()+1, 0).getDate();
-      const today = now.getDate();
-      const daysLeft = Math.max(0, lastDay - today);
-
-      const remainMin = Math.max(0, min - monthCompleted);
-      const remainMax = Math.max(0, max - monthCompleted);
-      const paceMin = daysLeft > 0 ? (remainMin / daysLeft) : remainMin;
-
-      let text = '', tone = 'ok';
-      if (remainMin === 0 && remainMax <= 0) { text = `🔥 Amazing! You’ve exceeded the goal (${monthCompleted.toFixed(1)} / ${max}h).`; tone = 'exceeded'; }
-      else if (remainMin === 0) { text = `✅ Target met (≥ ${min}h). ${remainMax.toFixed(1)}h to reach max.`; tone = 'ok'; }
-      else {
-        const high = daysLeft <= 2 || paceMin >= 2;
-        const med  = daysLeft <= 5 || paceMin >= 1;
-        tone = high ? 'urgent' : (med ? 'warn' : 'ok');
-        const prefix = high ? '⏳' : '👉';
-        text = `${prefix} ${remainMin.toFixed(1)}h left to hit minimum (${min}h).`;
-        if (daysLeft > 0) text += ` ~${paceMin.toFixed(1)}h/day for ${daysLeft} day${daysLeft!==1?'s':''}.`;
-      }
-      if (msg) { msg.className = `ph-msg ${tone}`; msg.textContent = text; }
-    }
-
-    async function load() {
+    async function loadTableAndProgress() {
       const s = PowerUp.session.get();
       const rows = await PowerUp.api.getRowsByTitle(PowerUp.api.SHEETS.POWER_HOURS);
       state.all = rows.filter(r => byCurrentUser(r, s.employeeId));
       applyRange();
       wireSort();
-      await hydrateMiniProgress();
+
+      // hydrate the progress card using the SAME logic as the dashboard
+      await PowerUp.renderDashboardPowerHours();
     }
 
     function bindControls() {
       const sel = document.getElementById('range');
       if (sel) sel.addEventListener('change', applyRange);
-      // (Refresh button removed)
     }
 
     document.addEventListener('DOMContentLoaded', async () => {
@@ -368,7 +286,7 @@
       PowerUp.layout.injectLayout();
       PowerUp.layout.setPageTitle('Power Hours');
       await PowerUp.session.initHeader();
-      await load();
+      await loadTableAndProgress();
       bindControls();
     });
   </script>
