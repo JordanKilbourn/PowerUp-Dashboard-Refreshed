@@ -1,206 +1,350 @@
 // scripts/squad-details.js
 (function (PowerUp) {
-  const P = PowerUp || (PowerUp = {});
+  const P = (window.PowerUp = PowerUp || {});
+
+  // 👉 Your Smartsheet FORM URL for "PowerUp Squad Members"
+  const SQUAD_MEMBER_FORM_URL = "https://app.smartsheet.com/b/form/fc4952f03a3c4e85a548d492c848b536";
+
+  // ---------- tiny helpers ----------
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;', "'":'&#39;'}[m]));
+  const fmtDate = (v) => {
+    if (!v) return "-";
+    const d = new Date(v);
+    if (isNaN(d)) return esc(v);
+    const mm = String(d.getMonth()+1).padStart(2,'0');
+    const dd = String(d.getDate()).padStart(2,'0');
+    const yy = d.getFullYear();
+    return `${mm}/${dd}/${yy}`;
+  };
+  const boolPill = (v) => {
+    const t = String(v ?? "").toLowerCase();
+    if (t === "true" || t === "yes" || t === "1") return `<span class="pill pill--green">Active</span>`;
+    if (t === "false" || t === "no"  || t === "0") return `<span class="pill pill--gray">Inactive</span>`;
+    return esc(v ?? "-");
+  };
+  const rolePill = (r) => {
+    const t = String(r || "").toLowerCase().trim();
+    if (t === "leader") return `<span class="pill pill--blue">Leader</span>`;
+    return `<span class="pill pill--green">Member</span>`;
+  };
+  const byId = (id) => document.getElementById(id);
+
+  // ---------- data access ----------
   const { SHEETS, getRowsByTitle } = P.api;
 
-  const EMP_COL = { id: ['Position ID','Employee ID'], name: ['Display Name','Employee Name','Name'] };
-  const SQUAD_COL = {
-    id: ['Squad ID','ID'],
-    name: ['Squad Name','Squad','Name','Team'],
-    category: ['Category','Squad Category'],
-    leaderId: ['Squad Leader','Leader Employee ID','Leader Position ID'],
-    members: ['Members','Member List'],
-    objective: ['Objective','Focus','Purpose'],
-    active: ['Active','Is Active?'],
-    created: ['Created Date','Start Date','Started'],
-    notes: ['Notes','Description']
-  };
-  const JOIN_COL = {
-    squadId: ['Squad ID','SquadId','Team ID'],
-    empId:   ['Employee ID','Position ID','EmpId'],
-    role:    ['Role','Member Role'],
-    active:  ['Active','Is Active?'],
-    start:   ['Start Date','Joined','Date Added']
-  };
-
-  const pick = (row, list, d='') => { for (const k of list) if (row[k]!=null && row[k]!=='' ) return row[k]; return d; };
-  const dash = (v) => (v==null || String(v).trim()==='') ? '-' : String(v);
-  const isTrue = (v) => v === true || /^(true|yes|y|checked)$/i.test(String(v ?? "").trim());
-  const esc = (s) => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-
-  function getParam(name) {
+  function getQueryParam(name) {
     const u = new URL(location.href);
-    return u.searchParams.get(name);
+    return u.searchParams.get(name) || "";
   }
 
-  async function loadEmployeeMap() {
-    const rows = await getRowsByTitle(SHEETS.EMPLOYEE_MASTER);
-    const map = new Map();
+  function normalizeEmployees(rows) {
+    const m = new Map();
     rows.forEach(r => {
-      const id = pick(r, EMP_COL.id, '').toString().trim();
-      const nm = pick(r, EMP_COL.name, '').toString().trim();
-      if (id) map.set(id, nm);
+      const id = String(r["Position ID"] || r["Employee ID"] || "").trim();
+      if (!id) return;
+      m.set(id, {
+        id,
+        name: String(r["Display Name"] || r["Employee Name"] || "").trim() || id,
+        dept: String(r["Department"] || "").trim()
+      });
     });
-    return map;
+    return m;
   }
 
-  function parseMemberTokens(text) {
-    return String(text || '').split(/[,;\n]+/).map(s => s.trim()).filter(Boolean);
-  }
-
-  async function loadSquad() {
-    const byId = getParam('id');
-    const byName = getParam('name');
-
-    const rows = await getRowsByTitle(SHEETS.SQUADS);
-    let row = null;
-
-    if (byId) {
-      row = rows.find(r => String(pick(r,SQUAD_COL.id,'')).trim() === String(byId).trim());
-    }
-    if (!row && byName) {
-      const nameLC = String(byName).trim().toLowerCase();
-      row = rows.find(r => String(pick(r,SQUAD_COL.name,'')).trim().toLowerCase() === nameLC);
-    }
-    if (!row) {
-      throw new Error('Squad not found.');
-    }
-
+  function normalizeSquadRow(r) {
     return {
-      id:        pick(row, SQUAD_COL.id, ''),
-      name:      pick(row, SQUAD_COL.name, ''),
-      category:  pick(row, SQUAD_COL.category, 'Other'),
-      leaderId:  pick(row, SQUAD_COL.leaderId, ''),
-      objective: pick(row, SQUAD_COL.objective, ''),
-      active:    pick(row, SQUAD_COL.active, ''),
-      created:   pick(row, SQUAD_COL.created, ''),
-      notes:     pick(row, SQUAD_COL.notes, ''),
-      membersRaw:pick(row, SQUAD_COL.members, '')
+      id:        String(r["Squad ID"] || r["ID"] || "").trim(),
+      name:      String(r["Squad Name"] || r["Name"] || "").trim(),
+      category:  String(r["Category"] || "").trim(),
+      leaderId:  String(r["Squad Leader"] || "").trim(), // Employee ID
+      active:    String(r["Active"] || "").trim(),
+      objective: String(r["Objective"] || "").trim(),
+      notes:     String(r["Notes"] || "").trim(),
+      created:   r["Created Date"] || r["Created"] || ""
     };
   }
 
-  async function tryLoadJoinMembers(squadId) {
-    try {
-      // Only attempt if a sheet mapping exists
-      if (!SHEETS.SQUAD_MEMBERS) return null;
-      const rows = await getRowsByTitle(SHEETS.SQUAD_MEMBERS);
-      const mine = rows.filter(r => String(pick(r, JOIN_COL.squadId,'')).trim() === String(squadId).trim());
-      if (!mine.length) return []; // valid, just empty
-      return mine.map(r => ({
-        empId:  pick(r, JOIN_COL.empId, ''),
-        role:   pick(r, JOIN_COL.role, 'Member') || 'Member',
-        active: pick(r, JOIN_COL.active, ''),
-        start:  pick(r, JOIN_COL.start, '')
-      }));
-    } catch {
-      return null; // if fetch fails, fall back
-    }
+  function normalizeMemberRow(r) {
+    return {
+      squadId:   String(r["Squad ID"] || "").trim(),
+      empId:     String(r["Employee ID"] || "").trim(),
+      role:      String(r["Role"] || "Member").trim(),
+      active:    String(r["Active"] || "").trim(),
+      start:     r["Start Date"] || "",
+      end:       r["End Date"] || "",
+      notes:     String(r["Notes"] || "").trim(),
+    };
   }
 
-  function renderCore(squad, idToName) {
-    const core = document.getElementById('card-core');
-    const status = isTrue(squad.active)
-      ? `<span class="status-pill status-on">Active</span>`
-      : `<span class="status-pill status-off">Inactive</span>`;
+  async function userIsAdmin() {
+    const me = P.session.get();
+    const rows = await getRowsByTitle(SHEETS.EMPLOYEE_MASTER);
+    const r = rows.find(x =>
+      String(x["Position ID"] || x["Employee ID"] || "").trim() === String(me.employeeId || "").trim()
+    );
+    const flag = String(r?.["Is Admin?"] ?? r?.["Admin"] ?? r?.["Is Admin"] ?? "").toLowerCase();
+    return flag === "true" || flag === "yes" || flag === "1";
+  }
 
-    core.innerHTML = `
-      <h3>Squad</h3>
-      <div class="kv"><b>Name:</b> ${esc(squad.name)}</div>
-      <div class="kv"><b>Leader:</b> ${esc(idToName.get(squad.leaderId) || squad.leaderId || '-')}</div>
-      <div class="kv"><b>Status:</b> ${status}</div>
-      <div class="kv"><b>Category:</b> ${esc(squad.category)}</div>
-      <div class="kv"><b>Created:</b> ${esc(squad.created || '-')}</div>
+  // ---------- render ----------
+  function renderSkeleton(squad, leaderName) {
+    const title = squad?.name ? `Squad: ${esc(squad.name)}` : "Squad";
+    P.layout.setPageTitle(title);
+
+    const html = `
+      <div class="card" style="margin:12px 12px 0 12px; padding:12px;">
+        <div style="display:flex; gap:12px; align-items:center; justify-content:flex-end;">
+          <button id="btn-back" class="btn small">← Back</button>
+          <button id="btn-addmember" class="btn small" style="display:none;">＋ Add Member</button>
+        </div>
+      </div>
+
+      <div style="display:grid; gap:12px; grid-template-columns: 1.2fr 1fr 1fr; padding:12px;">
+        <div class="card">
+          <h3 style="margin-bottom:8px;">Squad</h3>
+          <div>Name: <strong>${esc(squad.name || "-")}</strong></div>
+          <div>Leader: <strong>${esc(leaderName || squad.leaderId || "-")}</strong></div>
+          <div>Status: ${boolPill(squad.active)}</div>
+          <div>Category: <strong>${esc(squad.category || "-")}</strong></div>
+          <div>Created: ${fmtDate(squad.created)}</div>
+        </div>
+
+        <div class="card">
+          <h3 style="margin-bottom:8px;">Objective</h3>
+          <div>${esc(squad.objective || "-")}</div>
+        </div>
+
+        <div class="card">
+          <h3 style="margin-bottom:8px;">Notes</h3>
+          <div>${esc(squad.notes || "-")}</div>
+        </div>
+      </div>
+
+      <div class="card" style="margin: 0 12px 12px 12px;">
+        <h3 style="margin-bottom:8px;">Members</h3>
+        <div class="table-scroll">
+          <table class="dashboard-table" id="squad-members-table">
+            <thead><tr>
+              <th>Member</th>
+              <th>Employee ID</th>
+              <th>Role</th>
+              <th>Status</th>
+              <th>Start</th>
+            </tr></thead>
+            <tbody data-hook="members.tbody"></tbody>
+          </table>
+        </div>
+      </div>
     `;
+    const content = document.querySelector(".content");
+    content.innerHTML = html;
+
+    byId("btn-back").onclick = () => history.length > 1 ? history.back() : (location.href = "squads.html");
   }
 
-  function renderTextCard(id, text) {
-    document.getElementById(id).innerHTML =
-      document.getElementById(id).innerHTML.replace('Loading…','') +
-      `<div class="kv">${esc(text || '-')}</div>`;
-  }
-
-  function renderMembersTable(members, idToName) {
-    const tb = document.querySelector('#members-table tbody');
-    if (!members || !members.length) {
-      tb.innerHTML = `<tr><td colspan="5" style="text-align:center;opacity:.7;">No members yet</td></tr>`;
-      return;
-    }
-    tb.innerHTML = members.map(m => {
-      const name = idToName.get(m.empId) || m.name || m.empId || '-';
-      const role = m.role || 'Member';
-      const active = isTrue(m.active)
-        ? `<span class="status-pill status-on">Active</span>`
-        : `<span class="status-pill status-off">Inactive</span>`;
+  function renderMembers(tbody, rows, employeesById) {
+    const html = rows.map(r => {
+      const p = employeesById.get(r.empId);
+      const name = p?.name || r.empId || "-";
       return `<tr>
         <td>${esc(name)}</td>
-        <td class="mono">${esc(m.empId || '-')}</td>
-        <td>${esc(role)}</td>
-        <td>${active}</td>
-        <td>${esc(m.start || '-')}</td>
+        <td class="mono">${esc(r.empId || "-")}</td>
+        <td>${rolePill(r.role)}</td>
+        <td>${boolPill(r.active)}</td>
+        <td>${fmtDate(r.start)}</td>
       </tr>`;
-    }).join('');
+    }).join("");
+    tbody.innerHTML = html || `<tr><td colspan="5" style="text-align:center;opacity:.7;">No members yet.</td></tr>`;
   }
 
-  document.addEventListener('DOMContentLoaded', async () => {
-    P.session.requireLogin();
-    P.layout.injectLayout();
+  // ---------- member picker (search Employee Master) ----------
+  function injectPickerStylesOnce() {
+    if (document.getElementById("pu-member-picker-css")) return;
+    const css = `
+      #pu-member-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:9999}
+      .pu-mp__sheet{width:min(720px,92vw);background:var(--card-bg,#1b2d2e);border:1px solid rgba(255,255,255,.08);border-radius:10px;box-shadow:0 12px 40px rgba(0,0,0,.4);padding:16px}
+      .pu-mp__head{display:flex;gap:12px;align-items:center;margin-bottom:10px}
+      .pu-mp__head h3{flex:0 0 auto;font-size:16px;margin:0}
+      .pu-mp__head h3 span{color:var(--accent,#00ffc6)}
+      .pu-mp__search{flex:1;padding:8px 10px;border-radius:6px;border:1px solid rgba(255,255,255,.12);background:#213331;color:#fff}
+      .pu-mp__list{max-height:52vh;overflow:auto;border:1px solid rgba(255,255,255,.06);border-radius:8px}
+      .pu-mp__row{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.06)}
+      .pu-mp__row:last-child{border-bottom:none}
+      .pu-mp__title{font-weight:600}
+      .pu-mp__meta{opacity:.75;font-size:12px}
+      .pu-mp__row:hover{background:rgba(255,255,255,.04)}
+      .pu-mp__actions{display:flex;justify-content:flex-end;margin-top:10px}
+    `;
+    const style = document.createElement("style");
+    style.id = "pu-member-picker-css";
+    style.textContent = css;
+    document.head.appendChild(style);
+  }
 
-    const idToName = await loadEmployeeMap();
-    let squad;
-    try {
-      squad = await loadSquad();
-    } catch (e) {
-      alert(e.message || 'Unable to load squad.');
-      location.href = 'squads.html';
+  function formatMMDDYYYY(d){
+    const mm = String(d.getMonth()+1).padStart(2,'0');
+    const dd = String(d.getDate()).padStart(2,'0');
+    const yy = d.getFullYear();
+    return `${mm}/${dd}/${yy}`;
+  }
+
+  function openPrefilledMemberForm({ squad, empId, role = "Member" }) {
+    if (!SQUAD_MEMBER_FORM_URL) {
+      alert("Add Member form URL is missing in squad-details.js");
+      return;
+    }
+    const qp = new URLSearchParams();
+    // IMPORTANT: these keys MUST match your Smartsheet form field titles exactly
+    qp.set("Squad ID", squad.id || "");
+    qp.set("Employee ID", empId || "");
+    qp.set("Role", role);
+    qp.set("Active", "true");
+    qp.set("Start Date", formatMMDDYYYY(new Date()));
+
+    const url = `${SQUAD_MEMBER_FORM_URL}?${qp.toString()}`;
+    window.open(url, "_blank", "noopener");
+  }
+
+  function openMemberPicker({ squad, employeesById, activeEmpIds, allowRoleOverride = false }) {
+    injectPickerStylesOnce();
+
+    const people = Array.from(employeesById.values())
+      .filter(p => p.name && p.id)
+      .sort((a,b) => a.name.localeCompare(b.name));
+
+    const overlay = document.createElement("div");
+    overlay.id = "pu-member-overlay";
+    overlay.innerHTML = `
+      <div class="pu-mp__sheet">
+        <div class="pu-mp__head">
+          <h3>Add member to <span>${esc(squad.name || squad.id)}</span></h3>
+          <input class="pu-mp__search" id="pu-mp-q" type="text" placeholder="Search name / department / ID…" />
+        </div>
+        <div id="pu-mp-list" class="pu-mp__list"></div>
+        <div class="pu-mp__actions">
+          ${allowRoleOverride ? `
+            <label style="margin-right:auto;display:flex;gap:6px;align-items:center;">
+              <input type="checkbox" id="pu-mp-leader"> Add as Leader
+            </label>` : ``}
+          <button id="pu-mp-cancel" class="btn small">Cancel</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const $q = byId("pu-mp-q");
+    const $list = byId("pu-mp-list");
+
+    const render = (term = "") => {
+      const t = term.trim().toLowerCase();
+      const list = (t
+        ? people.filter(p =>
+            p.name.toLowerCase().includes(t) ||
+            (p.dept||"").toLowerCase().includes(t) ||
+            p.id.toLowerCase().includes(t)
+          )
+        : people
+      ).slice(0, 200);
+
+      $list.innerHTML = list.map(p => {
+        const disabled = activeEmpIds.has(p.id);
+        return `<div class="pu-mp__row" data-id="${esc(p.id)}" data-disabled="${disabled ? '1' : ''}">
+          <div>
+            <div class="pu-mp__title">${esc(p.name)}</div>
+            <div class="pu-mp__meta">${esc(p.dept || "—")} • ${esc(p.id)}</div>
+          </div>
+          ${disabled
+            ? `<span class="pill pill--gray">Already a member</span>`
+            : `<button class="btn small">Select</button>`}
+        </div>`;
+      }).join("") || `<div class="pu-mp__row"><div class="pu-mp__meta" style="padding:10px;">No matches</div></div>`;
+    };
+
+    const close = () => overlay.remove();
+    $q.addEventListener("input", e => render(e.target.value));
+    overlay.addEventListener("click", e => {
+      if (e.target.id === "pu-mp-cancel" || e.target === overlay) { close(); return; }
+      const row = e.target.closest(".pu-mp__row");
+      if (!row) return;
+      if (row.getAttribute("data-disabled") === "1") return;
+      const empId = row.getAttribute("data-id");
+      const asLeader = allowRoleOverride && byId("pu-mp-leader")?.checked;
+      openPrefilledMemberForm({ squad, empId, role: asLeader ? "Leader" : "Member" });
+      close();
+    });
+    window.addEventListener("keydown", function escClose(ev){
+      if (ev.key === "Escape") { close(); window.removeEventListener("keydown", escClose); }
+    });
+
+    render();
+    $q.focus();
+  }
+
+  // ---------- boot ----------
+  document.addEventListener("DOMContentLoaded", async () => {
+    // ensure layout is present
+    P.layout?.injectLayout?.();
+
+    const squadId = getQueryParam("id");
+    if (!squadId) {
+      document.querySelector(".content").innerHTML = `<div class="card" style="margin:12px;">Missing squad id.</div>`;
       return;
     }
 
-    P.layout.setPageTitle(`Squad: ${squad.name}`);
-    await P.session.initHeader();
+    // load data
+    const [squadsRows, membersRows, employeeRows] = await Promise.all([
+      getRowsByTitle(SHEETS.SQUADS),
+      getRowsByTitle(SHEETS.SQUAD_MEMBERS),
+      getRowsByTitle(SHEETS.EMPLOYEE_MASTER),
+    ]);
 
-    // Top cards
-    renderCore(squad, idToName);
-    renderTextCard('card-objective', squad.objective);
-    renderTextCard('card-notes', squad.notes);
-
-    // Members: prefer join sheet; fall back to parsing the Members text field.
-    let members = await tryLoadJoinMembers(squad.id);
-    if (members === null) { // null means "join not configured or failed" → fallback
-      const tokens = parseMemberTokens(squad.membersRaw);
-      members = tokens.map(t => {
-        const id = t; // may actually be name; we’ll try both
-        const name = idToName.get(id) || t;
-        return { empId: idToName.has(id) ? id : '', name, role: 'Member', active: true, start: '' };
-      });
-      // Always include the leader at the top
-      if (squad.leaderId && !members.some(m => String(m.empId) === String(squad.leaderId))) {
-        members.unshift({ empId: squad.leaderId, name: idToName.get(squad.leaderId) || squad.leaderId, role: 'Leader', active: true, start: '' });
-      } else if (members.length) {
-        members[0].role = (members[0].role === 'Member') ? 'Leader' : members[0].role;
-      }
-    } else {
-      // Ensure leader shows as Leader if present
-      members = members.map(m => ({
-        ...m,
-        role: (squad.leaderId && String(m.empId) === String(squad.leaderId)) ? 'Leader' : (m.role || 'Member')
-      }));
-      // If join sheet exists but doesn't include the leader, prepend
-      if (squad.leaderId && !members.some(m => String(m.empId) === String(squad.leaderId))) {
-        members.unshift({ empId: squad.leaderId, role: 'Leader', active: true, start: '' });
-      }
+    const employeesById = normalizeEmployees(employeeRows);
+    const squadRow = squadsRows.find(r => String(r["Squad ID"] || r["ID"] || "").trim() === squadId);
+    if (!squadRow) {
+      document.querySelector(".content").innerHTML = `<div class="card" style="margin:12px;">Squad not found.</div>`;
+      return;
     }
+    const squad = normalizeSquadRow(squadRow);
+    const leaderName = employeesById.get(squad.leaderId)?.name;
 
-    renderMembersTable(members, idToName);
+    // render base
+    renderSkeleton(squad, leaderName);
 
-    // Wire buttons
-    document.getElementById('btn-back').addEventListener('click', () => {
-      if (document.referrer && /squads\.html/i.test(document.referrer)) history.back();
-      else location.href = 'squads.html';
-    });
-    document.getElementById('btn-addmember').addEventListener('click', () => {
-      alert('Add Member: wire to a form or in-page editor next. If you add SQUAD_MEMBERS to api.js, we can post directly.');
-    });
+    // render members
+    const activeMembers = membersRows
+      .map(normalizeMemberRow)
+      .filter(m => m.squadId === squad.id && String(m.active).toLowerCase() !== "false")
+      .sort((a,b) => {
+        // leader first, then name
+        const ra = (a.role || "").toLowerCase() === "leader" ? 0 : 1;
+        const rb = (b.role || "").toLowerCase() === "leader" ? 0 : 1;
+        if (ra !== rb) return ra - rb;
+        const na = employeesById.get(a.empId)?.name || a.empId;
+        const nb = employeesById.get(b.empId)?.name || b.empId;
+        return na.localeCompare(nb);
+      });
+
+    renderMembers(document.querySelector('[data-hook="members.tbody"]'), activeMembers, employeesById);
+
+    // permissions: only leader or admin sees Add Member
+    const me = P.session.get();
+    const amLeader = String(squad.leaderId || "").trim() === String(me.employeeId || "").trim();
+    const amAdmin = await userIsAdmin();
+
+    const addBtn = byId("btn-addmember");
+    if (amLeader || amAdmin) {
+      addBtn.style.display = "";
+      addBtn.onclick = () => {
+        const activeIds = new Set(activeMembers.map(m => m.empId));
+        openMemberPicker({
+          squad,
+          employeesById,
+          activeEmpIds: activeIds,
+          allowRoleOverride: amAdmin // admins can tick "Add as Leader"
+        });
+      };
+    } else {
+      addBtn.style.display = "none";
+    }
   });
-
-  window.PowerUp = P;
 })(window.PowerUp || {});
