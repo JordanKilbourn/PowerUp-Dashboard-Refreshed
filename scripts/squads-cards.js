@@ -1,10 +1,9 @@
 // scripts/squads-cards.js
 (function (PowerUp) {
-  const P = PowerUp || (PowerUp = {});
+  const P = PowerUp || (window.PowerUp = {});
   const { SHEETS, getRowsByTitle } = P.api;
 
-  const LINKS = { add: "", manage: "", activities: "" };
-
+  // Column maps
   const EMP_COL = { id: ['Position ID','Employee ID'], name: ['Display Name','Employee Name','Name'] };
   const SQUAD_COL = {
     id: ['Squad ID','ID'],
@@ -18,10 +17,10 @@
     notes: ['Notes','Description']
   };
 
+  const CATS = ['All','CI','Quality','Safety','Other'];
   const pick = (row, list, d='') => { for (const k of list) if (row[k]!=null && row[k]!=='' ) return row[k]; return d; };
   const dash = (v) => (v==null || String(v).trim()==='') ? '-' : String(v);
-  const isTrue = (v) => v === true || /^(true|yes|y|checked)$/i.test(String(v ?? "").trim());
-  const CATS = ['All','CI','Quality','Safety','Other'];
+  const isTrue = (v) => v === true || /^(true|yes|y|checked|1)$/i.test(String(v ?? "").trim());
 
   function normCategory(v) {
     const t = String(v || '').toLowerCase();
@@ -45,6 +44,7 @@
 
   let ALL = [];
   let idToName = new Map();
+  let IS_ADMIN = false;
 
   function renderCategoryPills(activeCat) {
     const wrap = document.getElementById('cat-pills');
@@ -60,7 +60,7 @@
     if (!list.length) {
       cards.innerHTML = '';
       msg.style.display = 'block';
-      msg.innerHTML = `No squads match your filters.<br/>Try toggling <b>My squads</b>, clearing search, or showing inactive.`;
+      msg.innerHTML = `No squads match your filters.<br/>Try clearing search or showing inactive.`;
       return;
     }
     msg.style.display = 'none';
@@ -70,7 +70,6 @@
         ? `<span class="status-pill status-on">Active</span>`
         : `<span class="status-pill status-off">Inactive</span>`;
       const leader = dash(sq.leaderName || sq.leaderId);
-      const objective = dash(sq.objective);
       const detailsHref = sq.id
         ? `squad-details.html?id=${encodeURIComponent(sq.id)}`
         : `squad-details.html?name=${encodeURIComponent(sq.name)}`;
@@ -80,7 +79,7 @@
           <h4>${dash(sq.name)}</h4>
           <div class="squad-meta"><b>Leader:</b> ${leader}</div>
           <div class="squad-meta"><b>Status:</b> ${status}</div>
-          <div class="squad-meta"><b>Focus:</b> ${objective}</div>
+          <div class="squad-meta"><b>Focus:</b> ${dash(sq.objective)}</div>
           <div class="squad-foot"><a class="squad-link" href="${detailsHref}">View Details →</a></div>
         </div>
       `;
@@ -90,9 +89,12 @@
   function applyFilters() {
     const session   = P.session.get();
     const cat       = document.querySelector('.pill.active')?.dataset.cat || 'All';
-    const myOnly    = document.getElementById('myOnly')?.checked;
+    let   myOnly    = document.getElementById('myOnly')?.checked;
     const activeOnly= document.getElementById('activeOnly')?.checked;
     const q         = (document.getElementById('search')?.value || '').trim().toLowerCase();
+
+    // Admins see all squads; ignore myOnly
+    if (IS_ADMIN) myOnly = false;
 
     let list = ALL.slice();
 
@@ -154,24 +156,35 @@
     document.getElementById('myOnly').addEventListener('change', applyFilters);
     document.getElementById('activeOnly').addEventListener('change', applyFilters);
     document.getElementById('search').addEventListener('input', applyFilters);
-
-    const linkOrAlert = (id, url, text) => {
-      const el = document.getElementById(id);
-      if (!el) return;
-      el.addEventListener('click', () => url ? window.open(url, '_blank','noopener') : alert(`${text} link not set.`));
-    };
-    linkOrAlert('btn-add', LINKS.add, 'Add New Squad');
-    linkOrAlert('btn-manage', LINKS.manage, 'Manage Squads');
-    linkOrAlert('btn-activities', LINKS.activities, 'View All Activities');
   }
 
   document.addEventListener('DOMContentLoaded', async () => {
     P.session.requireLogin();
     P.layout.injectLayout();
-    P.layout.setPageTitle('Squads');
+
+    // Admin mode?
+    IS_ADMIN = !!(P.auth && P.auth.isAdmin && P.auth.isAdmin());
+    P.layout.setPageTitle(IS_ADMIN ? 'Squads (Admin)' : 'Squads');
+
     await P.session.initHeader();
 
+    // Wire UI first
     wireUI();
+
+    // If admin, open filters up (show everything) and lock out the "My squads" switch
+    if (IS_ADMIN) {
+      const myOnly = document.getElementById('myOnly');
+      if (myOnly) {
+        myOnly.checked = false;
+        myOnly.disabled = true;
+        const label = myOnly.closest('label');
+        if (label) label.title = 'Disabled in Admin mode (showing all squads)';
+      }
+      const activeOnly = document.getElementById('activeOnly');
+      if (activeOnly) activeOnly.checked = false; // include inactive by default in admin mode
+    }
+
+    // Then load data
     await load();
     applyFilters();
   });
