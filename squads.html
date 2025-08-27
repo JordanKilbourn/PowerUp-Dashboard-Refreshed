@@ -12,64 +12,62 @@
   <link rel="preconnect" href="https://powerup-proxy.onrender.com" crossorigin>
 
   <style>
-    /* Page-local styles only (keeps your global theme) */
-
-    .squads-wrap {
-      display: grid;
-      grid-template-columns: 250px 1fr;   /* filter rail + main */
-      gap: 16px;
-      padding: 12px 14px 18px;
-    }
-
-    /* Filter rail */
-    .squads-rail {
+    /* ---------- Filter toolbar (the top stripe) ---------- */
+    .filter-toolbar {
+      position: sticky;
+      top: calc(var(--header-h, 64px) + 6px);  /* hugs the header divider */
+      z-index: 5;
       background: var(--card-bg);
       border: 1px solid #2d3f3f;
       border-radius: 8px;
-      padding: 12px;
-      height: fit-content;
-      position: sticky;
-      top: calc(var(--header-h, 64px) + 12px);
+      margin: 8px 14px 12px 14px;
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap; /* wrap gracefully on smaller screens */
     }
-    .srail-title { font-weight: 700; margin-bottom: 8px; color: var(--accent); }
-    .pill-group { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+    .ft-left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .ft-right { margin-left: auto; display:flex; gap:10px; }
+
+    .pill-group { display:flex; gap:8px; }
     .pill {
       padding: 6px 10px; border-radius: 999px; border: 1px solid #345; cursor: pointer;
       background: #162425; color: var(--text); font-size: 13px;
     }
-    .pill.active { border-color: var(--accent); color: #000; background: var(--accent); font-weight: 700; }
+    .pill.active { border-color: var(--accent); color:#000; background: var(--accent); font-weight:700; }
 
-    .toggle { display: flex; align-items: center; gap: 8px; margin: 8px 0; font-size: 13px; }
-    .toggle input { width: 18px; height: 18px; }
-    .rail-search { margin-top: 10px; }
-    .rail-search input {
-      width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid #2d3f3f;
+    .toggle { display:flex; align-items:center; gap:6px; font-size:13px; }
+    .toggle input { width:18px; height:18px; }
+
+    .ft-search input {
+      width: 260px; max-width: 100%;
+      padding: 8px 10px; border-radius: 6px; border: 1px solid #2d3f3f;
       background: #122; color: var(--text);
     }
 
-    /* Actions row */
-    .squads-actions { display:flex; gap:10px; justify-content:flex-end; margin-bottom:12px; }
-    .squads-actions .btn {
+    .btn {
       padding:8px 12px; border-radius:6px; border:1px solid var(--accent);
       background:var(--card-bg); color:var(--text); cursor:pointer;
     }
-    .squads-actions .btn:hover { background: var(--card-bg-hover); }
+    .btn:hover { background: var(--card-bg-hover); }
 
-    /* Cards grid (left-aligned, fixed max card width) */
+    /* ---------- Main content ---------- */
+    .squads-main { padding: 0 14px 14px; }
+
+    .section-h {
+      font-size: 18px; font-weight: 700; color: var(--accent);
+      margin: 2px 0 10px 0;
+    }
+
+    /* Left-aligned card grid with fixed max width per card */
     .cards-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(360px, 420px)); /* <= fixed, never stretches */
+      grid-template-columns: repeat(auto-fill, minmax(360px, 420px));
       gap: 16px;
       justify-content: start; /* keep grid aligned to the left */
     }
 
-    /* Section header inside main */
-    .section-h {
-      font-size: 18px; font-weight: 700; color: var(--accent);
-      margin: 0 0 8px 0;
-    }
-
-    /* Card styling */
     .squad-card.card { padding: 12px 14px; }
     .squad-card h4 { font-size: 16px; color: #9ffbe6; margin-bottom: 6px; }
     .squad-meta { font-size: 13px; color: var(--text); }
@@ -81,47 +79,43 @@
     .status-on  { background: var(--success); color:#000; }
     .status-off { background: #3a4e4e; color:#fff; }
 
-    /* Empty state */
     .empty {
       background: var(--card-bg); border: 1px dashed #2d3f3f; border-radius: 8px;
       padding: 16px; color: var(--info);
     }
 
-    @media (max-width: 980px) {
-      .squads-wrap { grid-template-columns: 1fr; }
-      .squads-rail { position: static; }
+    @media (max-width: 860px) {
+      .ft-right { width: 100%; justify-content: flex-end; }
+      .ft-search input { width: 100%; }
     }
   </style>
 </head>
 <body>
   <!-- layout.js injects the shell; everything below becomes .content -->
-  <div class="squads-wrap">
-    <!-- Filter rail -->
-    <aside class="squads-rail">
-      <div class="srail-title">Filters</div>
-      <div class="pill-group" id="cat-pills">
-        <!-- JS: All, CI, Quality, Safety, Other -->
-      </div>
+
+  <!-- Top filter stripe -->
+  <div class="filter-toolbar">
+    <div class="ft-left">
+      <div class="pill-group" id="cat-pills"><!-- JS renders All/CI/Quality/Safety/Other --></div>
       <label class="toggle"><input type="checkbox" id="myOnly" checked /> My squads</label>
       <label class="toggle"><input type="checkbox" id="activeOnly" /> Active only</label>
-      <div class="rail-search">
+      <div class="ft-search">
         <input id="search" type="search" placeholder="Search name, leader, focus…" />
       </div>
-    </aside>
-
-    <!-- Main column -->
-    <main class="squads-main">
-      <div class="squads-actions">
-        <button id="btn-add" class="btn"><i class="fa fa-plus"></i> Add New Squad</button>
-        <button id="btn-manage" class="btn"><i class="fa fa-table-list"></i> Manage Squads</button>
-        <button id="btn-activities" class="btn"><i class="fa fa-list-check"></i> View All Activities</button>
-      </div>
-
-      <h2 class="section-h">Squads Overview</h2>
-      <div id="cards" class="cards-grid"></div>
-      <div id="s-msg" class="empty" style="display:none;"></div>
-    </main>
+    </div>
+    <div class="ft-right">
+      <button id="btn-add" class="btn"><i class="fa fa-plus"></i> Add New Squad</button>
+      <button id="btn-manage" class="btn"><i class="fa fa-table-list"></i> Manage Squads</button>
+      <button id="btn-activities" class="btn"><i class="fa fa-list-check"></i> View All Activities</button>
+    </div>
   </div>
+
+  <!-- Main grid -->
+  <main class="squads-main">
+    <h2 class="section-h">Squads Overview</h2>
+    <div id="cards" class="cards-grid"></div>
+    <div id="s-msg" class="empty" style="display:none;"></div>
+  </main>
 
   <script src="scripts/api.js"></script>
   <script src="scripts/session.js"></script>
