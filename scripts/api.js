@@ -3,7 +3,7 @@
   const P = PowerUp || (PowerUp = {});
   const API_BASE = "https://powerup-proxy.onrender.com";
 
-  // ✅ Smartsheet IDs
+  // ✅ Smartsheet IDs (unchanged)
   const SHEETS = {
     EMPLOYEE_MASTER: "2195459817820036",
     POWER_HOUR_GOALS: "3542697273937796",
@@ -15,9 +15,22 @@
   };
 
   // ---------- caches ----------
-  const _rawCache  = new Map();  // id -> raw sheet json
-  const _inflight  = new Map();  // id -> Promise
-  const _rowsCache = new Map();  // id -> [{title:value,...}]
+  const _rawCache  = new Map();  // id -> raw sheet json (in-memory)
+  const _inflight  = new Map();  // id -> Promise (dedupe concurrent)
+  const _rowsCache = new Map();  // id -> [{title:value,...}] (in-memory)
+
+  // ---- persistent (session) cache with TTL ----
+  const STORE_KEY   = "pu.sheetCache.v1";      // bump if schema changes
+  const SHEET_TTL_MS = 5 * 60 * 1000;          // 5 minutes
+
+  function loadStore() {
+    try { return JSON.parse(sessionStorage.getItem(STORE_KEY) || "{}"); }
+    catch { return {}; }
+  }
+  function saveStore(obj) {
+    try { sessionStorage.setItem(STORE_KEY, JSON.stringify(obj || {})); }
+    catch {}
+  }
 
   // ---------- utils ----------
   function resolveSheetId(sheetIdOrKey) {
@@ -27,7 +40,7 @@
   }
 
   function assertValidId(id, hint) {
-    if (!id || id.toLowerCase() === "undefined" || id.toLowerCase() === "null") {
+    if (!id || String(id).toLowerCase() === "undefined" || String(id).toLowerCase() === "null") {
       const mapping = Object.entries(SHEETS).map(([k,v]) => `${k}: ${v || "MISSING"}`).join(" | ");
       console.error("Missing Smartsheet ID", { hint, id, mapping });
       throw new Error("Missing Smartsheet ID (see console for mapping).");
@@ -43,10 +56,19 @@
       (r.cells || []).forEach(cell => {
         const t = colTitleById[cell.columnId];
         if (!t) return;
-        o[t] = cell.displayValue ?? cell.value ?? "";
+        o[t] = (cell.displayValue !== undefined ? cell.displayValue : cell.value) ?? "";
       });
       return o;
     });
+  }
+
+  async function fetchJSON(url) {
+    const res = await fetch(url, { credentials: "omit", cache: "no-store" });
+    if (!res.ok) {
+      let detail = ""; try { detail = await res.text(); } catch {}
+      throw new Error(`Proxy error ${res.status} for ${url}${detail ? `: ${detail}` : ""}`);
+    }
+    return res.json();
   }
 
   // ---------- core fetchers ----------
@@ -54,19 +76,33 @@
     const id = resolveSheetId(sheetIdOrKey);
     assertValidId(id, `fetchSheet(${String(sheetIdOrKey)})`);
 
+    // in-memory fast path
     if (!force) {
-      if (_rawCache.has(id))   return _rawCache.get(id);
-      if (_inflight.has(id))   return _inflight.get(id);
+      if (_rawCache.has(id)) return _rawCache.get(id);
+      if (_inflight.has(id)) return _inflight.get(id);
     }
 
-    const p = (async () => {
-      const res = await fetch(`${API_BASE}/sheet/${id}`, { credentials: "omit" });
-      if (!res.ok) {
-        let detail = ""; try { detail = await res.text(); } catch {}
-        throw new Error(`Proxy error ${res.status} for sheet ${id}${detail ? `: ${detail}` : ""}`);
+    // sessionStorage TTL cache
+    if (!force) {
+      const store = loadStore();
+      const hit = store[id];
+      const now = Date.now();
+      if (hit && (now - (hit.ts || 0)) < SHEET_TTL_MS && hit.data) {
+        _rawCache.set(id, hit.data);   // promote to memory
+        return hit.data;
       }
-      const json = await res.json();
+    }
+
+    // network (deduped)
+    const p = (async () => {
+      const json = await fetchJSON(`${API_BASE}/sheet/${id}`);
       _rawCache.set(id, json);
+
+      // write-through to session store
+      const store = loadStore();
+      store[id] = { ts: Date.now(), data: json };
+      saveStore(store);
+
       _inflight.delete(id);
       return json;
     })();
@@ -80,6 +116,7 @@
     assertValidId(id, `getRowsByTitle(${String(sheetIdOrKey)})`);
 
     if (!force && _rowsCache.has(id)) return _rowsCache.get(id);
+
     const raw  = await fetchSheet(id, { force });
     const rows = rowsByTitle(raw);
     _rowsCache.set(id, rows);
@@ -88,10 +125,17 @@
 
   function clearCache(sheetIdOrKey) {
     if (!sheetIdOrKey) {
-      _rawCache.clear(); _inflight.clear(); _rowsCache.clear(); return;
+      _rawCache.clear(); _inflight.clear(); _rowsCache.clear();
+      saveStore({}); // nuke session cache
+      return;
     }
     const id = resolveSheetId(sheetIdOrKey);
-    _rawCache.delete(id); _inflight.delete(id); _rowsCache.delete(id);
+    _rawCache.delete(id);
+    _inflight.delete(id);
+    _rowsCache.delete(id);
+
+    const store = loadStore();
+    if (store[id]) { delete store[id]; saveStore(store); }
   }
 
   function toNumber(x) {
