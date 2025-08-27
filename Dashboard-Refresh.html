@@ -193,8 +193,8 @@
         // 2) Inject the shared shell (sidebar + header) once per page
         PowerUp.layout.injectLayout();
 
-        // 3) Force the header H1 to exactly "PowerUp"
-        PowerUp.layout.setPageTitle('PowerUp');
+        // 3) Force the header H1
+        PowerUp.layout.setPageTitle(document.title || 'PowerUp — Dashboard');
 
         // 4) Now that header elements exist, wire user name & level + logout
         await PowerUp.session.initHeader();
@@ -245,6 +245,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 </body>
 </html>
+
 
 
 
