@@ -7,8 +7,8 @@
   <link href="style.css" rel="stylesheet" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
   <link rel="preconnect" href="https://powerup-proxy.onrender.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
 </head>
 <body>
   <!-- Layout is injected; this block becomes .content -->
@@ -54,7 +54,7 @@
     <div class="card" style="margin: 0 0 10px; display:flex; gap:18px; flex-wrap:wrap; align-items:center;">
       <div>Sessions: <strong id="m-sessions">0</strong></div>
       <div>Hours (filtered): <strong id="m-hours">0.00</strong></div>
-      <div>Upcoming scheduled: <strong id="m-sched">0</strong></div>
+      <div>Upcoming scheduled: <strong id="m-sched">0</strong> / <strong id="m-sched-hours">0.00</strong> h</div>
     </div>
 
     <!-- Table -->
@@ -93,7 +93,9 @@
       date: ['Date','Session Date','Power Hour Date'],
       start: ['Start Time','Start'],
       end: ['End Time','End'],
-      completedHours: ['Completed Hours','Hours','Duration (h)'],
+      completedHours: ['Completed Hours','Hours','Duration (h)','Duration (hrs)'], // for completed
+      // separate alias list for planned/scheduled duration
+      durationPlanned: ['Duration (hrs)','Duration (h)','Duration','Planned Hours','Scheduled Hours'],
       scheduled: ['Scheduled','Is Scheduled?','Planned'],
       completed: ['Completed','Is Completed?','Done'],
       topic: ['Topic','Description','Notes']
@@ -182,6 +184,7 @@
         document.getElementById('m-hours').textContent = '0.00';
         document.getElementById('m-sessions').textContent = '0';
         document.getElementById('m-sched').textContent = '0';
+        document.getElementById('m-sched-hours').textContent = '0.00';
         return;
       }
 
@@ -208,16 +211,24 @@
       const totalHrs = state.view.reduce((a,r)=> a + toNum(pick(r, COLS.completedHours, 0)), 0);
       const sessions = state.view.length;
 
-      // Upcoming scheduled (from ALL rows)
+      // Upcoming scheduled: from ALL rows (not just filtered)
       const now = new Date();
-      const upcomingCount = state.all.filter(r=>{
+      const upcoming = state.all.filter(r=>{
         const d = parseDateLocal(pick(r, COLS.date));
-        return isTrue(pick(r, COLS.scheduled)) && d && d >= now && !isTrue(pick(r, COLS.completed));
-      }).length;
+        const scheduled = isTrue(pick(r, COLS.scheduled));
+        const completed = isTrue(pick(r, COLS.completed));
+        return scheduled && !completed && d && d >= now;
+      });
+      const upcomingCount = upcoming.length;
+      const upcomingHours = upcoming.reduce((sum, r) => {
+        const dur = pick(r, COLS.durationPlanned, 0); // prefer Duration (hrs)
+        return sum + toNum(dur);
+      }, 0);
 
       document.getElementById('m-hours').textContent = totalHrs.toFixed(2);
       document.getElementById('m-sessions').textContent = sessions;
       document.getElementById('m-sched').textContent = String(upcomingCount);
+      document.getElementById('m-sched-hours').textContent = upcomingHours.toFixed(2);
     }
 
     function wireSort() {
@@ -281,7 +292,7 @@
         return d && (d.getMonth()+1) === thisMonth && d.getFullYear() === now.getFullYear();
       });
 
-      const monthCompleted = rowsThisMonth.reduce((s, r) => s + num(r["Completed Hours"] || r["Hours"] || r["Duration (h)"]), 0);
+      const monthCompleted = rowsThisMonth.reduce((s, r) => s + num(r["Completed Hours"] || r["Hours"] || r["Duration (h)"] || r["Duration (hrs)"]), 0);
 
       const track  = document.querySelector('[data-hook="ph.track"]');
       const fill   = document.querySelector('[data-hook="ph.fill"]');
@@ -344,6 +355,7 @@
       if (sel) sel.addEventListener('change', applyRange);
       if (btn) btn.addEventListener('click', async () => {
         btn.disabled = true;
+        // Clear relevant caches then reload fresh
         PowerUp.api.clearCache(PowerUp.api.SHEETS.POWER_HOURS);
         PowerUp.api.clearCache(PowerUp.api.SHEETS.POWER_HOUR_GOALS);
         await load();
