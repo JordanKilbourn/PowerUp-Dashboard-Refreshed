@@ -5,10 +5,12 @@
   <title>PowerUp — Power Hours</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link href="style.css" rel="stylesheet" />
+  <!-- Match Dashboard FA include so icon sizing is identical -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="preconnect" href="https://powerup-proxy.onrender.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="preconnect" href="https://powerup-proxy.onrender.com" crossorigin>
 </head>
 <body>
   <!-- Layout is injected; this block becomes .content -->
@@ -34,7 +36,7 @@
     <div class="table-header-row" style="margin: 8px 0 10px;">
       <h3 style="font-size:16px;">Your Power Hour Sessions</h3>
       <div class="table-header-controls" style="margin-left:auto; gap:8px;">
-        <label class="muted" for="range">Range:</label>
+        <label class="muted" for="range">Date Range</label>
         <select id="range">
           <option value="this-month">This Month</option>
           <option value="last-month">Last Month</option>
@@ -46,14 +48,13 @@
           <option value="next-90">Next 90 Days</option>
           <option value="all">All</option>
         </select>
-        <button id="refresh" class="btn small">Refresh</button>
       </div>
     </div>
 
     <!-- Metrics strip -->
     <div class="card" style="margin: 0 0 10px; display:flex; gap:18px; flex-wrap:wrap; align-items:center;">
       <div>Sessions: <strong id="m-sessions">0</strong></div>
-      <div>Hours (filtered): <strong id="m-hours">0.00</strong></div>
+      <div>Hours: <strong id="m-hours">0.00</strong></div>
       <div>Upcoming scheduled: <strong id="m-sched">0</strong> / <strong id="m-sched-hours">0.00</strong> h</div>
     </div>
 
@@ -81,7 +82,6 @@
   </div>
 
   <!-- ===== JS ===== -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/js/all.min.js" defer></script>
   <script src="scripts/api.js"></script>
   <script src="scripts/session.js"></script>
   <script src="scripts/layout.js"></script>
@@ -93,8 +93,7 @@
       date: ['Date','Session Date','Power Hour Date'],
       start: ['Start Time','Start'],
       end: ['End Time','End'],
-      completedHours: ['Completed Hours','Hours','Duration (h)','Duration (hrs)'], // for completed
-      // separate alias list for planned/scheduled duration
+      completedHours: ['Completed Hours','Hours','Duration (h)','Duration (hrs)'],
       durationPlanned: ['Duration (hrs)','Duration (h)','Duration','Planned Hours','Scheduled Hours'],
       scheduled: ['Scheduled','Is Scheduled?','Planned'],
       completed: ['Completed','Is Completed?','Done'],
@@ -220,10 +219,7 @@
         return scheduled && !completed && d && d >= now;
       });
       const upcomingCount = upcoming.length;
-      const upcomingHours = upcoming.reduce((sum, r) => {
-        const dur = pick(r, COLS.durationPlanned, 0); // prefer Duration (hrs)
-        return sum + toNum(dur);
-      }, 0);
+      const upcomingHours = upcoming.reduce((sum, r) => sum + toNum(pick(r, COLS.durationPlanned, 0)), 0);
 
       document.getElementById('m-hours').textContent = totalHrs.toFixed(2);
       document.getElementById('m-sessions').textContent = sessions;
@@ -260,7 +256,16 @@
       renderTable();
     }
 
-    // Mini progress card (this month only)
+    // ---- Match dashboard logic for goals (normalize "Level 1" -> "L1") ----
+    function normalizeLevel(val) {
+      const s = String(val || "").toUpperCase();
+      const m = s.match(/(\d+)/);
+      if (m) return `L${m[1]}`;
+      if (/^L\d+$/.test(s)) return s;
+      return "";
+    }
+
+    // Mini progress card (this month only) — now identical to dashboard logic
     async function hydrateMiniProgress() {
       const { fetchSheet, rowsByTitle, SHEETS } = PowerUp.api;
       const { employeeId } = PowerUp.session.get();
@@ -278,9 +283,12 @@
       const me = emSheet.find(r =>
         String(r["Employee ID"] || r["Position ID"] || "").trim() === String(employeeId).trim()
       );
-      const lvlKey = String(me?.["PowerUp Level (Select)"] || me?.["PowerUp Level"] || "").trim().toUpperCase();
+      const lvlKey = normalizeLevel(me?.["PowerUp Level (Select)"] || me?.["PowerUp Level"]);
 
-      const goalRow = goalsSheet.find(g => String(g["Level"] || "").trim().toUpperCase() === lvlKey);
+      const goalRow = goalsSheet.find(g =>
+        String(g["Level"] || "").toUpperCase() === String(lvlKey).toUpperCase()
+      );
+
       const min = num(goalRow?.["Min Hours"]) || 8;
       const max = num(goalRow?.["Max Hours"]) || min;
 
@@ -333,7 +341,7 @@
         const high = daysLeft <= 2 || paceMin >= 2;
         const med  = daysLeft <= 5 || paceMin >= 1;
         tone = high ? 'urgent' : (med ? 'warn' : 'ok');
-        const prefix = high ? '⏳' : (med ? '⚡' : '👉');
+        const prefix = high ? '⏳' : '👉';
         text = `${prefix} ${remainMin.toFixed(1)}h left to hit minimum (${min}h).`;
         if (daysLeft > 0) text += ` ~${paceMin.toFixed(1)}h/day for ${daysLeft} day${daysLeft!==1?'s':''}.`;
       }
@@ -351,16 +359,8 @@
 
     function bindControls() {
       const sel = document.getElementById('range');
-      const btn = document.getElementById('refresh');
       if (sel) sel.addEventListener('change', applyRange);
-      if (btn) btn.addEventListener('click', async () => {
-        btn.disabled = true;
-        // Clear relevant caches then reload fresh
-        PowerUp.api.clearCache(PowerUp.api.SHEETS.POWER_HOURS);
-        PowerUp.api.clearCache(PowerUp.api.SHEETS.POWER_HOUR_GOALS);
-        await load();
-        btn.disabled = false;
-      });
+      // (Refresh button removed)
     }
 
     document.addEventListener('DOMContentLoaded', async () => {
