@@ -252,7 +252,7 @@ window.PowerUp = window.PowerUp || {};
     });
 
     // If you want an initial arrow on first column, uncomment:
-    // applyIndicators();
+    applyIndicators();
   }
 
   // === Filtering (operates on rendered rows using friendly header to find the column) ===
