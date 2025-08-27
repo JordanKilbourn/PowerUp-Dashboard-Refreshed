@@ -8,44 +8,68 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="preconnect" href="https://powerup-proxy.onrender.com" crossorigin>
 </head>
 <body>
-  <div class="page-wrap">
-    <div class="header-row">
-      <div>
-        <div class="title">Power Hours</div>
-        <div class="muted">Signed in as <span data-hook="userName">—</span> · <span data-hook="userLevel">—</span></div>
+  <!-- Layout is injected; this block becomes .content -->
+  <div class="content-inner" style="padding: 12px 14px 16px;">
+
+    <!-- Mini progress card -->
+    <div class="card power-card" style="max-width:600px; margin-bottom: 14px;">
+      <h3 style="margin-bottom:8px;">Power Hours — This Month</h3>
+
+      <div class="phbar" data-hook="ph.track" role="progressbar" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0">
+        <div class="phbar__fill below" data-hook="ph.band" style="position:absolute;top:0;height:100%;left:0;width:0%;opacity:.28;"></div>
+        <div class="phbar__fill" data-hook="ph.fill" style="width:0%;"></div>
+        <div class="phbar__thumb" data-hook="ph.thumb" style="left:0%;"></div>
+      </div>
+
+      <div style="display:flex; gap:12px; align-items:center; margin-top:10px; font-size:14px;">
+        <div><strong><span data-hook="ph.total">0.0</span></strong> / <span data-hook="ph.goalMax">0</span> h</div>
+        <span class="ph-msg ok" data-hook="ph.message"></span>
       </div>
     </div>
 
-    <div class="filters">
-      <label class="muted">Range:</label>
-      <select id="range">
-        <option value="this-month">This Month</option>
-        <option value="last-3">Last 3 Months</option>
-        <option value="all">All</option>
-      </select>
-      <button id="refresh">Refresh</button>
+    <!-- Filters -->
+    <div class="table-header-row" style="margin: 8px 0 10px;">
+      <h3 style="font-size:16px;">Your Power Hour Sessions</h3>
+      <div class="table-header-controls" style="margin-left:auto; gap:8px;">
+        <label class="muted" for="range">Range:</label>
+        <select id="range">
+          <option value="this-month">This Month</option>
+          <option value="last-month">Last Month</option>
+          <option value="last-3">Last 3 Months</option>
+          <option value="last-6">Last 6 Months</option>
+          <option value="this-quarter">This Quarter</option>
+          <option value="ytd">Year to Date</option>
+          <option value="next-month">Next Month</option>
+          <option value="next-90">Next 90 Days</option>
+          <option value="all">All</option>
+        </select>
+        <button id="refresh" class="btn small">Refresh</button>
+      </div>
     </div>
 
-    <div class="metrics">
-      <div class="metric">Completed Hours: <strong><span id="m-hours">0</span></strong></div>
-      <div class="metric">Sessions: <strong><span id="m-sessions">0</span></strong></div>
-      <div class="metric">Scheduled (upcoming): <strong><span id="m-sched">0</span></strong></div>
+    <!-- Metrics strip -->
+    <div class="card" style="margin: 0 0 10px; display:flex; gap:18px; flex-wrap:wrap; align-items:center;">
+      <div>Sessions: <strong id="m-sessions">0</strong></div>
+      <div>Hours (filtered): <strong id="m-hours">0.00</strong></div>
+      <div>Upcoming scheduled: <strong id="m-sched">0</strong></div>
     </div>
 
-    <div class="table-card">
+    <!-- Table -->
+    <div class="card table-card">
       <div class="table-scroll">
-        <table id="tbl">
+        <table id="ph-table" class="dashboard-table">
           <thead>
             <tr>
-              <th data-k="Date">Date</th>
-              <th data-k="Start">Start</th>
-              <th data-k="End">End</th>
-              <th class="right" data-k="Completed Hours">Completed Hours</th>
-              <th data-k="Scheduled">Scheduled</th>
-              <th data-k="Completed">Completed</th>
-              <th data-k="Topic">Topic</th>
+              <th data-k="Date" data-sort="none">Date</th>
+              <th data-k="Start" data-sort="none">Start</th>
+              <th data-k="End" data-sort="none">End</th>
+              <th class="t-right" data-k="Completed Hours" data-sort="none">Completed Hours</th>
+              <th data-k="Scheduled" data-sort="none">Scheduled</th>
+              <th data-k="Completed" data-sort="none">Completed</th>
+              <th data-k="Topic" data-sort="none">Topic</th>
             </tr>
           </thead>
           <tbody id="rows">
@@ -63,7 +87,7 @@
   <script src="scripts/layout.js"></script>
 
   <script>
-    // ---- column name map (adjust if your titles differ) ----
+    // ---- Column map ----
     const COLS = {
       employeeId: ['Employee ID','Position ID'],
       date: ['Date','Session Date','Power Hour Date'],
@@ -75,9 +99,23 @@
       topic: ['Topic','Description','Notes']
     };
 
-    const pick = (row, list, d='') => { for (const k of list) if (row[k]!=null && row[k]!=='') return row[k]; return d; };
-    const isTrue = (v) => String(v).toLowerCase()==='true' || v===true || String(v).toLowerCase()==='yes';
-    const parseDate = (v)=>{ const d=new Date(v); return isNaN(d)?null:d; };
+    // ---- Helpers ----
+    const pick = (row, list, d='') => { for (const k of list) if (row[k]!=null && row[k]!=='' ) return row[k]; return d; };
+    const isTrue = (v) => v === true || /^(true|yes|y|checked)$/i.test(String(v ?? "").trim());
+    const toNum  = PowerUp.api.toNumber;
+    const fmt    = (v) => (v==null || String(v).trim()==='') ? '-' : String(v);
+
+    // Local-date parse (prevents UTC drift on "YYYY-MM-DD")
+    function parseDateLocal(s){
+      if (s==null || s==='') return null;
+      const t = String(s).trim();
+      let m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+      if (m) return new Date(+m[1], +m[2]-1, +m[3]);
+      m = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/);
+      if (m){ let y=+m[3]; if (y<100) y+=2000; return new Date(y, +m[1]-1, +m[2]); }
+      const d = new Date(t);
+      return isNaN(d) ? null : d;
+    }
 
     const state = { all: [], view: [] };
 
@@ -86,82 +124,209 @@
       return rid === (empId+'').trim();
     }
 
+    // Range helpers
+    function firstOfMonth(y, m){ return new Date(y, m, 1); }
+    function lastOfMonth(y, m){ return new Date(y, m+1, 0, 23,59,59,999); }
+
+    function getRangeBounds(kind){
+      const now = new Date();
+      const y = now.getFullYear(), m = now.getMonth();
+      const todayEnd = new Date(y, m, now.getDate(), 23,59,59,999);
+
+      switch (kind) {
+        case 'this-month':
+          return { start: firstOfMonth(y, m), end: todayEnd };
+        case 'last-month': {
+          const lm = m-1, ly = lm<0 ? y-1 : y, lmm = (lm+12)%12;
+          return { start: firstOfMonth(ly, lmm), end: lastOfMonth(ly, lmm) };
+        }
+        case 'last-3':
+          return { start: firstOfMonth(y, m-2), end: todayEnd };
+        case 'last-6':
+          return { start: firstOfMonth(y, m-5), end: todayEnd };
+        case 'this-quarter': {
+          const qStartMonth = Math.floor(m/3)*3;
+          return { start: firstOfMonth(y, qStartMonth), end: todayEnd };
+        }
+        case 'ytd':
+          return { start: new Date(y, 0, 1), end: todayEnd };
+        case 'next-month': {
+          const nm = m+1, ny = nm>11 ? y+1 : y, nmm = nm%12;
+          return { start: firstOfMonth(ny, nmm), end: lastOfMonth(ny, nmm) };
+        }
+        case 'next-90': {
+          const start = new Date(y, m, now.getDate());
+          const end = new Date(start); end.setDate(end.getDate()+89); end.setHours(23,59,59,999);
+          return { start, end };
+        }
+        case 'all':
+        default:
+          return { start: null, end: null };
+      }
+    }
+
     function withinRange(row, range) {
       if (range === 'all') return true;
-      const d = parseDate(pick(row, COLS.date));
+      const d = parseDateLocal(pick(row, COLS.date));
       if (!d) return false;
-      const now = new Date();
-      const firstOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-      if (range === 'this-month') return d >= firstOfThisMonth && d <= now;
-      if (range === 'last-3') {
-        const start = new Date(now.getFullYear(), now.getMonth()-2, 1);
-        return d >= start && d <= now;
-      }
+      const { start, end } = getRangeBounds(range);
+      if (start && d < start) return false;
+      if (end && d > end) return false;
       return true;
     }
 
-    function render() {
+    function renderTable() {
       const tb = document.getElementById('rows');
       if (!state.view.length) {
         tb.innerHTML = `<tr><td colspan="7" class="muted" style="text-align:center;padding:20px;">No rows</td></tr>`;
-      } else {
-        tb.innerHTML = state.view.map(r => {
-          const dt = pick(r, COLS.date);
-          const st = pick(r, COLS.start);
-          const en = pick(r, COLS.end);
-          const hrs = PowerUp.api.toNumber(pick(r, COLS.completedHours, 0)).toFixed(2);
-          const sch = isTrue(pick(r, COLS.scheduled)) ? `<span class="pill pill--blue">Scheduled</span>` : '';
-          const cmp = isTrue(pick(r, COLS.completed)) ? `<span class="pill pill--green">Completed</span>` : '';
-          const tp = pick(r, COLS.topic);
-          return `<tr>
-            <td>${dt || ''}</td>
-            <td>${st || ''}</td>
-            <td>${en || ''}</td>
-            <td class="right">${hrs}</td>
-            <td>${sch}</td>
-            <td>${cmp}</td>
-            <td>${tp || ''}</td>
-          </tr>`;
-        }).join('');
+        document.getElementById('m-hours').textContent = '0.00';
+        document.getElementById('m-sessions').textContent = '0';
+        document.getElementById('m-sched').textContent = '0';
+        return;
       }
-      const totalHrs = state.view.reduce((a,r)=> a + PowerUp.api.toNumber(pick(r, COLS.completedHours, 0)), 0);
+
+      tb.innerHTML = state.view.map(r => {
+        const dt  = fmt(pick(r, COLS.date));
+        const st  = fmt(pick(r, COLS.start));
+        const en  = fmt(pick(r, COLS.end));
+        const hrs = toNum(pick(r, COLS.completedHours, 0)).toFixed(2);
+        const sch = isTrue(pick(r, COLS.scheduled)) ? `<span class="pill pill--blue">Scheduled</span>` : '-';
+        const cmp = isTrue(pick(r, COLS.completed)) ? `<span class="pill pill--green">Completed</span>` : '-';
+        const tp  = fmt(pick(r, COLS.topic));
+        return `<tr>
+          <td>${dt}</td>
+          <td>${st}</td>
+          <td>${en}</td>
+          <td class="t-right mono">${hrs}</td>
+          <td class="t-center">${sch}</td>
+          <td class="t-center">${cmp}</td>
+          <td class="wrap">${tp}</td>
+        </tr>`;
+      }).join('');
+
+      // Metrics (for the FILTERED set)
+      const totalHrs = state.view.reduce((a,r)=> a + toNum(pick(r, COLS.completedHours, 0)), 0);
       const sessions = state.view.length;
+
+      // Upcoming scheduled (from ALL rows)
       const now = new Date();
-      const upcoming = state.all.filter(r=>{
-        const d = parseDate(pick(r, COLS.date));
+      const upcomingCount = state.all.filter(r=>{
+        const d = parseDateLocal(pick(r, COLS.date));
         return isTrue(pick(r, COLS.scheduled)) && d && d >= now && !isTrue(pick(r, COLS.completed));
       }).length;
+
       document.getElementById('m-hours').textContent = totalHrs.toFixed(2);
       document.getElementById('m-sessions').textContent = sessions;
-      document.getElementById('m-sched').textContent = upcoming;
-    }
-
-    function applyRange() {
-      const range = document.getElementById('range').value;
-      state.view = state.all.filter(r => withinRange(r, range));
-      render();
+      document.getElementById('m-sched').textContent = String(upcomingCount);
     }
 
     function wireSort() {
       const ths = document.querySelectorAll('th[data-k]');
       ths.forEach(th => {
+        th.style.cursor = 'pointer';
         th.addEventListener('click', () => {
           const key = th.dataset.k;
-          const asc = th.dataset.sort !== 'asc';
-          ths.forEach(h => h.dataset.sort='');
-          th.dataset.sort = asc ? 'asc' : 'desc';
+          const asc = th.getAttribute('data-sort') !== 'asc';
+          ths.forEach(h => h.setAttribute('data-sort','none'));
+          th.setAttribute('data-sort', asc ? 'asc' : 'desc');
+
           state.view.sort((a,b)=>{
             const av = String(a[key] ?? '');
             const bv = String(b[key] ?? '');
             if (key === 'Completed Hours') {
-              return asc ? (PowerUp.api.toNumber(av)-PowerUp.api.toNumber(bv))
-                         : (PowerUp.api.toNumber(bv)-PowerUp.api.toNumber(av));
+              return asc ? (toNum(av)-toNum(bv)) : (toNum(bv)-toNum(av));
             }
             return asc ? av.localeCompare(bv) : bv.localeCompare(av);
           });
-          render();
+          renderTable();
         });
       });
+    }
+
+    function applyRange() {
+      const range = document.getElementById('range').value;
+      state.view = state.all.filter(r => withinRange(r, range));
+      renderTable();
+    }
+
+    // Mini progress card (this month only)
+    async function hydrateMiniProgress() {
+      const { fetchSheet, rowsByTitle, SHEETS } = PowerUp.api;
+      const { employeeId } = PowerUp.session.get();
+
+      const num  = (v) => { const n = Number(String(v).replace(/[^0-9.\-]/g,"")); return Number.isFinite(n)?n:0; };
+      const now  = new Date();
+      const thisMonth = now.getMonth() + 1;
+
+      const [emSheet, goalsSheet, phSheet] = await Promise.all([
+        fetchSheet(SHEETS.EMPLOYEE_MASTER).then(rowsByTitle),
+        fetchSheet(SHEETS.POWER_HOUR_GOALS).then(rowsByTitle),
+        fetchSheet(SHEETS.POWER_HOURS).then(rowsByTitle),
+      ]);
+
+      const me = emSheet.find(r =>
+        String(r["Employee ID"] || r["Position ID"] || "").trim() === String(employeeId).trim()
+      );
+      const lvlKey = String(me?.["PowerUp Level (Select)"] || me?.["PowerUp Level"] || "").trim().toUpperCase();
+
+      const goalRow = goalsSheet.find(g => String(g["Level"] || "").trim().toUpperCase() === lvlKey);
+      const min = num(goalRow?.["Min Hours"]) || 8;
+      const max = num(goalRow?.["Max Hours"]) || min;
+
+      const mine = phSheet.filter(r =>
+        String(r["Employee ID"] || r["Position ID"] || "").trim() === String(employeeId).trim()
+      );
+      const rowsThisMonth = mine.filter(r => {
+        const d = parseDateLocal(r["Date"] || r["Session Date"] || r["Power Hour Date"]);
+        return d && (d.getMonth()+1) === thisMonth && d.getFullYear() === now.getFullYear();
+      });
+
+      const monthCompleted = rowsThisMonth.reduce((s, r) => s + num(r["Completed Hours"] || r["Hours"] || r["Duration (h)"]), 0);
+
+      const track  = document.querySelector('[data-hook="ph.track"]');
+      const fill   = document.querySelector('[data-hook="ph.fill"]');
+      const band   = document.querySelector('[data-hook="ph.band"]');
+      const thumb  = document.querySelector('[data-hook="ph.thumb"]');
+      const total  = document.querySelector('[data-hook="ph.total"]');
+      const goalEl = document.querySelector('[data-hook="ph.goalMax"]');
+      const msg    = document.querySelector('[data-hook="ph.message"]');
+
+      const pct    = max ? Math.max(0, Math.min(1, monthCompleted / max)) : 0;
+      const minPct = max ? Math.max(0, Math.min(1, min / max)) : 0;
+
+      if (band) { band.style.left = (minPct*100)+'%'; band.style.width = ((1-minPct)*100)+'%'; }
+      if (fill) { fill.style.width = (pct*100)+'%'; fill.classList.toggle('below', monthCompleted < min); }
+      if (thumb){ thumb.style.left = (pct*100)+'%'; thumb.title = `${monthCompleted.toFixed(1)}h`; }
+      if (track){
+        track.setAttribute('aria-valuemin','0');
+        track.setAttribute('aria-valuemax', String(max));
+        track.setAttribute('aria-valuenow', String(Math.max(0, Math.min(monthCompleted, max))));
+      }
+      if (total) total.textContent = monthCompleted.toFixed(1);
+      if (goalEl) goalEl.textContent = String(max);
+
+      // message
+      const year = now.getFullYear();
+      const lastDay = new Date(year, now.getMonth()+1, 0).getDate();
+      const today = now.getDate();
+      const daysLeft = Math.max(0, lastDay - today);
+
+      const remainMin = Math.max(0, min - monthCompleted);
+      const remainMax = Math.max(0, max - monthCompleted);
+      const paceMin = daysLeft > 0 ? (remainMin / daysLeft) : remainMin;
+
+      let text = '', tone = 'ok';
+      if (remainMin === 0 && remainMax <= 0) { text = `🔥 Amazing! You’ve exceeded the goal (${monthCompleted.toFixed(1)} / ${max}h).`; tone = 'exceeded'; }
+      else if (remainMin === 0) { text = `✅ Target met (≥ ${min}h). ${remainMax.toFixed(1)}h to reach max.`; tone = 'ok'; }
+      else {
+        const high = daysLeft <= 2 || paceMin >= 2;
+        const med  = daysLeft <= 5 || paceMin >= 1;
+        tone = high ? 'urgent' : (med ? 'warn' : 'ok');
+        const prefix = high ? '⏳' : (med ? '⚡' : '👉');
+        text = `${prefix} ${remainMin.toFixed(1)}h left to hit minimum (${min}h).`;
+        if (daysLeft > 0) text += ` ~${paceMin.toFixed(1)}h/day for ${daysLeft} day${daysLeft!==1?'s':''}.`;
+      }
+      if (msg) { msg.className = `ph-msg ${tone}`; msg.textContent = text; }
     }
 
     async function load() {
@@ -170,28 +335,26 @@
       state.all = rows.filter(r => byCurrentUser(r, s.employeeId));
       applyRange();
       wireSort();
+      await hydrateMiniProgress();
     }
 
     function bindControls() {
-      const rangeEl = document.getElementById('range');
-      const refreshEl = document.getElementById('refresh');
-      if (!rangeEl.dataset.bound) {
-        rangeEl.dataset.bound = '1';
-        rangeEl.addEventListener('change', applyRange);
-      }
-      if (!refreshEl.dataset.bound) {
-        refreshEl.dataset.bound = '1';
-        refreshEl.addEventListener('click', async () => {
-          refreshEl.disabled = true;
-          await load();
-          refreshEl.disabled = false;
-        });
-      }
+      const sel = document.getElementById('range');
+      const btn = document.getElementById('refresh');
+      if (sel) sel.addEventListener('change', applyRange);
+      if (btn) btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        PowerUp.api.clearCache(PowerUp.api.SHEETS.POWER_HOURS);
+        PowerUp.api.clearCache(PowerUp.api.SHEETS.POWER_HOUR_GOALS);
+        await load();
+        btn.disabled = false;
+      });
     }
 
     document.addEventListener('DOMContentLoaded', async () => {
       PowerUp.session.requireLogin();
       PowerUp.layout.injectLayout();
+      PowerUp.layout.setPageTitle('Power Hours');
       await PowerUp.session.initHeader();
       await load();
       bindControls();
