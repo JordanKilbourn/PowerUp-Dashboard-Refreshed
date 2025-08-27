@@ -17,11 +17,20 @@
     .squads-actions .btn { padding:8px 12px; border-radius:6px; border:1px solid var(--accent); background:var(--card-bg); color:var(--text); cursor:pointer; }
     .squads-actions .btn:hover { background: var(--card-bg-hover); }
 
-    .grid-panels {
-      display:grid;
-      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-      gap: 18px;
-    }
+/* Keep the content from growing too wide and center it */
+.content-inner { max-width: 1240px; margin: 0 auto; }
+
+/* Centered grid with bounded column widths.
+   - Each column is between 360–560px
+   - With 1 panel it renders ~560px wide and centered
+   - With 2–3 panels they sit nicely without stretching edge-to-edge */
+.grid-panels {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 560px));
+  gap: 18px;
+  justify-content: center;  /* center remaining space */
+}
+
     .panel.card { padding: 12px 14px; }
     .panel h3 { font-size: 18px; color: var(--accent); margin-bottom: 10px; }
     .panel .panel-body { display: grid; gap: 12px; }
@@ -62,3 +71,4 @@
   <script src="scripts/squads-cards.js"></script>
 </body>
 </html>
+
