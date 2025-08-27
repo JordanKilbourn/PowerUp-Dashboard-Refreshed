@@ -127,19 +127,19 @@ window.PowerUp = window.PowerUp || {};
       : `${String(d.getMonth()+1).padStart(2,"0")}/${String(d.getDate()).padStart(2,"0")}/${d.getFullYear()}`;
   };
 
-  // ✓ / ✗ for boolean-ish values (used by Resourced + Paid)
-  const boolMark = (v) => {
-    const raw = String(v ?? "").trim().toLowerCase();
-    if (raw === "") return "-";
-    if (raw === "true" || raw === "yes" || raw === "paid" || raw === "1") {
-      return `<span class="pill pill--green" title="Yes">✓</span>`;
-    }
-    if (raw === "false" || raw === "no" || raw === "0") {
-      return `<span class="pill pill--red" title="No">✗</span>`;
-    }
-    // Unexpected values — show raw text (escaped)
-    return esc(v);
-  };
+// ✓ / ✗ for explicit boolean-ish values only
+const boolMark = (v) => {
+  const raw = String(v ?? "").trim().toLowerCase();
+  if (raw === "") return "-";
+  if (v === true || raw === "true" || raw === "yes" || raw === "paid") {
+    return `<span class="pill pill--green" title="Yes">✓</span>`;
+  }
+  if (v === false || raw === "false" || raw === "no") {
+    return `<span class="pill pill--red" title="No">✗</span>`;
+  }
+  // Anything else (including "1"/"0") is shown as text
+  return esc(v);
+};
 
   const statusPill = (v) => {
     if (v == null || String(v).trim() === "") return "-";
