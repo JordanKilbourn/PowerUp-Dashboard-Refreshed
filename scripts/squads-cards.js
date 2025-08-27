@@ -3,47 +3,38 @@
   const P = PowerUp || (PowerUp = {});
   const { SHEETS, getRowsByTitle } = P.api;
 
-  // Optional external links (fill in when you have them)
+  // Optional external links (set when available)
   const LINKS = { add: "", manage: "", activities: "" };
 
-  // Column maps (robust to naming)
-  const EMP_COL = {
-    id:   ['Position ID','Employee ID'],
-    name: ['Display Name','Employee Name','Name']
-  };
+  // Column maps (robust)
+  const EMP_COL = { id: ['Position ID','Employee ID'], name: ['Display Name','Employee Name','Name'] };
   const SQUAD_COL = {
-    id:        ['Squad ID','ID'],
-    name:      ['Squad Name','Squad','Name','Team'],
-    category:  ['Category','Squad Category'],
-    leaderId:  ['Squad Leader','Leader Employee ID','Leader Position ID'],
-    members:   ['Members','Member List'],
+    id: ['Squad ID','ID'],
+    name: ['Squad Name','Squad','Name','Team'],
+    category: ['Category','Squad Category'],
+    leaderId: ['Squad Leader','Leader Employee ID','Leader Position ID'],
+    members: ['Members','Member List'],
     objective: ['Objective','Focus','Purpose'],
-    active:    ['Active','Is Active?'],
-    created:   ['Created Date','Start Date','Started'],
-    notes:     ['Notes','Description']
+    active: ['Active','Is Active?'],
+    created: ['Created Date','Start Date','Started'],
+    notes: ['Notes','Description']
   };
 
-  // Helpers
   const pick = (row, list, d='') => { for (const k of list) if (row[k]!=null && row[k]!=='' ) return row[k]; return d; };
   const dash = (v) => (v==null || String(v).trim()==='') ? '-' : String(v);
   const isTrue = (v) => v === true || /^(true|yes|y|checked)$/i.test(String(v ?? "").trim());
+  const CATS = ['All','CI','Quality','Safety','Other'];
 
   function normCategory(v) {
     const t = String(v || '').toLowerCase();
-    if (/^ci|improve/.test(t))     return 'CI';
-    if (/^safety/.test(t))         return 'Safety';
-    if (/^quality/.test(t))        return 'Quality';
+    if (/^ci|improve/.test(t)) return 'CI';
+    if (/^quality/.test(t))    return 'Quality';
+    if (/^safety/.test(t))     return 'Safety';
     return 'Other';
   }
-  const CATS = ['All','CI','Quality','Safety','Other'];
-
   function parseMemberTokens(text) {
-    return String(text || '')
-      .split(/[,;\n]+/)
-      .map(s => s.trim())
-      .filter(Boolean);
+    return String(text || '').split(/[,;\n]+/).map(s => s.trim()).filter(Boolean);
   }
-
   function userIsMemberOrLeader(squad, session) {
     const myId   = String(session.employeeId || '').trim();
     const myName = String(session.displayName || '').trim();
@@ -54,11 +45,9 @@
     return false;
   }
 
-  // State
-  let ALL = [];       // normalized squads
+  let ALL = [];
   let idToName = new Map();
 
-  // Rendering
   function renderCategoryPills(activeCat) {
     const wrap = document.getElementById('cat-pills');
     wrap.innerHTML = CATS.map(cat =>
@@ -76,15 +65,15 @@
       msg.innerHTML = `No squads match your filters.<br/>Try toggling <b>My squads</b>, clearing search, or showing inactive.`;
       return;
     }
-
     msg.style.display = 'none';
+
     cards.innerHTML = list.map(sq => {
       const status = isTrue(sq.active)
         ? `<span class="status-pill status-on">Active</span>`
         : `<span class="status-pill status-off">Inactive</span>`;
       const leader = dash(sq.leaderName || sq.leaderId);
       const objective = dash(sq.objective);
-      const detailsHref = '#'; // wire later
+      const detailsHref = '#'; // wire when details page exists
 
       return `
         <div class="squad-card card">
@@ -98,7 +87,6 @@
     }).join('');
   }
 
-  // Filtering pipeline
   function applyFilters() {
     const session   = P.session.get();
     const cat       = document.querySelector('.pill.active')?.dataset.cat || 'All';
@@ -114,9 +102,7 @@
 
     if (q) {
       list = list.filter(s => {
-        const hay = [
-          s.name, s.leaderName, s.leaderId, s.objective, s.notes
-        ].join(' ').toLowerCase();
+        const hay = [s.name, s.leaderName, s.leaderId, s.objective, s.notes].join(' ').toLowerCase();
         return hay.includes(q);
       });
     }
@@ -124,9 +110,8 @@
     renderCards(list);
   }
 
-  // Data load
   async function load() {
-    // Employee name map
+    // Employee Master map
     const emRows = await getRowsByTitle(SHEETS.EMPLOYEE_MASTER);
     idToName = new Map();
     emRows.forEach(r => {
@@ -135,7 +120,7 @@
       if (id) idToName.set(id, name);
     });
 
-    // Squads
+    // PowerUp Squads rows
     const rows = await getRowsByTitle(SHEETS.SQUADS);
     ALL = rows
       .map(r => {
@@ -145,7 +130,7 @@
         return {
           id:        pick(r, SQUAD_COL.id, ''),
           name,
-          category:  (normCategory(pick(r, SQUAD_COL.category, 'Other'))),
+          category:  normCategory(pick(r, SQUAD_COL.category, 'Other')),
           leaderId,
           leaderName: idToName.get(leaderId) || '',
           members:   pick(r, SQUAD_COL.members, ''),
@@ -174,7 +159,7 @@
     document.getElementById('activeOnly').addEventListener('change', applyFilters);
     document.getElementById('search').addEventListener('input', applyFilters);
 
-    // Top buttons (optional URLs)
+    // Optional buttons
     const linkOrAlert = (id, url, text) => {
       const el = document.getElementById(id);
       if (!el) return;
@@ -185,7 +170,6 @@
     linkOrAlert('btn-activities', LINKS.activities, 'View All Activities');
   }
 
-  // Init
   document.addEventListener('DOMContentLoaded', async () => {
     P.session.requireLogin();
     P.layout.injectLayout();
@@ -194,7 +178,7 @@
 
     wireUI();
     await load();
-    applyFilters();  // default: My squads + All categories
+    applyFilters(); // default: My squads + All categories
   });
 
   window.PowerUp = P;
