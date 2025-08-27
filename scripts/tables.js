@@ -215,45 +215,47 @@ window.PowerUp = window.PowerUp || {};
   }
 
   // === Sorting logic (arrows use th[data-sort]="asc|desc") ===
-  function bindHeaderSort(thead, tbody) {
-    let state = { col: 0, asc: true };
+function bindHeaderSort(thead, tbody) {
+  let state = { col: 0, asc: true };
 
-    // updates the ▲ / ▼ indicators on the header
-    const applyIndicators = () => {
-      thead.querySelectorAll("th").forEach((h, i) => {
-        h.removeAttribute("data-sort");
-        h.removeAttribute("aria-sort");
-        if (i === state.col) {
-          h.setAttribute("data-sort", state.asc ? "asc" : "desc");
-          h.setAttribute("aria-sort", state.asc ? "ascending" : "descending"); // a11y
-        }
-      });
-    };
-
-    thead.querySelectorAll("th").forEach((th, idx) => {
-      th.style.cursor = "pointer";
-      th.onclick = () => {
-        state.asc = state.col === idx ? !state.asc : true;
-        state.col = idx;
-
-        const rows = Array.from(tbody.querySelectorAll("tr"));
-        rows.sort((ra, rb) => {
-          const a = ra.children[idx]?.getAttribute("data-sort") ?? "";
-          const b = rb.children[idx]?.getAttribute("data-sort") ?? "";
-          const na = Number(a), nb = Number(b);
-          const bothNum = !isNaN(na) && !isNaN(nb);
-          const cmp = bothNum ? (na - nb) : a.localeCompare(b);
-          return state.asc ? cmp : -cmp;
-        });
-
-        rows.forEach(r => tbody.appendChild(r));
-        applyIndicators(); // draw the arrows
-      };
+  // draw header indicators
+  const applyIndicators = () => {
+    thead.querySelectorAll("th").forEach((h, i) => {
+      // default: show neutral arrow on all headers
+      h.setAttribute("data-sort", "none");
+      h.removeAttribute("aria-sort");
+      // active column shows asc/desc
+      if (i === state.col) {
+        h.setAttribute("data-sort", state.asc ? "asc" : "desc");
+        h.setAttribute("aria-sort", state.asc ? "ascending" : "descending"); // a11y
+      }
     });
+  };
 
-    // If you want an initial arrow on first column, uncomment:
-    applyIndicators();
-  }
+  thead.querySelectorAll("th").forEach((th, idx) => {
+    th.style.cursor = "pointer";
+    th.onclick = () => {
+      state.asc = state.col === idx ? !state.asc : true;
+      state.col = idx;
+
+      const rows = Array.from(tbody.querySelectorAll("tr"));
+      rows.sort((ra, rb) => {
+        const a = ra.children[idx]?.getAttribute("data-sort") ?? "";
+        const b = rb.children[idx]?.getAttribute("data-sort") ?? "";
+        const na = Number(a), nb = Number(b);
+        const bothNum = !isNaN(na) && !isNaN(nb);
+        const cmp = bothNum ? (na - nb) : a.localeCompare(b);
+        return state.asc ? cmp : -cmp;
+      });
+
+      rows.forEach(r => tbody.appendChild(r));
+      applyIndicators(); // refresh arrows
+    };
+  });
+
+  // show neutral arrows immediately on load
+  applyIndicators();
+}
 
   // === Filtering (operates on rendered rows using friendly header to find the column) ===
   function findHeaderIndexByText(tableEl, friendlyHeader) {
