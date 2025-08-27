@@ -39,13 +39,24 @@
     ];
 
     const esc = (s) => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-    const isTrueish = (v) => { const t = String(v ?? "").trim().toLowerCase(); return v === true || ["true","yes","y","1"].includes(t); };
-    const boolPill = (v) => isTrueish(v) ? '<span class="pill pill--green">✓</span>' : '<span class="pill pill--red">✗</span>';
-    function fmtCell(v){
-      const t = String(v ?? "").trim().toLowerCase();
-      if (v === true || v === false || ["true","false","yes","no","1","0"].includes(t)) return boolPill(v);
-      return (v == null || String(v).trim() === "") ? "-" : esc(v);
-    }
+    
+    const isTrueish = (v) => {
+  const t = String(v ?? "").trim().toLowerCase();
+  return v === true || t === "true" || t === "yes";
+};
+const boolPill = (v) =>
+  isTrueish(v)
+    ? '<span class="pill pill--green">✓</span>'
+    : '<span class="pill pill--red">✗</span>';
+
+function fmtCell(v){
+  const t = String(v ?? "").trim().toLowerCase();
+  // Only treat explicit booleans/yes/no as boolean pills
+  if (v === true || v === false || t === "true" || t === "false" || t === "yes" || t === "no") {
+    return boolPill(v);
+  }
+  return (v == null || String(v).trim() === "") ? "-" : esc(v);
+}
     const normalize = (s) => String(s||"").toLowerCase().replace(/[^a-z0-9]/g,"");
 
     function chooseIdColumn(cols){
@@ -89,3 +100,4 @@
   </script>
 </body>
 </html>
+
