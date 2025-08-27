@@ -12,21 +12,22 @@
   <link rel="preconnect" href="https://powerup-proxy.onrender.com" crossorigin>
 
   <style>
-    /* ---------- Filter toolbar (the top stripe) ---------- */
-    .filter-toolbar {
-      position: sticky;
-      top: calc(var(--header-h, 64px) + 6px);  /* hugs the header divider */
-      z-index: 5;
-      background: var(--card-bg);
-      border: 1px solid #2d3f3f;
-      border-radius: 8px;
-      margin: 8px 14px 12px 14px;
-      padding: 10px 12px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      flex-wrap: wrap; /* wrap gracefully on smaller screens */
-    }
+/* Filter toolbar (non-sticky; sits right under the header divider) */
+.filter-toolbar {
+  position: relative;           /* remove sticky */
+  top: auto;
+  z-index: 1;
+  background: var(--card-bg);
+  border: 1px solid #2d3f3f;
+  border-radius: 8px;
+  margin: 6px 14px 12px 14px;   /* tight gap under header, clear gap above cards */
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
     .ft-left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
     .ft-right { margin-left: auto; display:flex; gap:10px; }
 
@@ -66,6 +67,7 @@
       grid-template-columns: repeat(auto-fill, minmax(360px, 420px));
       gap: 16px;
       justify-content: start; /* keep grid aligned to the left */
+      margin-top: 4px;
     }
 
     .squad-card.card { padding: 12px 14px; }
@@ -123,3 +125,4 @@
   <script src="scripts/squads-cards.js"></script>
 </body>
 </html>
+
