@@ -3,10 +3,8 @@
   const P = PowerUp || (PowerUp = {});
   const { SHEETS, getRowsByTitle } = P.api;
 
-  // Optional external links (set when available)
   const LINKS = { add: "", manage: "", activities: "" };
 
-  // Column maps (robust)
   const EMP_COL = { id: ['Position ID','Employee ID'], name: ['Display Name','Employee Name','Name'] };
   const SQUAD_COL = {
     id: ['Squad ID','ID'],
@@ -73,7 +71,9 @@
         : `<span class="status-pill status-off">Inactive</span>`;
       const leader = dash(sq.leaderName || sq.leaderId);
       const objective = dash(sq.objective);
-      const detailsHref = '#'; // wire when details page exists
+      const detailsHref = sq.id
+        ? `squad-details.html?id=${encodeURIComponent(sq.id)}`
+        : `squad-details.html?name=${encodeURIComponent(sq.name)}`;
 
       return `
         <div class="squad-card card">
@@ -111,7 +111,6 @@
   }
 
   async function load() {
-    // Employee Master map
     const emRows = await getRowsByTitle(SHEETS.EMPLOYEE_MASTER);
     idToName = new Map();
     emRows.forEach(r => {
@@ -120,12 +119,11 @@
       if (id) idToName.set(id, name);
     });
 
-    // PowerUp Squads rows
     const rows = await getRowsByTitle(SHEETS.SQUADS);
     ALL = rows
       .map(r => {
         const name = pick(r, SQUAD_COL.name, '').toString().trim();
-        if (!name) return null; // skip blank rows
+        if (!name) return null;
         const leaderId = pick(r, SQUAD_COL.leaderId, '').toString().trim();
         return {
           id:        pick(r, SQUAD_COL.id, ''),
@@ -144,7 +142,6 @@
   }
 
   function wireUI() {
-    // Category pills
     renderCategoryPills('All');
     document.getElementById('cat-pills').addEventListener('click', (e) => {
       const btn = e.target.closest('[data-cat]');
@@ -154,12 +151,10 @@
       applyFilters();
     });
 
-    // Toggles + search
     document.getElementById('myOnly').addEventListener('change', applyFilters);
     document.getElementById('activeOnly').addEventListener('change', applyFilters);
     document.getElementById('search').addEventListener('input', applyFilters);
 
-    // Optional buttons
     const linkOrAlert = (id, url, text) => {
       const el = document.getElementById(id);
       if (!el) return;
@@ -178,7 +173,7 @@
 
     wireUI();
     await load();
-    applyFilters(); // default: My squads + All categories
+    applyFilters();
   });
 
   window.PowerUp = P;
