@@ -189,7 +189,7 @@ body.notes .note-editor:empty:before { content: attr(data-placeholder); color: v
   overflow: hidden;
 }
 .phbar__fill { position: absolute; top: 0; left: 0; height: 100%; width: 0%; background: var(--ph-fill); transition: width .35s ease; }
-.phbar__fill.below { background: var(--ph-fill-below); }
+.phbar__fill.below { background: var(--ph-fill); }
 .phbar__thumb { position: absolute; top: 50%; width: 14px; height: 14px; background: #fff; border: 2px solid rgba(0,0,0,.15); border-radius: 50%; transform: translate(-50%,-50%); box-shadow: 0 1px 4px rgba(0,0,0,.35); pointer-events: none; transition: left .35s ease; }
 .power-card p { margin-bottom: 10px; font-size: 15px; font-weight: 500; }
 .ph-msg { display: block; margin-top: 8px; font-size: 13px; opacity: .97; }
@@ -392,6 +392,7 @@ body.sidebar-expanded .content,
 .dashboard-table .pill--red   { background: var(--error)  !important;   color: #fff !important; }
 .dashboard-table .pill--gray  { background: #3a4e4e      !important;    color: #fff !important; }
 .dashboard-table td { vertical-align: middle; }  /* nicer line-up for chips */
+
 
 
 
