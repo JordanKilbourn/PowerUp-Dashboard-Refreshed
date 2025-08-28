@@ -62,6 +62,8 @@
     }).join("") || `<tr><td colspan="${showEmpId ? 5 : 4}" style="opacity:.7;text-align:center;">No members yet</td></tr>`;
   }
 
+  function norm(s) { return String(s || "").trim().toLowerCase(); }
+
   async function main() {
     // Layout + header
     layout.injectLayout?.();
@@ -75,7 +77,9 @@
       return;
     }
 
-    const { employeeId } = session.get?.() || {};
+    const sess = session.get?.() || {};
+    const userId = (sess.employeeId || "").trim();
+    const userName = (sess.displayName || "").trim();
     const isAdmin = !!(roles && roles.isAdmin && roles.isAdmin());
 
     const [squads, members, empMap] = await Promise.all([
@@ -99,8 +103,24 @@
     // Reliable squadId for downstream usage
     const squadId   = squad["Squad ID"] || urlId;
     const squadName = squad["Squad Name"] || squadId;
-    const leaderId  = String(squad["Squad Leader"] || "").trim();
-    const leaderName = empMap[leaderId] || leaderId || "-";
+
+    // Leader field might be an ID or a Name; support both
+    const leaderField = String(squad["Squad Leader"] || squad["Leader"] || "").trim();
+    let   leaderId = "";
+    let   leaderName = "";
+
+    if (leaderField) {
+      // If field looks like an ID, use directly; else try to reverse-map name->id
+      if (/^ix[\da-z]+$/i.test(leaderField)) {
+        leaderId = leaderField;
+        leaderName = empMap[leaderId] || leaderField;
+      } else {
+        // leaderField is likely a display name
+        leaderName = leaderField;
+        leaderId = Object.keys(empMap).find(id => norm(empMap[id]) === norm(leaderField)) || "";
+      }
+    }
+
     const active = (String(squad["Active"]||"").toLowerCase() === "true") ? "Active" : "Inactive";
     const category = squad["Category"] || "-";
     const created  = squad["Created Date"] || squad["Created"] || "";
@@ -111,7 +131,7 @@
     const core = document.querySelector("#card-core .kv");
     if (core) core.innerHTML = `
       <div><b>Name:</b> ${esc(squadName)}</div>
-      <div><b>Leader:</b> ${esc(leaderName)}</div>
+      <div><b>Leader:</b> ${esc(leaderName || leaderId || "-")}</div>
       <div><b>Status:</b> ${active === "Active"
         ? '<span class="status-pill status-on">Active</span>'
         : '<span class="status-pill status-off">Inactive</span>'}</div>
@@ -131,12 +151,25 @@
       else location.href = "squads.html";
     };
 
-    // Add member permissions + open modal with a guaranteed squadId
+    // Add member permissions (allow admin, leader by ID, leader by Name, or Role=Leader in members)
     const addBtn = document.getElementById("btn-addmember");
     if (addBtn) {
-      const canAdd = isAdmin || (leaderId && leaderId === employeeId);
+      let canAdd =
+        isAdmin ||
+        (!!leaderId && norm(leaderId) === norm(userId)) ||
+        (!!leaderName && norm(leaderName) === norm(userName));
+
+      if (!canAdd) {
+        const leaderRows = members.filter(r =>
+          norm(r["Squad ID"]) === norm(squadId) &&
+          norm(r["Role"]) === "leader"
+        );
+        canAdd = leaderRows.some(r => norm(r["Employee ID"]) === norm(userId));
+      }
+
       if (canAdd) {
-        addBtn.style.display = "";
+        // IMPORTANT: override CSS `display:none`
+        addBtn.style.display = "inline-flex";
         addBtn.disabled = false;
         addBtn.onclick = (e) => {
           e.preventDefault();
