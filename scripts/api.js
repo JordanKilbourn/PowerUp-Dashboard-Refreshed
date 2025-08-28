@@ -162,17 +162,16 @@
       throw new Error("addRows: 'titleRows' must be a non-empty array");
     }
 
-    // fetch column schema to build title → id map
+    // Prefer a compact columns endpoint if your proxy exposes it
     let columns;
     try {
-      // If your proxy exposes a columns endpoint, use it (more compact).
       columns = await fetchJSON(`${API_BASE}/sheet/${id}/columns`);
       if (!Array.isArray(columns)) columns = columns?.data || columns?.columns;
     } catch {
-      // Fallback to full sheet (has columns too)
       const sheet = await fetchSheet(id, { force: true });
       columns = sheet.columns || [];
     }
+
     const titleToId = {};
     (columns || []).forEach(c => {
       const k = String(c.title).replace(/\s+/g, " ").trim().toLowerCase();
