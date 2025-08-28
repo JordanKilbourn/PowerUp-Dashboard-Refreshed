@@ -147,37 +147,44 @@
     return Number.isFinite(n) ? n : 0;
   }
 
-  // ---------- NEW: append rows via the proxy (for in-app forms) ----------
+  // ---------- WRITE: add/append rows via the proxy ----------
   /**
-   * Append one or more rows to a sheet using column **titles** as keys.
+   * Add one or more rows to a sheet using column **titles** as keys.
+   * The proxy maps titles -> columnIds server-side.
+   *
    * Example:
-   *   PowerUp.api.appendRows('SQUAD_MEMBERS', [
-   *     { "Squad ID": "KILLER-KAIZENS", "Employee ID": "IX7992604", "Role": "Member", "Active": true, "Start Date": "08/28/2025" }
+   *   PowerUp.api.addRows('SQUAD_MEMBERS', [
+   *     { "Squad ID": "KILLER-KAIZENS", "Employee ID": "IX7992604",
+   *       "Role": "Member", "Active": true, "Start Date": "08/28/2025" }
    *   ])
+   *
+   * Options:
+   *   { toTop = true, toBottom = false }
    */
-  async function appendRows(sheetIdOrKey, rowObjects) {
+  async function addRows(sheetIdOrKey, rows, { toTop = true, toBottom = false } = {}) {
     const id = resolveSheetId(sheetIdOrKey);
-    assertValidId(id, `appendRows(${String(sheetIdOrKey)})`);
+    assertValidId(id, `addRows(${String(sheetIdOrKey)})`);
 
-    if (!Array.isArray(rowObjects) || rowObjects.length === 0) {
-      throw new Error("appendRows: 'rowObjects' must be a non-empty array");
+    if (!Array.isArray(rows) || rows.length === 0) {
+      throw new Error("addRows: 'rows' must be a non-empty array");
     }
 
     const res = await fetch(`${API_BASE}/sheet/${id}/rows`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ rows: rowObjects }),
       credentials: "omit",
+      body: JSON.stringify({ toTop, toBottom, rows })
     });
 
     const text = await res.text().catch(() => "");
     if (!res.ok) {
       throw new Error(`Proxy write ${res.status} for sheet ${id}: ${text || "no body"}`);
     }
-
-    // Smartsheet returns JSON; if not, just return raw text
     try { return JSON.parse(text); } catch { return text; }
   }
+
+  // Back-compat alias (some earlier snippets used appendRows)
+  const appendRows = addRows;
 
   // ---------- export ----------
   P.api = {
@@ -189,7 +196,8 @@
     getRowsByTitle,
     clearCache,
     toNumber,
-    appendRows,         // <<< new export
+    addRows,
+    appendRows
   };
   window.PowerUp = P;
 })(window.PowerUp || {});
