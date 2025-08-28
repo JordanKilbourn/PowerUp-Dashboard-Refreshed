@@ -64,13 +64,14 @@
 
   async function main() {
     // Layout + header
-    layout.injectLayout();
+    layout.injectLayout?.();
     hydrateHeader();
 
     const urlId = qs("id") || qs("squadId") || qs("squad");
     if (!urlId) {
-      layout.setPageTitle("Squad: (unknown)");
-      document.querySelector("#card-core .kv").textContent = "Not found (missing ?id param).";
+      layout.setPageTitle?.("Squad: (unknown)");
+      const el = document.querySelector("#card-core .kv");
+      if (el) el.textContent = "Not found (missing ?id param).";
       return;
     }
 
@@ -89,8 +90,9 @@
       squad = squads.find(r => String(r["Squad Name"]).trim().toLowerCase() === String(urlId).trim().toLowerCase());
     }
     if (!squad) {
-      layout.setPageTitle("Squad: Not Found");
-      document.querySelector("#card-core .kv").textContent = "Not found.";
+      layout.setPageTitle?.("Squad: Not Found");
+      const el = document.querySelector("#card-core .kv");
+      if (el) el.textContent = "Not found.";
       return;
     }
 
@@ -103,10 +105,11 @@
     const category = squad["Category"] || "-";
     const created  = squad["Created Date"] || squad["Created"] || "";
 
-    layout.setPageTitle(`Squad: ${squadName}`);
+    layout.setPageTitle?.(`Squad: ${squadName}`);
 
     // Core cards
-    document.querySelector("#card-core .kv").innerHTML = `
+    const core = document.querySelector("#card-core .kv");
+    if (core) core.innerHTML = `
       <div><b>Name:</b> ${esc(squadName)}</div>
       <div><b>Leader:</b> ${esc(leaderName)}</div>
       <div><b>Status:</b> ${active === "Active"
@@ -115,8 +118,10 @@
       <div><b>Category:</b> ${esc(category)}</div>
       <div><b>Created:</b> ${esc(created || "-")}</div>
     `;
-    document.querySelector("#card-objective .kv").textContent = squad["Objective"] || "-";
-    document.querySelector("#card-notes .kv").textContent     = squad["Notes"] || "-";
+    const obj = document.querySelector("#card-objective .kv");
+    if (obj) obj.textContent = squad["Objective"] || "-";
+    const notes = document.querySelector("#card-notes .kv");
+    if (notes) notes.textContent = squad["Notes"] || "-";
 
     // Back button
     const backBtn = document.getElementById("btn-back");
@@ -127,20 +132,24 @@
     };
 
     // Add member permissions + open modal with a guaranteed squadId
-    const canAdd = isAdmin || (leaderId && leaderId === employeeId);
     const addBtn = document.getElementById("btn-addmember");
-    if (canAdd) {
-      addBtn.style.display = "";
-      addBtn.onclick = (e) => {
-        e.preventDefault();
-        if (!P.squadForm?.open) {
-          alert("Member form not found. Is scripts/squad-member-form.js included?");
-          return;
-        }
-        P.squadForm.open({ squadId, squadName }); // << always passes a valid squadId now
-      };
-    } else {
-      addBtn.style.display = "none";
+    if (addBtn) {
+      const canAdd = isAdmin || (leaderId && leaderId === employeeId);
+      if (canAdd) {
+        addBtn.style.display = "";
+        addBtn.disabled = false;
+        addBtn.onclick = (e) => {
+          e.preventDefault();
+          if (!P.squadForm?.open) {
+            alert("Member form not found. Is scripts/squad-member-form.js included?");
+            return;
+          }
+          P.squadForm.open({ squadId, squadName });
+        };
+      } else {
+        addBtn.style.display = "none";
+        addBtn.disabled = true;
+      }
     }
 
     // Initial member render (hide Employee ID for non-admins)
