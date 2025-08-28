@@ -35,6 +35,9 @@
     .modal input[type="date"], .modal select { width:100%; padding:8px 10px; border:1px solid #2d3f3f; border-radius:6px; background:#132121; color:var(--text); }
     .modal .actions { display:flex; justify-content:flex-end; gap:10px; margin-top:12px; }
     .chk { display:flex; align-items:center; gap:8px; font-size:14px; color:var(--text); }
+
+    /* prevent flash of unauthorized Add button before JS hides it */
+    #btn-addmember { display:none; }
   </style>
 </head>
 <body>
@@ -42,8 +45,7 @@
   <div class="details-wrap">
     <div class="top-actions">
       <button class="btn" id="btn-back"><i class="fa fa-arrow-left"></i> Back</button>
-      <!-- rename id so JS can find it -->
-      <button class="btn" id="addMemberBtn"><i class="fa fa-user-plus"></i> Add Member</button>
+      <button class="btn" id="btn-addmember"><i class="fa fa-user-plus"></i> Add Member</button>
     </div>
 
     <div class="meta-grid">
@@ -61,7 +63,7 @@
     </div>
   </div>
 
-  <!-- Add Member (native) — moved ABOVE scripts so JS sees it -->
+  <!-- Add Member Modal -->
   <div id="addMemberModal" class="modal" aria-hidden="true">
     <div class="panel">
       <h3 style="margin-bottom:8px;color:var(--accent)">Add Squad Member</h3>
