@@ -22,17 +22,11 @@
   const _rowsCache = new Map();  // id -> [{title:value,...}] (in-memory)
 
   // ---- persistent (session) cache with TTL ----
-  const STORE_KEY    = "pu.sheetCache.v1";     // bump if schema changes
-  const SHEET_TTL_MS = 5 * 60 * 1000;          // 5 minutes
+  const STORE_KEY    = "pu.sheetCache.v1";
+  const SHEET_TTL_MS = 5 * 60 * 1000;
 
-  function loadStore() {
-    try { return JSON.parse(sessionStorage.getItem(STORE_KEY) || "{}"); }
-    catch { return {}; }
-  }
-  function saveStore(obj) {
-    try { sessionStorage.setItem(STORE_KEY, JSON.stringify(obj || {})); }
-    catch {}
-  }
+  function loadStore() { try { return JSON.parse(sessionStorage.getItem(STORE_KEY) || "{}"); } catch { return {}; } }
+  function saveStore(obj) { try { sessionStorage.setItem(STORE_KEY, JSON.stringify(obj || {})); } catch {} }
 
   // ---------- utils ----------
   function resolveSheetId(sheetIdOrKey) {
@@ -79,33 +73,27 @@
     const id = resolveSheetId(sheetIdOrKey);
     assertValidId(id, `fetchSheet(${String(sheetIdOrKey)})`);
 
-    // in-memory fast path
     if (!force) {
       if (_rawCache.has(id)) return _rawCache.get(id);
       if (_inflight.has(id)) return _inflight.get(id);
     }
 
-    // sessionStorage TTL cache
     if (!force) {
       const store = loadStore();
       const hit = store[id];
       const now = Date.now();
       if (hit && (now - (hit.ts || 0)) < SHEET_TTL_MS && hit.data) {
-        _rawCache.set(id, hit.data);   // promote to memory
+        _rawCache.set(id, hit.data);
         return hit.data;
       }
     }
 
-    // network (deduped)
     const p = (async () => {
       const json = await fetchJSON(`${API_BASE}/sheet/${id}`);
       _rawCache.set(id, json);
-
-      // write-through to session store
       const store = loadStore();
       store[id] = { ts: Date.now(), data: json };
       saveStore(store);
-
       _inflight.delete(id);
       return json;
     })();
@@ -127,18 +115,10 @@
   }
 
   function clearCache(sheetIdOrKey) {
-    if (!sheetIdOrKey) {
-      _rawCache.clear(); _inflight.clear(); _rowsCache.clear();
-      saveStore({}); // nuke session cache
-      return;
-    }
+    if (!sheetIdOrKey) { _rawCache.clear(); _inflight.clear(); _rowsCache.clear(); saveStore({}); return; }
     const id = resolveSheetId(sheetIdOrKey);
-    _rawCache.delete(id);
-    _inflight.delete(id);
-    _rowsCache.delete(id);
-
-    const store = loadStore();
-    if (store[id]) { delete store[id]; saveStore(store); }
+    _rawCache.delete(id); _inflight.delete(id); _rowsCache.delete(id);
+    const store = loadStore(); if (store[id]) { delete store[id]; saveStore(store); }
   }
 
   function toNumber(x) {
@@ -157,12 +137,9 @@
   async function addRows(sheetIdOrKey, titleRows, { toTop = true } = {}) {
     const id = resolveSheetId(sheetIdOrKey);
     assertValidId(id, `addRows(${String(sheetIdOrKey)})`);
+    if (!Array.isArray(titleRows) || !titleRows.length) throw new Error("addRows: 'titleRows' must be a non-empty array");
 
-    if (!Array.isArray(titleRows) || !titleRows.length) {
-      throw new Error("addRows: 'titleRows' must be a non-empty array");
-    }
-
-    // Prefer a compact columns endpoint if your proxy exposes it
+    // Get column metadata (includes column formula info)
     let columns;
     try {
       columns = await fetchJSON(`${API_BASE}/sheet/${id}/columns`);
@@ -172,18 +149,20 @@
       columns = sheet.columns || [];
     }
 
-    const titleToId = {};
+    const titleToCol = {};
     (columns || []).forEach(c => {
       const k = String(c.title).replace(/\s+/g, " ").trim().toLowerCase();
-      titleToId[k] = c.id;
+      titleToCol[k] = c; // keep full column (id, type, formula, systemColumnType, etc)
     });
 
-    function coerceValue(title, value) {
+    const isFormulaCol = (col) => !!(col && (col.formula || col.systemColumnType));
+
+    function coerceValue(title, value, col) {
       const t = String(title).toLowerCase();
       let v = value;
 
-      // YYYY-MM-DD for any "date" title
-      if (t.includes("date")) {
+      // date columns → YYYY-MM-DD
+      if (t.includes("date") || (col && String(col.type).toUpperCase() === "DATE")) {
         if (v instanceof Date) v = v.toISOString().slice(0, 10);
         else if (typeof v === "string" && !/^\d{4}-\d{2}-\d{2}$/.test(v)) {
           const d = new Date(v);
@@ -192,10 +171,10 @@
       }
 
       // checkbox → boolean
-      if (typeof v === "string" && (t.includes("active") || t.includes("checkbox"))) {
+      if (typeof v === "string" && (t.includes("active") || t.includes("checkbox") || (col && String(col.type).toUpperCase() === "CHECKBOX"))) {
         const s = v.trim().toLowerCase();
-        if (["true","yes","1","y"].includes(s)) v = true;
-        else if (["false","no","0","n"].includes(s)) v = false;
+        if (["true","yes","1","y","on"].includes(s)) v = true;
+        else if (["false","no","0","n","off",""].includes(s)) v = false;
       }
       return v;
     }
@@ -204,27 +183,22 @@
       const cells = [];
       Object.entries(obj || {}).forEach(([title, value]) => {
         const key  = String(title).replace(/\s+/g, " ").trim().toLowerCase();
-        const colId = titleToId[key];
-        if (!colId) {
-          console.warn(`[addRows] Unknown column title in sheet ${id}:`, title);
-          return;
-        }
-        cells.push({ columnId: colId, value: coerceValue(title, value) });
+        const col  = titleToCol[key];
+        if (!col) { console.warn(`[addRows] Unknown column title in sheet ${id}:`, title); return; }
+        if (isFormulaCol(col)) { console.warn(`[addRows] Skipping column with formula/system type:`, col.title); return; }
+        cells.push({ columnId: col.id, value: coerceValue(title, value, col) });
       });
       return { toTop, cells };
     });
 
-    // prevent posting blanks
     const nonEmpty = rows.filter(r => r.cells && r.cells.length > 0);
     if (!nonEmpty.length) {
-      console.error("[addRows] No valid cells matched any column IDs.", {
-        attempted: titleRows, titleToId, sheetId: id
-      });
-      throw new Error("addRows: no valid cells matched this sheet's column titles.");
+      console.error("[addRows] No valid cells matched any writable columns.", { attempted: titleRows, columns });
+      throw new Error("addRows: rows did not contain any writable columns.");
     }
 
     const payload = { rows: nonEmpty };
-    console.debug("[addRows] payload", { sheetId: id, payload, titleToId });
+    console.debug("[addRows] payload", { sheetId: id, payload });
 
     return fetchJSON(`${API_BASE}/sheet/${id}/rows`, {
       method: "POST",
