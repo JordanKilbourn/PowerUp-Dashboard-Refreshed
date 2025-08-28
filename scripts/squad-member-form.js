@@ -13,9 +13,16 @@
   };
 
   // local state
-  let STATE = { squadId: "", squadName: "", employeesLoaded: false, empIndex: {} };
+  let STATE = {
+    squadId: "",
+    squadName: "",
+    employeesLoaded: false,
+    empIndex: {},   // id -> name
+    members: []     // rows from SQUAD_MEMBERS
+  };
 
   function isoToday() { return new Date().toISOString().slice(0,10); }
+  function norm(s){ return String(s || "").trim().toLowerCase(); }
 
   function toast(msg, ok=false) {
     const n = document.createElement("div");
@@ -25,10 +32,20 @@
     setTimeout(() => n.remove(), 2200);
   }
 
+  function getOrMakeNoteEl() {
+    let note = document.getElementById("am-dupnote");
+    if (!note) {
+      note = document.createElement("div");
+      note.id = "am-dupnote";
+      note.style.cssText = "margin-top:6px;font-size:12px;color:#f59e0b;";
+      el.member.parentElement.appendChild(note);
+    }
+    return note;
+  }
+
   async function ensureEmployees() {
     if (STATE.employeesLoaded) return;
     const rows = await api.getRowsByTitle('EMPLOYEE_MASTER');
-    // Build options: value=Employee ID (Position ID), label=Display Name — ID
     const opts = rows.map(r => {
       const id   = r["Position ID"] || r["Employee ID"] || r["ID"] || "";
       const name = r["Display Name"] || r["Employee Name"] || r["Name"] || id;
@@ -39,17 +56,74 @@
     STATE.employeesLoaded = true;
   }
 
+  async function ensureMembers() {
+    STATE.members = await api.getRowsByTitle('SQUAD_MEMBERS', { force: true });
+  }
+
+  async function ensureRoleOptions() {
+    try {
+      const raw = await api.fetchSheet(api.SHEETS.SQUAD_MEMBERS); // includes columns
+      const roleCol = (raw.columns || []).find(c => norm(c.title) === "role");
+      const options = Array.isArray(roleCol?.options) && roleCol.options.length
+        ? roleCol.options
+        : ["Member","Leader"]; // fallback
+      el.role.innerHTML = options.map(o => `<option value="${o}">${o}</option>`).join("");
+      // Default to "Member" if present; otherwise first option
+      const defaultVal = options.find(o => norm(o) === "member") || options[0];
+      el.role.value = defaultVal || "";
+    } catch (e) {
+      // Fallback hardcoded options
+      el.role.innerHTML = `<option value="Member">Member</option><option value="Leader">Leader</option>`;
+      el.role.value = "Member";
+    }
+  }
+
+  function findExistingRow(employeeId) {
+    const sid = norm(STATE.squadId);
+    const eid = norm(employeeId);
+    return STATE.members.find(r =>
+      norm(r["Squad ID"]) === sid &&
+      norm(r["Employee ID"]) === eid &&
+      String(r["Active"] || "").toLowerCase() === "true"
+    );
+  }
+
+  function updateDuplicateWarning() {
+    const note = getOrMakeNoteEl();
+    const val  = el.member.value || "";
+    if (!val) {
+      note.textContent = "";
+      el.btnSave.disabled = false;
+      return false;
+    }
+    const dup = findExistingRow(val);
+    if (dup) {
+      const role  = dup["Role"] || "Member";
+      const start = dup["Start Date"] || dup["Start"] || "";
+      note.textContent = `Already an active member of this squad (${role}${start ? ` — since ${start}` : ""}).`;
+      el.btnSave.disabled = true;
+      return true;
+    } else {
+      note.textContent = "";
+      el.btnSave.disabled = false;
+      return false;
+    }
+  }
+
   function open({ squadId, squadName }) {
     STATE.squadId = String(squadId || "").trim();
     STATE.squadName = String(squadName || "").trim();
 
-    el.role.value = "Member";
     el.start.value = isoToday();
     el.active.checked = true;
     el.member.value = "";
 
+    // load data
     ensureEmployees();
+    ensureMembers().then(() => updateDuplicateWarning());
+    ensureRoleOptions();
 
+    // show modal
     el.modal.style.display = "flex";
     el.modal.setAttribute("aria-hidden", "false");
   }
@@ -61,7 +135,7 @@
 
   async function save() {
     const employeeId = (el.member.value || "").trim();
-    const role       = el.role.value || "Member";
+    let   role       = el.role.value || "Member";
     const startDate  = el.start.value || isoToday();
     const active     = !!el.active.checked;
 
@@ -69,6 +143,15 @@
       toast("Pick a member (and ensure squad ID is present).");
       return;
     }
+    if (updateDuplicateWarning()) {
+      toast("This person is already on the squad.", false);
+      return;
+    }
+
+    // Make sure the role we send matches a valid option exactly (case-insensitive match)
+    const roleOptions = Array.from(el.role.options).map(o => o.value);
+    const matchIdx = roleOptions.findIndex(o => norm(o) === norm(role));
+    if (matchIdx >= 0) role = roleOptions[matchIdx];
 
     el.btnSave.disabled = true;
 
@@ -76,17 +159,16 @@
       const empName  = STATE.empIndex[employeeId] || "";
       const addedBy  = (P.session?.get?.()?.displayName) || (P.session?.get?.()?.employeeId) || "";
 
-      // We now include optional fields "Employee Name" and "Squad Name".
-      // If those columns don't exist (or are still formulas), api.addRows() will skip them safely.
+      // Include name columns; if they're column-formulas, api.addRows() will skip them safely.
       await api.addRows(api.SHEETS.SQUAD_MEMBERS, [{
         "Squad ID": STATE.squadId,
-        "Squad Name": STATE.squadName,     // optional
+        "Squad Name": STATE.squadName,     // skipped if formula/system
         "Employee ID": employeeId,
-        "Employee Name": empName,          // optional
-        "Role": role,
+        "Employee Name": empName,          // skipped if formula/system
+        "Role": role,                      // now guaranteed to match allowed picklist option
         "Active": active,
         "Start Date": startDate,
-        "Added By": addedBy                // optional if you keep this column
+        "Added By": addedBy
       }]);
 
       close();
@@ -102,8 +184,10 @@
     }
   }
 
+  // wire
   if (el.btnCancel) el.btnCancel.onclick = (e) => { e.preventDefault(); close(); };
   if (el.btnSave)   el.btnSave.onclick   = (e) => { e.preventDefault(); save(); };
+  if (el.member)    el.member.addEventListener("change", updateDuplicateWarning);
 
   P.squadForm = { open, close };
 })(window.PowerUp || (window.PowerUp = {}));
