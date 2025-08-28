@@ -22,7 +22,7 @@
   const _rowsCache = new Map();  // id -> [{title:value,...}] (in-memory)
 
   // ---- persistent (session) cache with TTL ----
-  const STORE_KEY   = "pu.sheetCache.v1";      // bump if schema changes
+  const STORE_KEY    = "pu.sheetCache.v1";     // bump if schema changes
   const SHEET_TTL_MS = 5 * 60 * 1000;          // 5 minutes
 
   function loadStore() {
@@ -147,6 +147,38 @@
     return Number.isFinite(n) ? n : 0;
   }
 
+  // ---------- NEW: append rows via the proxy (for in-app forms) ----------
+  /**
+   * Append one or more rows to a sheet using column **titles** as keys.
+   * Example:
+   *   PowerUp.api.appendRows('SQUAD_MEMBERS', [
+   *     { "Squad ID": "KILLER-KAIZENS", "Employee ID": "IX7992604", "Role": "Member", "Active": true, "Start Date": "08/28/2025" }
+   *   ])
+   */
+  async function appendRows(sheetIdOrKey, rowObjects) {
+    const id = resolveSheetId(sheetIdOrKey);
+    assertValidId(id, `appendRows(${String(sheetIdOrKey)})`);
+
+    if (!Array.isArray(rowObjects) || rowObjects.length === 0) {
+      throw new Error("appendRows: 'rowObjects' must be a non-empty array");
+    }
+
+    const res = await fetch(`${API_BASE}/sheet/${id}/rows`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rows: rowObjects }),
+      credentials: "omit",
+    });
+
+    const text = await res.text().catch(() => "");
+    if (!res.ok) {
+      throw new Error(`Proxy write ${res.status} for sheet ${id}: ${text || "no body"}`);
+    }
+
+    // Smartsheet returns JSON; if not, just return raw text
+    try { return JSON.parse(text); } catch { return text; }
+  }
+
   // ---------- export ----------
   P.api = {
     API_BASE,
@@ -157,6 +189,7 @@
     getRowsByTitle,
     clearCache,
     toNumber,
+    appendRows,         // <<< new export
   };
   window.PowerUp = P;
 })(window.PowerUp || {});
