@@ -163,9 +163,18 @@
     }
 
     // fetch column schema to build title → id map
-    const sheet = await fetchSheet(id, { force: true });
+    let columns;
+    try {
+      // If your proxy exposes a columns endpoint, use it (more compact).
+      columns = await fetchJSON(`${API_BASE}/sheet/${id}/columns`);
+      if (!Array.isArray(columns)) columns = columns?.data || columns?.columns;
+    } catch {
+      // Fallback to full sheet (has columns too)
+      const sheet = await fetchSheet(id, { force: true });
+      columns = sheet.columns || [];
+    }
     const titleToId = {};
-    (sheet.columns || []).forEach(c => {
+    (columns || []).forEach(c => {
       const k = String(c.title).replace(/\s+/g, " ").trim().toLowerCase();
       titleToId[k] = c.id;
     });
@@ -176,13 +185,10 @@
 
       // YYYY-MM-DD for any "date" title
       if (t.includes("date")) {
-        if (v instanceof Date) {
-          v = v.toISOString().slice(0, 10);
-        } else if (typeof v === "string") {
-          if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) {
-            const d = new Date(v);
-            if (!isNaN(d)) v = d.toISOString().slice(0, 10);
-          }
+        if (v instanceof Date) v = v.toISOString().slice(0, 10);
+        else if (typeof v === "string" && !/^\d{4}-\d{2}-\d{2}$/.test(v)) {
+          const d = new Date(v);
+          if (!isNaN(d)) v = d.toISOString().slice(0, 10);
         }
       }
 
@@ -192,7 +198,6 @@
         if (["true","yes","1","y"].includes(s)) v = true;
         else if (["false","no","0","n"].includes(s)) v = false;
       }
-
       return v;
     }
 
@@ -212,12 +217,20 @@
 
     // prevent posting blanks
     const nonEmpty = rows.filter(r => r.cells && r.cells.length > 0);
-    if (!nonEmpty.length) throw new Error("addRows: all rows were empty after mapping; check column titles.");
+    if (!nonEmpty.length) {
+      console.error("[addRows] No valid cells matched any column IDs.", {
+        attempted: titleRows, titleToId, sheetId: id
+      });
+      throw new Error("addRows: no valid cells matched this sheet's column titles.");
+    }
+
+    const payload = { rows: nonEmpty };
+    console.debug("[addRows] payload", { sheetId: id, payload, titleToId });
 
     return fetchJSON(`${API_BASE}/sheet/${id}/rows`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ rows: nonEmpty }),
+      body: JSON.stringify(payload),
     });
   }
 
