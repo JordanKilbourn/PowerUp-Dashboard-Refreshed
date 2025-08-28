@@ -13,7 +13,7 @@
     QUALITY: "8096237664292740",
     LEVEL_TRACKER: "8346763116105604",
     SQUADS: "2480892254572420",
-    SQUAD_MEMBERS: "2615493107076996"
+    SQUAD_MEMBERS: "2615493107076996",
   };
 
   // ---------- caches ----------
@@ -22,8 +22,8 @@
   const _rowsCache = new Map();  // id -> [{title:value,...}] (in-memory)
 
   // ---- persistent (session) cache with TTL ----
-  const STORE_KEY    = "pu.sheetCache.v1";     // bump if schema changes
-  const SHEET_TTL_MS = 5 * 60 * 1000;          // 5 minutes
+  const STORE_KEY    = "pu.sheetCache.v1";
+  const SHEET_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
   function loadStore() {
     try { return JSON.parse(sessionStorage.getItem(STORE_KEY) || "{}"); }
@@ -48,6 +48,8 @@
       throw new Error("Missing Smartsheet ID (see console for mapping).");
     }
   }
+
+  const norm = (s) => String(s || "").toLowerCase().replace(/\s+/g, " ").trim();
 
   // Convert Smartsheet rows into objects keyed by column title
   function rowsByTitle(sheetJson) {
@@ -78,13 +80,11 @@
     const id = resolveSheetId(sheetIdOrKey);
     assertValidId(id, `fetchSheet(${String(sheetIdOrKey)})`);
 
-    // in-memory fast path
     if (!force) {
       if (_rawCache.has(id)) return _rawCache.get(id);
       if (_inflight.has(id)) return _inflight.get(id);
     }
 
-    // sessionStorage TTL cache
     if (!force) {
       const store = loadStore();
       const hit = store[id];
@@ -95,12 +95,10 @@
       }
     }
 
-    // network (deduped)
     const p = (async () => {
       const json = await fetchJSON(`${API_BASE}/sheet/${id}`);
       _rawCache.set(id, json);
 
-      // write-through to session store
       const store = loadStore();
       store[id] = { ts: Date.now(), data: json };
       saveStore(store);
@@ -128,7 +126,7 @@
   function clearCache(sheetIdOrKey) {
     if (!sheetIdOrKey) {
       _rawCache.clear(); _inflight.clear(); _rowsCache.clear();
-      saveStore({}); // nuke session cache
+      saveStore({});
       return;
     }
     const id = resolveSheetId(sheetIdOrKey);
@@ -143,53 +141,102 @@
   function toNumber(x) {
     if (x == null) return 0;
     if (typeof x === "number") return x;
-    const n = parseFloat(String(x).replace(/[^0-9.\-]/g, ""));  // allow negatives + decimal
+    const n = parseFloat(String(x).replace(/[^0-9.\-]/g, ""));
     return Number.isFinite(n) ? n : 0;
   }
 
-  // ---- helper: make map {lowercased title -> columnId}
-  async function getColumnIdMap(sheetId) {
-    const raw = await fetchSheet(sheetId);
+  // ---------- addRows with client-side title→columnId mapping ----------
+  const _colMapCache = new Map(); // id -> { normTitle: { id, primary } }
+
+  async function getColumnMap(sheetIdOrKey) {
+    const id = resolveSheetId(sheetIdOrKey);
+    if (_colMapCache.has(id)) return _colMapCache.get(id);
+    const sheet = await fetchSheet(id);
     const map = {};
-    (raw.columns || []).forEach(c => {
-      map[String(c.title).trim().toLowerCase()] = c.id;
+    (sheet.columns || []).forEach(c => {
+      map[norm(c.title)] = { id: c.id, primary: !!c.primary };
     });
+    _colMapCache.set(id, map);
     return map;
   }
 
-  // ---------- NEW: add rows using TITLE keys (client maps to columnIds) ----------
-  /**
-   * addRows('SQUAD_MEMBERS', [
-   *   { "Squad ID": "KILLER-KAIZENS", "Employee ID": "IX7992604", "Role": "Member", "Active": true, "Start Date": "2025-08-28" }
-   * ])
-   */
-  async function addRows(sheetIdOrKey, titleRows, { toTop = false } = {}) {
-    const id = resolveSheetId(sheetIdOrKey);
-    assertValidId(id, `addRows(${String(sheetIdOrKey)})`);
-    if (!Array.isArray(titleRows) || titleRows.length === 0) {
-      throw new Error("addRows: 'titleRows' must be a non-empty array");
+  function normaliseValue(title, value) {
+    const t = norm(title);
+
+    // booleans / checkboxes
+    if (t === "active" || t === "completed" || t === "scheduled") {
+      if (typeof value === "boolean") return value;
+      const s = String(value || "").trim().toLowerCase();
+      return s === "true" || s === "yes" || s === "1" || s === "y";
     }
 
-    // Map titles -> ids on the client so Smartsheet receives proper cells[]
-    const colMap = await getColumnIdMap(id);
-
-    const smRows = titleRows.map(obj => {
-      const cells = [];
-      for (const [k, v] of Object.entries(obj || {})) {
-        const colId = colMap[String(k).trim().toLowerCase()];
-        if (colId) cells.push({ columnId: colId, value: v });
+    // dates (YYYY-MM-DD)
+    if (t.includes("date")) {
+      if (value instanceof Date) {
+        return value.toISOString().slice(0, 10);
       }
-      return { cells };
-    });
+      const sv = String(value || "").trim();
+      // Accept "MM/DD/YY" from UI; convert to YYYY-MM-DD when we can
+      const mdy = sv.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+      if (mdy) {
+        let [ , m, d, y ] = mdy;
+        if (y.length === 2) y = `20${y}`;
+        return `${y.padStart(4,"0")}-${m.padStart(2,"0")}-${d.padStart(2,"0")}`;
+      }
+      if (/^\d{4}-\d{2}-\d{2}$/.test(sv)) return sv;
+      const d = new Date(sv);
+      if (!isNaN(d)) return d.toISOString().slice(0, 10);
+      return sv;
+    }
 
-    const body = { rows: smRows, raw: true };
-    if (toTop) body.toTop = true;
+    return value;
+  }
+
+  /**
+   * Append one or more rows to a sheet using column **titles** as keys.
+   * This function resolves titles to columnIds on the client, so Smartsheet
+   * receives proper {columnId, value} cells and won’t create blank rows.
+   *
+   * Example:
+   *   await PowerUp.api.addRows('SQUAD_MEMBERS', [
+   *     { "Squad ID": "SQ-001", "Employee ID": "IX7992604", "Role": "Member",
+   *       "Active": true, "Start Date": "2025-08-28" }
+   *   ])
+   */
+  async function addRows(sheetIdOrKey, rowObjects, { toTop = true } = {}) {
+    const id = resolveSheetId(sheetIdOrKey);
+    assertValidId(id, `addRows(${String(sheetIdOrKey)})`);
+    if (!Array.isArray(rowObjects) || rowObjects.length === 0) {
+      throw new Error("addRows: 'rowObjects' must be a non-empty array");
+    }
+
+    const colMap = await getColumnMap(id);
+
+    const payloadRows = rowObjects.map((obj, idx) => {
+      const cells = [];
+      for (const [title, raw] of Object.entries(obj || {})) {
+        const key = norm(title);
+        const col = colMap[key];
+        if (!col) {
+          console.warn(`[addRows] Column not found for title "${title}" on sheet ${id}`);
+          continue;
+        }
+        cells.push({
+          columnId: col.id,
+          value: normaliseValue(title, raw),
+        });
+      }
+      if (!cells.length) {
+        console.warn(`[addRows] Row ${idx} produced no cells; check your titles.`);
+      }
+      return { toTop, cells };
+    });
 
     const res = await fetch(`${API_BASE}/sheet/${id}/rows`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rows: payloadRows, toTop }),
       credentials: "omit",
-      body: JSON.stringify(body)
     });
 
     const text = await res.text().catch(() => "");
@@ -209,7 +256,7 @@
     getRowsByTitle,
     clearCache,
     toNumber,
-    addRows,   // upgraded to build Smartsheet-native rows
+    addRows, // <— use this for in-app forms
   };
   window.PowerUp = P;
 })(window.PowerUp || {});
