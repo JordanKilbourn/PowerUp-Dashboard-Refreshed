@@ -1,111 +1,108 @@
 // scripts/squad-member-form.js
 (function (P) {
-  const SHEETS = P.api.SHEETS;
+  const { api } = P;
 
-  // --- Elements ---
-  const modal   = document.getElementById('addMemberModal');
-  const openBtn = document.getElementById('addMemberBtn'); // your existing button
-  const sel     = document.getElementById('memberSelect');
-  const roleSel = document.getElementById('roleSelect');
-  const dateEl  = document.getElementById('startDate');
-  const activeEl= document.getElementById('activeChk');
+  const el = {
+    modal:      document.getElementById("addMemberModal"),
+    member:     document.getElementById("memberSelect"),
+    role:       document.getElementById("roleSelect"),
+    start:      document.getElementById("startDate"),
+    active:     document.getElementById("activeChk"),
+    btnCancel:  document.getElementById("am-cancel"),
+    btnSave:    document.getElementById("am-save"),
+  };
 
-  if (!modal || !openBtn) return; // page safety
+  // local state
+  let STATE = { squadId: "", squadName: "", employeesLoaded: false };
 
-  // Default start date = today (YYYY-MM-DD is ideal for Smartsheet API)
-  dateEl.value = new Date().toISOString().slice(0,10);
+  function isoToday() { return new Date().toISOString().slice(0,10); }
 
-  // Non-admins cannot assign leader
-  const isAdmin = !!P.roles?.has?.('admin');
-  if (!isAdmin) {
-    roleSel.value = "Member";
-    roleSel.disabled = true;
+  function toast(msg) {
+    // If you already have a nicer toaster, wire it here.
+    // Simple fallback:
+    console.warn(msg);
+    const n = document.createElement("div");
+    n.textContent = msg;
+    n.style.cssText = "position:fixed;right:18px;bottom:18px;background:#b91c1c;color:#fff;padding:10px 12px;border-radius:8px;z-index:9999;box-shadow:0 6px 20px rgba(0,0,0,.35)";
+    document.body.appendChild(n);
+    setTimeout(() => n.remove(), 3000);
   }
 
-  // Wire up
-  openBtn.addEventListener('click', async (e) => {
-    e.preventDefault();
-    await populatePeople();
-    show(true);
-  });
-  document.getElementById('am-cancel').onclick = () => show(false);
-  document.getElementById('am-save').onclick = onSave;
-
-  function show(on){ modal.classList.toggle('show', !!on); modal.setAttribute('aria-hidden', on ? "false" : "true"); }
-  function toast(msg, error){
-    const c = document.createElement('div');
-    c.textContent = msg;
-    Object.assign(c.style, {
-      position:"fixed", right:"16px", bottom:"16px", zIndex:2000,
-      background: error ? "#7f1d1d" : "#0f3d35",
-      border: `1px solid ${error ? "#dc2626" : "#10b981"}`,
-      color:"#fff", padding:"10px 12px", borderRadius:"8px",
-      boxShadow:"0 6px 18px rgba(0,0,0,.35)"
-    });
-    document.body.appendChild(c); setTimeout(()=>c.remove(), 2400);
-  }
-  const esc = (s)=>String(s??"").replace(/[&<>]/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
-
-  // You likely store the Squad ID in the URL (?squad=...) or data- attribute
-  function getSquadId(){
-    const u = new URL(location.href);
-    return u.searchParams.get('squad') || document.body.dataset.squadId || "";
+  async function ensureEmployees() {
+    if (STATE.employeesLoaded) return;
+    const rows = await api.getRowsByTitle('EMPLOYEE_MASTER');
+    // Build options: value=Employee ID (Position ID), label=Display Name — ID
+    const opts = rows.map(r => {
+      const id   = r["Position ID"] || r["Employee ID"] || r["ID"] || "";
+      const name = r["Display Name"] || r["Employee Name"] || r["Name"] || id;
+      return id ? `<option value="${id}">${name} — ${id}</option>` : "";
+    }).join("");
+    el.member.innerHTML = `<option value="">Select a person…</option>${opts}`;
+    STATE.employeesLoaded = true;
   }
 
-  async function populatePeople(){
-    if (sel.options.length) return;
+  function open({ squadId, squadName }) {
+    STATE.squadId = String(squadId || "").trim();
+    STATE.squadName = String(squadName || "").trim();
 
-    const rows = await P.api.getRowsByTitle(SHEETS.EMPLOYEE_MASTER);
-    const idKey = rows.length && ("Position ID" in rows[0] ? "Position ID" : "Employee ID");
-    const opts = rows
-      .map(r => ({ name: r["Display Name"] || r["Employee Name"] || r["Name"], id: r[idKey] }))
-      .filter(x => x.name && x.id)
-      .sort((a,b) => a.name.localeCompare(b.name));
+    // Debug if no squad id
+    if (!STATE.squadId) {
+      console.debug("[squad-member-form] open() received no squadId", { squadId, squadName });
+    }
 
-    sel.innerHTML = opts.map(o => `<option value="${o.id}">${esc(o.name)} — ${o.id}</option>`).join("");
+    // Prefill UI
+    el.role.value = "Member";
+    el.start.value = isoToday();
+    el.active.checked = true;
+    el.member.value = ""; // default to placeholder
+
+    ensureEmployees();
+
+    // Show modal
+    el.modal.style.display = "flex";
+    el.modal.setAttribute("aria-hidden", "false");
   }
 
-  async function onSave(){
-    const squadId    = getSquadId();
-    const employeeId = sel.value;
-    const role       = roleSel.value || "Member";
-    const start      = dateEl.value;   // YYYY-MM-DD
-    const active     = !!activeEl.checked;
+  function close() {
+    el.modal.style.display = "none";
+    el.modal.setAttribute("aria-hidden", "true");
+  }
 
-    if (!squadId || !employeeId) {
-      toast("Pick a member (and ensure squad id is present).", true);
+  async function save() {
+    const employeeId = el.member.value.trim();
+    const role       = el.role.value || "Member";
+    const startDate  = el.start.value || isoToday();
+    const active     = !!el.active.checked;
+
+    if (!employeeId || !STATE.squadId) {
+      toast("Pick a member (and ensure squad ID is present).");
       return;
     }
 
-    // Prevent duplicates (same Squad ID + Employee ID active)
-    const existing = await P.api.getRowsByTitle(SHEETS.SQUAD_MEMBERS, { force:true });
-    const dup = existing.some(r =>
-      String(r["Squad ID"]).trim() === String(squadId).trim() &&
-      String(r["Employee ID"]).trim() === String(employeeId).trim() &&
-      String(r["Active"]).toLowerCase() === "true"
-    );
-    if (dup) { toast("Already an active member of this squad.", true); return; }
-
     try {
-      await P.api.addRows(SHEETS.SQUAD_MEMBERS, [{
-        "Squad ID": squadId,
+      await api.addRows(api.SHEETS.SQUAD_MEMBERS, [{
+        "Squad ID": STATE.squadId,
         "Employee ID": employeeId,
         "Role": role,
         "Active": active,
-        "Start Date": start
-      }], { toTop: true });
+        "Start Date": startDate
+      }]);
 
-      toast("Member added.");
-      show(false);
-
-      // Clear caches related to members so your table reload fetches fresh
-      P.api.clearCache(SHEETS.SQUAD_MEMBERS);
-      // Call your existing re-render
-      if (typeof window.refreshMembers === "function") window.refreshMembers();
-
+      close();
+      // let the details page refresh the table
+      document.dispatchEvent(new CustomEvent("squad-member-added", {
+        detail: { squadId: STATE.squadId, employeeId }
+      }));
     } catch (err) {
       console.error(err);
-      toast("Failed to add member (see console).", true);
+      toast("Unable to add member. Please try again.");
     }
   }
-})(window.PowerUp || {});
+
+  // wire buttons
+  if (el.btnCancel) el.btnCancel.onclick = (e) => { e.preventDefault(); close(); };
+  if (el.btnSave)   el.btnSave.onclick   = (e) => { e.preventDefault(); save(); };
+
+  // expose
+  P.squadForm = { open, close };
+})(window.PowerUp || (window.PowerUp = {}));
