@@ -55,6 +55,46 @@
   <script src="scripts/roles.js"></script> 
   <script src="scripts/layout.js"></script>
   <script src="scripts/squad-details.js"></script>
+  <script src="scripts/squad-member-form.js"></script>
+
+
+<!-- Add Member (native) -->
+<div id="addMemberModal" class="modal" aria-hidden="true">
+  <div class="panel">
+    <h3 style="margin-bottom:8px;color:var(--accent)">Add Squad Member</h3>
+
+    <div class="row">
+      <div style="flex:1">
+        <label for="memberSelect">Member</label>
+        <select id="memberSelect"></select>
+      </div>
+    </div>
+
+    <div class="row">
+      <div style="flex:1">
+        <label for="roleSelect">Role</label>
+        <select id="roleSelect">
+          <option value="Member" selected>Member</option>
+          <option value="Leader">Leader</option>
+        </select>
+      </div>
+      <div style="width:180px">
+        <label for="startDate">Start Date</label>
+        <input type="date" id="startDate">
+      </div>
+      <label class="chk" style="align-self:flex-end">
+        <input type="checkbox" id="activeChk" checked> Active
+      </label>
+    </div>
+
+    <div class="actions">
+      <button class="btn" id="am-cancel">Cancel</button>
+      <button class="btn primary" id="am-save">Add Member</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
+
 
