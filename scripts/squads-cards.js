@@ -10,18 +10,14 @@
     name: ['Squad Name','Squad','Name','Team'],
     category: ['Category','Squad Category'],
     leaderId: ['Squad Leader','Leader Employee ID','Leader Position ID'],
-    members: ['Members','Member List'], // legacy CSV column (fallback only)
+    members: ['Members','Member List'],
     objective: ['Objective','Focus','Purpose'],
     active: ['Active','Is Active?'],
     created: ['Created Date','Start Date','Started'],
     notes: ['Notes','Description']
   };
-  const SMEMBER_COL = {
-    squadId: ['Squad ID','SquadId','Squad'],
-    employeeId: ['Employee ID','EmployeeId','Position ID']
-  };
 
-  // Categories — includes Training
+  // Categories — now includes Training
   const CATS = ['All','CI','Quality','Safety','Training','Other'];
   const CAT_CLASS = {
     CI: 'cat-ci',
@@ -44,17 +40,17 @@
     return 'Other';
   }
   function parseMemberTokens(text) {
-    return String(text || '').split(/[,;\n]+').map(s => s.trim()).filter(Boolean);
+    return String(text || '').split(/[,;\n]+/).map(s => s.trim()).filter(Boolean);
   }
-
-  // Data
-  let ALL = [];                 // list of squads (from SQUADS)
-  let idToName = new Map();     // Employee ID -> Name (from EMPLOYEE_MASTER)
-  let IS_ADMIN = false;
-
-  // New: membership map built from SQUAD_MEMBERS
-  // Map<squadId, Set<employeeId>>
-  const MEMBERS_BY_SQUAD = new Map();
+  function userIsMemberOrLeader(squad, session) {
+    const myId   = String(session.employeeId || '').trim();
+    const myName = String(session.displayName || '').trim();
+    if (myId && String(squad.leaderId || '').trim() === myId) return true;
+    const tokensLC = parseMemberTokens(squad.members).map(t => t.toLowerCase());
+    if (myId && tokensLC.includes(myId.toLowerCase())) return true;
+    if (myName && tokensLC.includes(myName.toLowerCase())) return true;
+    return false;
+  }
 
   // Category → CSS var
   function catVar(cat) {
@@ -67,6 +63,10 @@
       default:         return 'var(--accent)';
     }
   }
+
+  let ALL = [];
+  let idToName = new Map();
+  let IS_ADMIN = false;
 
   // Render dot “legend-style” pills in the toolbar
   function renderCategoryPills(activeCat) {
@@ -119,25 +119,6 @@
     }).join('');
   }
 
-  function userIsMemberOrLeader(squad, session) {
-    const myId   = String(session.employeeId || '').trim();
-    const myName = String(session.displayName || '').trim();
-
-    // Leader privilege
-    if (myId && String(squad.leaderId || '').trim() === myId) return true;
-
-    // Prefer membership from SQUAD_MEMBERS
-    const set = MEMBERS_BY_SQUAD.get(String(squad.id || '').trim());
-    if (set && myId && set.has(myId)) return true;
-
-    // Fallback: legacy CSV column on SQUADS (only if present)
-    const tokensLC = parseMemberTokens(squad.members).map(t => t.toLowerCase());
-    if (myId && tokensLC.includes(myId.toLowerCase())) return true;
-    if (myName && tokensLC.includes(myName.toLowerCase())) return true;
-
-    return false;
-  }
-
   function applyFilters() {
     const session   = P.session.get();
     const cat       = document.querySelector('.pill-cat.active')?.dataset.cat || 'All';
@@ -164,7 +145,6 @@
   }
 
   async function load() {
-    // Employees -> idToName
     const emRows = await getRowsByTitle(SHEETS.EMPLOYEE_MASTER);
     idToName = new Map();
     emRows.forEach(r => {
@@ -173,7 +153,6 @@
       if (id) idToName.set(id, name);
     });
 
-    // Squads
     const rows = await getRowsByTitle(SHEETS.SQUADS);
     ALL = rows
       .map(r => {
@@ -186,7 +165,7 @@
           category:  normCategory(pick(r, SQUAD_COL.category, 'Other')),
           leaderId,
           leaderName: idToName.get(leaderId) || '',
-          members:   pick(r, SQUAD_COL.members, ''), // legacy fallback only
+          members:   pick(r, SQUAD_COL.members, ''),
           objective: pick(r, SQUAD_COL.objective, ''),
           active:    pick(r, SQUAD_COL.active, ''),
           created:   pick(r, SQUAD_COL.created, ''),
@@ -194,21 +173,11 @@
         };
       })
       .filter(Boolean);
-
-    // Membership: build map from SQUAD_MEMBERS (authoritative)
-    MEMBERS_BY_SQUAD.clear();
-    const memRows = await getRowsByTitle(SHEETS.SQUAD_MEMBERS);
-    memRows.forEach(r => {
-      const sid = pick(r, SMEMBER_COL.squadId, '').toString().trim();
-      const eid = pick(r, SMEMBER_COL.employeeId, '').toString().trim();
-      if (!sid || !eid) return;
-      if (!MEMBERS_BY_SQUAD.has(sid)) MEMBERS_BY_SQUAD.set(sid, new Set());
-      MEMBERS_BY_SQUAD.get(sid).add(eid);
-    });
   }
 
   function wireUI() {
-    renderCategoryPills('All'); // dot pills in toolbar
+    renderCategoryPills('All');         // render our dot pills
+    // DO NOT insert the old legend anymore
 
     const pills = document.getElementById('cat-pills');
     if (pills) {
@@ -227,6 +196,7 @@
   }
 
   document.addEventListener('DOMContentLoaded', async () => {
+    // Keep your existing flow EXACTLY
     P.session.requireLogin();
     P.layout.injectLayout();
 
