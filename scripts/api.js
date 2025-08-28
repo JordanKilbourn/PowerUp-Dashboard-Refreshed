@@ -166,26 +166,58 @@
     const sheet = await fetchSheet(id, { force: true });
     const titleToId = {};
     (sheet.columns || []).forEach(c => {
-      titleToId[String(c.title).trim().toLowerCase()] = c.id;
+      const k = String(c.title).replace(/\s+/g, " ").trim().toLowerCase();
+      titleToId[k] = c.id;
     });
+
+    function coerceValue(title, value) {
+      const t = String(title).toLowerCase();
+      let v = value;
+
+      // YYYY-MM-DD for any "date" title
+      if (t.includes("date")) {
+        if (v instanceof Date) {
+          v = v.toISOString().slice(0, 10);
+        } else if (typeof v === "string") {
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) {
+            const d = new Date(v);
+            if (!isNaN(d)) v = d.toISOString().slice(0, 10);
+          }
+        }
+      }
+
+      // checkbox → boolean
+      if (typeof v === "string" && (t.includes("active") || t.includes("checkbox"))) {
+        const s = v.trim().toLowerCase();
+        if (["true","yes","1","y"].includes(s)) v = true;
+        else if (["false","no","0","n"].includes(s)) v = false;
+      }
+
+      return v;
+    }
 
     const rows = titleRows.map(obj => {
       const cells = [];
       Object.entries(obj || {}).forEach(([title, value]) => {
-        const colId = titleToId[String(title).trim().toLowerCase()];
+        const key  = String(title).replace(/\s+/g, " ").trim().toLowerCase();
+        const colId = titleToId[key];
         if (!colId) {
           console.warn(`[addRows] Unknown column title in sheet ${id}:`, title);
           return;
         }
-        cells.push({ columnId: colId, value });
+        cells.push({ columnId: colId, value: coerceValue(title, value) });
       });
       return { toTop, cells };
     });
 
+    // prevent posting blanks
+    const nonEmpty = rows.filter(r => r.cells && r.cells.length > 0);
+    if (!nonEmpty.length) throw new Error("addRows: all rows were empty after mapping; check column titles.");
+
     return fetchJSON(`${API_BASE}/sheet/${id}/rows`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ rows }),
+      body: JSON.stringify({ rows: nonEmpty }),
     });
   }
 
