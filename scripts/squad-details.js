@@ -329,6 +329,7 @@
   document.addEventListener("DOMContentLoaded", async () => {
     P.session.requireLogin();
     P.layout.injectLayout();
+    await P.session.initHeader();
 
     const id = qparam("id");
     if (!id) { document.querySelector(".content").innerHTML = `<div class="card" style="margin:12px;">Missing squad id.</div>`; return; }
