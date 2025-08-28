@@ -60,7 +60,6 @@
     // Move page content into .content below the header
     const content = document.getElementById('pu-content');
     const toMove = [];
-    // everything after the shell becomes page content
     let n = shell.nextSibling;
     while (n) { toMove.push(n); n = n.nextSibling; }
     toMove.forEach(node => content.appendChild(node));
@@ -70,7 +69,6 @@
       const sb = document.getElementById('sidebar');
       const expanded = sb.classList.toggle('expanded');
       document.body.classList.toggle('sidebar-expanded', expanded);
-      // Recompute layout since sidebar width changes margins
       requestAnimationFrame(fitDashboardBlocks);
     }
     document.getElementById('pu-toggle-item').addEventListener('click', toggleSidebar);
@@ -97,6 +95,9 @@
 
     // Initial layout sizing
     requestAnimationFrame(fitDashboardBlocks);
+
+    // 🔹 Hydrate header user info (name + level) from Employee Master
+    setUserHeaderFromEmployeeMaster();
   }
 
   function setPageTitle(text) {
@@ -116,16 +117,35 @@
     const cardsH  = cards  ? cards.offsetHeight  : 0;
     const tabsH   = tabs   ? tabs.offsetHeight   : 0;
 
-    // Leave a little breathing room for margins/padding
     const gutter = 24;
     const tableMax = Math.max(240, vh - headerH - cardsH - tabsH - gutter);
 
-    // Expose to CSS
     root.style.setProperty('--header-h', `${headerH}px`);
     root.style.setProperty('--table-max', `${tableMax}px`);
   }
   window.addEventListener('resize', fitDashboardBlocks);
 
-  P.layout = { injectLayout, setPageTitle };
+  // 🔹 New: central header hydration from Employee Master
+  function norm(s){ return String(s || "").trim().toLowerCase(); }
+  async function setUserHeaderFromEmployeeMaster() {
+    try {
+      const sess = PowerUp.session?.get?.() || {};
+      const nameEl  = document.querySelector('[data-hook="userName"]');
+      const levelEl = document.querySelector('[data-hook="userLevel"]');
+      if (nameEl && sess.displayName) nameEl.textContent = sess.displayName;
+
+      const rows = await PowerUp.api.getRowsByTitle("EMPLOYEE_MASTER");
+      const row =
+        rows.find(r => norm(r["Position ID"]) === norm(sess.employeeId)) ||
+        rows.find(r => norm(r["Display Name"] || r["Employee Name"] || r["Name"]) === norm(sess.displayName));
+
+      const level = row ? (row["PowerUp Level (Select)"] ?? row["PowerUp Level"] ?? row["Level"]) : null;
+      if (levelEl) levelEl.textContent = level ? String(level) : "Level Unknown";
+    } catch (e) {
+      console.debug("[layout] setUserHeaderFromEmployeeMaster failed:", e);
+    }
+  }
+
+  P.layout = { injectLayout, setPageTitle, setUserHeaderFromEmployeeMaster };
   window.PowerUp = P;
 }(window.PowerUp || {}));
