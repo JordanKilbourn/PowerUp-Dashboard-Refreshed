@@ -18,6 +18,8 @@
   };
 
   const CATS = ['All','CI','Quality','Safety','Other'];
+  const CAT_CLASS = { CI:'cat-ci', Quality:'cat-quality', Safety:'cat-safety', Other:'cat-other' };
+
   const pick = (row, list, d='') => { for (const k of list) if (row[k]!=null && row[k]!=='' ) return row[k]; return d; };
   const dash = (v) => (v==null || String(v).trim()==='') ? '-' : String(v);
   const isTrue = (v) => v === true || /^(true|yes|y|checked|1)$/i.test(String(v ?? "").trim());
@@ -48,22 +50,44 @@
 
   function renderCategoryPills(activeCat) {
     const wrap = document.getElementById('cat-pills');
+    if (!wrap) return;
     wrap.innerHTML = CATS.map(cat =>
       `<button class="pill${cat===activeCat ? ' active':''}" data-cat="${cat}">${cat}</button>`
     ).join('');
+  }
+
+  function ensureLegend() {
+    if (document.getElementById('s-legend')) return;
+    const cards = document.getElementById('cards');
+    if (!cards) return;
+    const legend = document.createElement('div');
+    legend.id = 's-legend';
+    legend.className = 'squad-legend';
+    legend.innerHTML = `
+      <div class="chip"><span class="dot ci"></span> CI</div>
+      <div class="chip"><span class="dot safety"></span> Safety</div>
+      <div class="chip"><span class="dot quality"></span> Quality</div>
+      <div class="chip"><span class="dot other"></span> Other</div>
+    `;
+    // Insert legend just above the cards grid
+    cards.parentNode.insertBefore(legend, cards);
   }
 
   function renderCards(list) {
     const cards = document.getElementById('cards');
     const msg   = document.getElementById('s-msg');
 
+    if (!cards) return;
+
     if (!list.length) {
       cards.innerHTML = '';
-      msg.style.display = 'block';
-      msg.innerHTML = `No squads match your filters.<br/>Try clearing search or showing inactive.`;
+      if (msg) {
+        msg.style.display = 'block';
+        msg.innerHTML = `No squads match your filters.<br/>Try clearing search or showing inactive.`;
+      }
       return;
     }
-    msg.style.display = 'none';
+    if (msg) msg.style.display = 'none';
 
     cards.innerHTML = list.map(sq => {
       const status = isTrue(sq.active)
@@ -73,9 +97,10 @@
       const detailsHref = sq.id
         ? `squad-details.html?id=${encodeURIComponent(sq.id)}`
         : `squad-details.html?name=${encodeURIComponent(sq.name)}`;
+      const catCls = CAT_CLASS[sq.category] || CAT_CLASS.Other;
 
       return `
-        <div class="squad-card card">
+        <div class="squad-card card ${catCls}">
           <h4>${dash(sq.name)}</h4>
           <div class="squad-meta"><b>Leader:</b> ${leader}</div>
           <div class="squad-meta"><b>Status:</b> ${status}</div>
@@ -145,17 +170,22 @@
 
   function wireUI() {
     renderCategoryPills('All');
-    document.getElementById('cat-pills').addEventListener('click', (e) => {
-      const btn = e.target.closest('[data-cat]');
-      if (!btn) return;
-      document.querySelectorAll('#cat-pills .pill').forEach(p => p.classList.remove('active'));
-      btn.classList.add('active');
-      applyFilters();
-    });
+    ensureLegend();
 
-    document.getElementById('myOnly').addEventListener('change', applyFilters);
-    document.getElementById('activeOnly').addEventListener('change', applyFilters);
-    document.getElementById('search').addEventListener('input', applyFilters);
+    const pills = document.getElementById('cat-pills');
+    if (pills) {
+      pills.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-cat]');
+        if (!btn) return;
+        pills.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+        btn.classList.add('active');
+        applyFilters();
+      });
+    }
+
+    document.getElementById('myOnly')?.addEventListener('change', applyFilters);
+    document.getElementById('activeOnly')?.addEventListener('change', applyFilters);
+    document.getElementById('search')?.addEventListener('input', applyFilters);
   }
 
   document.addEventListener('DOMContentLoaded', async () => {
@@ -163,28 +193,21 @@
     P.layout.injectLayout();
 
     // Admin mode?
-    IS_ADMIN = !!(P.auth && P.auth.isAdmin && P.auth.isAdmin());
+    const isAdminFn = P.auth && P.auth.isAdmin;
+    IS_ADMIN = !!(isAdminFn && isAdminFn());
     P.layout.setPageTitle(IS_ADMIN ? 'Squads (Admin)' : 'Squads');
 
     await P.session.initHeader();
 
-    // Wire UI first
     wireUI();
 
-    // If admin, open filters up (show everything) and lock out the "My squads" switch
     if (IS_ADMIN) {
       const myOnly = document.getElementById('myOnly');
-      if (myOnly) {
-        myOnly.checked = false;
-        myOnly.disabled = true;
-        const label = myOnly.closest('label');
-        if (label) label.title = 'Disabled in Admin mode (showing all squads)';
-      }
+      if (myOnly) { myOnly.checked = false; myOnly.disabled = true; myOnly.closest('label')?.setAttribute('title','Disabled in Admin mode'); }
       const activeOnly = document.getElementById('activeOnly');
-      if (activeOnly) activeOnly.checked = false; // include inactive by default in admin mode
+      if (activeOnly) activeOnly.checked = false;
     }
 
-    // Then load data
     await load();
     applyFilters();
   });
