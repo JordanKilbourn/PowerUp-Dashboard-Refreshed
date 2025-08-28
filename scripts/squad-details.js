@@ -3,8 +3,9 @@
   const P = (window.PowerUp = PowerUp || {});
   const { SHEETS, getRowsByTitle } = P.api;
 
-  // Your Smartsheet form for "PowerUp Squad Members"
-  const SQUAD_MEMBER_FORM_URL = "https://app.smartsheet.com/b/form/fc4952f03a3c4e85a548d492c848b536";
+  // Smartsheet forms (members required; activities optional)
+  const SQUAD_MEMBER_FORM_URL   = "https://app.smartsheet.com/b/form/fc4952f03a3c4e85a548d492c848b536";
+  const SQUAD_ACTIVITY_FORM_URL = ""; // optional; paste if/when you make an Activities form
 
   // helpers
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;', "'":'&#39;'}[m]));
@@ -17,9 +18,9 @@
     return `${mm}/${dd}/${yy}`;
   };
   const isTrue = (v) => v === true || /^(true|yes|y|checked|1)$/i.test(String(v ?? "").trim());
-  const rolePill = (r) => (String(r||"").toLowerCase()==="leader" ? `<span class="pill pill--blue">Leader</span>` : `<span class="pill pill--green">Member</span>`);
   const byId = (x) => document.getElementById(x);
   const qparam = (k) => new URL(location.href).searchParams.get(k) || "";
+  const IS_ADMIN = !!(P.auth && P.auth.isAdmin && P.auth.isAdmin());
 
   function normalizeEmployees(rows) {
     const m = new Map();
@@ -58,14 +59,39 @@
     };
   }
 
+  // ---- Activities (if configured) ----
+  function normActivity(r){
+    return {
+      squadId:   String(r["Squad ID"] || "").trim(),
+      title:     String(r["Title"] || r["Activity"] || "").trim(),
+      status:    String(r["Status"] || "").trim(),
+      ownerId:   String(r["Owner Employee ID"] || r["Employee ID"] || "").trim(),
+      start:     r["Start Date"] || "",
+      due:       r["Due Date"] || "",
+      priority:  String(r["Priority"] || "").trim(),
+      progress:  String(r["Progress %"] || r["Progress"] || "").trim(),
+      active:    String(r["Active"] || "").trim(),
+      notes:     String(r["Notes"] || "").trim(),
+    };
+  }
+  function statusPill(s){
+    const t = String(s||'').toLowerCase();
+    if (/done|complete/.test(t)) return `<span class="pill pill--green">${esc(s)}</span>`;
+    if (/blocked|risk|hold/.test(t)) return `<span class="pill pill--red">${esc(s)}</span>`;
+    if (/progress|doing/.test(t)) return `<span class="pill pill--blue">${esc(s)}</span>`;
+    return `<span class="pill pill--gray">${esc(s||'—')}</span>`;
+  }
+
   function renderSkeleton(squad, leaderName) {
-    P.layout.setPageTitle(`Squad: ${esc(squad.name || squad.id)}`);
+    P.layout.setPageTitle(`Squad: ${esc(squad.name || squad.id)}${IS_ADMIN ? ' (Admin)' : ''}`);
+
     const html = `
       <div class="card" style="margin:12px 12px 0 12px; padding:12px;">
         <div style="display:flex; gap:12px; align-items:center; justify-content:flex-end;">
           <button id="btn-back" class="btn small">← Back</button>
           <button id="btn-addmember" class="btn small" style="display:none;">＋ Add Member</button>
           <button id="btn-addleader" class="btn small" style="display:none;">★ Add Leader</button>
+          <button id="btn-addactivity" class="btn small" style="display:none;">＋ Add Activity</button>
         </div>
       </div>
 
@@ -87,32 +113,53 @@
         <h3 style="margin-bottom:8px;">Members</h3>
         <div class="table-scroll">
           <table class="dashboard-table" id="squad-members-table">
-            <thead><tr><th>Member</th><th>Employee ID</th><th>Role</th><th>Status</th><th>Start</th></tr></thead>
+            <thead><tr id="members-head-row"></tr></thead>
             <tbody data-hook="members.tbody"></tbody>
           </table>
+        </div>
+      </div>
+
+      <div class="card" id="activities-card" style="margin: 0 12px 12px 12px;">
+        <h3 style="margin-bottom:8px;">Activities</h3>
+        <div id="activities-body">
+          <div style="opacity:.8;">Activities not configured yet. Add <code>SQUAD_ACTIVITIES</code> to <code>api.js</code> and a Smartsheet sheet for activities to enable this section.</div>
         </div>
       </div>
     `;
     document.querySelector(".content").innerHTML = html;
     byId("btn-back").onclick = () => history.length > 1 ? history.back() : (location.href = "squads.html");
+
+    // Build members header depending on admin
+    const head = byId('members-head-row');
+    head.innerHTML = IS_ADMIN
+      ? `<th>Member</th><th>Employee ID</th><th>Role</th><th>Status</th><th>Start</th>`
+      : `<th>Member</th><th>Role</th><th>Status</th><th>Start</th>`;
   }
 
   function renderMembers(tbody, rows, employeesById) {
     const html = rows.map(r => {
       const p = employeesById.get(r.empId);
       const name = p?.name || r.empId || "-";
-      return `<tr>
-        <td>${esc(name)}</td>
-        <td class="mono">${esc(r.empId || "-")}</td>
-        <td>${rolePill(r.role)}</td>
-        <td>${isTrue(r.active) ? '<span class="pill pill--green">Active</span>' : '<span class="pill pill--gray">Inactive</span>'}</td>
-        <td>${fmtDate(r.start)}</td>
-      </tr>`;
+      if (IS_ADMIN) {
+        return `<tr>
+          <td>${esc(name)}</td>
+          <td class="mono">${esc(r.empId || "-")}</td>
+          <td>${String(r.role||"").toLowerCase()==="leader" ? '<span class="pill pill--blue">Leader</span>' : '<span class="pill pill--green">Member</span>'}</td>
+          <td>${isTrue(r.active) ? '<span class="pill pill--green">Active</span>' : '<span class="pill pill--gray">Inactive</span>'}</td>
+          <td>${fmtDate(r.start)}</td>
+        </tr>`;
+      } else {
+        return `<tr>
+          <td>${esc(name)}</td>
+          <td>${String(r.role||"").toLowerCase()==="leader" ? '<span class="pill pill--blue">Leader</span>' : '<span class="pill pill--green">Member</span>'}</td>
+          <td>${isTrue(r.active) ? '<span class="pill pill--green">Active</span>' : '<span class="pill pill--gray">Inactive</span>'}</td>
+          <td>${fmtDate(r.start)}</td>
+        </tr>`;
+      }
     }).join("");
-    tbody.innerHTML = html || `<tr><td colspan="5" style="text-align:center;opacity:.7;">No members yet.</td></tr>`;
+    tbody.innerHTML = html || `<tr><td colspan="${IS_ADMIN ? 5 : 4}" style="text-align:center;opacity:.7;">No members yet.</td></tr>`;
   }
 
-  // -------- Member picker (search Employee Master) --------
   function injectPickerStylesOnce() {
     if (document.getElementById("pu-member-picker-css")) return;
     const css = `
@@ -135,6 +182,7 @@
     style.textContent = css;
     document.head.appendChild(style);
   }
+
   function openMemberPicker({ squad, employeesById, activeEmpIds, allowLeader = false }) {
     injectPickerStylesOnce();
 
@@ -204,19 +252,77 @@
     $q.focus();
   }
 
-  // Open Smartsheet form with prefilled hidden fields
   function openPrefilledMemberForm({ squad, empId, role = "Member" }) {
     if (!SQUAD_MEMBER_FORM_URL) { alert("Add Member form URL missing."); return; }
     const qp = new URLSearchParams();
-    // MUST match your form field titles exactly:
     qp.set("Squad ID", squad.id || "");
     qp.set("Employee ID", empId || "");
     qp.set("Role", role);
     qp.set("Active", "true");
-    qp.set("Start Date", (() => {
-      const d=new Date(); const mm=String(d.getMonth()+1).padStart(2,'0'); const dd=String(d.getDate()).padStart(2,'0'); return `${mm}/${dd}/${d.getFullYear()}`;
-    })());
+    const d=new Date(); const mm=String(d.getMonth()+1).padStart(2,'0'); const dd=String(d.getDate()).padStart(2,'0');
+    qp.set("Start Date", `${mm}/${dd}/${d.getFullYear()}`);
+    // Open in new tab; we’ll auto-refresh when it redirects back to our bridge page (see #3)
     window.open(`${SQUAD_MEMBER_FORM_URL}?${qp.toString()}`, "_blank", "noopener");
+  }
+
+  // ----- Activities UI -----
+  function renderActivitiesPlaceholder(){
+    const body = byId('activities-body');
+    if (!body) return;
+    body.innerHTML = `<div style="opacity:.8;">
+      Activities not configured yet. Add <code>SQUAD_ACTIVITIES</code> to <code>api.js</code> and point it at a Smartsheet sheet with columns:
+      <em>Squad ID, Title, Status, Owner Employee ID, Start Date, Due Date, Priority, Progress %, Active, Notes</em>.
+    </div>`;
+  }
+  function renderActivitiesTable(rows, employeesById){
+    const body = byId('activities-body'); if (!body) return;
+    const table = `
+      <div class="table-scroll">
+        <table class="dashboard-table">
+          <thead><tr>
+            <th>Title</th>
+            <th>Owner</th>
+            <th>Status</th>
+            <th>Start</th>
+            <th>Due</th>
+            <th>Priority</th>
+            <th>Progress</th>
+          </tr></thead>
+          <tbody>
+            ${rows.map(r => `
+              <tr>
+                <td>${esc(r.title || "-")}</td>
+                <td>${esc(employeesById.get(r.ownerId)?.name || r.ownerId || "-")}</td>
+                <td>${statusPill(r.status)}</td>
+                <td>${fmtDate(r.start)}</td>
+                <td>${fmtDate(r.due)}</td>
+                <td>${esc(r.priority || "-")}</td>
+                <td class="mono">${esc(r.progress || "-")}</td>
+              </tr>
+            `).join("") || `<tr><td colspan="7" style="text-align:center;opacity:.7;">No activities yet.</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    `;
+    body.innerHTML = table;
+  }
+
+  // Refresh members after form submission (bridge) or tab focus
+  async function refreshMembers({force=false, squadId, employeesById}){
+    const membersRows = await getRowsByTitle(SHEETS.SQUAD_MEMBERS, { force });
+    const activeMembers = membersRows
+      .map(normMember)
+      .filter(m => m.squadId === squadId && String(m.active).toLowerCase() !== "false")
+      .sort((a,b) => {
+        const ra = (a.role||"").toLowerCase()==="leader" ? 0 : 1;
+        const rb = (b.role||"").toLowerCase()==="leader" ? 0 : 1;
+        if (ra!==rb) return ra-rb;
+        const na = employeesById.get(a.empId)?.name || a.empId;
+        const nb = employeesById.get(b.empId)?.name || b.empId;
+        return na.localeCompare(nb);
+      });
+    renderMembers(document.querySelector('[data-hook="members.tbody"]'), activeMembers, employeesById);
+    return activeMembers;
   }
 
   // boot
@@ -241,8 +347,8 @@
     const leaderName = employeesById.get(squad.leaderId)?.name;
     renderSkeleton(squad, leaderName);
 
-    // Members (active first; leader first)
-    const activeMembers = membersRows
+    // Members
+    let activeMembers = membersRows
       .map(normMember)
       .filter(m => m.squadId === squad.id && String(m.active).toLowerCase() !== "false")
       .sort((a,b) => {
@@ -259,26 +365,64 @@
     // Permissions
     const me = P.session.get();
     const amLeader = String(squad.leaderId || "").trim() === String(me.employeeId || "").trim();
-    const amAdmin  = !!(P.auth && P.auth.isAdmin && P.auth.isAdmin());
 
     const addMemberBtn = byId("btn-addmember");
     const addLeaderBtn = byId("btn-addleader");
+    const addActivityBtn = byId("btn-addactivity");
 
-    if (amLeader || amAdmin) {
+    if (amLeader || IS_ADMIN) {
       addMemberBtn.style.display = "";
       addMemberBtn.onclick = () => {
         const activeIds = new Set(activeMembers.map(m => m.empId));
         openMemberPicker({ squad, employeesById, activeEmpIds: activeIds, allowLeader: false });
       };
     }
-    if (amAdmin) {
+    if (IS_ADMIN) {
       addLeaderBtn.style.display = "";
       addLeaderBtn.onclick = () => {
         const activeIds = new Set(activeMembers.map(m => m.empId));
         openMemberPicker({ squad, employeesById, activeEmpIds: activeIds, allowLeader: true });
       };
-      // Make header show admin mode
-      P.layout.setPageTitle(`Squad: ${esc(squad.name)} (Admin)`);
     }
+
+    // Activities (if configured)
+    if (SHEETS.SQUAD_ACTIVITIES) {
+      const actRows = (await getRowsByTitle(SHEETS.SQUAD_ACTIVITIES))
+        .map(normActivity)
+        .filter(a => a.squadId === squad.id && String(a.active).toLowerCase() !== "false");
+      renderActivitiesTable(actRows, employeesById);
+
+      if (amLeader || IS_ADMIN) {
+        addActivityBtn.style.display = "";
+        addActivityBtn.onclick = () => {
+          if (!SQUAD_ACTIVITY_FORM_URL) { alert('Add Activity form not configured yet.'); return; }
+          const qp = new URLSearchParams();
+          qp.set("Squad ID", squad.id);
+          qp.set("Start Date", fmtDate(new Date()));
+          const meId = String(me.employeeId || "").trim();
+          if (meId) qp.set("Owner Employee ID", meId);
+          window.open(`${SQUAD_ACTIVITY_FORM_URL}?${qp.toString()}`,'_blank','noopener');
+        };
+      }
+    } else {
+      renderActivitiesPlaceholder();
+    }
+
+    // ----- (5) Improve form UX: auto-refresh on return or redirect bridge -----
+    // Option A: If the Smartsheet form is set to redirect to /form-bridge.html after submit,
+    // the bridge will postMessage back. Listen for that and force-refresh.
+    window.addEventListener('message', async (ev) => {
+      try {
+        const d = ev.data || {};
+        if (d && d.type === 'smartsheet:submitted' && d.sheet === 'SQUAD_MEMBERS') {
+          activeMembers = await refreshMembers({ force: true, squadId: squad.id, employeesById });
+        }
+      } catch {}
+    });
+
+    // Option B: User returns focus to this tab — optimistically refresh members (cheap)
+    window.addEventListener('focus', async () => {
+      activeMembers = await refreshMembers({ force: true, squadId: squad.id, employeesById });
+    });
   });
 })(window.PowerUp || {});
