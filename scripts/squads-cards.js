@@ -10,14 +10,21 @@
     name: ['Squad Name','Squad','Name','Team'],
     category: ['Category','Squad Category'],
     leaderId: ['Squad Leader','Leader Employee ID','Leader Position ID'],
-    members: ['Members','Member List'],
+    members: ['Members','Member List'],               // fallback only
     objective: ['Objective','Focus','Purpose'],
     active: ['Active','Is Active?'],
     created: ['Created Date','Start Date','Started'],
     notes: ['Notes','Description']
   };
+  // PowerUp Squad Members sheet columns
+  const SM_COL = {
+    squadId:   ['Squad ID','SquadID','Squad'],
+    empId:     ['Employee ID','EmployeeID','Position ID'],
+    empName:   ['Employee Name','Name','Display Name'],
+    active:    ['Active','Is Active?'],
+  };
 
-  // Categories — now includes Training
+  // Categories — includes Training
   const CATS = ['All','CI','Quality','Safety','Training','Other'];
   const CAT_CLASS = {
     CI: 'cat-ci',
@@ -42,17 +49,8 @@
   function parseMemberTokens(text) {
     return String(text || '').split(/[,;\n]+/).map(s => s.trim()).filter(Boolean);
   }
-  function userIsMemberOrLeader(squad, session) {
-    const myId   = String(session.employeeId || '').trim();
-    const myName = String(session.displayName || '').trim();
-    if (myId && String(squad.leaderId || '').trim() === myId) return true;
-    const tokensLC = parseMemberTokens(squad.members).map(t => t.toLowerCase());
-    if (myId && tokensLC.includes(myId.toLowerCase())) return true;
-    if (myName && tokensLC.includes(myName.toLowerCase())) return true;
-    return false;
-  }
 
-  // Category → CSS var
+  // Category → CSS var (for colored dot pills)
   function catVar(cat) {
     switch (cat) {
       case 'CI':       return 'var(--sq-ci)';
@@ -62,6 +60,32 @@
       case 'Other':    return 'var(--sq-other)';
       default:         return 'var(--accent)';
     }
+  }
+
+  // Membership map built from the Squad Members sheet:
+  // key = squadId, value = { ids:Set(lowercase), names:Set(lowercase) }
+  const MEMBERS_BY_SQUAD = new Map();
+
+  // Check if current user belongs to a squad (or leads it)
+  function userIsMemberOrLeader(squad, session) {
+    const myId   = String(session.employeeId || '').trim().toLowerCase();
+    const myName = String(session.displayName || '').trim().toLowerCase();
+
+    // leaders always count
+    if (myId && String(squad.leaderId || '').trim().toLowerCase() === myId) return true;
+
+    const sid = String(squad.id || '').trim();
+    const entry = MEMBERS_BY_SQUAD.get(sid);
+    if (entry) {
+      if (myId && entry.ids.has(myId)) return true;
+      if (myName && entry.names.has(myName)) return true;
+    } else {
+      // graceful fallback to old comma-separated Members column (if still present)
+      const tokensLC = parseMemberTokens(squad.members).map(t => t.toLowerCase());
+      if (myId && tokensLC.includes(myId)) return true;
+      if (myName && tokensLC.includes(myName)) return true;
+    }
+    return false;
   }
 
   let ALL = [];
@@ -130,8 +154,8 @@
 
     let list = ALL.slice();
 
-    if (myOnly) list = list.filter(s => userIsMemberOrLeader(s, session));
-    if (activeOnly) list = list.filter(s => isTrue(s.active));
+    if (myOnly)      list = list.filter(s => userIsMemberOrLeader(s, session));
+    if (activeOnly)  list = list.filter(s => isTrue(s.active));
     if (cat !== 'All') list = list.filter(s => s.category === cat);
 
     if (q) {
@@ -145,6 +169,7 @@
   }
 
   async function load() {
+    // Employee master → ID → Name map (for leader display)
     const emRows = await getRowsByTitle(SHEETS.EMPLOYEE_MASTER);
     idToName = new Map();
     emRows.forEach(r => {
@@ -153,6 +178,32 @@
       if (id) idToName.set(id, name);
     });
 
+    // Build MEMBERS_BY_SQUAD from the Squad Members sheet (active rows)
+    MEMBERS_BY_SQUAD.clear();
+    try {
+      if (SHEETS.SQUAD_MEMBERS) {
+        const smRows = await getRowsByTitle(SHEETS.SQUAD_MEMBERS);
+        smRows.forEach(r => {
+          const active = isTrue(pick(r, SM_COL.active, 'true'));
+          if (!active) return;
+          const sid  = pick(r, SM_COL.squadId, '').toString().trim();
+          if (!sid) return;
+          const eid  = pick(r, SM_COL.empId, '').toString().trim();
+          const enm  = (pick(r, SM_COL.empName, '') || idToName.get(eid) || '').toString().trim();
+          let entry = MEMBERS_BY_SQUAD.get(sid);
+          if (!entry) {
+            entry = { ids: new Set(), names: new Set() };
+            MEMBERS_BY_SQUAD.set(sid, entry);
+          }
+          if (eid) entry.ids.add(eid.toLowerCase());
+          if (enm) entry.names.add(enm.toLowerCase());
+        });
+      }
+    } catch (_) {
+      // If the sheet is misconfigured/unavailable, we silently fall back to the old “Members” column.
+    }
+
+    // Load base squads list
     const rows = await getRowsByTitle(SHEETS.SQUADS);
     ALL = rows
       .map(r => {
@@ -165,7 +216,7 @@
           category:  normCategory(pick(r, SQUAD_COL.category, 'Other')),
           leaderId,
           leaderName: idToName.get(leaderId) || '',
-          members:   pick(r, SQUAD_COL.members, ''),
+          members:   pick(r, SQUAD_COL.members, ''), // fallback only
           objective: pick(r, SQUAD_COL.objective, ''),
           active:    pick(r, SQUAD_COL.active, ''),
           created:   pick(r, SQUAD_COL.created, ''),
@@ -176,8 +227,7 @@
   }
 
   function wireUI() {
-    renderCategoryPills('All');         // render our dot pills
-    // DO NOT insert the old legend anymore
+    renderCategoryPills('All'); // colored dot pills
 
     const pills = document.getElementById('cat-pills');
     if (pills) {
@@ -196,7 +246,7 @@
   }
 
   document.addEventListener('DOMContentLoaded', async () => {
-    // Keep your existing flow EXACTLY
+    // same flow as before
     P.session.requireLogin();
     P.layout.injectLayout();
 
