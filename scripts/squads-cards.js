@@ -17,26 +17,14 @@
     notes: ['Notes','Description']
   };
 
-  // 🔹 Categories (added Training)
+  // Categories — now includes Training
   const CATS = ['All','CI','Quality','Safety','Training','Other'];
-
-  // 🔹 CSS class for card border color
   const CAT_CLASS = {
-    CI:'cat-ci',
-    Quality:'cat-quality',
-    Safety:'cat-safety',
-    Training:'cat-training',
-    Other:'cat-other'
-  };
-
-  // 🔹 CSS color var to apply to pill borders/dots
-  const CAT_COLOR_VAR = {
-    All: 'var(--accent)',
-    CI: 'var(--sq-ci)',
-    Safety: 'var(--sq-safety)',
-    Quality: 'var(--sq-quality)',
-    Training: 'var(--sq-training)',
-    Other: 'var(--sq-other)'
+    CI: 'cat-ci',
+    Quality: 'cat-quality',
+    Safety: 'cat-safety',
+    Training: 'cat-training',
+    Other: 'cat-other'
   };
 
   const pick = (row, list, d='') => { for (const k of list) if (row[k]!=null && row[k]!=='' ) return row[k]; return d; };
@@ -48,7 +36,7 @@
     if (/^ci|improve/.test(t))     return 'CI';
     if (/^quality/.test(t))        return 'Quality';
     if (/^safety/.test(t))         return 'Safety';
-    if (/^training|train/.test(t)) return 'Training';
+    if (/^training/.test(t))       return 'Training';
     return 'Other';
   }
   function parseMemberTokens(text) {
@@ -64,28 +52,39 @@
     return false;
   }
 
+  // Category → CSS var
+  function catVar(cat) {
+    switch (cat) {
+      case 'CI':       return 'var(--sq-ci)';
+      case 'Quality':  return 'var(--sq-quality)';
+      case 'Safety':   return 'var(--sq-safety)';
+      case 'Training': return 'var(--sq-training)';
+      case 'Other':    return 'var(--sq-other)';
+      default:         return 'var(--accent)';
+    }
+  }
+
   let ALL = [];
   let idToName = new Map();
   let IS_ADMIN = false;
 
-  // Render legend-style pills with colored dots
+  // Render dot “legend-style” pills in the toolbar
   function renderCategoryPills(activeCat) {
     const wrap = document.getElementById('cat-pills');
     if (!wrap) return;
     wrap.innerHTML = CATS.map(cat => {
-      const isActive = cat === activeCat;
-      const cssVar = CAT_COLOR_VAR[cat] || 'var(--accent)';
+      const style = `--cat:${catVar(cat)};`;
       return `
-        <button class="pill-cat${isActive ? ' active':''}" data-cat="${cat}" style="--cat:${cssVar}">
+        <button class="pill-cat${cat===activeCat ? ' active':''}" data-cat="${cat}" style="${style}">
           <span class="dot"></span>${cat}
-        </button>`;
+        </button>
+      `;
     }).join('');
   }
 
   function renderCards(list) {
     const cards = document.getElementById('cards');
     const msg   = document.getElementById('s-msg');
-
     if (!cards) return;
 
     if (!list.length) {
@@ -122,13 +121,11 @@
 
   function applyFilters() {
     const session   = P.session.get();
-    const catBtn    = document.querySelector('.pill-cat.active');
-    const cat       = catBtn?.dataset.cat || 'All';
+    const cat       = document.querySelector('.pill-cat.active')?.dataset.cat || 'All';
     let   myOnly    = document.getElementById('myOnly')?.checked;
     const activeOnly= document.getElementById('activeOnly')?.checked;
     const q         = (document.getElementById('search')?.value || '').trim().toLowerCase();
 
-    // Admins see all squads; ignore myOnly
     if (IS_ADMIN) myOnly = false;
 
     let list = ALL.slice();
@@ -179,7 +176,8 @@
   }
 
   function wireUI() {
-    renderCategoryPills('All');
+    renderCategoryPills('All');         // render our dot pills
+    // DO NOT insert the old legend anymore
 
     const pills = document.getElementById('cat-pills');
     if (pills) {
@@ -192,4 +190,34 @@
       });
     }
 
-    document.getElementById('myOnly')?.addEventListener('change', applyFil
+    document.getElementById('myOnly')?.addEventListener('change', applyFilters);
+    document.getElementById('activeOnly')?.addEventListener('change', applyFilters);
+    document.getElementById('search')?.addEventListener('input', applyFilters);
+  }
+
+  document.addEventListener('DOMContentLoaded', async () => {
+    // Keep your existing flow EXACTLY
+    P.session.requireLogin();
+    P.layout.injectLayout();
+
+    const isAdminFn = P.auth && P.auth.isAdmin;
+    IS_ADMIN = !!(isAdminFn && isAdminFn());
+    P.layout.setPageTitle(IS_ADMIN ? 'Squads (Admin)' : 'Squads');
+
+    await P.session.initHeader();
+
+    wireUI();
+
+    if (IS_ADMIN) {
+      const myOnly = document.getElementById('myOnly');
+      if (myOnly) { myOnly.checked = false; myOnly.disabled = true; myOnly.closest('label')?.setAttribute('title','Disabled in Admin mode'); }
+      const activeOnly = document.getElementById('activeOnly');
+      if (activeOnly) activeOnly.checked = false;
+    }
+
+    await load();
+    applyFilters();
+  });
+
+  window.PowerUp = P;
+})(window.PowerUp || {});
