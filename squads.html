@@ -12,84 +12,77 @@
   <link rel="preconnect" href="https://powerup-proxy.onrender.com" crossorigin>
 
   <style>
-/* Filter toolbar (non-sticky; sits right under the header divider) */
-.filter-toolbar {
-  position: relative;           /* remove sticky */
-  top: auto;
-  z-index: 1;
-  background: var(--card-bg);
-  border: 1px solid #2d3f3f;
-  border-radius: 8px;
-  margin: 6px 14px 12px 14px;   /* tight gap under header, clear gap above cards */
-  padding: 10px 12px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
+  /* Filter toolbar (non-sticky; sits right under the header divider) */
+  .filter-toolbar {
+    position: relative;
+    top: auto;
+    z-index: 1;
+    background: var(--card-bg);
+    border: 1px solid #2d3f3f;
+    border-radius: 8px;
+    margin: 6px 14px 12px 14px;
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
 
-    .ft-left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-    .ft-right { margin-left: auto; display:flex; gap:10px; }
+  .ft-left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .ft-right { margin-left: auto; display:flex; gap:10px; }
 
-    .pill-group { display:flex; gap:8px; }
-    .pill {
-      padding: 6px 10px; border-radius: 999px; border: 1px solid #345; cursor: pointer;
-      background: #162425; color: var(--text); font-size: 13px;
-    }
-    .pill.active { border-color: var(--accent); color:#000; background: var(--accent); font-weight:700; }
+  .toggle { display:flex; align-items:center; gap:6px; font-size:13px; }
+  .toggle input { width:18px; height:18px; }
 
-    .toggle { display:flex; align-items:center; gap:6px; font-size:13px; }
-    .toggle input { width:18px; height:18px; }
+  .ft-search input {
+    width: 260px; max-width: 100%;
+    padding: 8px 10px; border-radius: 6px; border: 1px solid #2d3f3f;
+    background: #122; color: var(--text);
+  }
 
-    .ft-search input {
-      width: 260px; max-width: 100%;
-      padding: 8px 10px; border-radius: 6px; border: 1px solid #2d3f3f;
-      background: #122; color: var(--text);
-    }
+  .btn {
+    padding:8px 12px; border-radius:6px; border:1px solid var(--accent);
+    background:var(--card-bg); color:var(--text); cursor:pointer;
+  }
+  .btn:hover { background: var(--card-bg-hover); }
 
-    .btn {
-      padding:8px 12px; border-radius:6px; border:1px solid var(--accent);
-      background:var(--card-bg); color:var(--text); cursor:pointer;
-    }
-    .btn:hover { background: var(--card-bg-hover); }
+  /* ---------- Main content ---------- */
+  .squads-main { padding: 0 14px 14px; }
 
-    /* ---------- Main content ---------- */
-    .squads-main { padding: 0 14px 14px; }
+  .section-h {
+    font-size: 18px; font-weight: 700; color: var(--accent);
+    margin: 2px 0 10px 0;
+  }
 
-    .section-h {
-      font-size: 18px; font-weight: 700; color: var(--accent);
-      margin: 2px 0 10px 0;
-    }
+  /* Left-aligned card grid with fixed max width per card */
+  .cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(360px, 420px));
+    gap: 16px;
+    justify-content: start;
+    margin-top: 4px;
+  }
 
-    /* Left-aligned card grid with fixed max width per card */
-    .cards-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(360px, 420px));
-      gap: 16px;
-      justify-content: start; /* keep grid aligned to the left */
-      margin-top: 4px;
-    }
+  .squad-card.card { padding: 12px 14px; }
+  .squad-card h4 { font-size: 16px; color: #9ffbe6; margin-bottom: 6px; }
+  .squad-meta { font-size: 13px; color: var(--text); }
+  .squad-meta b { color: var(--info); font-weight: 600; }
+  .squad-foot { display:flex; justify-content:flex-end; margin-top: 6px; }
+  .squad-link { font-size: 13px; color: var(--accent); text-decoration: none; }
+  .squad-link:hover { text-decoration: underline; }
+  .status-pill { display:inline-block; padding:3px 8px; border-radius:999px; font-size:12px; font-weight:700; }
+  .status-on  { background: var(--success); color:#000; }
+  .status-off { background: #3a4e4e; color:#fff; }
 
-    .squad-card.card { padding: 12px 14px; }
-    .squad-card h4 { font-size: 16px; color: #9ffbe6; margin-bottom: 6px; }
-    .squad-meta { font-size: 13px; color: var(--text); }
-    .squad-meta b { color: var(--info); font-weight: 600; }
-    .squad-foot { display:flex; justify-content:flex-end; margin-top: 6px; }
-    .squad-link { font-size: 13px; color: var(--accent); text-decoration: none; }
-    .squad-link:hover { text-decoration: underline; }
-    .status-pill { display:inline-block; padding:3px 8px; border-radius:999px; font-size:12px; font-weight:700; }
-    .status-on  { background: var(--success); color:#000; }
-    .status-off { background: #3a4e4e; color:#fff; }
+  .empty {
+    background: var(--card-bg); border: 1px dashed #2d3f3f; border-radius: 8px;
+    padding: 16px; color: var(--info);
+  }
 
-    .empty {
-      background: var(--card-bg); border: 1px dashed #2d3f3f; border-radius: 8px;
-      padding: 16px; color: var(--info);
-    }
-
-    @media (max-width: 860px) {
-      .ft-right { width: 100%; justify-content: flex-end; }
-      .ft-search input { width: 100%; }
-    }
+  @media (max-width: 860px) {
+    .ft-right { width: 100%; justify-content: flex-end; }
+    .ft-search input { width: 100%; }
+  }
   </style>
 </head>
 <body>
@@ -98,7 +91,9 @@
   <!-- Top filter stripe -->
   <div class="filter-toolbar">
     <div class="ft-left">
-      <div class="pill-group" id="cat-pills"><!-- JS renders All/CI/Quality/Safety/Other --></div>
+      <!-- Category filters are rendered by JS into this container -->
+      <div class="cat-pills" id="cat-pills"></div>
+
       <label class="toggle"><input type="checkbox" id="myOnly" checked /> My squads</label>
       <label class="toggle"><input type="checkbox" id="activeOnly" /> Active only</label>
       <div class="ft-search">
@@ -126,5 +121,3 @@
   <script src="scripts/squads-cards.js"></script>
 </body>
 </html>
-
-
