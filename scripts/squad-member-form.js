@@ -13,7 +13,7 @@
   };
 
   // local state
-  let STATE = { squadId: "", squadName: "", employeesLoaded: false };
+  let STATE = { squadId: "", squadName: "", employeesLoaded: false, empIndex: {} };
 
   function isoToday() { return new Date().toISOString().slice(0,10); }
 
@@ -32,6 +32,7 @@
     const opts = rows.map(r => {
       const id   = r["Position ID"] || r["Employee ID"] || r["ID"] || "";
       const name = r["Display Name"] || r["Employee Name"] || r["Name"] || id;
+      if (id) STATE.empIndex[id] = name || id;
       return id ? `<option value="${id}">${name} — ${id}</option>` : "";
     }).join("");
     el.member.innerHTML = `<option value="">Select a person…</option>${opts}`;
@@ -42,15 +43,13 @@
     STATE.squadId = String(squadId || "").trim();
     STATE.squadName = String(squadName || "").trim();
 
-    // Prefill UI
     el.role.value = "Member";
     el.start.value = isoToday();
     el.active.checked = true;
-    el.member.value = ""; // default to placeholder
+    el.member.value = "";
 
     ensureEmployees();
 
-    // Show modal
     el.modal.style.display = "flex";
     el.modal.setAttribute("aria-hidden", "false");
   }
@@ -74,12 +73,20 @@
     el.btnSave.disabled = true;
 
     try {
+      const empName  = STATE.empIndex[employeeId] || "";
+      const addedBy  = (P.session?.get?.()?.displayName) || (P.session?.get?.()?.employeeId) || "";
+
+      // We now include optional fields "Employee Name" and "Squad Name".
+      // If those columns don't exist (or are still formulas), api.addRows() will skip them safely.
       await api.addRows(api.SHEETS.SQUAD_MEMBERS, [{
         "Squad ID": STATE.squadId,
+        "Squad Name": STATE.squadName,     // optional
         "Employee ID": employeeId,
+        "Employee Name": empName,          // optional
         "Role": role,
         "Active": active,
-        "Start Date": startDate
+        "Start Date": startDate,
+        "Added By": addedBy                // optional if you keep this column
       }]);
 
       close();
@@ -95,10 +102,8 @@
     }
   }
 
-  // wire buttons (once)
   if (el.btnCancel) el.btnCancel.onclick = (e) => { e.preventDefault(); close(); };
   if (el.btnSave)   el.btnSave.onclick   = (e) => { e.preventDefault(); save(); };
 
-  // expose
   P.squadForm = { open, close };
 })(window.PowerUp || (window.PowerUp = {}));
