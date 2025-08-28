@@ -22,8 +22,8 @@
   const _rowsCache = new Map();  // id -> [{title:value,...}] (in-memory)
 
   // ---- persistent (session) cache with TTL ----
-  const STORE_KEY    = "pu.sheetCache.v1";
-  const SHEET_TTL_MS = 5 * 60 * 1000; // 5 minutes
+  const STORE_KEY    = "pu.sheetCache.v1";     // bump if schema changes
+  const SHEET_TTL_MS = 5 * 60 * 1000;          // 5 minutes
 
   function loadStore() {
     try { return JSON.parse(sessionStorage.getItem(STORE_KEY) || "{}"); }
@@ -49,8 +49,6 @@
     }
   }
 
-  const norm = (s) => String(s || "").toLowerCase().replace(/\s+/g, " ").trim();
-
   // Convert Smartsheet rows into objects keyed by column title
   function rowsByTitle(sheetJson) {
     const colTitleById = {};
@@ -66,13 +64,14 @@
     });
   }
 
-  async function fetchJSON(url) {
-    const res = await fetch(url, { credentials: "omit", cache: "no-store" });
+  async function fetchJSON(url, init) {
+    const res = await fetch(url, { credentials: "omit", cache: "no-store", ...(init||{}) });
     if (!res.ok) {
       let detail = ""; try { detail = await res.text(); } catch {}
       throw new Error(`Proxy error ${res.status} for ${url}${detail ? `: ${detail}` : ""}`);
     }
-    return res.json();
+    const text = await res.text();
+    try { return JSON.parse(text); } catch { return text; }
   }
 
   // ---------- core fetchers ----------
@@ -80,11 +79,13 @@
     const id = resolveSheetId(sheetIdOrKey);
     assertValidId(id, `fetchSheet(${String(sheetIdOrKey)})`);
 
+    // in-memory fast path
     if (!force) {
       if (_rawCache.has(id)) return _rawCache.get(id);
       if (_inflight.has(id)) return _inflight.get(id);
     }
 
+    // sessionStorage TTL cache
     if (!force) {
       const store = loadStore();
       const hit = store[id];
@@ -95,10 +96,12 @@
       }
     }
 
+    // network (deduped)
     const p = (async () => {
       const json = await fetchJSON(`${API_BASE}/sheet/${id}`);
       _rawCache.set(id, json);
 
+      // write-through to session store
       const store = loadStore();
       store[id] = { ts: Date.now(), data: json };
       saveStore(store);
@@ -126,7 +129,7 @@
   function clearCache(sheetIdOrKey) {
     if (!sheetIdOrKey) {
       _rawCache.clear(); _inflight.clear(); _rowsCache.clear();
-      saveStore({});
+      saveStore({}); // nuke session cache
       return;
     }
     const id = resolveSheetId(sheetIdOrKey);
@@ -145,105 +148,45 @@
     return Number.isFinite(n) ? n : 0;
   }
 
-  // ---------- addRows with client-side title→columnId mapping ----------
-  const _colMapCache = new Map(); // id -> { normTitle: { id, primary } }
-
-  async function getColumnMap(sheetIdOrKey) {
-    const id = resolveSheetId(sheetIdOrKey);
-    if (_colMapCache.has(id)) return _colMapCache.get(id);
-    const sheet = await fetchSheet(id);
-    const map = {};
-    (sheet.columns || []).forEach(c => {
-      map[norm(c.title)] = { id: c.id, primary: !!c.primary };
-    });
-    _colMapCache.set(id, map);
-    return map;
-  }
-
-  function normaliseValue(title, value) {
-    const t = norm(title);
-
-    // booleans / checkboxes
-    if (t === "active" || t === "completed" || t === "scheduled") {
-      if (typeof value === "boolean") return value;
-      const s = String(value || "").trim().toLowerCase();
-      return s === "true" || s === "yes" || s === "1" || s === "y";
-    }
-
-    // dates (YYYY-MM-DD)
-    if (t.includes("date")) {
-      if (value instanceof Date) {
-        return value.toISOString().slice(0, 10);
-      }
-      const sv = String(value || "").trim();
-      // Accept "MM/DD/YY" from UI; convert to YYYY-MM-DD when we can
-      const mdy = sv.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
-      if (mdy) {
-        let [ , m, d, y ] = mdy;
-        if (y.length === 2) y = `20${y}`;
-        return `${y.padStart(4,"0")}-${m.padStart(2,"0")}-${d.padStart(2,"0")}`;
-      }
-      if (/^\d{4}-\d{2}-\d{2}$/.test(sv)) return sv;
-      const d = new Date(sv);
-      if (!isNaN(d)) return d.toISOString().slice(0, 10);
-      return sv;
-    }
-
-    return value;
-  }
-
+  // ---------- WRITE: add rows (client maps titles → columnId) ----------
   /**
-   * Append one or more rows to a sheet using column **titles** as keys.
-   * This function resolves titles to columnIds on the client, so Smartsheet
-   * receives proper {columnId, value} cells and won’t create blank rows.
-   *
-   * Example:
-   *   await PowerUp.api.addRows('SQUAD_MEMBERS', [
-   *     { "Squad ID": "SQ-001", "Employee ID": "IX7992604", "Role": "Member",
-   *       "Active": true, "Start Date": "2025-08-28" }
-   *   ])
+   * addRows('SHEET_KEY_OR_ID', [
+   *   { "Squad ID": "SQ-001", "Employee ID": "IX7992604", "Role": "Member", "Active": true, "Start Date": "2025-08-28" }
+   * ])
    */
-  async function addRows(sheetIdOrKey, rowObjects, { toTop = true } = {}) {
+  async function addRows(sheetIdOrKey, titleRows, { toTop = true } = {}) {
     const id = resolveSheetId(sheetIdOrKey);
     assertValidId(id, `addRows(${String(sheetIdOrKey)})`);
-    if (!Array.isArray(rowObjects) || rowObjects.length === 0) {
-      throw new Error("addRows: 'rowObjects' must be a non-empty array");
+
+    if (!Array.isArray(titleRows) || !titleRows.length) {
+      throw new Error("addRows: 'titleRows' must be a non-empty array");
     }
 
-    const colMap = await getColumnMap(id);
+    // fetch column schema to build title → id map
+    const sheet = await fetchSheet(id, { force: true });
+    const titleToId = {};
+    (sheet.columns || []).forEach(c => {
+      titleToId[String(c.title).trim().toLowerCase()] = c.id;
+    });
 
-    const payloadRows = rowObjects.map((obj, idx) => {
+    const rows = titleRows.map(obj => {
       const cells = [];
-      for (const [title, raw] of Object.entries(obj || {})) {
-        const key = norm(title);
-        const col = colMap[key];
-        if (!col) {
-          console.warn(`[addRows] Column not found for title "${title}" on sheet ${id}`);
-          continue;
+      Object.entries(obj || {}).forEach(([title, value]) => {
+        const colId = titleToId[String(title).trim().toLowerCase()];
+        if (!colId) {
+          console.warn(`[addRows] Unknown column title in sheet ${id}:`, title);
+          return;
         }
-        cells.push({
-          columnId: col.id,
-          value: normaliseValue(title, raw),
-        });
-      }
-      if (!cells.length) {
-        console.warn(`[addRows] Row ${idx} produced no cells; check your titles.`);
-      }
+        cells.push({ columnId: colId, value });
+      });
       return { toTop, cells };
     });
 
-    const res = await fetch(`${API_BASE}/sheet/${id}/rows`, {
+    return fetchJSON(`${API_BASE}/sheet/${id}/rows`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ rows: payloadRows, toTop }),
-      credentials: "omit",
+      body: JSON.stringify({ rows }),
     });
-
-    const text = await res.text().catch(() => "");
-    if (!res.ok) {
-      throw new Error(`Proxy write ${res.status} for sheet ${id}: ${text || "no body"}`);
-    }
-    try { return JSON.parse(text); } catch { return text; }
   }
 
   // ---------- export ----------
@@ -256,7 +199,7 @@
     getRowsByTitle,
     clearCache,
     toNumber,
-    addRows, // <— use this for in-app forms
+    addRows,
   };
   window.PowerUp = P;
 })(window.PowerUp || {});
