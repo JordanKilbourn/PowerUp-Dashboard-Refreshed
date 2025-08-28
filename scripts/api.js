@@ -143,37 +143,53 @@
   function toNumber(x) {
     if (x == null) return 0;
     if (typeof x === "number") return x;
-    const n = parseFloat(String(x).replace(/[^0-9.\-]/g, ""));
+    const n = parseFloat(String(x).replace(/[^0-9.\-]/g, ""));  // allow negatives + decimal
     return Number.isFinite(n) ? n : 0;
   }
 
-  // ---------- WRITE: add/append rows via the proxy ----------
+  // ---- helper: make map {lowercased title -> columnId}
+  async function getColumnIdMap(sheetId) {
+    const raw = await fetchSheet(sheetId);
+    const map = {};
+    (raw.columns || []).forEach(c => {
+      map[String(c.title).trim().toLowerCase()] = c.id;
+    });
+    return map;
+  }
+
+  // ---------- NEW: add rows using TITLE keys (client maps to columnIds) ----------
   /**
-   * Add one or more rows to a sheet using column **titles** as keys.
-   * The proxy maps titles -> columnIds server-side.
-   *
-   * Example:
-   *   PowerUp.api.addRows('SQUAD_MEMBERS', [
-   *     { "Squad ID": "KILLER-KAIZENS", "Employee ID": "IX7992604",
-   *       "Role": "Member", "Active": true, "Start Date": "08/28/2025" }
-   *   ])
-   *
-   * Options:
-   *   { toTop = true, toBottom = false }
+   * addRows('SQUAD_MEMBERS', [
+   *   { "Squad ID": "KILLER-KAIZENS", "Employee ID": "IX7992604", "Role": "Member", "Active": true, "Start Date": "2025-08-28" }
+   * ])
    */
-  async function addRows(sheetIdOrKey, rows, { toTop = true, toBottom = false } = {}) {
+  async function addRows(sheetIdOrKey, titleRows, { toTop = false } = {}) {
     const id = resolveSheetId(sheetIdOrKey);
     assertValidId(id, `addRows(${String(sheetIdOrKey)})`);
-
-    if (!Array.isArray(rows) || rows.length === 0) {
-      throw new Error("addRows: 'rows' must be a non-empty array");
+    if (!Array.isArray(titleRows) || titleRows.length === 0) {
+      throw new Error("addRows: 'titleRows' must be a non-empty array");
     }
+
+    // Map titles -> ids on the client so Smartsheet receives proper cells[]
+    const colMap = await getColumnIdMap(id);
+
+    const smRows = titleRows.map(obj => {
+      const cells = [];
+      for (const [k, v] of Object.entries(obj || {})) {
+        const colId = colMap[String(k).trim().toLowerCase()];
+        if (colId) cells.push({ columnId: colId, value: v });
+      }
+      return { cells };
+    });
+
+    const body = { rows: smRows, raw: true };
+    if (toTop) body.toTop = true;
 
     const res = await fetch(`${API_BASE}/sheet/${id}/rows`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "omit",
-      body: JSON.stringify({ toTop, toBottom, rows })
+      body: JSON.stringify(body)
     });
 
     const text = await res.text().catch(() => "");
@@ -182,9 +198,6 @@
     }
     try { return JSON.parse(text); } catch { return text; }
   }
-
-  // Back-compat alias (some earlier snippets used appendRows)
-  const appendRows = addRows;
 
   // ---------- export ----------
   P.api = {
@@ -196,8 +209,7 @@
     getRowsByTitle,
     clearCache,
     toNumber,
-    addRows,
-    appendRows
+    addRows,   // upgraded to build Smartsheet-native rows
   };
   window.PowerUp = P;
 })(window.PowerUp || {});
