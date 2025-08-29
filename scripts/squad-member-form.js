@@ -1,6 +1,6 @@
 // scripts/squad-member-form.js
 (function (P) {
-  const { api } = P;
+  const { api, roles } = P;
 
   const el = {
     modal:      document.getElementById("addMemberModal"),
@@ -46,13 +46,11 @@
   async function ensureEmployees() {
     if (STATE.employeesLoaded) return;
     const rows = await api.getRowsByTitle('EMPLOYEE_MASTER');
-    const opts = rows.map(r => {
+    rows.forEach(r => {
       const id   = r["Position ID"] || r["Employee ID"] || r["ID"] || "";
       const name = r["Display Name"] || r["Employee Name"] || r["Name"] || id;
       if (id) STATE.empIndex[id] = name || id;
-      return id ? `<option value="${id}">${name} — ${id}</option>` : "";
-    }).join("");
-    el.member.innerHTML = `<option value="">Select a person…</option>${opts}`;
+    });
     STATE.employeesLoaded = true;
   }
 
@@ -110,6 +108,47 @@
     }
   }
 
+  // Build the <select> options showing two groups:
+  //  - Already on this squad (disabled)
+  //  - Available to add
+  // Admins see "Name — ID"; non-admins see only "Name"
+  function rebuildMemberOptions() {
+    const isAdmin = !!(roles && roles.isAdmin && roles.isAdmin());
+
+    const currentIds = new Set(
+      STATE.members
+        .filter(r => norm(r["Squad ID"]) === norm(STATE.squadId) && String(r["Active"]||"").toLowerCase() === "true")
+        .map(r => String(r["Employee ID"] || "").trim().toLowerCase())
+    );
+
+    // Split all employees into existing vs available
+    const all = Object.entries(STATE.empIndex)
+      .map(([id, name]) => ({ id, name, nameLC: norm(name) }))
+      .sort((a,b) => a.nameLC.localeCompare(b.nameLC));
+
+    const existing = [];
+    const available = [];
+    all.forEach(e => (currentIds.has(norm(e.id)) ? existing : available).push(e));
+
+    const labelFor = (e) => isAdmin ? `${e.name} — ${e.id}` : `${e.name}`;
+
+    // Build innerHTML
+    let html = `<option value="">Select a person…</option>`;
+    if (existing.length) {
+      html += `<optgroup label="Already on this squad">` +
+        existing.map(e =>
+          `<option value="${e.id}" disabled aria-disabled="true" data-existing="1">${labelFor(e)} (already on this squad)</option>`
+        ).join("") +
+      `</optgroup>`;
+    }
+    html += `<optgroup label="Available to add">` +
+      available.map(e => `<option value="${e.id}">${labelFor(e)}</option>`).join("") +
+    `</optgroup>`;
+
+    el.member.innerHTML = html;
+    el.member.value = ""; // reset
+  }
+
   function open({ squadId, squadName }) {
     STATE.squadId = String(squadId || "").trim();
     STATE.squadName = String(squadName || "").trim();
@@ -118,9 +157,14 @@
     el.active.checked = true;
     el.member.value = "";
 
-    // load data
-    ensureEmployees();
-    ensureMembers().then(() => updateDuplicateWarning());
+    // load data + build select
+    (async () => {
+      await ensureEmployees();
+      await ensureMembers();
+      rebuildMemberOptions();       // <- new grouped/disabled options
+      updateDuplicateWarning();     // note will normally be empty now
+    })();
+
     ensureRoleOptions();
 
     // show modal
@@ -165,7 +209,7 @@
         "Squad Name": STATE.squadName,     // skipped if formula/system
         "Employee ID": employeeId,
         "Employee Name": empName,          // skipped if formula/system
-        "Role": role,                      // now guaranteed to match allowed picklist option
+        "Role": role,                      // matches allowed picklist option
         "Active": active,
         "Start Date": startDate,
         "Added By": addedBy
@@ -176,6 +220,10 @@
         detail: { squadId: STATE.squadId, employeeId }
       }));
       toast("Member added.", true);
+
+      // Refresh the select so the newly-added person moves into the "Already on this squad" group
+      await ensureMembers();
+      rebuildMemberOptions();
     } catch (err) {
       console.error(err);
       toast("Unable to add member. Please try again.");
