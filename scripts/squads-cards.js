@@ -66,12 +66,16 @@
   // key = squadId, value = { ids:Set(lowercase), names:Set(lowercase) }
   const MEMBERS_BY_SQUAD = new Map();
 
+  // NEW: Active leaders-by-squad for card display
+  // key = squadId, value = Array<{ id: string, name: string }>
+  const LEADERS_BY_SQUAD = new Map();
+
   // Check if current user belongs to a squad (or leads it)
   function userIsMemberOrLeader(squad, session) {
     const myId   = String(session.employeeId || '').trim().toLowerCase();
     const myName = String(session.displayName || '').trim().toLowerCase();
 
-    // leaders always count
+    // leaders always count (legacy single leader field on SQUADS)
     if (myId && String(squad.leaderId || '').trim().toLowerCase() === myId) return true;
 
     const sid = String(squad.id || '').trim();
@@ -125,7 +129,25 @@
       const status = isTrue(sq.active)
         ? `<span class="status-pill status-on">Active</span>`
         : `<span class="status-pill status-off">Inactive</span>`;
-      const leader = dash(sq.leaderName || sq.leaderId);
+
+      // ----- NEW: multi-leader display using SQUAD_MEMBERS -----
+      let leaderLine = dash(sq.leaderName || sq.leaderId);  // fallback to SQUADS field
+      const leaders = LEADERS_BY_SQUAD.get(String(sq.id || '').trim());
+      if (leaders && leaders.length) {
+        const names = leaders
+          .map(x => (x.name || idToName.get(x.id) || x.id || '').toString().trim())
+          .filter(Boolean)
+          .sort((a,b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+        if (names.length === 1) {
+          leaderLine = names[0];
+        } else if (names.length === 2) {
+          leaderLine = `${names[0]}, ${names[1]}`;
+        } else if (names.length > 2) {
+          leaderLine = `${names[0]}, ${names[1]} +${names.length - 2} more`;
+        }
+      }
+      // ----------------------------------------------------------
+
       const detailsHref = sq.id
         ? `squad-details.html?id=${encodeURIComponent(sq.id)}`
         : `squad-details.html?name=${encodeURIComponent(sq.name)}`;
@@ -134,7 +156,7 @@
       return `
         <div class="squad-card card ${catCls}">
           <h4>${dash(sq.name)}</h4>
-          <div class="squad-meta"><b>Leader:</b> ${leader}</div>
+          <div class="squad-meta"><b>${(leaders && leaders.length > 1) ? 'Leaders' : 'Leader'}:</b> ${leaderLine}</div>
           <div class="squad-meta"><b>Status:</b> ${status}</div>
           <div class="squad-meta"><b>Focus:</b> ${dash(sq.objective)}</div>
           <div class="squad-foot"><a class="squad-link" href="${detailsHref}">View Details →</a></div>
@@ -178,8 +200,9 @@
       if (id) idToName.set(id, name);
     });
 
-    // Build MEMBERS_BY_SQUAD from the Squad Members sheet (active rows)
+    // Build MEMBERS_BY_SQUAD and LEADERS_BY_SQUAD from the Squad Members sheet (active rows)
     MEMBERS_BY_SQUAD.clear();
+    LEADERS_BY_SQUAD.clear();
     try {
       if (SHEETS.SQUAD_MEMBERS) {
         const smRows = await getRowsByTitle(SHEETS.SQUAD_MEMBERS);
@@ -188,8 +211,12 @@
           if (!active) return;
           const sid  = pick(r, SM_COL.squadId, '').toString().trim();
           if (!sid) return;
+
           const eid  = pick(r, SM_COL.empId, '').toString().trim();
           const enm  = (pick(r, SM_COL.empName, '') || idToName.get(eid) || '').toString().trim();
+          const role = String(r['Role'] || '').trim().toLowerCase();
+
+          // membership set
           let entry = MEMBERS_BY_SQUAD.get(sid);
           if (!entry) {
             entry = { ids: new Set(), names: new Set() };
@@ -197,6 +224,13 @@
           }
           if (eid) entry.ids.add(eid.toLowerCase());
           if (enm) entry.names.add(enm.toLowerCase());
+
+          // leaders list
+          if (role === 'leader') {
+            const arr = LEADERS_BY_SQUAD.get(sid) || [];
+            arr.push({ id: eid, name: enm });
+            LEADERS_BY_SQUAD.set(sid, arr);
+          }
         });
       }
     } catch (_) {
