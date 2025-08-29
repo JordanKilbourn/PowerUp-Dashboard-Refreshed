@@ -3,31 +3,25 @@
 <head>
   <meta charset="UTF-8" />
 
-<!-- Early auth guard (tolerant) -->
+<!-- EARLY AUTH GUARD — must be the first thing in <head> -->
 <script>
 !function () {
   try {
-    // Try canonical key first; fall back to a couple older patterns
-    const raw =
-      localStorage.getItem('powerup_session') ||
-      localStorage.getItem('PowerUp.session') ||
-      null;
-
-    const s = raw && JSON.parse(raw);
-
-    // Accept employeeId or common legacy shapes
-    const id = s && (s.employeeId || s.empId || s.id);
-    if (id) return; // let the page render normally
-
-    // No usable session → prevent paint and bounce
-    document.documentElement.style.visibility = 'hidden';
-    location.replace('login.html');
+    // Prefer the real session key; fall back to legacy only if present
+    const s = JSON.parse(sessionStorage.getItem('pu.session') || 'null')
+           || JSON.parse(localStorage.getItem('powerup_session') || 'null');
+    if (!s || !s.employeeId) {
+      // block paint, then bounce to login
+      document.documentElement.style.visibility = 'hidden';
+      location.replace('login.html');
+    }
   } catch {
     document.documentElement.style.visibility = 'hidden';
     location.replace('login.html');
   }
 }();
 </script>
+
 
 
   <title>PowerUp — Power Hours</title>
@@ -323,6 +317,7 @@
   </script>
 </body>
 </html>
+
 
 
 
