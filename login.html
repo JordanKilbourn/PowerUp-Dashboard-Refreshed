@@ -69,7 +69,6 @@
         <button class="btn" id="help">Where do I find this?</button>
       </div>
 
-      <div id="already" class="hint" style="display:none"></div>
       <div id="error" class="error" role="alert" aria-live="polite"></div>
       <div class="hint">We’ll match your ID in Employee Master and personalize your dashboard.</div>
     </div>
@@ -109,9 +108,9 @@
     </div>
   </div>
 
-  <!-- Core libs -->
-  <script src="scripts/api.js?v=2025-08-25-a"></script>
-  <script src="scripts/session.js?v=2025-08-25-a"></script>
+  <!-- Core libs (must be before we call PowerUp.session.*) -->
+  <script src="scripts/api.js?v=2025-08-29-d"></script>
+  <script src="scripts/session.js?v=2025-08-29-d"></script>
 
   <script>
   (function () {
@@ -120,7 +119,6 @@
     const btnSignIn  = $('#signin');
     const btnHelp    = $('#help');
     const errBox     = $('#error');
-    const already    = $('#already');
 
     const busy       = $('#busy');
     const busySub    = $('#busySub');
@@ -133,42 +131,8 @@
     const btnClose   = $('#lookupCancel');
 
     let coldHintTimer = null;
-    let EMP_ROWS = [];
+    let EMP_ROWS = []; // cached Employee Master rows
 
-    // --- Storage cleaners ----------------------------------------------------
-    function clearPowerUpSessionKeys() {
-      try {
-        ['powerup_session','powerup_user','powerup_auth','powerupSession','PowerUpSession']
-          .forEach(k => localStorage.removeItem(k));
-        ['powerup_session','powerup_user','powerup_auth']
-          .forEach(k => sessionStorage.removeItem(k));
-      } catch {}
-    }
-    function clearPowerUpCookies() {
-      try {
-        document.cookie.split(';').forEach(c => {
-          const name = c.split('=')[0].trim();
-          if (!name) return;
-          if (/power|pu/i.test(name)) {
-            document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/';
-          }
-        });
-      } catch {}
-    }
-    function nukeAllAppStorage() {
-      try {
-        // local & session storage (entire origin)
-        Object.keys(localStorage).forEach(k => localStorage.removeItem(k));
-        Object.keys(sessionStorage).forEach(k => sessionStorage.removeItem(k));
-        // all cookies (best-effort)
-        document.cookie.split(';').forEach(c => {
-          const name = c.split('=')[0].trim();
-          if (name) document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/';
-        });
-      } catch {}
-    }
-
-    // --- UI helpers ----------------------------------------------------------
     function setBusy(on) {
       if (on) {
         busy.style.display = 'grid';
@@ -188,120 +152,139 @@
         clearTimeout(coldHintTimer);
       }
     }
+
     function showError(msg) {
       errBox.textContent = msg;
       errBox.style.display = 'block';
     }
-    function normalizeId(raw) {
-      return (raw || '').replace(/\s+/g, '').toUpperCase();
+
+    // Mirror whatever session object exists to a canonical key the guards accept
+    function ensureCanonicalSession() {
+      try {
+        const s = PowerUp.session.get && PowerUp.session.get();
+        const empId = s && (s.employeeId || s.empId || s.id);
+        if (!empId) return false;
+        const canonical = { employeeId: String(empId), displayName: String(s.displayName || '') };
+        localStorage.setItem('powerup_session', JSON.stringify(canonical));
+        return true;
+      } catch { return false; }
     }
 
-    // --- Login flow ----------------------------------------------------------
     async function doLogin() {
       errBox.style.display = 'none';
-      const id = normalizeId(empInput.value);
+      const id = (empInput.value || '').trim();
       if (!id) { showError('Please enter your Employee ID.'); return; }
-
-      // ensure no stale state can interfere
-      clearPowerUpSessionKeys();
-      clearPowerUpCookies();
 
       setBusy(true);
       try {
         await PowerUp.session.loginWithId(id);
-        // If not redirected by session.js, force it:
-        window.location.assign('./Dashboard-Refresh.html');
+        // Make sure the canonical mirror exists before we leave
+        ensureCanonicalSession();
+        window.location.assign('Dashboard-Refresh.html');
       } catch (e) {
         showError(e?.message || 'Sign-in failed. Please try again.');
         setBusy(false);
       }
     }
 
-    // --- ID Lookup modal -----------------------------------------------------
-    function toISODateOnly(v){ if(!v)return''; const d=new Date(v); return isNaN(d)?'':d.toISOString().slice(0,10); }
-    function openLookup(){ resBox.style.display='none'; resBox.className='result'; inpHire.value=''; modal.setAttribute('aria-hidden','false'); modal.style.display='flex'; }
-    function closeLookup(){ modal.setAttribute('aria-hidden','true'); modal.style.display='none'; }
-    async function ensureEmployeeRows(){
+    // ---------- ID Lookup modal ----------
+    function toISODateOnly(v) {
+      if (!v) return '';
+      const d = new Date(v);
+      if (isNaN(d)) return '';
+      return d.toISOString().slice(0,10);
+    }
+    function openLookup() {
+      resBox.style.display = 'none';
+      resBox.className = 'result';
+      inpHire.value = '';
+      modal.setAttribute('aria-hidden','false');
+      modal.style.display = 'flex';
+    }
+    function closeLookup() {
+      modal.setAttribute('aria-hidden','true');
+      modal.style.display = 'none';
+    }
+    async function ensureEmployeeRows() {
       if (EMP_ROWS.length) return;
       const rs = await PowerUp.api.getRowsByTitle('EMPLOYEE_MASTER');
-      EMP_ROWS = rs.filter(r => (r['Display Name']||r['Employee Name']||r['Name']) && (r['Position ID']||r['Employee ID']));
+      EMP_ROWS = rs.filter(r => (r['Display Name'] || r['Employee Name'] || r['Name']) && (r['Position ID'] || r['Employee ID']));
       const opts = ['<option value="">Select your name…</option>'].concat(
-        EMP_ROWS.map(r => ({
-          id:(r['Position ID']||r['Employee ID']).toString().trim(),
-          name:(r['Display Name']||r['Employee Name']||r['Name']).toString().trim(),
-        }))
-        .sort((a,b)=>a.name.localeCompare(b.name))
-        .map(o=>`<option value="${o.id}">${o.name}</option>`)
+        EMP_ROWS
+          .map(r => ({
+            id: (r['Position ID'] || r['Employee ID']).toString().trim(),
+            name: (r['Display Name'] || r['Employee Name'] || r['Name']).toString().trim(),
+          }))
+          .sort((a,b) => a.name.localeCompare(b.name))
+          .map(o => `<option value="${o.id}">${o.name}</option>`)
       );
       selName.innerHTML = opts.join('');
     }
-    function showLookupResult(ok, html){ resBox.className='result '+(ok?'ok':'err'); resBox.innerHTML=html; resBox.style.display='block'; }
-    function findRowById(id){ const idLC=String(id||'').trim().toLowerCase(); return EMP_ROWS.find(r => String(r['Position ID']||r['Employee ID']).trim().toLowerCase()===idLC); }
+    function showLookupResult(ok, html) {
+      resBox.className = 'result ' + (ok ? 'ok' : 'err');
+      resBox.innerHTML = html;
+      resBox.style.display = 'block';
+    }
+    function findRowById(id) {
+      const idLC = String(id || '').trim().toLowerCase();
+      return EMP_ROWS.find(r => String(r['Position ID'] || r['Employee ID']).trim().toLowerCase() === idLC);
+    }
 
     btnHelp.addEventListener('click', async () => {
-      try { await ensureEmployeeRows(); openLookup(); }
-      catch { alert("We couldn't load the employee list. Please try again or contact support."); }
+      try {
+        await ensureEmployeeRows();
+        openLookup();
+      } catch {
+        alert("We couldn't load the employee list. Please try again or contact support.");
+      }
     });
 
     btnCheck.addEventListener('click', () => {
       const id = selName.value;
       const row = findRowById(id);
-      const picked = inpHire.value;
-      if (!row || !picked) { showLookupResult(false,'Please choose your name and enter your hire date.'); return; }
-      const hireISO = toISODateOnly(row['Hire Date']||row['HireDate']||row['Start Date']);
+      const picked = inpHire.value;         // yyyy-mm-dd
+      if (!row || !picked) {
+        showLookupResult(false, 'Please choose your name and enter your hire date.');
+        return;
+      }
+      const hireRaw = row['Hire Date'] || row['HireDate'] || row['Start Date'];
+      const hireISO = toISODateOnly(hireRaw);
       if (hireISO && hireISO === picked) {
-        const safeName=(row['Display Name']||row['Employee Name']||row['Name']||'').toString();
-        const empId=(row['Position ID']||row['Employee ID']).toString();
-        showLookupResult(true,`
+        const safeName = (row['Display Name'] || row['Employee Name'] || row['Name'] || '').toString();
+        const empId = (row['Position ID'] || row['Employee ID']).toString();
+        showLookupResult(true, `
           <div><b>${safeName}</b></div>
           <div class="small" style="margin-top:4px">Your Employee ID is:</div>
           <div style="font-size:18px;margin-top:4px"><code>${empId}</code></div>
-          <div style="margin-top:10px"><button class="btn primary" id="useFoundId">Use this ID</button></div>
+          <div style="margin-top:10px">
+            <button class="btn primary" id="useFoundId">Use this ID</button>
+          </div>
         `);
-        setTimeout(()=>{ const useBtn=document.getElementById('useFoundId'); if(useBtn) useBtn.onclick=()=>{empInput.value=empId; closeLookup(); empInput.focus();}; },0);
+        setTimeout(() => {
+          const useBtn = document.getElementById('useFoundId');
+          if (useBtn) useBtn.onclick = () => {
+            empInput.value = empId;
+            closeLookup();
+            empInput.focus();
+          };
+        }, 0);
       } else {
-        showLookupResult(false,'That hire date doesn’t match our records for the selected name.');
+        showLookupResult(false, 'That hire date doesn’t match our records for the selected name.');
       }
     });
 
-    btnClose.addEventListener('click', (e)=>{ e.preventDefault(); closeLookup(); });
-    modal.addEventListener('click', (e)=>{ if (e.target===modal) closeLookup(); });
+    btnClose.addEventListener('click', (e) => { e.preventDefault(); closeLookup(); });
+    modal.addEventListener('click', (e) => { if (e.target === modal) closeLookup(); });
 
-    // --- Wiring --------------------------------------------------------------
-    document.addEventListener('keydown', (e)=>{ if (e.key==='Enter') doLogin(); });
+    // ---------- Login wiring ----------
+    document.addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
     btnSignIn.addEventListener('click', doLogin);
 
-    // If a session appears present, show safe prompt (no auto-redirect).
+    // If a session already exists, normalize it and go straight to the dashboard (no extra UI)
     try {
-      const s = PowerUp.session.get && PowerUp.session.get();
-      if (s && s.employeeId) {
-        const name = (s.displayName || s.employeeId);
-        already.style.display = 'block';
-        already.innerHTML = `You're signed in as <b>${name}</b>.
-          <a href="./Dashboard-Refresh.html" id="goDashLink">Continue to Dashboard →</a>
-          &nbsp;·&nbsp;<a href="#" id="logoutLink">Sign out</a>
-          &nbsp;·&nbsp;<a href="#" id="clearSessionLink" class="small">Clear saved sign-in</a>
-          &nbsp;·&nbsp;<a href="#" id="nukeAllLink" class="small">Erase ALL app storage</a>`;
-
-        $('#goDashLink')?.addEventListener('click', (e)=>{ e.preventDefault(); window.location.assign('./Dashboard-Refresh.html'); });
-
-        $('#logoutLink')?.addEventListener('click', async (e)=>{
-          e.preventDefault();
-          try { await PowerUp.session.logout?.(); } finally { clearPowerUpSessionKeys(); clearPowerUpCookies(); location.reload(); }
-        });
-
-        $('#clearSessionLink')?.addEventListener('click', (e)=>{
-          e.preventDefault();
-          clearPowerUpSessionKeys();
-          clearPowerUpCookies();
-          location.reload();
-        });
-
-        $('#nukeAllLink')?.addEventListener('click', (e)=>{
-          e.preventDefault();
-          nukeAllAppStorage();
-          location.reload();
-        });
+      if (ensureCanonicalSession()) {
+        setBusy(true);
+        window.location.assign('Dashboard-Refresh.html');
       }
     } catch {}
   }());
