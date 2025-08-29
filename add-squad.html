@@ -3,22 +3,32 @@
 <head>
     <meta charset="UTF-8">
 
-    <!-- Early auth guard: redirect before the page paints -->
+ <!-- Early auth guard (tolerant) -->
 <script>
 !function () {
   try {
-    const s = JSON.parse(localStorage.getItem('powerup_session') || 'null');
-    if (!s || !s.employeeId) {
-      // prevent paint, then bounce to login fast
-      document.documentElement.style.visibility = 'hidden';
-      location.replace('login.html');
-    }
+    // Try canonical key first; fall back to a couple older patterns
+    const raw =
+      localStorage.getItem('powerup_session') ||
+      localStorage.getItem('PowerUp.session') ||
+      null;
+
+    const s = raw && JSON.parse(raw);
+
+    // Accept employeeId or common legacy shapes
+    const id = s && (s.employeeId || s.empId || s.id);
+    if (id) return; // let the page render normally
+
+    // No usable session → prevent paint and bounce
+    document.documentElement.style.visibility = 'hidden';
+    location.replace('login.html');
   } catch {
     document.documentElement.style.visibility = 'hidden';
     location.replace('login.html');
   }
 }();
 </script>
+
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PowerUp - Add New Squad</title>
@@ -240,6 +250,7 @@
     </script>
 </body>
 </html>
+
 
 
 
