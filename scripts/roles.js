@@ -1,10 +1,9 @@
-// scripts/roles.js
+// scripts/roles.js  (v2025-08-29-c)
 (function (PowerUp) {
   const P = PowerUp || (window.PowerUp = {});
 
   // === ADMIN ALLOWLIST =========================================
-  // Add Employee IDs (Position IDs) that should have admin powers.
-  // Example: ["E12345","E77777","99999"]
+  // Employee IDs (Position IDs) with admin powers
   const ADMIN_IDS = new Set([
     "IKS968538","IKS968547"
   ]);
@@ -14,10 +13,13 @@
     try {
       const me = P.session?.get?.() || {};
       const id = String(me.employeeId || "").trim();
-      return id && ADMIN_IDS.has(id);
+      return !!id && ADMIN_IDS.has(id);
     } catch { return false; }
   }
 
   P.auth = { isAdmin, ADMIN_IDS };
   window.PowerUp = P;
+
+  // Tell the app that auth helpers are ready
+  document.dispatchEvent(new Event('powerup-auth-ready'));
 })(window.PowerUp || {});
