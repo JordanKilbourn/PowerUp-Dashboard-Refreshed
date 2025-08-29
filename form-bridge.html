@@ -2,6 +2,22 @@
 <html>
 <head>
   <meta charset="utf-8" />
+  <!-- Early auth guard: redirect before the page paints -->
+<script>
+!function () {
+  try {
+    const s = JSON.parse(localStorage.getItem('powerup_session') || 'null');
+    if (!s || !s.employeeId) {
+      document.documentElement.style.visibility = 'hidden';
+      location.replace('/login.html'); // use absolute path
+    }
+  } catch {
+    document.documentElement.style.visibility = 'hidden';
+    location.replace('/login.html');
+  }
+}();
+</script>
+
   <title>Saving…</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
