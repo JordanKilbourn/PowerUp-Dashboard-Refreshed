@@ -4,18 +4,16 @@
 
   // === ADMIN ALLOWLIST =========================================
   // Employee IDs (Position IDs) with admin powers
-  const ADMIN_IDS = new Set([
-    "IKS968538","IKS968547"
-  ]);
-  // =============================================================
+ // scripts/roles.js
+const ADMIN_IDS = new Set(["IKS968538","IKS968547"].map(s => s.toUpperCase()));
 
-  function isAdmin() {
-    try {
-      const me = P.session?.get?.() || {};
-      const id = String(me.employeeId || "").trim();
-      return !!id && ADMIN_IDS.has(id);
-    } catch { return false; }
-  }
+function isAdmin() {
+  try {
+    const me = P.session?.get?.() || {};
+    const id = String(me.employeeId || "").trim().toUpperCase();
+    return !!id && ADMIN_IDS.has(id);
+  } catch { return false; }
+}
 
   P.auth = { isAdmin, ADMIN_IDS };
   window.PowerUp = P;
