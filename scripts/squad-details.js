@@ -178,40 +178,46 @@
       else location.href = "squads.html";
     };
 
-    // ===== Add member permissions =====
-    // Rule: Admins can always add. Otherwise, user must be an ACTIVE Leader on SQUAD_MEMBERS for this squad.
-    const isLeaderById = leaderRowsActive.some(r => canonId(r["Employee ID"]) === canonId(userId));
-    const canAdd = !!(isAdmin || isLeaderById);
-
+      // Add member permissions (allow admin, or anyone with Role=Leader on this squad)
     const addBtn = document.getElementById("btn-addmember");
-    if (addBtn) {
-      if (canAdd) {
-        addBtn.style.display = "inline-flex"; // override any CSS hiding
+
+    function computeCanAdd() {
+      const isAdmin = !!(roles && roles.isAdmin && roles.isAdmin());
+
+      // Any row on this squad where the user is Active leader
+      const leaderRows = members.filter(r =>
+        norm(r["Squad ID"]) === norm(squadId) &&
+        norm(r["Role"]) === "leader" &&
+        String(r["Active"] || "").toLowerCase() === "true" &&
+        norm(r["Employee ID"]) === norm(userId)
+      );
+
+      return isAdmin || leaderRows.length > 0;
+    }
+
+    function applyAddPermission() {
+      if (!addBtn) return;
+      if (computeCanAdd()) {
+        addBtn.style.display = "inline-flex";
         addBtn.disabled = false;
-        addBtn.onclick = (e) => {
-          e.preventDefault();
-          if (!P.squadForm?.open) {
-            alert("Member form not found. Is scripts/squad-member-form.js included?");
-            return;
-          }
-          P.squadForm.open({ squadId, squadName });
-        };
+        if (!addBtn.dataset.bound) {
+          addBtn.dataset.bound = "1";
+          addBtn.onclick = (e) => {
+            e.preventDefault();
+            if (!P.squadForm?.open) {
+              alert("Member form not found. Is scripts/squad-member-form.js included?");
+              return;
+            }
+            P.squadForm.open({ squadId, squadName });
+          };
+        }
       } else {
         addBtn.style.display = "none";
         addBtn.disabled = true;
       }
     }
 
-    // Initial member render (hide Employee ID for non-admins)
-    const showEmpId = isAdmin;
-    renderMembers(members, empMap, squadId, showEmpId);
-
-    // After a member is added, refresh
-    document.addEventListener("squad-member-added", async () => {
-      const latest = await api.getRowsByTitle('SQUAD_MEMBERS', { force: true });
-      renderMembers(latest, empMap, squadId, showEmpId);
-    });
-  }
-
-  document.addEventListener("DOMContentLoaded", main);
-})(window.PowerUp || (window.PowerUp = {}));
+    // Run now …
+    applyAddPermission();
+    // …and also re-run once roles.js signals it's ready (covers load-order edge cases)
+    document.addEventListener('powerup-auth-ready', applyAddPermission);
