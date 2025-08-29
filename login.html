@@ -19,7 +19,7 @@
     .muted { color:#94a3b8; font-size:13px; margin-top:2px;}
     .field { margin-top:16px;}
     .field label { display:block; font-size:13px; color:#cbd5e1; margin-bottom:6px;}
-    .field input { width:100%; padding:12px 14px; border-radius:10px; background:#0b1328; border:1px solid #293449; color:#e5e7eb; outline:none;}
+    .field input, .modal select, .modal input[type="date"] { width:100%; padding:12px 14px; border-radius:10px; background:#0b1328; border:1px solid #293449; color:#e5e7eb; outline:none;}
     .field input:focus { border-color:#00ffc6; box-shadow:0 0 0 3px rgba(0,255,198,.15);}
     .actions { margin-top:18px; display:flex; gap:10px; align-items:center;}
     .btn { padding:12px 14px; border-radius:10px; border:1px solid #2a354b; background:#111a2f; color:#e5e7eb; cursor:pointer;}
@@ -69,6 +69,7 @@
         <button class="btn" id="help">Where do I find this?</button>
       </div>
 
+      <div id="already" class="hint" style="display:none"></div>
       <div id="error" class="error" role="alert" aria-live="polite"></div>
       <div class="hint">We’ll match your ID in Employee Master and personalize your dashboard.</div>
     </div>
@@ -119,6 +120,7 @@
     const btnSignIn  = $('#signin');
     const btnHelp    = $('#help');
     const errBox     = $('#error');
+    const already    = $('#already');
 
     const busy       = $('#busy');
     const busySub    = $('#busySub');
@@ -138,8 +140,7 @@
         busy.style.display = 'grid';
         busy.setAttribute('aria-hidden', 'false');
         btnSignIn.disabled = true;
-        empInput.disabled = true;
-        // Show the “first load may be longer” hint if it takes a bit
+        empInput.disabled  = true;
         clearTimeout(coldHintTimer);
         coldHintTimer = setTimeout(() => {
           busySub.textContent = 'First load after a while can take longer while the server wakes up.';
@@ -148,7 +149,7 @@
         busy.style.display = 'none';
         busy.setAttribute('aria-hidden', 'true');
         btnSignIn.disabled = false;
-        empInput.disabled = false;
+        empInput.disabled  = false;
         busySub.textContent = 'Authorizing and loading your data.';
         clearTimeout(coldHintTimer);
       }
@@ -167,9 +168,8 @@
       setBusy(true);
       try {
         await PowerUp.session.loginWithId(id);
-        // If loginWithId handles the redirect internally, we won't get here.
-        // Fallback: send to dashboard.
-        location.href = 'Dashboard-Refresh.html';
+        // loginWithId will normally redirect; as a fallback:
+        location.replace('Dashboard-Refresh.html');
       } catch (e) {
         showError(e?.message || 'Sign-in failed. Please try again.');
         setBusy(false);
@@ -198,7 +198,6 @@
       if (EMP_ROWS.length) return;
       const rs = await PowerUp.api.getRowsByTitle('EMPLOYEE_MASTER');
       EMP_ROWS = rs.filter(r => (r['Display Name'] || r['Employee Name'] || r['Name']) && (r['Position ID'] || r['Employee ID']));
-      // Build dropdown (Display Name only)
       const opts = ['<option value="">Select your name…</option>'].concat(
         EMP_ROWS
           .map(r => ({
@@ -250,7 +249,6 @@
             <button class="btn primary" id="useFoundId">Use this ID</button>
           </div>
         `);
-        // Wire the "Use this ID" button
         setTimeout(() => {
           const useBtn = document.getElementById('useFoundId');
           if (useBtn) useBtn.onclick = () => {
@@ -273,15 +271,21 @@
     });
     btnSignIn.addEventListener('click', doLogin);
 
-    // Already signed in? Bounce to dashboard immediately.
+    // If there *appears* to be a session, DO NOT auto-redirect.
+    // Show a gentle prompt instead, with a Sign out option (breaks redirect loops).
     try {
-      const s = PowerUp.session.get();
-      if (s && s.employeeId) location.replace('Dashboard-Refresh.html');
+      const s = PowerUp.session.get && PowerUp.session.get();
+      if (s && s.employeeId) {
+        already.style.display = 'block';
+        already.innerHTML = `You're signed in as <b>${(s.displayName || s.employeeId)}</b>.
+          <a href="Dashboard-Refresh.html">Continue to Dashboard →</a>
+          &nbsp;·&nbsp;
+          <a href="#" id="logoutLink">Sign out</a>`;
+        const out = document.getElementById('logoutLink');
+        if (out) out.onclick = (e) => { e.preventDefault(); PowerUp.session.logout?.(); location.reload(); };
+      }
     } catch {}
-
   }());
   </script>
-<script src="scripts/login-extras.js"></script>
-
 </body>
 </html>
