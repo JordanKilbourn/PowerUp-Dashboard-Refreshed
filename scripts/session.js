@@ -1,4 +1,4 @@
-// scripts/session.js
+// scripts/session.js  (fixed admin override)
 (function (PowerUp) {
   const P = PowerUp || (window.PowerUp = {});
   const SKEY = 'pu.session';
@@ -19,7 +19,6 @@
     }
     return d;
   }
-  // Resolve a human level from Employee Master row
   function resolveLevel(row) {
     return (
       pick(row, [
@@ -41,6 +40,20 @@
     }) || null;
   }
 
+  // Robust admin check that does NOT depend on session being set yet
+  function isAdminId(rawId) {
+    try {
+      const id = String(rawId || '').trim().toUpperCase();
+      // Prefer the explicit allowlist if available
+      if (P.auth?.ADMIN_IDS && typeof P.auth.ADMIN_IDS.has === 'function') {
+        return !!id && P.auth.ADMIN_IDS.has(id);
+      }
+    } catch {}
+    // Fallback: use runtime helper (may rely on session)
+    try { return !!(P.auth?.isAdmin && P.auth.isAdmin()); } catch {}
+    return false;
+  }
+
   // ---- routing guard ----
   function requireLogin() {
     const s = get();
@@ -58,18 +71,13 @@
     const row = await findEmployeeRowById(id);
     if (!row) throw new Error('ID not found. Double-check your Position ID or Employee ID.');
 
-    const displayName =
-      pick(row, ['Display Name', 'Employee Name', 'Name'], id);
+    const displayName = pick(row, ['Display Name', 'Employee Name', 'Name'], id);
 
-    // Base level from sheet
+    // Base level from sheet, then override if this ID is an admin
     let level = resolveLevel(row);
+    if (isAdminId(id)) level = 'Admin';
 
-    // If this user is in the admin allowlist, show Admin in the header
-    try {
-      if (P.auth?.isAdmin && P.auth.isAdmin()) level = 'Admin';
-    } catch {}
-
-    // Store BOTH level + levelText so old code stays happy
+    // Store BOTH level + levelText (compat)
     set({ employeeId: id, displayName, level, levelText: level });
 
     const dest = sessionStorage.getItem('pu.postLoginRedirect') || 'Dashboard-Refresh.html';
@@ -81,27 +89,29 @@
   async function initHeader() {
     const s = get();
 
-    // If we don’t yet have displayName/level (old session), backfill
+    // Backfill missing name/level from Employee Master if needed
     if (!s.displayName || !s.level) {
       try {
         const row = await findEmployeeRowById(s.employeeId);
         if (row) {
-          const displayName =
-            pick(row, ['Display Name', 'Employee Name', 'Name'], s.employeeId);
-          let level = resolveLevel(row);
-          try {
-            if (P.auth?.isAdmin && P.auth.isAdmin()) level = 'Admin';
-          } catch {}
-          s.displayName = displayName;
-          s.level = level;
-          s.levelText = level;
+          s.displayName = pick(row, ['Display Name', 'Employee Name', 'Name'], s.employeeId);
+          s.level = resolveLevel(row);
+          s.levelText = s.level;
           set(s);
         }
       } catch (e) {
-        // non-fatal
         console.error('initHeader: backfill failed', e);
       }
     }
+
+    // ALWAYS enforce Admin label if this session’s ID is an admin
+    try {
+      if (isAdminId(s.employeeId) && s.level !== 'Admin') {
+        s.level = 'Admin';
+        s.levelText = 'Admin';
+        set(s);
+      }
+    } catch {}
 
     // Fill header placeholders if present
     const $name = document.querySelector('[data-hook="userName"]');
