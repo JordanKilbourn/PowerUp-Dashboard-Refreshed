@@ -64,6 +64,19 @@
 
   function norm(s) { return String(s || "").trim().toLowerCase(); }
 
+  // === NEW: permission gate uses ONLY SQUAD_MEMBERS (Role=Leader, Active=true), OR admin ===
+  function userCanAddMembers({ isAdmin, members, squadId, userId }) {
+    if (isAdmin) return true;
+    const sid = norm(squadId);
+    const uid = norm(userId);
+    return members.some(r =>
+      norm(r["Squad ID"]) === sid &&
+      norm(r["Role"]) === "leader" &&
+      norm(r["Employee ID"]) === uid &&
+      norm(r["Active"]) === "true"
+    );
+  }
+
   async function main() {
     // Layout + header
     layout.injectLayout?.();
@@ -79,7 +92,7 @@
 
     const sess = session.get?.() || {};
     const userId = (sess.employeeId || "").trim();
-    const userName = (sess.displayName || "").trim();
+    const userName = (sess.displayName || "").trim(); // still used for header only
     const isAdmin = !!(roles && roles.isAdmin && roles.isAdmin());
 
     const [squads, members, empMap] = await Promise.all([
@@ -104,7 +117,7 @@
     const squadId   = squad["Squad ID"] || urlId;
     const squadName = squad["Squad Name"] || squadId;
 
-    // Leader field might be an ID or a Name; support both
+    // Leader display (for the info card) — unchanged
     const leaderField = String(squad["Squad Leader"] || squad["Leader"] || "").trim();
     let   leaderId = "";
     let   leaderName = "";
@@ -151,21 +164,10 @@
       else location.href = "squads.html";
     };
 
-    // Add member permissions (allow admin, leader by ID, leader by Name, or Role=Leader in members)
+    // === Add member permissions (ONLY admin or SQUAD_MEMBERS Role=Leader Active=true) ===
     const addBtn = document.getElementById("btn-addmember");
     if (addBtn) {
-      let canAdd =
-        isAdmin ||
-        (!!leaderId && norm(leaderId) === norm(userId)) ||
-        (!!leaderName && norm(leaderName) === norm(userName));
-
-      if (!canAdd) {
-        const leaderRows = members.filter(r =>
-          norm(r["Squad ID"]) === norm(squadId) &&
-          norm(r["Role"]) === "leader"
-        );
-        canAdd = leaderRows.some(r => norm(r["Employee ID"]) === norm(userId));
-      }
+      const canAdd = userCanAddMembers({ isAdmin, members, squadId, userId });
 
       if (canAdd) {
         // IMPORTANT: override CSS `display:none`
