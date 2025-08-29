@@ -2,6 +2,23 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+
+  <!-- Early auth guard: redirect before the page paints -->
+<script>
+!function () {
+  try {
+    const s = JSON.parse(localStorage.getItem('powerup_session') || 'null');
+    if (!s || !s.employeeId) {
+      document.documentElement.style.visibility = 'hidden';
+      location.replace('/login.html'); // use absolute path
+    }
+  } catch {
+    document.documentElement.style.visibility = 'hidden';
+    location.replace('/login.html');
+  }
+}();
+</script>
+
   <title>PowerUp — Power Hours</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link href="style.css" rel="stylesheet" />
@@ -293,4 +310,5 @@
   </script>
 </body>
 </html>
+
 
