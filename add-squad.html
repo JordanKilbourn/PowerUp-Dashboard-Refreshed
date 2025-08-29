@@ -2,6 +2,24 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+
+    <!-- Early auth guard: redirect before the page paints -->
+<script>
+!function () {
+  try {
+    const s = JSON.parse(localStorage.getItem('powerup_session') || 'null');
+    if (!s || !s.employeeId) {
+      // prevent paint, then bounce to login fast
+      document.documentElement.style.visibility = 'hidden';
+      location.replace('login.html');
+    }
+  } catch {
+    document.documentElement.style.visibility = 'hidden';
+    location.replace('login.html');
+  }
+}();
+</script>
+
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PowerUp - Add New Squad</title>
     <style>
@@ -222,5 +240,6 @@
     </script>
 </body>
 </html>
+
 
 
