@@ -63,10 +63,32 @@
     }
 
     // Fill any header placeholders if present
-    const $name = document.querySelector('[data-hook="userName"]');
+    const $name  = document.querySelector('[data-hook="userName"]');
     const $level = document.querySelector('[data-hook="userLevel"]');
     if ($name) $name.textContent = s.displayName || s.employeeId || 'Unknown User';
-    if ($level) $level.textContent = s.level || 'Level Unknown';
+
+    // Robust admin detection: prefer roles.js (P.auth), but also tolerate session flags/labels
+    const isAdmin = !!(
+      (PowerUp.auth && PowerUp.auth.isAdmin && PowerUp.auth.isAdmin()) ||
+      s.isAdmin === true ||
+      /admin/i.test(String(s.level || "")) ||
+      /admin/i.test(String(s.role || ""))
+    );
+
+    if ($level) {
+      if (isAdmin) {
+        // Show "Admin" for admins
+        $level.textContent = 'Admin';
+        $level.style.display = '';
+      } else if (s.level && s.level !== 'Level Unknown') {
+        // Non-admins: show whatever level text is stored (when not unknown)
+        $level.textContent = s.level;
+        $level.style.display = '';
+      } else {
+        // No meaningful level? Hide the chip instead of showing "Level Unknown"
+        $level.style.display = 'none';
+      }
+    }
 
     // Wire logout button if present
     const $logout = document.querySelector('[data-hook="logout"]');
