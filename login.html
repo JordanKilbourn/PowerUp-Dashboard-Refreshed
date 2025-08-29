@@ -66,7 +66,7 @@
 
       <div class="actions">
         <button class="btn primary" id="signin">Sign In</button>
-        <button class="btn" id="help">Retrieve my Employee ID</button>
+        <button class="btn" id="help">Where do I find this?</button>
       </div>
 
       <div id="already" class="hint" style="display:none"></div>
@@ -160,16 +160,20 @@
       errBox.style.display = 'block';
     }
 
+    function normalizeId(raw) {
+      return (raw || '').replace(/\s+/g, '').toUpperCase();
+    }
+
     async function doLogin() {
       errBox.style.display = 'none';
-      const id = (empInput.value || '').trim();
+      const id = normalizeId(empInput.value);
       if (!id) { showError('Please enter your Employee ID.'); return; }
 
       setBusy(true);
       try {
         await PowerUp.session.loginWithId(id);
-        // loginWithId will normally redirect; as a fallback:
-        location.replace('Dashboard-Refresh.html');
+        // If loginWithId didn't navigate, force it:
+        location.assign('./Dashboard-Refresh.html');
       } catch (e) {
         showError(e?.message || 'Sign-in failed. Please try again.');
         setBusy(false);
@@ -271,18 +275,33 @@
     });
     btnSignIn.addEventListener('click', doLogin);
 
-    // If there *appears* to be a session, DO NOT auto-redirect.
-    // Show a gentle prompt instead, with a Sign out option (breaks redirect loops).
+    // If there *appears* to be a session, show a safe prompt (avoid auto-redirect loops).
     try {
       const s = PowerUp.session.get && PowerUp.session.get();
       if (s && s.employeeId) {
+        const name = (s.displayName || s.employeeId);
         already.style.display = 'block';
-        already.innerHTML = `You're signed in as <b>${(s.displayName || s.employeeId)}</b>.
-          <a href="Dashboard-Refresh.html">Continue to Dashboard →</a>
+        already.innerHTML = `You're signed in as <b>${name}</b>.
+          <a href="./Dashboard-Refresh.html" id="goDashLink">Continue to Dashboard →</a>
           &nbsp;·&nbsp;
-          <a href="#" id="logoutLink">Sign out</a>`;
+          <a href="#" id="logoutLink">Sign out</a>
+          &nbsp;·&nbsp;
+          <a href="#" id="clearSessionLink" class="small">Clear saved sign-in</a>`;
+
+        const go = document.getElementById('goDashLink');
+        if (go) go.addEventListener('click', (e) => { e.preventDefault(); window.location.assign('./Dashboard-Refresh.html'); });
+
         const out = document.getElementById('logoutLink');
-        if (out) out.onclick = (e) => { e.preventDefault(); PowerUp.session.logout?.(); location.reload(); };
+        if (out) out.addEventListener('click', async (e) => {
+          e.preventDefault();
+          try { await PowerUp.session.logout?.(); } finally { location.reload(); }
+        });
+
+        const clr = document.getElementById('clearSessionLink');
+        if (clr) clr.addEventListener('click', (e) => {
+          e.preventDefault();
+          try { localStorage.removeItem('powerup_session'); } finally { location.reload(); }
+        });
       }
     } catch {}
   }());
