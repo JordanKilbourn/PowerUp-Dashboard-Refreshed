@@ -48,7 +48,7 @@
       const eid = String(r["Employee ID"] || "").trim();
       const name = empMap[eid] || eid || "-";
       const role = r["Role"] || "-";
-      const active = (String(r["Active"]||"").toLowerCase() === "true");
+      const active = isTrue(r["Active"]);
       const start = r["Start Date"] || r["Start"];
       const cells = [
         `<td>${esc(name)}</td>`,
@@ -63,18 +63,11 @@
   }
 
   function norm(s) { return String(s || "").trim().toLowerCase(); }
-
-  // === NEW: permission gate uses ONLY SQUAD_MEMBERS (Role=Leader, Active=true), OR admin ===
-  function userCanAddMembers({ isAdmin, members, squadId, userId }) {
-    if (isAdmin) return true;
-    const sid = norm(squadId);
-    const uid = norm(userId);
-    return members.some(r =>
-      norm(r["Squad ID"]) === sid &&
-      norm(r["Role"]) === "leader" &&
-      norm(r["Employee ID"]) === uid &&
-      norm(r["Active"]) === "true"
-    );
+  function canonId(s) { return String(s || '').trim().toLowerCase(); }
+  function isTrue(v) {
+    if (v === true) return true;
+    const t = String(v ?? "").trim().toLowerCase();
+    return t === "true" || t === "yes" || t === "y" || t === "checked" || t === "1";
   }
 
   async function main() {
@@ -92,8 +85,14 @@
 
     const sess = session.get?.() || {};
     const userId = (sess.employeeId || "").trim();
-    const userName = (sess.displayName || "").trim(); // still used for header only
-    const isAdmin = !!(roles && roles.isAdmin && roles.isAdmin());
+
+    // Robust admin detection: roles.isAdmin(), or session flags/text
+    const isAdmin = !!(
+      (roles && roles.isAdmin && roles.isAdmin()) ||
+      sess.isAdmin === true ||
+      /admin/i.test(String(sess.levelText || "")) ||
+      /admin/i.test(String(sess.role || ""))
+    );
 
     const [squads, members, empMap] = await Promise.all([
       api.getRowsByTitle('SQUADS', { force: true }),
@@ -117,20 +116,35 @@
     const squadId   = squad["Squad ID"] || urlId;
     const squadName = squad["Squad Name"] || squadId;
 
-    // Leader display (for the info card) — unchanged
-    const leaderField = String(squad["Squad Leader"] || squad["Leader"] || "").trim();
-    let   leaderId = "";
-    let   leaderName = "";
+    // Leader display: try to collect all active Leaders from SQUAD_MEMBERS;
+    // fallback to the single "Squad Leader" field if no member leaders exist.
+    const leaderRowsActive = members.filter(r =>
+      canonId(r["Squad ID"]) === canonId(squadId) &&
+      isTrue(r["Active"]) &&
+      norm(r["Role"]) === "leader"
+    );
+    const leaderNamesFromMembers = leaderRowsActive
+      .map(r => {
+        const eid = String(r["Employee ID"] || "").trim();
+        return empMap[eid] || eid;
+      })
+      .filter(Boolean);
 
-    if (leaderField) {
-      // If field looks like an ID, use directly; else try to reverse-map name->id
-      if (/^ix[\da-z]+$/i.test(leaderField)) {
-        leaderId = leaderField;
-        leaderName = empMap[leaderId] || leaderField;
+    let leaderDisplay;
+    if (leaderNamesFromMembers.length) {
+      leaderDisplay = leaderNamesFromMembers.join(", ");
+    } else {
+      // fallback to single leader field on SQUADS sheet
+      const leaderField = String(squad["Squad Leader"] || squad["Leader"] || "").trim();
+      if (leaderField) {
+        // If it looks like an ID, map to name; otherwise it's already a name
+        if (/^ix[\da-z]+$/i.test(leaderField)) {
+          leaderDisplay = empMap[leaderField] || leaderField;
+        } else {
+          leaderDisplay = leaderField;
+        }
       } else {
-        // leaderField is likely a display name
-        leaderName = leaderField;
-        leaderId = Object.keys(empMap).find(id => norm(empMap[id]) === norm(leaderField)) || "";
+        leaderDisplay = "-";
       }
     }
 
@@ -144,7 +158,7 @@
     const core = document.querySelector("#card-core .kv");
     if (core) core.innerHTML = `
       <div><b>Name:</b> ${esc(squadName)}</div>
-      <div><b>Leader:</b> ${esc(leaderName || leaderId || "-")}</div>
+      <div><b>Leader(s):</b> ${esc(leaderDisplay)}</div>
       <div><b>Status:</b> ${active === "Active"
         ? '<span class="status-pill status-on">Active</span>'
         : '<span class="status-pill status-off">Inactive</span>'}</div>
@@ -164,14 +178,15 @@
       else location.href = "squads.html";
     };
 
-    // === Add member permissions (ONLY admin or SQUAD_MEMBERS Role=Leader Active=true) ===
+    // ===== Add member permissions =====
+    // Rule: Admins can always add. Otherwise, user must be an ACTIVE Leader on SQUAD_MEMBERS for this squad.
+    const isLeaderById = leaderRowsActive.some(r => canonId(r["Employee ID"]) === canonId(userId));
+    const canAdd = !!(isAdmin || isLeaderById);
+
     const addBtn = document.getElementById("btn-addmember");
     if (addBtn) {
-      const canAdd = userCanAddMembers({ isAdmin, members, squadId, userId });
-
       if (canAdd) {
-        // IMPORTANT: override CSS `display:none`
-        addBtn.style.display = "inline-flex";
+        addBtn.style.display = "inline-flex"; // override any CSS hiding
         addBtn.disabled = false;
         addBtn.onclick = (e) => {
           e.preventDefault();
