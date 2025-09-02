@@ -116,7 +116,7 @@ PowerUp.api = (() => {
   }
 
   // Smartsheet helpers
-  function sheetResource(sheetId) { return `/sheets/${sheetId}`; }
+  function sheetResource(sheetId) { return `/sheet/${sheetId}`; }
 
   async function getSheet(sheetId, { force = false } = {}) {
     return cachedGet(sheetResource(sheetId), null, { force });
