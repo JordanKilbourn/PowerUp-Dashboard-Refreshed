@@ -58,14 +58,48 @@
     });
   }
 
+  // ---- robust fetch with timeout + retry/backoff (ADD) ----
+  const API_RETRY_LIMIT = 2;          // total attempts = 1 + retries
+  const API_TIMEOUT_MS  = 15000;      // 15s per request
+  const API_BACKOFF_MS  = 600;        // base backoff; jitter added
+
+  function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+  function withTimeout(promise, ms) {
+    return new Promise((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error(`Request timed out after ${ms}ms`)), ms);
+      promise.then(v => { clearTimeout(t); resolve(v); }, e => { clearTimeout(t); reject(e); });
+    });
+  }
+
+  // single-attempt fetch (kept for parity with your previous logic)
   async function fetchJSON(url, init) {
-    const res = await fetch(url, { credentials: "omit", cache: "no-store", ...(init||{}) });
+    const res = await withTimeout(fetch(url, { credentials: "omit", cache: "no-store", ...(init||{}) }), API_TIMEOUT_MS);
     if (!res.ok) {
       let detail = ""; try { detail = await res.text(); } catch {}
-      throw new Error(`Proxy error ${res.status} for ${url}${detail ? `: ${detail}` : ""}`);
+      const err = new Error(`Proxy error ${res.status} for ${url}${detail ? `: ${detail}` : ""}`);
+      err.status = res.status;
+      err.body   = detail;
+      throw err;
     }
     const text = await res.text();
     try { return JSON.parse(text); } catch { return text; }
+  }
+
+  // retry wrapper for transient failures (NEW)
+  async function fetchJSONRetry(url, init) {
+    let attempt = 0;
+    while (true) {
+      try {
+        return await fetchJSON(url, init);
+      } catch (err) {
+        attempt++;
+        const status = err && err.status;
+        const retryable = !status || status === 429 || (status >= 500 && status < 600);
+        if (!retryable || attempt > API_RETRY_LIMIT) throw err;
+        const jitter = Math.floor(Math.random() * 200);
+        await sleep(API_BACKOFF_MS * attempt + jitter);
+      }
+    }
   }
 
   // ---------- core fetchers ----------
@@ -89,7 +123,8 @@
     }
 
     const p = (async () => {
-      const json = await fetchJSON(`${API_BASE}/sheet/${id}`);
+      // CHANGED: use retry wrapper
+      const json = await fetchJSONRetry(`${API_BASE}/sheet/${id}`);
       _rawCache.set(id, json);
       const store = loadStore();
       store[id] = { ts: Date.now(), data: json };
@@ -142,7 +177,7 @@
     // Get column metadata (includes column formula info)
     let columns;
     try {
-      columns = await fetchJSON(`${API_BASE}/sheet/${id}/columns`);
+      columns = await fetchJSONRetry(`${API_BASE}/sheet/${id}/columns`);
       if (!Array.isArray(columns)) columns = columns?.data || columns?.columns;
     } catch {
       const sheet = await fetchSheet(id, { force: true });
@@ -200,7 +235,8 @@
     const payload = { rows: nonEmpty };
     console.debug("[addRows] payload", { sheetId: id, payload });
 
-    return fetchJSON(`${API_BASE}/sheet/${id}/rows`, {
+    // CHANGED: use retry wrapper
+    return fetchJSONRetry(`${API_BASE}/sheet/${id}/rows`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
