@@ -156,15 +156,20 @@
   function safe(fn) { try { fn && fn(); } catch (_) {} }
 
   window.PowerUpLogout = function () {
+    // Clear cached Smartsheet data (module way)
     safe(() => window.P && P.api && P.api.clearCache && P.api.clearCache());
+    // 🔹 Hard wipe the storage key as a fallback
+    safe(() => sessionStorage.removeItem('pu.sheetCache.v1'));
+    // Clear session mirrors
     safe(() => sessionStorage.removeItem('pu.session'));
     safe(() => localStorage.removeItem('powerup_session'));
+    // Back to login
     location.href = 'login.html';
   };
 
   document.addEventListener('DOMContentLoaded', function () {
     var candidates = Array.from(document.querySelectorAll(
-      '#btnLogout, [data-action="logout"], a[href*="logout"]'
+      '#btnLogout, #pu-logout, [data-action="logout"], a[href*="logout"]'
     ));
     candidates.forEach(function (el) {
       if (!el._logoutWired) {
@@ -177,4 +182,3 @@
     });
   });
 })();
-
