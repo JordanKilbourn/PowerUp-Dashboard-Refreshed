@@ -115,12 +115,13 @@
   <script>
   (function () {
     const $ = (s) => document.querySelector(s);
-    // Best-effort: whenever login.html loads, nuke any leftover sheet cache
-  try { window.P && P.api && P.api.clearCache && P.api.clearCache(); } catch {}
 
-      // 🔹 Hard wipe the exact storage key as a fallback (works even if api.js isn’t ready yet)
-  try { sessionStorage.removeItem('pu.sheetCache.v1'); } catch {}
-  try { localStorage.removeItem('powerup_session'); } catch {}
+    // ---- Always start clean on the login page (belt + suspenders) ----
+    // Try the module clear (if api.js is already loaded)
+    try { window.P && P.api && P.api.clearCache && P.api.clearCache(); } catch {}
+    // Hard-wipe storage keys regardless of module state
+    try { sessionStorage.removeItem('pu.sheetCache.v1'); } catch {}
+    try { localStorage.removeItem('powerup_session'); } catch {}
 
     const empInput   = $('#empId');
     const btnSignIn  = $('#signin');
@@ -186,7 +187,7 @@
       try {
         await PowerUp.session.loginWithId(id);
 
-        // 🔹 Clear any prior user's cached sheets on successful login
+        // Clear any prior user's cached sheets on successful login
         try { window.P && P.api && P.api.clearCache && P.api.clearCache(); } catch {}
 
         // Make sure the canonical mirror exists before we leave
