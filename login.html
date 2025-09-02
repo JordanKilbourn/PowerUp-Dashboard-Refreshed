@@ -115,6 +115,9 @@
   <script>
   (function () {
     const $ = (s) => document.querySelector(s);
+    // Best-effort: whenever login.html loads, nuke any leftover sheet cache
+try { window.P && P.api && P.api.clearCache && P.api.clearCache(); } catch {}
+
     const empInput   = $('#empId');
     const btnSignIn  = $('#signin');
     const btnHelp    = $('#help');
