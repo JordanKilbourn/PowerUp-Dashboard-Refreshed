@@ -1,16 +1,14 @@
-/* scripts/api.js – Patch 1 (TTL + cache hygiene + helpers)
-   Notes:
-   - Adds CACHE_TTL_MS (default 10 min)
-   - Clears cache on demand (used by header “Refresh Data” + on login/logout)
-   - Exposes isStale() + lastRefreshAt() for UI hints
+/* scripts/api.js – Stable version (route fix + safe caching + back-compat)
+   - Matches proxy routes: GET /sheet/:id, POST /sheet/:id/rows
+   - Keeps legacy calls working via P.api shim at bottom
 */
 window.PowerUp = window.PowerUp || {};
 PowerUp.api = (() => {
-  const BASE = 'https://powerup-proxy.onrender.com'; // existing proxy
-  const STORE_KEY = 'pu.cache.v2';  // bump to v2 to invalidate old format
+  const BASE = 'https://powerup-proxy.onrender.com';
+  const STORE_KEY = 'pu.cache.v2';
   const META_KEY  = 'pu.cache.meta.v1';
 
-  // 10 minutes default TTL (tweak as you like)
+  // 10 minutes default TTL
   const CACHE_TTL_MS = 10 * 60 * 1000;
 
   const SHEETS = {
@@ -26,8 +24,7 @@ PowerUp.api = (() => {
   };
 
   const inflight = new Map();
-
-  function now() { return Date.now(); }
+  const now = () => Date.now();
 
   function loadStore() {
     try {
@@ -67,7 +64,6 @@ PowerUp.api = (() => {
   }
 
   function getKey(resource, params) {
-    // stable key per resource+params
     return `${resource}::${params ? JSON.stringify(params) : ''}`;
   }
 
@@ -115,14 +111,14 @@ PowerUp.api = (() => {
     return p;
   }
 
-  // Smartsheet helpers
+  // ----- Smartsheet helpers -----
   function sheetResource(sheetId) { return `/sheet/${sheetId}`; }
 
   async function getSheet(sheetId, { force = false } = {}) {
     return cachedGet(sheetResource(sheetId), null, { force });
   }
 
-  // Convert Smartsheet row array -> array of { "Col Title": value, ... , _rowId }
+  // Convert Smartsheet sheet JSON -> array of objects keyed by column title
   function rowsToObjects(sheetJson) {
     const cols = sheetJson.columns.map(c => ({ id: c.id, title: c.title }));
     const colById = new Map(cols.map(c => [c.id, c.title]));
@@ -136,24 +132,25 @@ PowerUp.api = (() => {
     });
   }
 
-  // Add rows: values = array of objects {"Col Title": value}
+  // Add rows: values = array of {"Column Title": value}
   async function addRows(sheetId, values) {
-    // Build Smartsheet-style rows skipping system/formula columns (we can’t know formula columns here, rely on server to ignore)
-    const body = { rows: values.map(v => ({
-      toTop: true,
-      cells: Object.entries(v).map(([title, value]) => ({ columnTitle: title, value }))
-    }))};
+    // Let the proxy map titles -> columnId; include toTop as a hint
+    const body = { rows: values.map(v => ({ toTop: true, ...v })) };
+
     const url = `${BASE}${sheetResource(sheetId)}/rows`;
     const res = await fetchJSON(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     });
-    // Invalidate any cached sheet data immediately
+
+    // Invalidate cached sheet data immediately
     const store = loadStore();
     const key = getKey(sheetResource(sheetId));
     delete store[key];
     saveStore(store);
+    markRefreshed();
+
     return res;
   }
 
@@ -165,32 +162,27 @@ PowerUp.api = (() => {
     clearCache,
     lastRefreshAt,
     isStale,
-    // power users
     _debug: { loadStore, saveStore, loadMeta }
   };
 })();
 
-// ===== Back-compat shims for legacy P.api calls =============================
-// Paste this at the very bottom of scripts/api.js
-
+/* ===== Back-compat shims for legacy P.api calls ===========================
+   Allows old page code (P.api.getRowsByTitle, etc.) to keep working. */
 (function legacyApiShim() {
-  // 1) Keep old namespace available
   window.P = window.P || {};
   window.P.api = window.PowerUp.api;
 
-  // 2) Ensure SHEETS is reachable via both namespaces
   if (!window.P.api.SHEETS && window.PowerUp?.api?.SHEETS) {
     window.P.api.SHEETS = window.PowerUp.api.SHEETS;
   }
 
-  // 3) Legacy getters --------------------------------------------------------
-  // Old code: await P.api.getSheetJson(sheetId, { force:true })
+  // Old: await P.api.getSheetJson(sheetId, { force:true })
   if (typeof window.P.api.getSheetJson !== 'function') {
     window.P.api.getSheetJson = (sheetId, opts = {}) =>
       window.PowerUp.api.getSheet(sheetId, opts);
   }
 
-  // Old code: const rows = await P.api.getRowsByTitle(sheetId)
+  // Old: const rows = await P.api.getRowsByTitle(sheetId)
   if (typeof window.P.api.getRowsByTitle !== 'function') {
     window.P.api.getRowsByTitle = async (sheetId, opts = {}) => {
       const sheet = await window.PowerUp.api.getSheet(sheetId, opts);
@@ -198,53 +190,47 @@ PowerUp.api = (() => {
     };
   }
 
-  // Old code: const rows = await P.api.getRows(sheetId)
+  // Old: const rows = await P.api.getRows(sheetId)
   if (typeof window.P.api.getRows !== 'function') {
     window.P.api.getRows = (sheetId, opts = {}) =>
       window.P.api.getRowsByTitle(sheetId, opts);
   }
 
-  // Sometimes older code used different names:
-  // Old code: await P.api.fetchSheet(sheetId)
+  // Old: await P.api.fetchSheet(sheetId)
   if (typeof window.P.api.fetchSheet !== 'function') {
     window.P.api.fetchSheet = (sheetId, opts = {}) =>
       window.PowerUp.api.getSheet(sheetId, opts);
   }
 
-  // 4) Row conversion passthrough -------------------------------------------
-  // Old code: const objs = P.api.rowsToObjects(sheetJson)
+  // Old: const objs = P.api.rowsToObjects(sheetJson)
   if (typeof window.P.api.rowsToObjects !== 'function') {
     window.P.api.rowsToObjects = (sheetJson) =>
       window.PowerUp.api.rowsToObjects(sheetJson);
   }
 
-  // 5) Add rows helpers ------------------------------------------------------
-  // Old code: await P.api.addRows(sheetId, [obj, ...])
+  // Old: await P.api.addRows(sheetId, [obj, ...])
   if (typeof window.P.api.addRows !== 'function') {
     window.P.api.addRows = (sheetId, values) =>
       window.PowerUp.api.addRows(sheetId, values);
   }
 
-  // Old code: await P.api.addRow(sheetId, obj)
+  // Old: await P.api.addRow(sheetId, obj)
   if (typeof window.P.api.addRow !== 'function') {
     window.P.api.addRow = (sheetId, value) =>
       window.PowerUp.api.addRows(sheetId, [value]);
   }
 
-  // 6) Cache helpers ---------------------------------------------------------
-  // Old code: P.api.clearCache()
+  // Old: P.api.clearCache()
   if (typeof window.P.api.clearCache !== 'function') {
     window.P.api.clearCache = () => window.PowerUp.api.clearCache();
   }
 
-  // Old code: P.api.clearSheetCache(sheetId) – we don’t support per-sheet
-  // invalidation in the new core yet, so fall back to a full clear to be safe.
+  // Old: P.api.clearSheetCache(sheetId) – fallback to full clear
   if (typeof window.P.api.clearSheetCache !== 'function') {
     window.P.api.clearSheetCache = (_sheetId) => window.PowerUp.api.clearCache();
   }
 
-  // 7) Convenience finders (commonly used in older code) --------------------
-  // Old code: const row = await P.api.findRow(sheetId, 'Employee ID', empId)
+  // Old: const row = await P.api.findRow(sheetId, 'Employee ID', empId)
   if (typeof window.P.api.findRow !== 'function') {
     window.P.api.findRow = async (sheetId, columnTitle, value, opts = {}) => {
       const rows = await window.P.api.getRowsByTitle(sheetId, opts);
@@ -252,7 +238,7 @@ PowerUp.api = (() => {
     };
   }
 
-  // Old code: const matches = await P.api.filterRows(sheetId, r => ...)
+  // Old: const matches = await P.api.filterRows(sheetId, r => ...)
   if (typeof window.P.api.filterRows !== 'function') {
     window.P.api.filterRows = async (sheetId, predicate, opts = {}) => {
       const rows = await window.P.api.getRowsByTitle(sheetId, opts);
@@ -260,4 +246,3 @@ PowerUp.api = (() => {
     };
   }
 })();
-
