@@ -149,3 +149,29 @@
   P.layout = { injectLayout, setPageTitle, setUserHeaderFromEmployeeMaster };
   window.PowerUp = P;
 }(window.PowerUp || {}));
+
+
+// ---- logout wiring (append to layout.js; do not remove existing code) ----
+(function () {
+  function safe(fn) { try { fn && fn(); } catch (_) {} }
+
+  // Global helper so any page can call it
+  window.PowerUpLogout = function () {
+    // Clear any cached Smartsheet data
+    safe(() => window.P && P.api && P.api.clearCache && P.api.clearCache());
+    // Clear session mirrors
+    safe(() => sessionStorage.removeItem('pu.session'));
+    safe(() => localStorage.removeItem('powerup_session'));
+    // Back to login
+    location.href = 'login.html';
+  };
+
+  // Wire the existing logout button by ID
+  document.addEventListener('DOMContentLoaded', function () {
+    var btn = document.getElementById('btnLogout');
+    if (btn && !btn._wired) {
+      btn.addEventListener('click', window.PowerUpLogout);
+      btn._wired = true;
+    }
+  });
+})();
