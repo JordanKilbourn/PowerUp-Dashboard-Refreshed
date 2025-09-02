@@ -169,3 +169,95 @@ PowerUp.api = (() => {
     _debug: { loadStore, saveStore, loadMeta }
   };
 })();
+
+// ===== Back-compat shims for legacy P.api calls =============================
+// Paste this at the very bottom of scripts/api.js
+
+(function legacyApiShim() {
+  // 1) Keep old namespace available
+  window.P = window.P || {};
+  window.P.api = window.PowerUp.api;
+
+  // 2) Ensure SHEETS is reachable via both namespaces
+  if (!window.P.api.SHEETS && window.PowerUp?.api?.SHEETS) {
+    window.P.api.SHEETS = window.PowerUp.api.SHEETS;
+  }
+
+  // 3) Legacy getters --------------------------------------------------------
+  // Old code: await P.api.getSheetJson(sheetId, { force:true })
+  if (typeof window.P.api.getSheetJson !== 'function') {
+    window.P.api.getSheetJson = (sheetId, opts = {}) =>
+      window.PowerUp.api.getSheet(sheetId, opts);
+  }
+
+  // Old code: const rows = await P.api.getRowsByTitle(sheetId)
+  if (typeof window.P.api.getRowsByTitle !== 'function') {
+    window.P.api.getRowsByTitle = async (sheetId, opts = {}) => {
+      const sheet = await window.PowerUp.api.getSheet(sheetId, opts);
+      return window.PowerUp.api.rowsToObjects(sheet);
+    };
+  }
+
+  // Old code: const rows = await P.api.getRows(sheetId)
+  if (typeof window.P.api.getRows !== 'function') {
+    window.P.api.getRows = (sheetId, opts = {}) =>
+      window.P.api.getRowsByTitle(sheetId, opts);
+  }
+
+  // Sometimes older code used different names:
+  // Old code: await P.api.fetchSheet(sheetId)
+  if (typeof window.P.api.fetchSheet !== 'function') {
+    window.P.api.fetchSheet = (sheetId, opts = {}) =>
+      window.PowerUp.api.getSheet(sheetId, opts);
+  }
+
+  // 4) Row conversion passthrough -------------------------------------------
+  // Old code: const objs = P.api.rowsToObjects(sheetJson)
+  if (typeof window.P.api.rowsToObjects !== 'function') {
+    window.P.api.rowsToObjects = (sheetJson) =>
+      window.PowerUp.api.rowsToObjects(sheetJson);
+  }
+
+  // 5) Add rows helpers ------------------------------------------------------
+  // Old code: await P.api.addRows(sheetId, [obj, ...])
+  if (typeof window.P.api.addRows !== 'function') {
+    window.P.api.addRows = (sheetId, values) =>
+      window.PowerUp.api.addRows(sheetId, values);
+  }
+
+  // Old code: await P.api.addRow(sheetId, obj)
+  if (typeof window.P.api.addRow !== 'function') {
+    window.P.api.addRow = (sheetId, value) =>
+      window.PowerUp.api.addRows(sheetId, [value]);
+  }
+
+  // 6) Cache helpers ---------------------------------------------------------
+  // Old code: P.api.clearCache()
+  if (typeof window.P.api.clearCache !== 'function') {
+    window.P.api.clearCache = () => window.PowerUp.api.clearCache();
+  }
+
+  // Old code: P.api.clearSheetCache(sheetId) – we don’t support per-sheet
+  // invalidation in the new core yet, so fall back to a full clear to be safe.
+  if (typeof window.P.api.clearSheetCache !== 'function') {
+    window.P.api.clearSheetCache = (_sheetId) => window.PowerUp.api.clearCache();
+  }
+
+  // 7) Convenience finders (commonly used in older code) --------------------
+  // Old code: const row = await P.api.findRow(sheetId, 'Employee ID', empId)
+  if (typeof window.P.api.findRow !== 'function') {
+    window.P.api.findRow = async (sheetId, columnTitle, value, opts = {}) => {
+      const rows = await window.P.api.getRowsByTitle(sheetId, opts);
+      return rows.find(r => String(r[columnTitle]) === String(value)) || null;
+    };
+  }
+
+  // Old code: const matches = await P.api.filterRows(sheetId, r => ...)
+  if (typeof window.P.api.filterRows !== 'function') {
+    window.P.api.filterRows = async (sheetId, predicate, opts = {}) => {
+      const rows = await window.P.api.getRowsByTitle(sheetId, opts);
+      return rows.filter(predicate);
+    };
+  }
+})();
+
