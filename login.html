@@ -30,7 +30,7 @@
 
     /* Busy overlay (spinner + helpful text) */
     .busy-overlay{position:fixed;inset:0;display:none;place-items:center;background:rgba(7,10,20,.6);z-index:9999;}
-    .busy-card{background:#0b1020;border:1px solid rgba(0,255,198,.4);border-radius:14px;padding:18px 20px;min-width:280px;box-shadow:0 10px 30px rgba(0,0,0,.35);text-align:center}
+    .busy-card{background:#0b1020;border:1px solid rgba(0,255,198,.4);border-radius:14px;padding:18px 20px;min-width:280px;box-shadow: 0 10px 30px rgba(0,0,0,.35);text-align:center}
     .spinner{width:28px;height:28px;border:3px solid rgba(255,255,255,.2);border-top-color:#00ffc6;border-radius:50%;margin:0 auto 10px;animation:spin .9s linear infinite}
     @keyframes spin{to{transform:rotate(360deg)}}
     .busy-title{color:#e5e7eb;font-weight:700;margin-bottom:4px}
@@ -178,8 +178,13 @@
       setBusy(true);
       try {
         await PowerUp.session.loginWithId(id);
+
+        // 🔹 Clear any prior user's cached sheets on successful login
+        try { window.P && P.api && P.api.clearCache && P.api.clearCache(); } catch {}
+
         // Make sure the canonical mirror exists before we leave
         ensureCanonicalSession();
+
         window.location.assign('Dashboard-Refresh.html');
       } catch (e) {
         showError(e?.message || 'Sign-in failed. Please try again.');
