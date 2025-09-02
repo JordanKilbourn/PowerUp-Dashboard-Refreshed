@@ -41,6 +41,8 @@
           <p>
             Welcome: <span data-hook="userName">—</span>
             &emsp; Level: <span data-hook="userLevel">Level Unknown</span>
+            <!-- 🔹 Added: Refresh control (small, unobtrusive) -->
+            &emsp; <button id="pu-refresh" class="btn btn-xs" style="margin-left:8px;border:1px solid #2a354b;background:#0b1328;color:#e5e7eb;border-radius:8px;padding:6px 10px;cursor:pointer">Refresh Data</button>
           </p>
         </div>
         <!-- All page-specific content will be moved into .content -->
@@ -81,11 +83,22 @@
       if (here && href.split('?')[0] === here.split('?')[0]) el.classList.add('active');
     });
 
-    // Logout button wiring
+    // Logout button wiring (calls your session logout; robust cache wipe is below)
     const logoutBtn = document.getElementById('pu-logout');
     if (logoutBtn) {
       logoutBtn.addEventListener('click', () => {
         PowerUp.session?.logout?.();
+      });
+    }
+
+    // 🔹 Added: Refresh button wiring (clear cache + reload)
+    const refreshBtn = document.getElementById('pu-refresh');
+    if (refreshBtn) {
+      refreshBtn.addEventListener('click', () => {
+        try { window.P && P.api && P.api.clearCache && P.api.clearCache(); } catch {}
+        // hard wipe the key too (defensive)
+        try { sessionStorage.removeItem('pu.sheetCache.v1'); } catch {}
+        location.reload();
       });
     }
 
@@ -125,7 +138,7 @@
   }
   window.addEventListener('resize', fitDashboardBlocks);
 
-  // 🔹 New: central header hydration from Employee Master
+  // 🔹 Central header hydration from Employee Master
   function norm(s){ return String(s || "").trim().toLowerCase(); }
   async function setUserHeaderFromEmployeeMaster() {
     try {
@@ -158,7 +171,7 @@
   window.PowerUpLogout = function () {
     // Clear cached Smartsheet data (module way)
     safe(() => window.P && P.api && P.api.clearCache && P.api.clearCache());
-    // 🔹 Hard wipe the storage key as a fallback
+    // Hard wipe the storage key as a fallback
     safe(() => sessionStorage.removeItem('pu.sheetCache.v1'));
     // Clear session mirrors
     safe(() => sessionStorage.removeItem('pu.session'));
