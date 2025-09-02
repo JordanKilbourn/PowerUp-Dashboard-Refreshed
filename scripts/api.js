@@ -1,248 +1,223 @@
-/* scripts/api.js – Stable version (route fix + safe caching + back-compat)
-   - Matches proxy routes: GET /sheet/:id, POST /sheet/:id/rows
-   - Keeps legacy calls working via P.api shim at bottom
-*/
-window.PowerUp = window.PowerUp || {};
-PowerUp.api = (() => {
-  const BASE = 'https://powerup-proxy.onrender.com';
-  const STORE_KEY = 'pu.cache.v2';
-  const META_KEY  = 'pu.cache.meta.v1';
+// scripts/api.js
+(function (PowerUp) {
+  const P = PowerUp || (PowerUp = {});
+  const API_BASE = "https://powerup-proxy.onrender.com";
 
-  // 10 minutes default TTL
-  const CACHE_TTL_MS = 10 * 60 * 1000;
-
+  // ✅ Smartsheet IDs (unchanged)
   const SHEETS = {
-    EMPLOYEE_MASTER: '2195459817820036',
-    POWER_HOUR_GOALS: '3542697273937796',
-    POWER_HOURS: '1240392906264452',
-    CI: '6797575881445252',
-    SAFETY: '3310696565526404',
-    QUALITY: '8096237664292740',
-    LEVEL_TRACKER: '8346763116105604',
-    SQUADS: '2480892254572420',
-    SQUAD_MEMBERS: '2615493107076996',
+    EMPLOYEE_MASTER: "2195459817820036",
+    POWER_HOUR_GOALS: "3542697273937796",
+    POWER_HOURS: "1240392906264452",
+    CI: "6797575881445252",
+    SAFETY: "3310696565526404",
+    QUALITY: "8096237664292740",
+    LEVEL_TRACKER: "8346763116105604",
+    SQUADS: "2480892254572420",
+    SQUAD_MEMBERS: "2615493107076996",
   };
 
-  const inflight = new Map();
-  const now = () => Date.now();
+  // ---------- caches ----------
+  const _rawCache  = new Map();  // id -> raw sheet json (in-memory)
+  const _inflight  = new Map();  // id -> Promise (dedupe concurrent)
+  const _rowsCache = new Map();  // id -> [{title:value,...}] (in-memory)
 
-  function loadStore() {
-    try {
-      const raw = localStorage.getItem(STORE_KEY);
-      return raw ? JSON.parse(raw) : {};
-    } catch { return {}; }
-  }
-  function saveStore(store) {
-    try { localStorage.setItem(STORE_KEY, JSON.stringify(store)); } catch {}
-  }
-  function loadMeta() {
-    try {
-      const raw = localStorage.getItem(META_KEY);
-      return raw ? JSON.parse(raw) : { lastRefreshAt: 0 };
-    } catch { return { lastRefreshAt: 0 }; }
-  }
-  function saveMeta(meta) {
-    try { localStorage.setItem(META_KEY, JSON.stringify(meta)); } catch {}
+  // ---- persistent (session) cache with TTL ----
+  const STORE_KEY    = "pu.sheetCache.v1";
+  const SHEET_TTL_MS = 5 * 60 * 1000;
+
+  function loadStore() { try { return JSON.parse(sessionStorage.getItem(STORE_KEY) || "{}"); } catch { return {}; } }
+  function saveStore(obj) { try { sessionStorage.setItem(STORE_KEY, JSON.stringify(obj || {})); } catch {} }
+
+  // ---------- utils ----------
+  function resolveSheetId(sheetIdOrKey) {
+    if (sheetIdOrKey == null) return "";
+    const s = String(sheetIdOrKey).trim();
+    return Object.prototype.hasOwnProperty.call(SHEETS, s) ? String(SHEETS[s]).trim() : s;
   }
 
-  function clearCache() {
-    try {
-      localStorage.removeItem(STORE_KEY);
-      localStorage.removeItem(META_KEY);
-    } catch {}
+  function assertValidId(id, hint) {
+    if (!id || String(id).toLowerCase() === "undefined" || String(id).toLowerCase() === "null") {
+      const mapping = Object.entries(SHEETS).map(([k,v]) => `${k}: ${v || "MISSING"}`).join(" | ");
+      console.error("Missing Smartsheet ID", { hint, id, mapping });
+      throw new Error("Missing Smartsheet ID (see console for mapping).");
+    }
   }
 
-  function markRefreshed() {
-    const meta = loadMeta();
-    meta.lastRefreshAt = now();
-    saveMeta(meta);
+  // Convert Smartsheet rows into objects keyed by column title
+  function rowsByTitle(sheetJson) {
+    const colTitleById = {};
+    (sheetJson.columns || []).forEach(c => { colTitleById[c.id] = c.title; });
+    return (sheetJson.rows || []).map(r => {
+      const o = {};
+      (r.cells || []).forEach(cell => {
+        const t = colTitleById[cell.columnId];
+        if (!t) return;
+        o[t] = (cell.displayValue !== undefined ? cell.displayValue : cell.value) ?? "";
+      });
+      return o;
+    });
   }
 
-  function lastRefreshAt() {
-    const meta = loadMeta();
-    return meta.lastRefreshAt || 0;
-  }
-
-  function getKey(resource, params) {
-    return `${resource}::${params ? JSON.stringify(params) : ''}`;
-  }
-
-  function isStale(entryTs) {
-    if (!entryTs) return true;
-    return (now() - entryTs) > CACHE_TTL_MS;
-  }
-
-  async function fetchJSON(url, options = {}) {
-    const res = await fetch(url, options);
+  async function fetchJSON(url, init) {
+    const res = await fetch(url, { credentials: "omit", cache: "no-store", ...(init||{}) });
     if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      throw new Error(`HTTP ${res.status} ${res.statusText}: ${text || url}`);
+      let detail = ""; try { detail = await res.text(); } catch {}
+      throw new Error(`Proxy error ${res.status} for ${url}${detail ? `: ${detail}` : ""}`);
     }
-    return res.json();
+    const text = await res.text();
+    try { return JSON.parse(text); } catch { return text; }
   }
 
-  // Unified GET with TTL’d cache
-  async function cachedGet(resource, params, { force = false } = {}) {
-    const key = getKey(resource, params);
-    const store = loadStore();
-    const cached = store[key];
+  // ---------- core fetchers ----------
+  async function fetchSheet(sheetIdOrKey, { force = false } = {}) {
+    const id = resolveSheetId(sheetIdOrKey);
+    assertValidId(id, `fetchSheet(${String(sheetIdOrKey)})`);
 
-    if (!force && cached && !isStale(cached.ts)) {
-      return cached.data;
+    if (!force) {
+      if (_rawCache.has(id)) return _rawCache.get(id);
+      if (_inflight.has(id)) return _inflight.get(id);
     }
 
-    if (inflight.has(key)) return inflight.get(key);
-
-    const url = new URL(`${BASE}${resource}`);
-    if (params && typeof params === 'object') {
-      Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+    if (!force) {
+      const store = loadStore();
+      const hit = store[id];
+      const now = Date.now();
+      if (hit && (now - (hit.ts || 0)) < SHEET_TTL_MS && hit.data) {
+        _rawCache.set(id, hit.data);
+        return hit.data;
+      }
     }
 
     const p = (async () => {
-      const data = await fetchJSON(url.toString());
-      store[key] = { data, ts: now() };
+      const json = await fetchJSON(`${API_BASE}/sheet/${id}`);
+      _rawCache.set(id, json);
+      const store = loadStore();
+      store[id] = { ts: Date.now(), data: json };
       saveStore(store);
-      markRefreshed();
-      inflight.delete(key);
-      return data;
-    })().catch(err => { inflight.delete(key); throw err; });
+      _inflight.delete(id);
+      return json;
+    })();
 
-    inflight.set(key, p);
+    _inflight.set(id, p);
     return p;
   }
 
-  // ----- Smartsheet helpers -----
-  function sheetResource(sheetId) { return `/sheet/${sheetId}`; }
+  async function getRowsByTitle(sheetIdOrKey, { force = false } = {}) {
+    const id = resolveSheetId(sheetIdOrKey);
+    assertValidId(id, `getRowsByTitle(${String(sheetIdOrKey)})`);
 
-  async function getSheet(sheetId, { force = false } = {}) {
-    return cachedGet(sheetResource(sheetId), null, { force });
+    if (!force && _rowsCache.has(id)) return _rowsCache.get(id);
+
+    const raw  = await fetchSheet(id, { force });
+    const rows = rowsByTitle(raw);
+    _rowsCache.set(id, rows);
+    return rows;
   }
 
-  // Convert Smartsheet sheet JSON -> array of objects keyed by column title
-  function rowsToObjects(sheetJson) {
-    const cols = sheetJson.columns.map(c => ({ id: c.id, title: c.title }));
-    const colById = new Map(cols.map(c => [c.id, c.title]));
-    return sheetJson.rows.map(r => {
-      const obj = { _rowId: r.id };
-      r.cells.forEach(cell => {
-        const title = colById.get(cell.columnId);
-        obj[title] = (cell.displayValue ?? cell.value ?? null);
+  function clearCache(sheetIdOrKey) {
+    if (!sheetIdOrKey) { _rawCache.clear(); _inflight.clear(); _rowsCache.clear(); saveStore({}); return; }
+    const id = resolveSheetId(sheetIdOrKey);
+    _rawCache.delete(id); _inflight.delete(id); _rowsCache.delete(id);
+    const store = loadStore(); if (store[id]) { delete store[id]; saveStore(store); }
+  }
+
+  function toNumber(x) {
+    if (x == null) return 0;
+    if (typeof x === "number") return x;
+    const n = parseFloat(String(x).replace(/[^0-9.\-]/g, ""));
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  // ---------- WRITE: add rows (client maps titles → columnId) ----------
+  /**
+   * addRows('SHEET_KEY_OR_ID', [
+   *   { "Squad ID": "SQ-001", "Employee ID": "IX7992604", "Role": "Member", "Active": true, "Start Date": "2025-08-28" }
+   * ])
+   */
+  async function addRows(sheetIdOrKey, titleRows, { toTop = true } = {}) {
+    const id = resolveSheetId(sheetIdOrKey);
+    assertValidId(id, `addRows(${String(sheetIdOrKey)})`);
+    if (!Array.isArray(titleRows) || !titleRows.length) throw new Error("addRows: 'titleRows' must be a non-empty array");
+
+    // Get column metadata (includes column formula info)
+    let columns;
+    try {
+      columns = await fetchJSON(`${API_BASE}/sheet/${id}/columns`);
+      if (!Array.isArray(columns)) columns = columns?.data || columns?.columns;
+    } catch {
+      const sheet = await fetchSheet(id, { force: true });
+      columns = sheet.columns || [];
+    }
+
+    const titleToCol = {};
+    (columns || []).forEach(c => {
+      const k = String(c.title).replace(/\s+/g, " ").trim().toLowerCase();
+      titleToCol[k] = c; // keep full column (id, type, formula, systemColumnType, etc)
+    });
+
+    const isFormulaCol = (col) => !!(col && (col.formula || col.systemColumnType));
+
+    function coerceValue(title, value, col) {
+      const t = String(title).toLowerCase();
+      let v = value;
+
+      // date columns → YYYY-MM-DD
+      if (t.includes("date") || (col && String(col.type).toUpperCase() === "DATE")) {
+        if (v instanceof Date) v = v.toISOString().slice(0, 10);
+        else if (typeof v === "string" && !/^\d{4}-\d{2}-\d{2}$/.test(v)) {
+          const d = new Date(v);
+          if (!isNaN(d)) v = d.toISOString().slice(0, 10);
+        }
+      }
+
+      // checkbox → boolean
+      if (typeof v === "string" && (t.includes("active") || t.includes("checkbox") || (col && String(col.type).toUpperCase() === "CHECKBOX"))) {
+        const s = v.trim().toLowerCase();
+        if (["true","yes","1","y","on"].includes(s)) v = true;
+        else if (["false","no","0","n","off",""].includes(s)) v = false;
+      }
+      return v;
+    }
+
+    const rows = titleRows.map(obj => {
+      const cells = [];
+      Object.entries(obj || {}).forEach(([title, value]) => {
+        const key  = String(title).replace(/\s+/g, " ").trim().toLowerCase();
+        const col  = titleToCol[key];
+        if (!col) { console.warn(`[addRows] Unknown column title in sheet ${id}:`, title); return; }
+        if (isFormulaCol(col)) { console.warn(`[addRows] Skipping column with formula/system type:`, col.title); return; }
+        cells.push({ columnId: col.id, value: coerceValue(title, value, col) });
       });
-      return obj;
+      return { toTop, cells };
+    });
+
+    const nonEmpty = rows.filter(r => r.cells && r.cells.length > 0);
+    if (!nonEmpty.length) {
+      console.error("[addRows] No valid cells matched any writable columns.", { attempted: titleRows, columns });
+      throw new Error("addRows: rows did not contain any writable columns.");
+    }
+
+    const payload = { rows: nonEmpty };
+    console.debug("[addRows] payload", { sheetId: id, payload });
+
+    return fetchJSON(`${API_BASE}/sheet/${id}/rows`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
     });
   }
 
-  // Add rows: values = array of {"Column Title": value}
-  async function addRows(sheetId, values) {
-    // Let the proxy map titles -> columnId; include toTop as a hint
-    const body = { rows: values.map(v => ({ toTop: true, ...v })) };
-
-    const url = `${BASE}${sheetResource(sheetId)}/rows`;
-    const res = await fetchJSON(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-
-    // Invalidate cached sheet data immediately
-    const store = loadStore();
-    const key = getKey(sheetResource(sheetId));
-    delete store[key];
-    saveStore(store);
-    markRefreshed();
-
-    return res;
-  }
-
-  return {
+  // ---------- export ----------
+  P.api = {
+    API_BASE,
     SHEETS,
-    getSheet,
-    rowsToObjects,
-    addRows,
+    resolveSheetId,
+    fetchSheet,
+    rowsByTitle,
+    getRowsByTitle,
     clearCache,
-    lastRefreshAt,
-    isStale,
-    _debug: { loadStore, saveStore, loadMeta }
+    toNumber,
+    addRows,
   };
-})();
-
-/* ===== Back-compat shims for legacy P.api calls ===========================
-   Allows old page code (P.api.getRowsByTitle, etc.) to keep working. */
-(function legacyApiShim() {
-  window.P = window.P || {};
-  window.P.api = window.PowerUp.api;
-
-  if (!window.P.api.SHEETS && window.PowerUp?.api?.SHEETS) {
-    window.P.api.SHEETS = window.PowerUp.api.SHEETS;
-  }
-
-  // Old: await P.api.getSheetJson(sheetId, { force:true })
-  if (typeof window.P.api.getSheetJson !== 'function') {
-    window.P.api.getSheetJson = (sheetId, opts = {}) =>
-      window.PowerUp.api.getSheet(sheetId, opts);
-  }
-
-  // Old: const rows = await P.api.getRowsByTitle(sheetId)
-  if (typeof window.P.api.getRowsByTitle !== 'function') {
-    window.P.api.getRowsByTitle = async (sheetId, opts = {}) => {
-      const sheet = await window.PowerUp.api.getSheet(sheetId, opts);
-      return window.PowerUp.api.rowsToObjects(sheet);
-    };
-  }
-
-  // Old: const rows = await P.api.getRows(sheetId)
-  if (typeof window.P.api.getRows !== 'function') {
-    window.P.api.getRows = (sheetId, opts = {}) =>
-      window.P.api.getRowsByTitle(sheetId, opts);
-  }
-
-  // Old: await P.api.fetchSheet(sheetId)
-  if (typeof window.P.api.fetchSheet !== 'function') {
-    window.P.api.fetchSheet = (sheetId, opts = {}) =>
-      window.PowerUp.api.getSheet(sheetId, opts);
-  }
-
-  // Old: const objs = P.api.rowsToObjects(sheetJson)
-  if (typeof window.P.api.rowsToObjects !== 'function') {
-    window.P.api.rowsToObjects = (sheetJson) =>
-      window.PowerUp.api.rowsToObjects(sheetJson);
-  }
-
-  // Old: await P.api.addRows(sheetId, [obj, ...])
-  if (typeof window.P.api.addRows !== 'function') {
-    window.P.api.addRows = (sheetId, values) =>
-      window.PowerUp.api.addRows(sheetId, values);
-  }
-
-  // Old: await P.api.addRow(sheetId, obj)
-  if (typeof window.P.api.addRow !== 'function') {
-    window.P.api.addRow = (sheetId, value) =>
-      window.PowerUp.api.addRows(sheetId, [value]);
-  }
-
-  // Old: P.api.clearCache()
-  if (typeof window.P.api.clearCache !== 'function') {
-    window.P.api.clearCache = () => window.PowerUp.api.clearCache();
-  }
-
-  // Old: P.api.clearSheetCache(sheetId) – fallback to full clear
-  if (typeof window.P.api.clearSheetCache !== 'function') {
-    window.P.api.clearSheetCache = (_sheetId) => window.PowerUp.api.clearCache();
-  }
-
-  // Old: const row = await P.api.findRow(sheetId, 'Employee ID', empId)
-  if (typeof window.P.api.findRow !== 'function') {
-    window.P.api.findRow = async (sheetId, columnTitle, value, opts = {}) => {
-      const rows = await window.P.api.getRowsByTitle(sheetId, opts);
-      return rows.find(r => String(r[columnTitle]) === String(value)) || null;
-    };
-  }
-
-  // Old: const matches = await P.api.filterRows(sheetId, r => ...)
-  if (typeof window.P.api.filterRows !== 'function') {
-    window.P.api.filterRows = async (sheetId, predicate, opts = {}) => {
-      const rows = await window.P.api.getRowsByTitle(sheetId, opts);
-      return rows.filter(predicate);
-    };
-  }
-})();
+  window.PowerUp = P;
+})(window.PowerUp || {});
