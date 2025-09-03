@@ -35,7 +35,7 @@ window.PowerUp = window.PowerUp || {};
     return NaN;
   }
 
-  async function getMonthlyGoals(employeeId) {
+  async function getMonthlyGoalsForEmployee(employeeId) {
     try {
       const [emSheet, targetsSheet] = await Promise.all([
         fetchSheet(SHEETS.EMPLOYEE_MASTER),
@@ -51,8 +51,8 @@ window.PowerUp = window.PowerUp || {};
       const lvlKey = normalizeLevel(me?.["PowerUp Level (Select)"]);
       const row = targets.find(t => String(t["Level"] || "").toUpperCase() === lvlKey);
 
-      const min = num(row?.["Min Hours"]) || 8;
-      const max = num(row?.["Max Hours"]) || min || 8;
+      const min = Number(row?.["Min Hours"]) || 8;
+      const max = Number(row?.["Max Hours"]) || min || 8;
       return { min, max };
     } catch {
       return { min: 8, max: 8 };
@@ -60,21 +60,21 @@ window.PowerUp = window.PowerUp || {};
   }
 
   // ---------- visual renderer (Progress V2) ----------
-  function renderProgressV2({ min, max, current }) {
-    const pct    = cap01(max ? (current / max) : 0);
-    const minPct = cap01(max ? (min / max) : 0);
+  function renderProgressV2({ min, max, current, neutral = false }) {
+    const pct    = neutral ? 1 : cap01(max ? (current / max) : 0);
+    const minPct = neutral ? 0 : cap01(max ? (min / max) : 0);
 
     const track  = document.querySelector('[data-hook="ph.track"]');
     const fill   = document.querySelector('[data-hook="ph.fill"]');
     const band   = document.querySelector('[data-hook="ph.band"]');
     const thumb  = document.querySelector('[data-hook="ph.thumb"]');
 
-    const state = stateFor(current, min, max);
+    const state = neutral ? 'met' : stateFor(current, min, max);
 
     // min→max band
     if (band) {
-      band.style.left  = (minPct * 100) + '%';
-      band.style.width = ((1 - minPct) * 100) + '%';
+      band.style.left  = neutral ? '0%' : (minPct * 100) + '%';
+      band.style.width = neutral ? '0%' : ((1 - minPct) * 100) + '%';
     }
 
     // 0→current fill
@@ -93,30 +93,34 @@ window.PowerUp = window.PowerUp || {};
     // a11y progress values
     if (track) {
       track.setAttribute('aria-valuemin', '0');
-      track.setAttribute('aria-valuemax', String(max));
-      track.setAttribute('aria-valuenow', String(Math.max(0, Math.min(current, max))));
+      track.setAttribute('aria-valuemax', String(neutral ? current : max));
+      track.setAttribute('aria-valuenow', String(Math.max(0, Math.min(current, neutral ? current : max))));
     }
 
     return state;
   }
 
-  // ----- SMART message builder (days left, pace, urgency, colors) -----
-  function setSmartMessage({ monthCompleted, min, max }) {
+  // ----- SMART message builder -----
+  function setSmartMessage({ monthCompleted, min, max, neutral = false }) {
     const msgEl = document.querySelector('[data-hook="ph.message"]');
     if (!msgEl) return;
 
-    // Days left this month
+    if (neutral) {
+      msgEl.textContent = `Admin view: ${monthCompleted.toFixed(1)}h logged across all employees in ${monthName}.`;
+      msgEl.className = `ph-msg ok`;
+      return;
+    }
+
     const year = now.getFullYear();
-    const lastDay = new Date(year, now.getMonth() + 1, 0).getDate(); // eom day number
+    const lastDay = new Date(year, now.getMonth() + 1, 0).getDate();
     const today = now.getDate();
-    const daysLeft = Math.max(0, lastDay - today); // exclude today for “left”
+    const daysLeft = Math.max(0, lastDay - today);
 
     const remainingToMin = Math.max(0, min - monthCompleted);
     const remainingToMax = Math.max(0, max - monthCompleted);
     const dailyPaceMin = daysLeft > 0 ? (remainingToMin / daysLeft) : remainingToMin;
     const dailyPaceMax = daysLeft > 0 ? (remainingToMax / daysLeft) : remainingToMax;
 
-    // choose message + color
     let text = "";
     let tone = "ok";
 
@@ -128,7 +132,6 @@ window.PowerUp = window.PowerUp || {};
       if (daysLeft > 0) text += ` ~${dailyPaceMax.toFixed(1)}h/day for the remaining ${daysLeft} day${daysLeft!==1?'s':''}.`;
       tone = "ok";
     } else {
-      // below minimum — add urgency based on time left & pace needed
       const highUrgency = daysLeft <= 2 || dailyPaceMin >= 2;
       const medUrgency  = daysLeft <= 5 || dailyPaceMin >= 1;
 
@@ -146,56 +149,77 @@ window.PowerUp = window.PowerUp || {};
       }
     }
 
-    // apply
     msgEl.textContent = text;
     msgEl.className = `ph-msg ${tone}`;
   }
 
   // ---------- main entry ----------
   ns.renderDashboardPowerHours = async function () {
-    const { employeeId } = ns.session.get();
-    if (!employeeId) return;
-
     const phSheet = await fetchSheet(SHEETS.POWER_HOURS);
     const allRows = rowsByTitle(phSheet);
 
-    const mine = allRows.filter(r =>
-      String(r["Employee ID"] || "").trim() === String(employeeId).trim()
-    );
-    const rowsThisMonth = mine.filter(r => rowMonthNumber(r) === nowMonthNum);
+    // Determine scope
+    let scoped = allRows;
+    let neutral = false; // true when admin viewing "All Employees"
+    let employeeIdForGoals = null;
 
-    const allTimeCompleted = mine.reduce((s, r) => s + num(r["Completed Hours"]), 0);
-    const scheduledHours   = mine
-      .filter(r => bool(r["Scheduled"]) && !bool(r["Completed"]))
-      .reduce((s, r) => s + num(r["Duration (hrs)"]), 0);
+    if (ns.auth?.maybeFilterByEmployee) {
+      // If admin & filter=All → keep all rows and set neutral=true
+      const saved = sessionStorage.getItem('pu.adminEmployeeFilter') || '__ALL__';
+      const admin = ns.auth.isAdmin && ns.auth.isAdmin();
+      if (admin) {
+        if (saved !== '__ALL__') {
+          // scope by display name / id
+          const cols = ['Employee ID','Position ID','Display Name','Employee Name','Name'];
+          scoped = ns.auth.maybeFilterByEmployee(allRows, cols);
+          // try to discover an ID from scoped rows for goals
+          const any = scoped.find(r => r['Employee ID'] || r['Position ID']);
+          employeeIdForGoals = (any && (any['Employee ID'] || any['Position ID'])) || null;
+        } else {
+          neutral = true; // admin ALL
+        }
+      } else {
+        // non-admin: filter to self
+        const { employeeId } = ns.session.get();
+        scoped = allRows.filter(r => String(r["Employee ID"] || r["Position ID"] || "").trim() === String(employeeId || "").trim());
+        employeeIdForGoals = employeeId || null;
+      }
+    } else {
+      // no roles helper available; fallback to self
+      const { employeeId } = ns.session.get();
+      scoped = allRows.filter(r => String(r["Employee ID"] || r["Position ID"] || "").trim() === String(employeeId || "").trim());
+      employeeIdForGoals = employeeId || null;
+    }
 
-    const { min, max } = await getMonthlyGoals(employeeId);
+    const rowsThisMonth = scoped.filter(r => rowMonthNumber(r) === nowMonthNum);
+
+    const monthCompleted = rowsThisMonth.reduce((sum, r) => sum + num(r["Completed Hours"]), 0);
 
     // UI hooks
     const totalEl   = document.querySelector('[data-hook="ph.total"]');
     const goalMaxEl = document.querySelector('[data-hook="ph.goalMax"]');
 
-    if (goalMaxEl) goalMaxEl.textContent = String(max);
+    if (totalEl) totalEl.textContent = monthCompleted.toFixed(1);
 
-    // Empty month UX
-    if (rowsThisMonth.length === 0) {
-      ns.powerHours = { monthCompleted: 0, allTimeCompleted, scheduledHours };
-      if (totalEl) totalEl.textContent = '0.0';
-      renderProgressV2({ min, max, current: 0 });
-
-      // SMART empty-message
-      setSmartMessage({ monthCompleted: 0, min, max });
+    if (neutral) {
+      if (goalMaxEl) goalMaxEl.textContent = '—';
+      renderProgressV2({ min: 0, max: 0, current: monthCompleted, neutral: true });
+      setSmartMessage({ monthCompleted, min: 0, max: 0, neutral: true });
       return;
     }
 
-    // Compute current month
-    const monthCompleted = rowsThisMonth.reduce((sum, r) => sum + num(r["Completed Hours"]), 0);
-    ns.powerHours = { monthCompleted, allTimeCompleted, scheduledHours };
+    // Use goals for the chosen employee
+    const { min, max } = await getMonthlyGoalsForEmployee(employeeIdForGoals || (ns.session.get().employeeId || ''));
 
-    if (totalEl) totalEl.textContent = monthCompleted.toFixed(1);
-    renderProgressV2({ min, max, current: monthCompleted });
-
-    // SMART message
-    setSmartMessage({ monthCompleted, min, max });
+    if (goalMaxEl) goalMaxEl.textContent = String(max);
+    renderProgressV2({ min, max, current: monthCompleted, neutral: false });
+    setSmartMessage({ monthCompleted, min, max, neutral: false });
   };
+
+  // Recompute on admin scope change
+  document.addEventListener('powerup-admin-filter-change', () => {
+    try { ns.api.clearCache(); } catch {}
+    ns.renderDashboardPowerHours();
+  });
+
 })(window.PowerUp);
