@@ -83,11 +83,12 @@
       if (here && href.split('?')[0] === here.split('?')[0]) el.classList.add('active');
     });
 
-    // Logout button wiring (calls your session logout; robust cache wipe is below)
+    // Logout button wiring — use robust helper so caches/session are wiped
     const logoutBtn = document.getElementById('pu-logout');
     if (logoutBtn) {
-      logoutBtn.addEventListener('click', () => {
-        PowerUp.session?.logout?.();
+      logoutBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        window.PowerUpLogout && window.PowerUpLogout();
       });
     }
 
@@ -109,7 +110,7 @@
     // Initial layout sizing
     requestAnimationFrame(fitDashboardBlocks);
 
-    // 🔹 Hydrate header user info (name + level) from Employee Master
+    // 🔹 Hydrate header user info (name + level) from Employee Master / roles
     setUserHeaderFromEmployeeMaster();
   }
 
@@ -138,7 +139,7 @@
   }
   window.addEventListener('resize', fitDashboardBlocks);
 
-  // 🔹 Central header hydration from Employee Master
+  // 🔹 Central header hydration from Employee Master / roles
   function norm(s){ return String(s || "").trim().toLowerCase(); }
   async function setUserHeaderFromEmployeeMaster() {
     try {
@@ -147,6 +148,13 @@
       const levelEl = document.querySelector('[data-hook="userLevel"]');
       if (nameEl && sess.displayName) nameEl.textContent = sess.displayName;
 
+      // If allowlisted admin → show Admin and stop
+      if (PowerUp.auth?.isAdmin && PowerUp.auth.isAdmin()) {
+        if (levelEl) levelEl.textContent = 'Admin';
+        return;
+      }
+
+      // Otherwise, Level lookup:
       const rows = await PowerUp.api.getRowsByTitle("EMPLOYEE_MASTER");
       const row =
         rows.find(r => norm(r["Position ID"]) === norm(sess.employeeId)) ||
@@ -159,10 +167,11 @@
     }
   }
 
+  // 🔸 EXPORT (restored) — make these available to pages
   P.layout = { injectLayout, setPageTitle, setUserHeaderFromEmployeeMaster };
   window.PowerUp = P;
-}(window.PowerUp || {}));
 
+})(window.PowerUp || {});
 
 // ---- PowerUp: robust logout wiring (append-only) --------------------------
 (function () {
