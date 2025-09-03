@@ -124,7 +124,7 @@
   <script src="scripts/roles.js"></script>
   <script src="scripts/layout.js"></script>
 
-  <!-- Use the SAME progress-card logic as dashboard (for signed-in user) -->
+  <!-- Progress card logic (now supports employeeIdOverride) -->
   <script src="scripts/progress.js"></script>
 
   <script>
@@ -169,7 +169,6 @@
         const me = PowerUp.session.get() || {};
         if (!IS_ADMIN) return { id: String(me.employeeId||'').trim(), name: String(me.displayName||'').trim() };
 
-        // Admin: read selected display name from sessionStorage and map to ID via Employee Master
         const selName = (sessionStorage.getItem('pu.adminEmployeeFilter') || '').trim();
         if (!selName || selName === '__ALL__') {
           return { id: String(me.employeeId||'').trim(), name: String(me.displayName||'').trim() };
@@ -319,9 +318,8 @@
 
         applyRange();
 
-        // hydrate the progress card using the SAME logic as the dashboard (signed-in user)
-        // If you want this card to reflect the admin target instead, I can swap in an admin-aware version.
-        await PowerUp.renderDashboardPowerHours();
+        // 🔹 Render the progress card for the *target employee* (admin-aware)
+        await PowerUp.renderDashboardPowerHours({ employeeIdOverride: state.target.id });
       }
 
       function bindControls() {
@@ -332,6 +330,9 @@
         document.addEventListener('powerup-admin-filter-change', async () => {
           state.target = await resolveTargetEmployee();
           applyRange();
+
+          // 🔹 Also refresh the progress card for the new target
+          await PowerUp.renderDashboardPowerHours({ employeeIdOverride: state.target.id });
         });
       }
 
