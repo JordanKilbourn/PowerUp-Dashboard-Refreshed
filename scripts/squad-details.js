@@ -1,4 +1,4 @@
-// scripts/squad-details.js
+// /scripts/squad-details.js
 (function (P) {
   const { api, session, roles, layout } = P;
 
@@ -25,37 +25,42 @@
   }
 
   function renderMembers(allRows, empMap, squadId, showEmpId) {
+    const tbl = document.getElementById("members-table");
+    if (!tbl) return;
     const rows = allRows.filter(r => String(r["Squad ID"]).trim().toLowerCase() === String(squadId).trim().toLowerCase());
 
-    const thead = document.querySelector("#members-table thead tr");
-    const tbody = document.querySelector("#members-table tbody");
+    const thead = tbl.querySelector("thead tr");
+    const tbody = tbl.querySelector("tbody");
 
-    thead.innerHTML = showEmpId
-      ? "<th>Member</th><th>Employee ID</th><th>Role</th><th>Status</th><th>Start</th>"
-      : "<th>Member</th><th>Role</th><th>Status</th><th>Start</th>";
+    if (thead) {
+      thead.innerHTML = showEmpId
+        ? "<th>Member</th><th>Employee ID</th><th>Role</th><th>Status</th><th>Start</th>"
+        : "<th>Member</th><th>Role</th><th>Status</th><th>Start</th>";
+    }
 
-    tbody.innerHTML = rows.map(r => {
-      const eid = String(r["Employee ID"] || "").trim();
-      const name = empMap[eid] || eid || "-";
-      const role = r["Role"] || "-";
-      const active = (String(r["Active"]||"").toLowerCase() === "true");
-      const start = r["Start Date"] || r["Start"];
-      const cells = [
-        `<td>${esc(name)}</td>`,
-        ...(showEmpId ? [`<td class="mono">${esc(eid || "-")}</td>`] : []),
-        `<td>${esc(role)}</td>`,
-        `<td>${active ? '<span class="status-pill status-on">Active</span>'
-                      : '<span class="status-pill status-off">Inactive</span>'}</td>`,
-        `<td>${fmtDate(start)}</td>`
-      ];
-      return `<tr>${cells.join("")}</tr>`;
-    }).join("") || `<tr><td colspan="${showEmpId ? 5 : 4}" style="opacity:.7;text-align:center;">No members yet</td></tr>`;
+    if (tbody) {
+      tbody.innerHTML = rows.map(r => {
+        const eid = String(r["Employee ID"] || "").trim();
+        const name = empMap[eid] || eid || "-";
+        const role = r["Role"] || "-";
+        const active = (String(r["Active"]||"").toLowerCase() === "true");
+        const start = r["Start Date"] || r["Start"];
+        const cells = [
+          `<td>${esc(name)}</td>`,
+          ...(showEmpId ? [`<td class="mono">${esc(eid || "-")}</td>`] : []),
+          `<td>${esc(role)}</td>`,
+          `<td>${active ? '<span class="status-pill status-on">Active</span>'
+                        : '<span class="status-pill status-off">Inactive</span>'}</td>`,
+          `<td>${fmtDate(start)}</td>`
+        ];
+        return `<tr>${cells.join("")}</tr>`;
+      }).join("") || `<tr><td colspan="${showEmpId ? 5 : 4}" style="opacity:.7;text-align:center;">No members yet</td></tr>`;
+    }
   }
 
   function norm(s) { return String(s || "").trim().toLowerCase(); }
 
   async function main() {
-    // Inject shell and make sure header is hydrated before we read session state.
     layout.injectLayout?.();
     await session.initHeader?.();
 
@@ -77,12 +82,9 @@
       loadEmployeeMap()
     ]);
 
-    // Find squad by ID (prefer) or by Name as fallback
     const urlIdLC = norm(urlId);
     let squad = squads.find(r => norm(r["Squad ID"]) === urlIdLC);
-    if (!squad) {
-      squad = squads.find(r => norm(r["Squad Name"]) === urlIdLC);
-    }
+    if (!squad) squad = squads.find(r => norm(r["Squad Name"]) === urlIdLC);
     if (!squad) {
       layout.setPageTitle?.("Squad: Not Found");
       const el = document.querySelector("#card-core .kv");
@@ -90,22 +92,19 @@
       return;
     }
 
-    // Reliable ID/Name for the rest of the page
     const squadId   = squad["Squad ID"] || urlId;
     const squadName = squad["Squad Name"] || squadId;
 
-    // Card header fields
     const active = (String(squad["Active"]||"").toLowerCase() === "true") ? "Active" : "Inactive";
     const category = squad["Category"] || "-";
     const created  = squad["Created Date"] || squad["Created"] || "";
 
     layout.setPageTitle?.(`Squad: ${squadName}`);
 
-    // Core cards
     const core = document.querySelector("#card-core .kv");
     if (core) core.innerHTML = `
       <div><b>Name:</b> ${esc(squadName)}</div>
-      <div><b>Leader:</b> <!-- leaders are shown on the Squads page; details page focuses on roster --></div>
+      <div><b>Leader:</b> <!-- leaders on cards page; details focuses on roster --></div>
       <div><b>Status:</b> ${active === "Active"
         ? '<span class="status-pill status-on">Active</span>'
         : '<span class="status-pill status-off">Inactive</span>'}</div>
@@ -117,7 +116,6 @@
     const notes = document.querySelector("#card-notes .kv");
     if (notes) notes.textContent = squad["Notes"] || "-";
 
-    // Back button
     const backBtn = document.getElementById("btn-back");
     if (backBtn) backBtn.onclick = (e) => {
       e.preventDefault();
@@ -125,11 +123,10 @@
       else location.href = "squads.html";
     };
 
-    // ---- Add Member permissions (admin OR Role=Leader in SQUAD_MEMBERS) ----
+    // Permissions for Add Member
     const addBtn = document.getElementById("btn-addmember");
     if (addBtn) {
       let canAdd = isAdmin;
-
       if (!canAdd) {
         const leaderRows = members.filter(r =>
           norm(r["Squad ID"]) === norm(squadId) &&
@@ -138,9 +135,8 @@
         );
         canAdd = leaderRows.some(r => norm(r["Employee ID"]) === norm(userId));
       }
-
       if (canAdd) {
-        addBtn.style.display = "inline-flex";   // override CSS display:none
+        addBtn.style.display = "inline-flex";
         addBtn.disabled = false;
         addBtn.onclick = (e) => {
           e.preventDefault();
@@ -160,7 +156,6 @@
     const showEmpId = isAdmin;
     renderMembers(members, empMap, squadId, showEmpId);
 
-    // After a member is added, refresh
     document.addEventListener("squad-member-added", async () => {
       const latest = await api.getRowsByTitle('SQUAD_MEMBERS', { force: true });
       renderMembers(latest, empMap, squadId, showEmpId);
