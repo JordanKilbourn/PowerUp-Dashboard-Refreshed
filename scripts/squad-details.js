@@ -96,16 +96,35 @@
 
     layout.setPageTitle?.(`Squad: ${squadName}`);
 
+    // Leaders from Squad Members (source of truth)
+    const leaders = members
+      .filter(r => norm(r["Squad ID"]) === norm(squadId) && norm(r["Role"]) === "leader" && norm(r["Active"]) === "true")
+      .map(r => String(r["Employee ID"] || "").trim())
+      .filter(Boolean);
+
+    const leaderNames = leaders
+      .map(eid => (empMap[eid] || eid))
+      .filter(Boolean);
+
     const core = document.querySelector("#card-core .kv");
-    if (core) core.innerHTML = `
-      <div><b>Name:</b> ${esc(squadName)}</div>
-      <div><b>Leader:</b> <!-- leaders are shown on the Squads page; details page focuses on roster --></div>
-      <div><b>Status:</b> ${active === "Active"
-        ? '<span class="status-pill status-on">Active</span>'
-        : '<span class="status-pill status-off">Inactive</span>'}</div>
-      <div><b>Category:</b> ${esc(category)}</div>
-      <div><b>Created:</b> ${esc(created || "-")}</div>
-    `;
+    if (core) {
+      const leaderText = leaderNames.length
+        ? (leaderNames.length === 1 ? leaderNames[0]
+           : leaderNames.length === 2 ? `${leaderNames[0]}, ${leaderNames[1]}`
+           : `${leaderNames[0]}, ${leaderNames[1]} +${leaderNames.length - 2} more`)
+        : "-";
+
+      core.innerHTML = `
+        <div><b>Name:</b> ${esc(squadName)}</div>
+        <div><b>${leaderNames.length > 1 ? 'Leaders' : 'Leader'}:</b> ${esc(leaderText)}</div>
+        <div><b>Status:</b> ${active === "Active"
+          ? '<span class="status-pill status-on">Active</span>'
+          : '<span class="status-pill status-off">Inactive</span>'}</div>
+        <div><b>Category:</b> ${esc(category)}</div>
+        <div><b>Created:</b> ${esc(created || "-")}</div>
+      `;
+    }
+
     const obj = document.querySelector("#card-objective .kv");
     if (obj) obj.textContent = squad["Objective"] || "-";
     const notes = document.querySelector("#card-notes .kv");
@@ -118,6 +137,7 @@
       else location.href = "squads.html";
     };
 
+    // Add Member permissions (admin OR active leader in this squad)
     const addBtn = document.getElementById("btn-addmember");
     if (addBtn) {
       let canAdd = isAdmin;
@@ -148,6 +168,7 @@
       }
     }
 
+    // Render members (show Employee ID column for admins only)
     const showEmpId = isAdmin;
     renderMembers(members, empMap, squadId, showEmpId);
 
