@@ -1,8 +1,9 @@
+// DROP-IN REPLACEMENT
 window.PowerUp = window.PowerUp || {};
 (function (ns) {
   const { fetchSheet, rowsByTitle, SHEETS } = ns.api;
 
-  // === Column dictionaries (KEEPING YOUR FRIENDLY LABELS) ===
+  // === Column dictionaries ===
   const COL_MAP = {
     ci: {
       "Submission Date": "Submitted",
@@ -42,20 +43,13 @@ window.PowerUp = window.PowerUp || {};
     }
   };
 
-  // === Centralized filtering config (lists + which column to filter on) ===
+  // === Filter dropdowns (unchanged) ===
   const FILTER_CONFIG = {
     ci: {
       selectId: "ci-filter",
       countId: "ci-count",
       friendlyHeader: "Status",
-      options: [
-        "All",
-        "Not Started",
-        "Open",
-        "Needs Researched",
-        "Completed",
-        "Denied/Cancelled"
-      ],
+      options: ["All","Not Started","Open","Needs Researched","Completed","Denied/Cancelled"],
       match(cellText, selected) {
         const t = (cellText || "").toLowerCase();
         const s = (selected || "").toLowerCase();
@@ -69,19 +63,7 @@ window.PowerUp = window.PowerUp || {};
       selectId: "safety-filter",
       countId: "safety-count",
       friendlyHeader: "Safety Concern",
-      options: [
-        "All",
-        "Hand tool in disrepair",
-        "Machine in disrepair",
-        "Electrical hazard",
-        "Ergonomic",
-        "Guarding missing",
-        "Guarding in disrepair",
-        "PPE missing",
-        "PPE suggested improvement",
-        "Missing GHS label",
-        "Missing SDS"
-      ],
+      options: ["All","Hand tool in disrepair","Machine in disrepair","Electrical hazard","Ergonomic","Guarding missing","Guarding in disrepair","PPE missing","PPE suggested improvement","Missing GHS label","Missing SDS"],
       match(cellText, selected) {
         if ((selected || "").toLowerCase() === "all") return true;
         return (cellText || "").toLowerCase().trim() === (selected || "").toLowerCase().trim();
@@ -91,19 +73,7 @@ window.PowerUp = window.PowerUp || {};
       selectId: "quality-filter",
       countId: "quality-count",
       friendlyHeader: "Area",
-      options: [
-        "All",
-        "Assembly",
-        "Customs",
-        "Dip Line",
-        "Fab",
-        "Office",
-        "Powder Coat",
-        "Router",
-        "Roto Mold",
-        "SMF",
-        "Welding"
-      ],
+      options: ["All","Assembly","Customs","Dip Line","Fab","Office","Powder Coat","Router","Roto Mold","SMF","Welding"],
       match(cellText, selected) {
         if ((selected || "").toLowerCase() === "all") return true;
         return (cellText || "").toLowerCase().trim() === (selected || "").toLowerCase().trim();
@@ -111,76 +81,46 @@ window.PowerUp = window.PowerUp || {};
     }
   };
 
-  // === Helpers (KEEPING / UPDATING FORMATTERS) ===
-  const esc = (s) =>
-    String(s ?? "")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
-
+  // === Helpers ===
+  const esc = (s) => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
   const fmtDate = (v) => {
     if (v == null || String(v).trim() === "") return "-";
     const d = new Date(v);
-    return isNaN(d)
-      ? "-"
-      : `${String(d.getMonth()+1).padStart(2,"0")}/${String(d.getDate()).padStart(2,"0")}/${d.getFullYear()}`;
+    return isNaN(d) ? "-" : `${String(d.getMonth()+1).padStart(2,"0")}/${String(d.getDate()).padStart(2,"0")}/${d.getFullYear()}`;
   };
-
-  // ✓ / ✗ for explicit boolean-ish values only
   const boolMark = (v) => {
     const raw = String(v ?? "").trim().toLowerCase();
     if (raw === "") return "-";
-    if (v === true || raw === "true" || raw === "yes" || raw === "paid") {
-      return `<span class="pill pill--green" title="Yes">✓</span>`;
-    }
-    if (v === false || raw === "false" || raw === "no") {
-      return `<span class="pill pill--red" title="No">✗</span>`;
-    }
+    if (v === true || raw === "true" || raw === "yes" || raw === "paid") return `<span class="pill pill--green" title="Yes">✓</span>`;
+    if (v === false || raw === "false" || raw === "no") return `<span class="pill pill--red" title="No">✗</span>`;
     return esc(v);
   };
-
   const statusPill = (v) => {
     if (v == null || String(v).trim() === "") return "-";
     const t = String(v).toLowerCase();
     if (/approved|accepted|closed|complete/.test(t)) return `<span class="pill pill--green">${esc(v)}</span>`;
-    if (/pending|progress|open|new/.test(t)) return `<span class="pill pill--blue">${esc(v)}</span>`;
-    if (/denied|rejected|cancel/.test(t)) return `<span class="pill pill--red">${esc(v)}</span>`;
+    if (/pending|progress|open|new/.test(t))        return `<span class="pill pill--blue">${esc(v)}</span>`;
+    if (/denied|rejected|cancel/.test(t))           return `<span class="pill pill--red">${esc(v)}</span>`;
     return esc(v);
   };
-
   function format(col, value) {
     const t = String(col || "").toLowerCase();
-
-    // Dates (handles "Submission Date", "Entry Date", etc.)
     if (t.includes("date")) return fmtDate(value);
-
-    // Tokens — ensure only one "$" by stripping any existing symbols first
     if (t.includes("token")) {
       const n = Number(String(value).replace(/[^0-9.\-]/g, ""));
-      if (Number.isFinite(n)) return n !== 0 ? `$${n}` : "$0";
-      return "-";
+      return Number.isFinite(n) ? `$${n}` : "-";
     }
-
-    // Paid / Resourced — green ✓ or red ✗
-    if (t === "paid" || t === "resourced") {
-      return boolMark(value);
-    }
-
-    // Status / Approval — use colored pills
-    if (t.includes("status") || t.includes("approval")) {
-      return statusPill(value);
-    }
-
+    if (t === "paid" || t === "resourced") return boolMark(value);
+    if (t.includes("status") || t.includes("approval")) return statusPill(value);
     const blank = value == null || String(value).trim() === "";
     return blank ? "-" : esc(value);
   }
 
-  // --- new helpers (admin-aware employee targeting) ---
+  // --- Admin target resolution ---
   async function getAdminTarget() {
     try {
       const sel = (sessionStorage.getItem('pu.adminEmployeeFilter') || '').trim();
-      if (!sel || sel === '__ALL__') return null;
-
+      if (!sel || sel === '__ALL__') return null; // << All Employees = no target
       const em = await ns.api.getRowsByTitle(ns.api.SHEETS.EMPLOYEE_MASTER);
       const norm = (s) => String(s||'').trim().toLowerCase();
       const row = em.find(r => norm(r['Display Name']||r['Employee Name']||r['Name']) === norm(sel));
@@ -190,15 +130,15 @@ window.PowerUp = window.PowerUp || {};
     } catch { return null; }
   }
 
-  function matchesEmployee(row, { id, name }) {
+  function matchesEmployee(row, target) {
+    // If no target => ALL employees (no filtering)
+    if (!target || (!target.id && !target.name)) return true;
     const norm = (s) => String(s||'').trim().toLowerCase();
     const rid  = norm(row['Employee ID']);
     const rpid = norm(row['Position ID']);
     const rname= norm(row['Submitted By'] || row['Employee Name'] || row['Name']);
-
-    const idLC = norm(id);
-    const nameLC = norm(name);
-
+    const idLC = norm(target.id);
+    const nameLC = norm(target.name);
     return (idLC && (rid === idLC || rpid === idLC)) || (nameLC && rname === nameLC);
   }
 
@@ -206,13 +146,11 @@ window.PowerUp = window.PowerUp || {};
     const me = ns.session.get() || {};
     const isAdmin = !!(ns.auth && ns.auth.isAdmin && ns.auth.isAdmin());
     if (!isAdmin) return { id: String(me.employeeId||'').trim(), name: String(me.displayName||'').trim() };
-
-    const picked = await getAdminTarget();
-    if (picked) return picked;
-    return { id: String(me.employeeId||'').trim(), name: String(me.displayName||'').trim() };
+    const picked = await getAdminTarget(); // may be null (ALL)
+    return picked || null; // null means ALL employees
   }
 
-  // === Render function with sorting (KEEPING YOUR PATTERN) ===
+  // === Render + sort ===
   function renderTable(tbody, rows, colMap, tableId, empNameById) {
     if (!tbody) return;
     const cols = Object.keys(colMap);
@@ -220,14 +158,12 @@ window.PowerUp = window.PowerUp || {};
 
     const html = rows.map(r => {
       const tds = cols.map(c => {
-        // synthetic employee name cell for admins
         if (c === "__EMP_NAME__") {
           const idRaw = String(r["Employee ID"] || r["Position ID"] || "").trim();
           const by = String(r["Submitted By"] || r["Employee Name"] || r["Name"] || "").trim();
           const name = (idRaw && empNameById && empNameById.get(idRaw.toLowerCase())) || by || (idRaw || "-");
           return `<td data-sort="${(name||'').toString().toLowerCase()}">${esc(name)}</td>`;
         }
-
         const raw = r[c];
         const val = format(c, raw);
         let sortVal = (raw ?? "").toString().toLowerCase();
@@ -252,10 +188,8 @@ window.PowerUp = window.PowerUp || {};
     }
   }
 
-  // === Sorting logic (arrows use th[data-sort]="asc|desc") ===
   function bindHeaderSort(thead, tbody) {
     let state = { col: 0, asc: true };
-
     const applyIndicators = () => {
       thead.querySelectorAll("th").forEach((h, i) => {
         h.setAttribute("data-sort", "none");
@@ -266,13 +200,11 @@ window.PowerUp = window.PowerUp || {};
         }
       });
     };
-
     thead.querySelectorAll("th").forEach((th, idx) => {
       th.style.cursor = "pointer";
       th.onclick = () => {
         state.asc = state.col === idx ? !state.asc : true;
         state.col = idx;
-
         const rows = Array.from(tbody.querySelectorAll("tr"));
         rows.sort((ra, rb) => {
           const a = ra.children[idx]?.getAttribute("data-sort") ?? "";
@@ -282,16 +214,14 @@ window.PowerUp = window.PowerUp || {};
           const cmp = bothNum ? (na - nb) : a.localeCompare(b);
           return state.asc ? cmp : -cmp;
         });
-
         rows.forEach(r => tbody.appendChild(r));
         applyIndicators();
       };
     });
-
     applyIndicators();
   }
 
-  // === Filtering (operates on rendered rows using friendly header to find the column) ===
+  // === Filters ===
   function findHeaderIndexByText(tableEl, friendlyHeader) {
     const ths = tableEl?.querySelectorAll('thead th');
     if (!ths) return -1;
@@ -302,7 +232,6 @@ window.PowerUp = window.PowerUp || {};
     }
     return -1;
   }
-
   function updateCount(countId, tableEl) {
     const tbody = tableEl?.querySelector('tbody');
     if (!tbody) return;
@@ -311,35 +240,29 @@ window.PowerUp = window.PowerUp || {};
     const el = document.getElementById(countId);
     if (el) el.textContent = `${visible} submission${visible === 1 ? "" : "s"}`;
   }
-
   function repopulateSelect(selectEl, options) {
     if (!selectEl) return;
     const current = selectEl.value;
     selectEl.innerHTML = options.map(o => `<option value="${o}">${o}</option>`).join("");
     selectEl.value = options.includes(current) ? current : options[0];
   }
-
   function applyFilterFor(kind) {
     const cfg = FILTER_CONFIG[kind];
     if (!cfg) return;
     const tableEl = document.getElementById(`${kind}-table`);
     const selectEl = document.getElementById(cfg.selectId);
     if (!tableEl || !selectEl) return;
-
     const colIdx = findHeaderIndexByText(tableEl, cfg.friendlyHeader);
     const tbody = tableEl.querySelector('tbody');
     if (colIdx < 0 || !tbody) return;
-
     const selected = selectEl.value || "";
     Array.from(tbody.rows).forEach(tr => {
       if (tr.children.length <= colIdx) { tr.style.display = ""; return; }
       const cellText = (tr.children[colIdx]?.textContent || "");
       tr.style.display = cfg.match(cellText, selected) ? "" : "none";
     });
-
     updateCount(cfg.countId, tableEl);
   }
-
   function wireFilters() {
     Object.entries(FILTER_CONFIG).forEach(([kind, cfg]) => {
       const selectEl = document.getElementById(cfg.selectId);
@@ -354,12 +277,10 @@ window.PowerUp = window.PowerUp || {};
     });
   }
 
-  // === Main hydrate function (admin-aware target + live refresh) ===
+  // === Main hydrate ===
   ns.tables = ns.tables || {};
   ns.tables.hydrateDashboardTables = async function () {
-    console.log("[tables] Hydrating dashboard tables…");
-
-    const target = await resolveTargetEmployee(); // {id, name}
+    const target = await resolveTargetEmployee(); // {id,name} or null for ALL
     const isAdmin = !!(ns.auth && ns.auth.isAdmin && ns.auth.isAdmin());
 
     const [ciSheet, safetySheet, qualitySheet] = await Promise.all([
@@ -367,7 +288,6 @@ window.PowerUp = window.PowerUp || {};
       fetchSheet(SHEETS.SAFETY),
       fetchSheet(SHEETS.QUALITY)
     ]);
-
     const ciRowsAll      = rowsByTitle(ciSheet);
     const safetyRowsAll  = rowsByTitle(safetySheet);
     const qualityRowsAll = rowsByTitle(qualitySheet);
@@ -376,7 +296,7 @@ window.PowerUp = window.PowerUp || {};
     const safetyRows  = safetyRowsAll.filter(r => matchesEmployee(r, target));
     const qualityRows = qualityRowsAll.filter(r => matchesEmployee(r, target));
 
-    // Build Employee Master map once (for admin synthetic column)
+    // id -> display name map (for admin synthetic column)
     let empNameById;
     if (isAdmin) {
       empNameById = new Map();
@@ -390,17 +310,15 @@ window.PowerUp = window.PowerUp || {};
       } catch {}
     }
 
-    // Clone maps and prepend synthetic "Employee" column for admin where missing
-    function prependEmployeeCol(mapObj) {
+    function withAdminEmployeeCol(mapObj) {
       if (!isAdmin) return mapObj;
       const friendly = Object.values(mapObj).map(v => String(v).toLowerCase());
       if (friendly.includes('submitted by') || friendly.includes('employee') || friendly.includes('name')) return mapObj;
-      // Prepend synthetic key
       return Object.assign({ "__EMP_NAME__": "Employee" }, mapObj);
     }
-    const ciMapWithEmp     = prependEmployeeCol(Object.assign({}, COL_MAP.ci));
-    const safetyMapWithEmp = prependEmployeeCol(Object.assign({}, COL_MAP.safety));
-    const qualityMap       = Object.assign({}, COL_MAP.quality); // already has Submitted By
+    const ciMapWithEmp     = withAdminEmployeeCol(Object.assign({}, COL_MAP.ci));
+    const safetyMapWithEmp = withAdminEmployeeCol(Object.assign({}, COL_MAP.safety));
+    const qualityMap       = Object.assign({}, COL_MAP.quality);
 
     renderTable(document.querySelector('[data-hook="table.ci.tbody"]'), ciRows, ciMapWithEmp, "ci-table", empNameById);
     renderTable(document.querySelector('[data-hook="table.safety.tbody"]'), safetyRows, safetyMapWithEmp, "safety-table", empNameById);
@@ -418,10 +336,11 @@ window.PowerUp = window.PowerUp || {};
     document.dispatchEvent(new Event('data-hydrated'));
   };
 
-  // Optional: expose filter trigger
-  ns.tables.applyFilterFor = applyFilterFor;
+  ns.tables.applyFilterFor = (kind) => {
+    if (FILTER_CONFIG[kind]) applyFilterFor(kind);
+  };
 
-  // LIVE rehydrate when admin changes the employee filter (no manual refresh required)
+  // Live rehydrate when admin changes employee filter
   document.addEventListener('powerup-admin-filter-change', () => {
     ns.tables.hydrateDashboardTables().catch(console.error);
   });
