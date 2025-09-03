@@ -1,4 +1,5 @@
-// scripts/layout.js — Shared shell (sidebar + header) with NO month line + Logout button
+<!-- /scripts/layout.js -->
+<script>
 (function (PowerUp) {
   const P = PowerUp || (PowerUp = {});
 
@@ -44,7 +45,6 @@
             &emsp; <button id="pu-refresh" class="btn btn-xs" style="margin-left:8px;border:1px solid #2a354b;background:#0b1328;color:#e5e7eb;border-radius:8px;padding:6px 10px;cursor:pointer">Refresh Data</button>
           </p>
         </div>
-        <!-- All page-specific content will be moved into .content -->
         <div class="content" id="pu-content"></div>
       </div>
     </div>
@@ -82,7 +82,7 @@
       if (here && href.split('?')[0] === here.split('?')[0]) el.classList.add('active');
     });
 
-    // Logout button wiring — use robust helper so caches/session are wiped
+    // Logout
     const logoutBtn = document.getElementById('pu-logout');
     if (logoutBtn) {
       logoutBtn.addEventListener('click', (e) => {
@@ -91,7 +91,7 @@
       });
     }
 
-    // Refresh button wiring (clear cache + reload)
+    // Refresh button
     const refreshBtn = document.getElementById('pu-refresh');
     if (refreshBtn) {
       refreshBtn.addEventListener('click', () => {
@@ -101,18 +101,23 @@
       });
     }
 
-    // Set default page title from document.title
+    // Title
     const h1 = document.getElementById('pu-page-title');
     if (h1 && document.title) h1.textContent = document.title;
 
-    // Initial layout sizing
     requestAnimationFrame(fitDashboardBlocks);
 
-    // Hydrate header user info (name + level)
+    // Hydrate header name + level
     setUserHeaderFromEmployeeMaster();
 
-    // 🔹 NEW: render admin employee filter dropdown (admins only)
-    try { PowerUp.auth?.installEmployeeFilterUI && PowerUp.auth.installEmployeeFilterUI(); } catch (e) { console.debug('admin filter UI failed', e); }
+    // 🔹 NEW: Install admin employee filter UI when applicable
+    try {
+      if (PowerUp.auth?.installEmployeeFilterUI) {
+        PowerUp.auth.installEmployeeFilterUI();
+      }
+    } catch (e) {
+      console.debug('[layout] admin filter UI skipped:', e);
+    }
   }
 
   function setPageTitle(text) {
@@ -139,7 +144,6 @@
   }
   window.addEventListener('resize', fitDashboardBlocks);
 
-  // Central header hydration
   function norm(s){ return String(s || "").trim().toLowerCase(); }
   async function setUserHeaderFromEmployeeMaster() {
     try {
@@ -170,7 +174,7 @@
 
 })(window.PowerUp || {});
 
-// ---- PowerUp: robust logout wiring (append-only)
+// ---- robust logout wiring (unchanged) ----
 (function () {
   function safe(fn) { try { fn && fn(); } catch (_) {} }
 
@@ -197,3 +201,4 @@
     });
   });
 })();
+</script>
