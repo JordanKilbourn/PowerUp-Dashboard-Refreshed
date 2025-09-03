@@ -2,13 +2,14 @@
   const P = PowerUp || (window.PowerUp = {});
   const { SHEETS, getRowsByTitle } = P.api;
 
+  // Column maps
   const EMP_COL = { id: ['Position ID','Employee ID'], name: ['Display Name','Employee Name','Name'] };
   const SQUAD_COL = {
     id: ['Squad ID','ID'],
     name: ['Squad Name','Squad','Name','Team'],
     category: ['Category','Squad Category'],
     leaderId: ['Squad Leader','Leader Employee ID','Leader Position ID'],
-    members: ['Members','Member List'],
+    members: ['Members','Member List'],               // fallback only
     objective: ['Objective','Focus','Purpose'],
     active: ['Active','Is Active?'],
     created: ['Created Date','Start Date','Started'],
@@ -63,6 +64,7 @@
   function userIsMemberOrLeader(squad, session) {
     const myId   = String(session.employeeId || '').trim().toLowerCase();
     const myName = String(session.displayName || '').trim().toLowerCase();
+
     if (myId && String(squad.leaderId || '').trim().toLowerCase() === myId) return true;
 
     const sid = String(squad.id || '').trim();
@@ -148,18 +150,65 @@
     }).join('');
   }
 
-  function applyFilters() {
+  async function getAdminTargetFromFilter() {
+    try {
+      const sel = (sessionStorage.getItem('pu.adminEmployeeFilter') || '').trim();
+      if (!sel || sel === '__ALL__') return null;
+
+      if (!idToName.size) {
+        const em = await getRowsByTitle(SHEETS.EMPLOYEE_MASTER);
+        em.forEach(r => {
+          const id = String(r['Position ID'] || r['Employee ID'] || '').trim();
+          const nm = String(r['Display Name'] || r['Employee Name'] || r['Name'] || '').trim();
+          if (id) idToName.set(id, nm);
+        });
+      }
+      const norm = s => String(s||'').trim().toLowerCase();
+      let targetId = '';
+      for (const [id, nm] of idToName.entries()) {
+        if (norm(nm) === norm(sel)) { targetId = id; break; }
+      }
+      return { id: targetId, name: sel };
+    } catch { return null; }
+  }
+
+  async function applyFilters() {
     const session   = P.session.get();
     const cat       = document.querySelector('.pill-cat.active')?.dataset.cat || 'All';
     let   myOnly    = document.getElementById('myOnly')?.checked;
     const activeOnly= document.getElementById('activeOnly')?.checked;
     const q         = (document.getElementById('search')?.value || '').trim().toLowerCase();
 
-    if (IS_ADMIN) myOnly = false;
-
     let list = ALL.slice();
 
-    if (myOnly)      list = list.filter(s => userIsMemberOrLeader(s, session));
+    if (myOnly) {
+      if (IS_ADMIN) {
+        let target = await getAdminTargetFromFilter();
+        if (!target) target = { id: String(session.employeeId||'').trim(), name: String(session.displayName||'').trim() };
+
+        const norm = s => String(s||'').trim().toLowerCase();
+        const tgtId = norm(target.id);
+        const tgtName = norm(target.name);
+
+        list = list.filter(s => {
+          const leaders = LEADERS_BY_SQUAD.get(String(s.id||'').trim()) || [];
+          const leaderHit = leaders.some(x => norm(x.id) === tgtId || norm(x.name) === tgtName);
+
+          const m = MEMBERS_BY_SQUAD.get(String(s.id||'').trim());
+          const memberHit = m ? (m.ids.has(tgtId) || m.names.has(tgtName)) : false;
+
+          let fallbackHit = false;
+          if (!m && s.members) {
+            const toks = String(s.members).split(/[,;\n]+/).map(t => norm(t));
+            fallbackHit = (!!tgtId && toks.includes(tgtId)) || (!!tgtName && toks.includes(tgtName));
+          }
+          return leaderHit || memberHit || fallbackHit;
+        });
+      } else {
+        list = list.filter(s => userIsMemberOrLeader(s, session));
+      }
+    }
+
     if (activeOnly)  list = list.filter(s => isTrue(s.active));
     if (cat !== 'All') list = list.filter(s => s.category === cat);
 
@@ -212,9 +261,7 @@
           }
         });
       }
-    } catch (_) {
-      // Silent fallback to comma-separated column on SQUADS
-    }
+    } catch (_) {}
 
     const rows = await getRowsByTitle(SHEETS.SQUADS);
     ALL = rows
@@ -255,6 +302,9 @@
     document.getElementById('myOnly')?.addEventListener('change', applyFilters);
     document.getElementById('activeOnly')?.addEventListener('change', applyFilters);
     document.getElementById('search')?.addEventListener('input', applyFilters);
+
+    // Re-apply when admin changes selected employee
+    document.addEventListener('powerup-admin-filter-change', applyFilters);
   }
 
   document.addEventListener('DOMContentLoaded', async () => {
@@ -269,12 +319,9 @@
 
     wireUI();
 
-    if (IS_ADMIN) {
-      const myOnly = document.getElementById('myOnly');
-      if (myOnly) { myOnly.checked = false; myOnly.disabled = true; myOnly.closest('label')?.setAttribute('title','Disabled in Admin mode'); }
-      const activeOnly = document.getElementById('activeOnly');
-      if (activeOnly) activeOnly.checked = false;
-    }
+    // NOTE: we no longer disable "My squads" for admins.
+    const activeOnly = document.getElementById('activeOnly');
+    if (activeOnly) activeOnly.checked = false;
 
     await load();
     applyFilters();
