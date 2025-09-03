@@ -1,5 +1,4 @@
-<!-- /scripts/tables.js -->
-<script>
+
 window.PowerUp = window.PowerUp || {};
 (function (ns) {
   const { fetchSheet, rowsByTitle, SHEETS } = ns.api;
@@ -348,4 +347,4 @@ window.PowerUp = window.PowerUp || {};
   ns.tables.applyFilterFor = applyFilterFor;
 
 })(window.PowerUp);
-</script>
+
