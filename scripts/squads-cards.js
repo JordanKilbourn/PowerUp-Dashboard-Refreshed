@@ -1,9 +1,9 @@
-// /scripts/squads-cards.js
+<!-- /scripts/squads-cards.js -->
+<script>
 (function (PowerUp) {
   const P = PowerUp || (window.PowerUp = {});
-  const { SHEETS, getRowsByTitle, addRows, clearCache } = P.api;
+  const { SHEETS, getRowsByTitle } = P.api;
 
-  // Column maps
   const EMP_COL = { id: ['Position ID','Employee ID'], name: ['Display Name','Employee Name','Name'] };
   const SQUAD_COL = {
     id: ['Squad ID','ID'],
@@ -24,11 +24,9 @@
   };
 
   const CATS = ['All','CI','Quality','Safety','Training','Other'];
-  const CAT_CLASS = {
-    CI: 'cat-ci', Quality: 'cat-quality', Safety: 'cat-safety', Training: 'cat-training', Other: 'cat-other'
-  };
+  const CAT_CLASS = { CI:'cat-ci', Quality:'cat-quality', Safety:'cat-safety', Training:'cat-training', Other:'cat-other' };
 
-  const pick = (row, list, d='') => { for (const k of list) if (row && row[k]!=null && row[k]!=='' ) return row[k]; return d; };
+  const pick = (row, list, d='') => { for (const k of list) if (row[k]!=null && row[k]!=='' ) return row[k]; return d; };
   const dash = (v) => (v==null || String(v).trim()==='') ? '-' : String(v);
   const isTrue = (v) => v === true || /^(true|yes|y|checked|1)$/i.test(String(v ?? "").trim());
 
@@ -44,14 +42,7 @@
     return String(text || '').split(/[,;\n]+/).map(s => s.trim()).filter(Boolean);
   }
   function catVar(cat) {
-    switch (cat) {
-      case 'CI': return 'var(--sq-ci)';
-      case 'Quality': return 'var(--sq-quality)';
-      case 'Safety': return 'var(--sq-safety)';
-      case 'Training': return 'var(--sq-training)';
-      case 'Other': return 'var(--sq-other)';
-      default: return 'var(--accent)';
-    }
+    switch (cat) { case 'CI': return 'var(--sq-ci)'; case 'Quality': return 'var(--sq-quality)'; case 'Safety': return 'var(--sq-safety)'; case 'Training': return 'var(--sq-training)'; case 'Other': return 'var(--sq-other)'; default: return 'var(--accent)'; }
   }
 
   const MEMBERS_BY_SQUAD = new Map();
@@ -61,6 +52,7 @@
     const myId   = String(session.employeeId || '').trim().toLowerCase();
     const myName = String(session.displayName || '').trim().toLowerCase();
     if (myId && String(squad.leaderId || '').trim().toLowerCase() === myId) return true;
+
     const sid = String(squad.id || '').trim();
     const entry = MEMBERS_BY_SQUAD.get(sid);
     if (entry) {
@@ -118,9 +110,9 @@
           .map(x => (x.name || idToName.get(x.id) || x.id || '').toString().trim())
           .filter(Boolean)
           .sort((a,b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
-        if (names.length === 1)       leaderLine = names[0];
-        else if (names.length === 2)  leaderLine = `${names[0]}, ${names[1]}`;
-        else if (names.length > 2)    leaderLine = `${names[0]}, ${names[1]} +${names.length - 2} more`;
+        if (names.length === 1) leaderLine = names[0];
+        else if (names.length === 2) leaderLine = `${names[0]}, ${names[1]}`;
+        else leaderLine = `${names[0]}, ${names[1]} +${names.length - 2} more`;
       }
 
       const detailsHref = sq.id
@@ -166,16 +158,14 @@
   }
 
   async function load() {
-    // Employee master → ID → Name map
     const emRows = await getRowsByTitle(SHEETS.EMPLOYEE_MASTER);
     idToName = new Map();
     emRows.forEach(r => {
-      const id   = (pick(r, EMP_COL.id, '') || '').toString().trim();
-      const name = (pick(r, EMP_COL.name, '') || '').toString().trim();
+      const id   = pick(r, EMP_COL.id, '').toString().trim();
+      const name = pick(r, EMP_COL.name, '').toString().trim();
       if (id) idToName.set(id, name);
     });
 
-    // MEMBERS & LEADERS
     MEMBERS_BY_SQUAD.clear();
     LEADERS_BY_SQUAD.clear();
     try {
@@ -184,11 +174,11 @@
         smRows.forEach(r => {
           const active = isTrue(pick(r, SM_COL.active, 'true'));
           if (!active) return;
-          const sid  = (pick(r, SM_COL.squadId, '') || '').toString().trim();
+          const sid  = pick(r, SM_COL.squadId, '').toString().trim();
           if (!sid) return;
 
-          const eid  = (pick(r, SM_COL.empId, '') || '').toString().trim();
-          const enm  = ((pick(r, SM_COL.empName, '') || idToName.get(eid) || '') || '').toString().trim();
+          const eid  = pick(r, SM_COL.empId, '').toString().trim();
+          const enm  = (pick(r, SM_COL.empName, '') || idToName.get(eid) || '').toString().trim();
           const role = String(r['Role'] || '').trim().toLowerCase();
 
           let entry = MEMBERS_BY_SQUAD.get(sid);
@@ -208,13 +198,12 @@
       }
     } catch (_) {}
 
-    // Base squads list
     const rows = await getRowsByTitle(SHEETS.SQUADS);
     ALL = rows
       .map(r => {
-        const name = (pick(r, SQUAD_COL.name, '') || '').toString().trim();
+        const name = pick(r, SQUAD_COL.name, '').toString().trim();
         if (!name) return null;
-        const leaderId = (pick(r, SQUAD_COL.leaderId, '') || '').toString().trim();
+        const leaderId = pick(r, SQUAD_COL.leaderId, '').toString().trim();
         return {
           id:        pick(r, SQUAD_COL.id, ''),
           name,
@@ -229,15 +218,6 @@
         };
       })
       .filter(Boolean);
-  }
-
-  async function addSquadFlow() {
-    const name = (prompt('New Squad Name:') || '').trim();
-    if (!name) return;
-    await addRows(SHEETS.SQUADS, [{ 'Squad Name': name, 'Active': true }]);
-    try { clearCache(); } catch {}
-    await load();
-    applyFilters();
   }
 
   function wireUI() {
@@ -258,16 +238,18 @@
     document.getElementById('activeOnly')?.addEventListener('change', applyFilters);
     document.getElementById('search')?.addEventListener('input', applyFilters);
 
-    // Optional "Add Squad" button (shown only to admins if present in DOM)
-    const btnAdd = document.getElementById('btnAddSquad');
-    if (btnAdd) {
-      const admin = P.auth && P.auth.isAdmin && P.auth.isAdmin();
-      btnAdd.style.display = admin ? 'inline-flex' : 'none';
-      btnAdd.disabled = !admin;
-      if (admin && !btnAdd._wired) {
-        btnAdd._wired = true;
-        btnAdd.addEventListener('click', (e) => { e.preventDefault(); addSquadFlow(); });
-      }
+    // 🔹 NEW: Admin-only top buttons
+    const addBtn = document.getElementById('btn-add');
+    const manageBtn = document.getElementById('btn-manage');
+    const activitiesBtn = document.getElementById('btn-activities');
+
+    if (IS_ADMIN) {
+      if (addBtn) addBtn.onclick = () => { location.href = 'add-squad.html'; };
+      if (manageBtn) manageBtn.onclick = () => { alert('Manage Squads (admin view) — wire to your management UI or Smartsheet as desired.'); };
+      if (activitiesBtn) activitiesBtn.onclick = () => { alert('All Activities — wire as desired.'); };
+    } else {
+      // hide for non-admins
+      [addBtn, manageBtn, activitiesBtn].forEach(b => { if (b) b.style.display = 'none'; });
     }
   }
 
@@ -293,13 +275,6 @@
     applyFilters();
   });
 
-  // If admin changes scope in header, nothing to re-scope on cards (cards aren’t scoped),
-  // but we can refresh to keep consistency if you ever display scoped bits here.
-  document.addEventListener('powerup-admin-filter-change', async () => {
-    try { clearCache(); } catch {}
-    await load();
-    applyFilters();
-  });
-
   window.PowerUp = P;
 })(window.PowerUp || {});
+</script>
