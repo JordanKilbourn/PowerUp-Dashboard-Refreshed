@@ -2,8 +2,6 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-
-<!-- EARLY AUTH GUARD — must be the first thing in <head> -->
 <script>
 !function () {
   try {
@@ -19,7 +17,6 @@
   }
 }();
 </script>
-  
   <title>PowerUp — Level Tracker</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
@@ -44,14 +41,11 @@
 <script src="scripts/session.js"></script>
 <script src="scripts/roles.js"></script>
 <script src="scripts/layout.js"></script>
-
 <script>
   const IS_ADMIN = !!(window.PowerUp?.auth?.isAdmin && PowerUp.auth.isAdmin());
 
-  // ---- Desired columns (display header -> sheet column) ----
   const COLS = [
     { label: "Month",   sources: ["Month Key","Month"] },
-    // Admins: inject Employee column after Month
     ...(IS_ADMIN ? [{ label: "Employee", sources: ["Display Name","Employee Name","Name"] }] : []),
     { label: "CI Submissions",            sources: ["CI Submissions"] },
     { label: "Safety Submissions",        sources: ["Safety Submissions"] },
@@ -64,7 +58,6 @@
     { label: "Job Relations Follow-up",   sources: ["Job Relations Follow-up"] }
   ];
 
-  // ==== helpers ====
   const esc = (s) => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
   const isTrueish = (v) => { const t = String(v ?? "").trim().toLowerCase(); return v === true || t === "true" || t === "yes"; };
   const boolPill = (v) => isTrueish(v) ? '<span class="pill pill--green">✓</span>' : '<span class="pill pill--red">✗</span>';
@@ -74,31 +67,15 @@
     if (v === true || v === false || t === "true" || t === "false" || t === "yes" || t === "no") return boolPill(v);
     return (v == null || String(v).trim() === "") ? "-" : esc(v);
   }
-
   function fmtMonth(v){
     if (v == null || String(v).trim() === "") return "-";
     const s = String(v).trim();
-
     let m = s.match(/^(\d{4})-(\d{1,2})(?:-(\d{1,2}))?$/);
-    if (m) {
-      const y = +m[1], mo = +m[2], d = +(m[3] || 1);
-      const dt = new Date(y, mo - 1, d);
-      return dt.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
-    }
-
+    if (m) { const y=+m[1], mo=+m[2], d=+(m[3]||1); const dt=new Date(y,mo-1,d); return dt.toLocaleDateString(undefined,{month:'short',year:'numeric'}); }
     m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/);
-    if (m) {
-      let y = +m[3]; if (y < 100) y += 2000;
-      const mo = +m[1], d = +m[2];
-      const dt = new Date(y, mo - 1, d);
-      return dt.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
-    }
-
+    if (m) { let y=+m[3]; if (y<100) y+=2000; const dt=new Date(y,+m[1]-1,+m[2]); return dt.toLocaleDateString(undefined,{month:'short',year:'numeric'}); }
     const parsed = new Date(s);
-    if (!isNaN(parsed)) {
-      const dt = new Date(parsed.getUTCFullYear(), parsed.getUTCMonth(), 1);
-      return dt.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
-    }
+    if (!isNaN(parsed)) { const dt=new Date(parsed.getUTCFullYear(),parsed.getUTCMonth(),1); return dt.toLocaleDateString(undefined,{month:'short',year:'numeric'}); }
     return esc(v);
   }
 
@@ -111,19 +88,38 @@
     return null;
   }
 
-  async function loadLevelTracker(){
-    PowerUp.session.requireLogin();
-    const { employeeId } = PowerUp.session.get() || {};
-    if (!employeeId){ document.getElementById("lt-tbody").innerHTML = `<tr><td>-</td></tr>`; return; }
+  async function resolveAdminTargetOrAll() {
+    if (!IS_ADMIN) return null; // non-admins handled later
+    const selName = (sessionStorage.getItem('pu.adminEmployeeFilter') || '').trim();
+    if (!selName || selName === '__ALL__') return null; // ALL => null target to show everyone
+    try {
+      const em = await PowerUp.api.getRowsByTitle(PowerUp.api.SHEETS.EMPLOYEE_MASTER);
+      const norm = (s)=>String(s||'').trim().toLowerCase();
+      const row = em.find(r => norm(r['Display Name']||r['Employee Name']||r['Name']) === norm(selName));
+      const id = row ? String(row['Position ID'] || row['Employee ID'] || '').trim() : '';
+      return { id, name: selName };
+    } catch { return null; }
+  }
 
+  async function loadLevelTracker(){
+    const me = PowerUp.session.get() || {};
     const raw  = await PowerUp.api.fetchSheet(PowerUp.api.SHEETS.LEVEL_TRACKER);
     const rows = PowerUp.api.rowsByTitle(raw);
     const sheetCols = (raw.columns || []).map(c => c.title);
     const idCol = chooseIdColumn(sheetCols);
-    if (!rows.length || !idCol){ document.getElementById("lt-tbody").innerHTML = `<tr><td>-</td></tr>`; return; }
 
-    const mine = rows.filter(r => String(r[idCol]||"").trim() === String(employeeId).trim());
-    if (!mine.length){ document.getElementById("lt-tbody").innerHTML = `<tr><td>-</td></tr>`; return; }
+    const target = await resolveAdminTargetOrAll();
+
+    let view = rows;
+    if (!IS_ADMIN) {
+      view = rows.filter(r => String(r[idCol]||"").trim() === String(me.employeeId||'').trim());
+    } else if (target) {
+      // Admin selected a specific employee
+      view = rows.filter(r => {
+        const id = String(r["Employee ID"] || r["Position ID"] || "").trim();
+        return id && id.toLowerCase() === String(target.id||'').trim().toLowerCase();
+      });
+    } // else: admin + ALL => no filtering
 
     const resolved = COLS.map(c => ({ label: c.label, sheet: resolveSheetColumn(c.sources, sheetCols) }));
     document.getElementById("lt-thead").innerHTML = resolved.map(c => `<th>${c.label}</th>`).join("");
@@ -142,28 +138,34 @@
       } catch {}
     }
 
-    document.getElementById("lt-tbody").innerHTML = mine.map(r => {
-      return `<tr>${
-        resolved.map(c => {
-          let v = c.sheet ? r[c.sheet] : "";
-          if (c.label === "Month") return `<td>${fmtMonth(v)}</td>`;
-          if (c.label === "Employee") {
-            const id = String(r["Employee ID"] || r["Position ID"] || "").trim();
-            const nm = v || nameById[id] || id || "-";
-            return `<td>${fmtCell(nm)}</td>`;
-          }
-          return `<td>${fmtCell(v)}</td>`;
-        }).join("")
-      }</tr>`;
-    }).join("");
+    const body = view.length
+      ? view.map(r => `<tr>${
+          resolved.map(c => {
+            let v = c.sheet ? r[c.sheet] : "";
+            if (c.label === "Month") return `<td>${fmtMonth(v)}</td>`;
+            if (c.label === "Employee") {
+              const id = String(r["Employee ID"] || r["Position ID"] || "").trim();
+              const nm = v || nameById[id] || id || "-";
+              return `<td>${fmtCell(nm)}</td>`;
+            }
+            return `<td>${fmtCell(v)}</td>`;
+          }).join("")
+        }</tr>`).join("")
+      : `<tr><td colspan="${resolved.length}" style="opacity:.7;text-align:center;">No rows</td></tr>`;
+
+    document.getElementById("lt-tbody").innerHTML = body;
+  }
+
+  function bindAdminLiveRefresh(){
+    document.addEventListener('powerup-admin-filter-change', loadLevelTracker);
   }
 
   document.addEventListener('DOMContentLoaded', async () => {
     PowerUp.layout.injectLayout();
     await PowerUp.session.initHeader();
     await loadLevelTracker();
+    bindAdminLiveRefresh();
   });
 </script>
-
 </body>
 </html>
