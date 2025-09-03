@@ -1,13 +1,11 @@
-// /scripts/progress.js
+<!-- /scripts/progress.js -->
+<script>
 window.PowerUp = window.PowerUp || {};
 (function (ns) {
   const { fetchSheet, rowsByTitle, SHEETS } = ns.api;
 
-  // ---------- helpers ----------
   const now = new Date();
-  const nowMonthNum = now.getMonth() + 1; // 1..12
-  const monthName = now.toLocaleString(undefined, { month: 'long' });
-
+  const nowMonthNum = now.getMonth() + 1;
   const num  = v => { const n = Number(String(v).replace(/[^0-9.\-]/g, "")); return Number.isFinite(n) ? n : 0; };
   const bool = v => v === true || /^(true|yes|y|1|checked)$/i.test(String(v ?? "").trim());
   const cap01 = x => Math.max(0, Math.min(1, x));
@@ -26,7 +24,6 @@ window.PowerUp = window.PowerUp || {};
     return "";
   }
 
-  // Prefer Month (1..12); else derive from Date column
   function rowMonthNumber(r) {
     const m = Number(String(r["Month"] ?? "").replace(/^0+/, ""));
     if (m >= 1 && m <= 12) return m;
@@ -35,11 +32,11 @@ window.PowerUp = window.PowerUp || {};
     return NaN;
   }
 
-  async function getMonthlyGoalsForEmployee(employeeId) {
+  async function getMonthlyGoalsForEmployeeId(employeeId) {
     try {
       const [emSheet, targetsSheet] = await Promise.all([
         fetchSheet(SHEETS.EMPLOYEE_MASTER),
-        fetchSheet(SHEETS.POWER_HOUR_GOALS) // Power Hour Targets
+        fetchSheet(SHEETS.POWER_HOUR_GOALS)
       ]);
       const em = rowsByTitle(emSheet);
       const targets = rowsByTitle(targetsSheet);
@@ -48,68 +45,53 @@ window.PowerUp = window.PowerUp || {};
         String(r["Employee ID"] || r["Position ID"] || "").trim() === String(employeeId).trim()
       );
 
-      const lvlKey = normalizeLevel(me?.["PowerUp Level (Select)"]);
+      const sLevel = me?.["PowerUp Level (Select)"] ?? me?.["PowerUp Level"] ?? me?.["Level"];
+      const lvlKey = normalizeLevel(sLevel);
       const row = targets.find(t => String(t["Level"] || "").toUpperCase() === lvlKey);
 
-      const min = Number(row?.["Min Hours"]) || 8;
-      const max = Number(row?.["Max Hours"]) || min || 8;
+      const min = num(row?.["Min Hours"]) || 8;
+      const max = num(row?.["Max Hours"]) || min || 8;
       return { min, max };
     } catch {
       return { min: 8, max: 8 };
     }
   }
 
-  // ---------- visual renderer (Progress V2) ----------
-  function renderProgressV2({ min, max, current, neutral = false }) {
-    const pct    = neutral ? 1 : cap01(max ? (current / max) : 0);
-    const minPct = neutral ? 0 : cap01(max ? (min / max) : 0);
+  function renderProgressV2({ min, max, current }) {
+    const pct    = cap01(max ? (current / max) : 0);
+    const minPct = cap01(max ? (min / max) : 0);
 
     const track  = document.querySelector('[data-hook="ph.track"]');
     const fill   = document.querySelector('[data-hook="ph.fill"]');
     const band   = document.querySelector('[data-hook="ph.band"]');
     const thumb  = document.querySelector('[data-hook="ph.thumb"]');
 
-    const state = neutral ? 'met' : stateFor(current, min, max);
+    const state = stateFor(current, min, max);
 
-    // min→max band
     if (band) {
-      band.style.left  = neutral ? '0%' : (minPct * 100) + '%';
-      band.style.width = neutral ? '0%' : ((1 - minPct) * 100) + '%';
+      band.style.left  = (minPct * 100) + '%';
+      band.style.width = ((1 - minPct) * 100) + '%';
     }
-
-    // 0→current fill
     if (fill) {
       fill.style.width = (pct * 100) + '%';
       fill.classList.remove('below','met','exceeded');
       fill.classList.add(state);
     }
-
-    // thumb position
     if (thumb) {
       thumb.style.left = (pct * 100) + '%';
       thumb.title = `${current.toFixed(1)}h`;
     }
-
-    // a11y progress values
     if (track) {
       track.setAttribute('aria-valuemin', '0');
-      track.setAttribute('aria-valuemax', String(neutral ? current : max));
-      track.setAttribute('aria-valuenow', String(Math.max(0, Math.min(current, neutral ? current : max))));
+      track.setAttribute('aria-valuemax', String(max));
+      track.setAttribute('aria-valuenow', String(Math.max(0, Math.min(current, max))));
     }
-
     return state;
   }
 
-  // ----- SMART message builder -----
-  function setSmartMessage({ monthCompleted, min, max, neutral = false }) {
+  function setSmartMessage({ monthCompleted, min, max }) {
     const msgEl = document.querySelector('[data-hook="ph.message"]');
     if (!msgEl) return;
-
-    if (neutral) {
-      msgEl.textContent = `Admin view: ${monthCompleted.toFixed(1)}h logged across all employees in ${monthName}.`;
-      msgEl.className = `ph-msg ok`;
-      return;
-    }
 
     const year = now.getFullYear();
     const lastDay = new Date(year, now.getMonth() + 1, 0).getDate();
@@ -134,11 +116,9 @@ window.PowerUp = window.PowerUp || {};
     } else {
       const highUrgency = daysLeft <= 2 || dailyPaceMin >= 2;
       const medUrgency  = daysLeft <= 5 || dailyPaceMin >= 1;
-
       if (highUrgency) tone = "urgent";
       else if (medUrgency) tone = "warn";
       else tone = "ok";
-
       const prefix = highUrgency ? "⏳" : (medUrgency ? "⚡" : "👉");
       text = `${prefix} ${remainingToMin.toFixed(1)}h left to hit minimum (${min}h).`;
       if (daysLeft > 0) {
@@ -148,78 +128,85 @@ window.PowerUp = window.PowerUp || {};
         tone = "urgent";
       }
     }
-
     msgEl.textContent = text;
     msgEl.className = `ph-msg ${tone}`;
   }
 
-  // ---------- main entry ----------
-  ns.renderDashboardPowerHours = async function () {
+  function pickDisplayName(row) {
+    return row["Display Name"] || row["Employee Name"] || row["Name"] || "";
+  }
+
+  function byAdminChosenDisplay(rows) {
+    return ns.auth?.maybeFilterByEmployee
+      ? ns.auth.maybeFilterByEmployee(rows, ["Display Name","Employee Name","Name"])
+      : rows;
+  }
+
+  async function renderDashboardPowerHours() {
+    const isAdmin = !!(ns.auth && ns.auth.isAdmin && ns.auth.isAdmin());
+    const { employeeId } = ns.session.get();
     const phSheet = await fetchSheet(SHEETS.POWER_HOURS);
     const allRows = rowsByTitle(phSheet);
 
-    // Determine scope
-    let scoped = allRows;
-    let neutral = false; // true when admin viewing "All Employees"
-    let employeeIdForGoals = null;
+    let working = allRows.slice();
 
-    if (ns.auth?.maybeFilterByEmployee) {
-      // If admin & filter=All → keep all rows and set neutral=true
-      const saved = sessionStorage.getItem('pu.adminEmployeeFilter') || '__ALL__';
-      const admin = ns.auth.isAdmin && ns.auth.isAdmin();
-      if (admin) {
-        if (saved !== '__ALL__') {
-          // scope by display name / id
-          const cols = ['Employee ID','Position ID','Display Name','Employee Name','Name'];
-          scoped = ns.auth.maybeFilterByEmployee(allRows, cols);
-          // try to discover an ID from scoped rows for goals
-          const any = scoped.find(r => r['Employee ID'] || r['Position ID']);
-          employeeIdForGoals = (any && (any['Employee ID'] || any['Position ID'])) || null;
-        } else {
-          neutral = true; // admin ALL
-        }
-      } else {
-        // non-admin: filter to self
-        const { employeeId } = ns.session.get();
-        scoped = allRows.filter(r => String(r["Employee ID"] || r["Position ID"] || "").trim() === String(employeeId || "").trim());
-        employeeIdForGoals = employeeId || null;
-      }
+    if (!isAdmin) {
+      working = working.filter(r => String(r["Employee ID"] || "").trim() === String(employeeId).trim());
     } else {
-      // no roles helper available; fallback to self
-      const { employeeId } = ns.session.get();
-      scoped = allRows.filter(r => String(r["Employee ID"] || r["Position ID"] || "").trim() === String(employeeId || "").trim());
-      employeeIdForGoals = employeeId || null;
+      working = byAdminChosenDisplay(working);
     }
 
-    const rowsThisMonth = scoped.filter(r => rowMonthNumber(r) === nowMonthNum);
-
+    const rowsThisMonth = working.filter(r => rowMonthNumber(r) === nowMonthNum);
     const monthCompleted = rowsThisMonth.reduce((sum, r) => sum + num(r["Completed Hours"]), 0);
 
-    // UI hooks
     const totalEl   = document.querySelector('[data-hook="ph.total"]');
     const goalMaxEl = document.querySelector('[data-hook="ph.goalMax"]');
 
-    if (totalEl) totalEl.textContent = monthCompleted.toFixed(1);
-
-    if (neutral) {
-      if (goalMaxEl) goalMaxEl.textContent = '—';
-      renderProgressV2({ min: 0, max: 0, current: monthCompleted, neutral: true });
-      setSmartMessage({ monthCompleted, min: 0, max: 0, neutral: true });
-      return;
+    // For goals, if admin and "All Employees" is selected, default to min/max 8/8
+    // If a specific employee is selected, compute their level-based goals.
+    let min=8, max=8;
+    if (!isAdmin) {
+      const g = await getMonthlyGoalsForEmployeeId(employeeId);
+      min = g.min; max = g.max;
+    } else {
+      // try to infer a specific employee from current filter by looking at the first row’s name
+      const filtered = byAdminChosenDisplay(allRows);
+      // if one person is chosen, try to resolve their employeeId via EMPLOYEE_MASTER
+      if (filtered.length) {
+        try {
+          const emSheet = await fetchSheet(SHEETS.EMPLOYEE_MASTER);
+          const emRows = rowsByTitle(emSheet);
+          const chosenName = pickDisplayName(filtered[0]);
+          const em = emRows.find(r => (r["Display Name"]||r["Employee Name"]||r["Name"]) === chosenName);
+          if (em) {
+            const chosenId = em["Employee ID"] || em["Position ID"];
+            if (chosenId) {
+              const g = await getMonthlyGoalsForEmployeeId(chosenId);
+              min = g.min; max = g.max;
+            }
+          }
+        } catch {}
+      }
     }
 
-    // Use goals for the chosen employee
-    const { min, max } = await getMonthlyGoalsForEmployee(employeeIdForGoals || (ns.session.get().employeeId || ''));
-
     if (goalMaxEl) goalMaxEl.textContent = String(max);
-    renderProgressV2({ min, max, current: monthCompleted, neutral: false });
-    setSmartMessage({ monthCompleted, min, max, neutral: false });
-  };
+    if (totalEl) totalEl.textContent = monthCompleted.toFixed(1);
+    renderProgressV2({ min, max, current: monthCompleted });
+    setSmartMessage({ monthCompleted, min, max });
 
-  // Recompute on admin scope change
-  document.addEventListener('powerup-admin-filter-change', () => {
-    try { ns.api.clearCache(); } catch {}
-    ns.renderDashboardPowerHours();
+    ns.powerHours = {
+      monthCompleted,
+      allTimeCompleted: working.reduce((s, r) => s + num(r["Completed Hours"]), 0),
+      scheduledHours: working
+        .filter(r => bool(r["Scheduled"]) && !bool(r["Completed"]))
+        .reduce((s, r) => s + num(r["Duration (hrs)"]), 0)
+    };
+  }
+
+  ns.renderDashboardPowerHours = renderDashboardPowerHours;
+
+  document.addEventListener('powerup-admin-filter-change', async () => {
+    try { await ns.renderDashboardPowerHours(); } catch {}
   });
-
 })(window.PowerUp);
+</script>
