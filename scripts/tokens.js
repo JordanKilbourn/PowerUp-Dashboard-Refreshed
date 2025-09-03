@@ -1,5 +1,4 @@
-<!-- /scripts/tokens.js -->
-<script>
+
 window.PowerUp = window.PowerUp || {};
 (function (ns) {
   const { fetchSheet, rowsByTitle, SHEETS } = ns.api;
@@ -57,4 +56,4 @@ window.PowerUp = window.PowerUp || {};
     try { await ns.renderTokenCard(); } catch {}
   });
 })(window.PowerUp);
-</script>
+
