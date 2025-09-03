@@ -1,9 +1,9 @@
-// /scripts/tables.js
+<!-- /scripts/tables.js -->
+<script>
 window.PowerUp = window.PowerUp || {};
 (function (ns) {
   const { fetchSheet, rowsByTitle, SHEETS } = ns.api;
 
-  // === Column dictionaries (KEEPING YOUR FRIENDLY LABELS) ===
   const COL_MAP = {
     ci: {
       "Submission Date": "Submitted",
@@ -43,20 +43,12 @@ window.PowerUp = window.PowerUp || {};
     }
   };
 
-  // === Centralized filtering config (lists + which column to filter on) ===
   const FILTER_CONFIG = {
     ci: {
       selectId: "ci-filter",
       countId: "ci-count",
       friendlyHeader: "Status",
-      options: [
-        "All",
-        "Not Started",
-        "Open",
-        "Needs Researched",
-        "Completed",
-        "Denied/Cancelled"
-      ],
+      options: ["All","Not Started","Open","Needs Researched","Completed","Denied/Cancelled"],
       match(cellText, selected) {
         const t = (cellText || "").toLowerCase();
         const s = (selected || "").toLowerCase();
@@ -70,19 +62,7 @@ window.PowerUp = window.PowerUp || {};
       selectId: "safety-filter",
       countId: "safety-count",
       friendlyHeader: "Safety Concern",
-      options: [
-        "All",
-        "Hand tool in disrepair",
-        "Machine in disrepair",
-        "Electrical hazard",
-        "Ergonomic",
-        "Guarding missing",
-        "Guarding in disrepair",
-        "PPE missing",
-        "PPE suggested improvement",
-        "Missing GHS label",
-        "Missing SDS"
-      ],
+      options: ["All","Hand tool in disrepair","Machine in disrepair","Electrical hazard","Ergonomic","Guarding missing","Guarding in disrepair","PPE missing","PPE suggested improvement","Missing GHS label","Missing SDS"],
       match(cellText, selected) {
         if ((selected || "").toLowerCase() === "all") return true;
         return (cellText || "").toLowerCase().trim() === (selected || "").toLowerCase().trim();
@@ -92,19 +72,7 @@ window.PowerUp = window.PowerUp || {};
       selectId: "quality-filter",
       countId: "quality-count",
       friendlyHeader: "Area",
-      options: [
-        "All",
-        "Assembly",
-        "Customs",
-        "Dip Line",
-        "Fab",
-        "Office",
-        "Powder Coat",
-        "Router",
-        "Roto Mold",
-        "SMF",
-        "Welding"
-      ],
+      options: ["All","Assembly","Customs","Dip Line","Fab","Office","Powder Coat","Router","Roto Mold","SMF","Welding"],
       match(cellText, selected) {
         if ((selected || "").toLowerCase() === "all") return true;
         return (cellText || "").toLowerCase().trim() === (selected || "").toLowerCase().trim();
@@ -112,7 +80,6 @@ window.PowerUp = window.PowerUp || {};
     }
   };
 
-  // === Helpers (KEEPING / UPDATING FORMATTERS) ===
   const esc = (s) =>
     String(s ?? "")
       .replace(/&/g, "&amp;")
@@ -127,7 +94,6 @@ window.PowerUp = window.PowerUp || {};
       : `${String(d.getMonth()+1).padStart(2,"0")}/${String(d.getDate()).padStart(2,"0")}/${d.getFullYear()}`;
   };
 
-  // ✓ / ✗ for explicit boolean-ish values only
   const boolMark = (v) => {
     const raw = String(v ?? "").trim().toLowerCase();
     if (raw === "") return "-";
@@ -151,7 +117,6 @@ window.PowerUp = window.PowerUp || {};
 
   function format(col, value) {
     const t = String(col || "").toLowerCase();
-
     if (t.includes("date")) return fmtDate(value);
     if (t.includes("token")) {
       const n = Number(String(value).replace(/[^0-9.\-]/g, ""));
@@ -160,12 +125,10 @@ window.PowerUp = window.PowerUp || {};
     }
     if (t === "paid" || t === "resourced") return boolMark(value);
     if (t.includes("status") || t.includes("approval")) return statusPill(value);
-
     const blank = value == null || String(value).trim() === "";
     return blank ? "-" : esc(value);
   }
 
-  // === Render with sorting (unchanged) ===
   function renderTable(tbody, rows, colMap) {
     if (!tbody) return;
     const cols = Object.keys(colMap);
@@ -209,11 +172,13 @@ window.PowerUp = window.PowerUp || {};
         }
       });
     };
+
     thead.querySelectorAll("th").forEach((th, idx) => {
       th.style.cursor = "pointer";
       th.onclick = () => {
         state.asc = state.col === idx ? !state.asc : true;
         state.col = idx;
+
         const rows = Array.from(tbody.querySelectorAll("tr"));
         rows.sort((ra, rb) => {
           const a = ra.children[idx]?.getAttribute("data-sort") ?? "";
@@ -227,10 +192,10 @@ window.PowerUp = window.PowerUp || {};
         applyIndicators();
       };
     });
+
     applyIndicators();
   }
 
-  // === Filtering (client-side UI filters you already had) ===
   function findHeaderIndexByText(tableEl, friendlyHeader) {
     const ths = tableEl?.querySelectorAll('thead th');
     if (!ths) return -1;
@@ -275,6 +240,7 @@ window.PowerUp = window.PowerUp || {};
       const cellText = (tr.children[colIdx]?.textContent || "");
       tr.style.display = cfg.match(cellText, selected) ? "" : "none";
     });
+
     updateCount(cfg.countId, tableEl);
   }
 
@@ -292,64 +258,94 @@ window.PowerUp = window.PowerUp || {};
     });
   }
 
-  // === Scope helpers ===
-  function scopeRowsForView(allRows) {
-    // Admin scope (All or single employee by name/ID)
-    if (ns.auth?.maybeFilterByEmployee) {
-      const cols = ['Employee ID','Position ID','Display Name','Employee Name','Name','Submitted By'];
-      return ns.auth.maybeFilterByEmployee(allRows, cols);
-    }
-    // Fallback for non-admins: mine only
-    const { employeeId } = ns.session.get();
-    return allRows.filter(r => String(r["Employee ID"] || r["Position ID"] || "").trim() === String(employeeId || "").trim());
+  // ---------- NEW: Admin-aware fetch + render ------------------
+  let __cache = { ci: [], safety: [], quality: [] };
+
+  function nameColsFor(kind) {
+    // Which columns could hold a display name for admin filtering
+    // We pass these into roles.maybeFilterByEmployee to match the admin dropdown.
+    const COMMON = ["Display Name","Employee Name","Name","Submitted By"];
+    if (kind === 'ci') return COMMON.concat(["Assigned To (Primary)"]);
+    if (kind === 'quality') return COMMON;
+    if (kind === 'safety') return COMMON;
+    return COMMON;
   }
 
-  // === Main hydrate ===
-  ns.tables = ns.tables || {};
-  ns.tables.hydrateDashboardTables = async function () {
+  async function loadAllFor(kind, sheetId) {
+    const raw = await fetchSheet(sheetId);
+    return rowsByTitle(raw);
+  }
+
+  async function hydrateDashboardTables() {
     console.log("[tables] Hydrating dashboard tables…");
 
-    const [ciSheet, safetySheet, qualitySheet] = await Promise.all([
-      fetchSheet(SHEETS.CI),
-      fetchSheet(SHEETS.SAFETY),
-      fetchSheet(SHEETS.QUALITY)
+    const isAdmin = !!(ns.auth && ns.auth.isAdmin && ns.auth.isAdmin());
+    const { employeeId } = ns.session.get();
+
+    const [ciAll, safetyAll, qualityAll] = await Promise.all([
+      loadAllFor('ci', SHEETS.CI),
+      loadAllFor('safety', SHEETS.SAFETY),
+      loadAllFor('quality', SHEETS.QUALITY)
     ]);
 
-    const ciRowsAll      = rowsByTitle(ciSheet);
-    const safetyRowsAll  = rowsByTitle(safetySheet);
-    const qualityRowsAll = rowsByTitle(qualitySheet);
+    if (isAdmin) {
+      // Admins see everything; apply optional admin employee filter
+      __cache.ci      = ns.auth.maybeFilterByEmployee(ciAll,      nameColsFor('ci'));
+      __cache.safety  = ns.auth.maybeFilterByEmployee(safetyAll,  nameColsFor('safety'));
+      __cache.quality = ns.auth.maybeFilterByEmployee(qualityAll, nameColsFor('quality'));
+    } else {
+      const mine = (rows) => rows.filter(r => r["Employee ID"] === employeeId || r["Position ID"] === employeeId);
+      __cache.ci      = mine(ciAll);
+      __cache.safety  = mine(safetyAll);
+      __cache.quality = mine(qualityAll);
+    }
 
-    const ciRows      = scopeRowsForView(ciRowsAll);
-    const safetyRows  = scopeRowsForView(safetyRowsAll);
-    const qualityRows = scopeRowsForView(qualityRowsAll);
+    renderTable(document.querySelector('[data-hook="table.ci.tbody"]'),      __cache.ci,      COL_MAP.ci);
+    renderTable(document.querySelector('[data-hook="table.safety.tbody"]'),  __cache.safety,  COL_MAP.safety);
+    renderTable(document.querySelector('[data-hook="table.quality.tbody"]'), __cache.quality, COL_MAP.quality);
 
-    renderTable(document.querySelector('[data-hook="table.ci.tbody"]'), ciRows, COL_MAP.ci);
-    renderTable(document.querySelector('[data-hook="table.safety.tbody"]'), safetyRows, COL_MAP.safety);
-    renderTable(document.querySelector('[data-hook="table.quality.tbody"]'), qualityRows, COL_MAP.quality);
-
-    // Initial counts before UI filters
     const setCount = (id, n) => {
       const el = document.getElementById(id);
       if (el) el.textContent = `${n} submission${n === 1 ? "" : "s"}`;
     };
-    setCount("ci-count", ciRows.length);
-    setCount("safety-count", safetyRows.length);
+    setCount("ci-count",      __cache.ci.length);
+    setCount("safety-count",  __cache.safety.length);
+    setCount("quality-count", __cache.quality.length);
+
+    wireFilters();
+    document.dispatchEvent(new Event('data-hydrated'));
+  }
+
+  // Re-apply admin employee filter when dropdown changes (no refetch)
+  document.addEventListener('powerup-admin-filter-change', () => {
+    if (!__cache.ci.length && !__cache.safety.length && !__cache.quality.length) return;
+    const isAdmin = !!(ns.auth && ns.auth.isAdmin && ns.auth.isAdmin());
+    if (!isAdmin) return;
+
+    const refilter = (rows, kind) => ns.auth.maybeFilterByEmployee(rows, nameColsFor(kind));
+
+    const ciRows      = refilter(__cache.ci,      'ci');
+    const safetyRows  = refilter(__cache.safety,  'safety');
+    const qualityRows = refilter(__cache.quality, 'quality');
+
+    renderTable(document.querySelector('[data-hook="table.ci.tbody"]'),      ciRows,      COL_MAP.ci);
+    renderTable(document.querySelector('[data-hook="table.safety.tbody"]'),  safetyRows,  COL_MAP.safety);
+    renderTable(document.querySelector('[data-hook="table.quality.tbody"]'), qualityRows, COL_MAP.quality);
+
+    const setCount = (id, n) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = `${n} submission${n === 1 ? "" : "s"}`;
+    };
+    setCount("ci-count",      ciRows.length);
+    setCount("safety-count",  safetyRows.length);
     setCount("quality-count", qualityRows.length);
 
-    // Wire the dropdowns and apply filters once
     wireFilters();
-
-    // Let the page know data is ready
-    document.dispatchEvent(new Event('data-hydrated'));
-  };
-
-  // Optional: expose filter trigger
-  ns.tables.applyFilterFor = applyFilterFor;
-
-  // Re-scope if the admin filter changes
-  document.addEventListener('powerup-admin-filter-change', () => {
-    try { ns.api.clearCache(); } catch {}
-    ns.tables.hydrateDashboardTables();
   });
 
+  ns.tables = ns.tables || {};
+  ns.tables.hydrateDashboardTables = hydrateDashboardTables;
+  ns.tables.applyFilterFor = applyFilterFor;
+
 })(window.PowerUp);
+</script>
