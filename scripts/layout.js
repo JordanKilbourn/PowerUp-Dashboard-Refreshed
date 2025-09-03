@@ -1,5 +1,5 @@
 <!-- /scripts/layout.js -->
-<script>
+
 (function (PowerUp) {
   const P = PowerUp || (PowerUp = {});
 
@@ -201,4 +201,3 @@
     });
   });
 })();
-</script>
