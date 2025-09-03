@@ -1,5 +1,4 @@
-<!-- /scripts/progress.js -->
-<script>
+
 window.PowerUp = window.PowerUp || {};
 (function (ns) {
   const { fetchSheet, rowsByTitle, SHEETS } = ns.api;
@@ -209,4 +208,4 @@ window.PowerUp = window.PowerUp || {};
     try { await ns.renderDashboardPowerHours(); } catch {}
   });
 })(window.PowerUp);
-</script>
+
