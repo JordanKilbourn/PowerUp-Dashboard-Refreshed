@@ -1,4 +1,4 @@
-// scripts/squad-member-form.js
+// /scripts/squad-member-form.js
 (function (P) {
   const { api, roles } = P;
 
@@ -38,7 +38,7 @@
       note = document.createElement("div");
       note.id = "am-dupnote";
       note.style.cssText = "margin-top:6px;font-size:12px;color:#f59e0b;";
-      el.member.parentElement.appendChild(note);
+      el.member?.parentElement?.appendChild(note);
     }
     return note;
   }
@@ -65,14 +65,16 @@
       const options = Array.isArray(roleCol?.options) && roleCol.options.length
         ? roleCol.options
         : ["Member","Leader"]; // fallback
-      el.role.innerHTML = options.map(o => `<option value="${o}">${o}</option>`).join("");
-      // Default to "Member" if present; otherwise first option
-      const defaultVal = options.find(o => norm(o) === "member") || options[0];
-      el.role.value = defaultVal || "";
+      if (el.role) {
+        el.role.innerHTML = options.map(o => `<option value="${o}">${o}</option>`).join("");
+        const defaultVal = options.find(o => norm(o) === "member") || options[0];
+        el.role.value = defaultVal || "";
+      }
     } catch (e) {
-      // Fallback hardcoded options
-      el.role.innerHTML = `<option value="Member">Member</option><option value="Leader">Leader</option>`;
-      el.role.value = "Member";
+      if (el.role) {
+        el.role.innerHTML = `<option value="Member">Member</option><option value="Leader">Leader</option>`;
+        el.role.value = "Member";
+      }
     }
   }
 
@@ -87,6 +89,7 @@
   }
 
   function updateDuplicateWarning() {
+    if (!el.member || !el.btnSave) return false;
     const note = getOrMakeNoteEl();
     const val  = el.member.value || "";
     if (!val) {
@@ -108,11 +111,8 @@
     }
   }
 
-  // Build the <select> options showing two groups:
-  //  - Already on this squad (disabled)
-  //  - Available to add
-  // Admins see "Name — ID"; non-admins see only "Name"
   function rebuildMemberOptions() {
+    if (!el.member) return;
     const isAdmin = !!(roles && roles.isAdmin && roles.isAdmin());
 
     const currentIds = new Set(
@@ -121,7 +121,6 @@
         .map(r => String(r["Employee ID"] || "").trim().toLowerCase())
     );
 
-    // Split all employees into existing vs available
     const all = Object.entries(STATE.empIndex)
       .map(([id, name]) => ({ id, name, nameLC: norm(name) }))
       .sort((a,b) => a.nameLC.localeCompare(b.nameLC));
@@ -132,7 +131,6 @@
 
     const labelFor = (e) => isAdmin ? `${e.name} — ${e.id}` : `${e.name}`;
 
-    // Build innerHTML
     let html = `<option value="">Select a person…</option>`;
     if (existing.length) {
       html += `<optgroup label="Already on this squad">` +
@@ -146,38 +144,41 @@
     `</optgroup>`;
 
     el.member.innerHTML = html;
-    el.member.value = ""; // reset
+    el.member.value = "";
   }
 
   function open({ squadId, squadName }) {
     STATE.squadId = String(squadId || "").trim();
     STATE.squadName = String(squadName || "").trim();
 
-    el.start.value = isoToday();
-    el.active.checked = true;
-    el.member.value = "";
+    if (el.start) el.start.value = isoToday();
+    if (el.active) el.active.checked = true;
+    if (el.member) el.member.value = "";
 
-    // load data + build select
     (async () => {
       await ensureEmployees();
       await ensureMembers();
-      rebuildMemberOptions();       // <- new grouped/disabled options
-      updateDuplicateWarning();     // note will normally be empty now
+      rebuildMemberOptions();
+      updateDuplicateWarning();
     })();
 
     ensureRoleOptions();
 
-    // show modal
-    el.modal.style.display = "flex";
-    el.modal.setAttribute("aria-hidden", "false");
+    if (el.modal) {
+      el.modal.style.display = "flex";
+      el.modal.setAttribute("aria-hidden", "false");
+    }
   }
 
   function close() {
-    el.modal.style.display = "none";
-    el.modal.setAttribute("aria-hidden", "true");
+    if (el.modal) {
+      el.modal.style.display = "none";
+      el.modal.setAttribute("aria-hidden", "true");
+    }
   }
 
   async function save() {
+    if (!el.member || !el.role || !el.start || !el.active || !el.btnSave) return;
     const employeeId = (el.member.value || "").trim();
     let   role       = el.role.value || "Member";
     const startDate  = el.start.value || isoToday();
@@ -192,7 +193,6 @@
       return;
     }
 
-    // Make sure the role we send matches a valid option exactly (case-insensitive match)
     const roleOptions = Array.from(el.role.options).map(o => o.value);
     const matchIdx = roleOptions.findIndex(o => norm(o) === norm(role));
     if (matchIdx >= 0) role = roleOptions[matchIdx];
@@ -203,13 +203,12 @@
       const empName  = STATE.empIndex[employeeId] || "";
       const addedBy  = (P.session?.get?.()?.displayName) || (P.session?.get?.()?.employeeId) || "";
 
-      // Include name columns; if they're column-formulas, api.addRows() will skip them safely.
       await api.addRows(api.SHEETS.SQUAD_MEMBERS, [{
         "Squad ID": STATE.squadId,
-        "Squad Name": STATE.squadName,     // skipped if formula/system
+        "Squad Name": STATE.squadName,
         "Employee ID": employeeId,
-        "Employee Name": empName,          // skipped if formula/system
-        "Role": role,                      // matches allowed picklist option
+        "Employee Name": empName,
+        "Role": role,
         "Active": active,
         "Start Date": startDate,
         "Added By": addedBy
@@ -221,7 +220,6 @@
       }));
       toast("Member added.", true);
 
-      // Refresh the select so the newly-added person moves into the "Already on this squad" group
       await ensureMembers();
       rebuildMemberOptions();
     } catch (err) {
@@ -232,7 +230,6 @@
     }
   }
 
-  // wire
   if (el.btnCancel) el.btnCancel.onclick = (e) => { e.preventDefault(); close(); };
   if (el.btnSave)   el.btnSave.onclick   = (e) => { e.preventDefault(); save(); };
   if (el.member)    el.member.addEventListener("change", updateDuplicateWarning);
