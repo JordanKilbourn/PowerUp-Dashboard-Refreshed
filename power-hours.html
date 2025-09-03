@@ -3,26 +3,22 @@
 <head>
   <meta charset="UTF-8" />
 
-<!-- EARLY AUTH GUARD — must be the first thing in <head> -->
-<script>
-!function () {
-  try {
-    // Prefer the real session key; fall back to legacy only if present
-    const s = JSON.parse(sessionStorage.getItem('pu.session') || 'null')
-           || JSON.parse(localStorage.getItem('powerup_session') || 'null');
-    if (!s || !s.employeeId) {
-      // block paint, then bounce to login
+  <!-- EARLY AUTH GUARD — must be the first thing in <head> -->
+  <script>
+  !function () {
+    try {
+      const s = JSON.parse(sessionStorage.getItem('pu.session') || 'null')
+             || JSON.parse(localStorage.getItem('powerup_session') || 'null');
+      if (!s || !s.employeeId) {
+        document.documentElement.style.visibility = 'hidden';
+        location.replace('login.html');
+      }
+    } catch {
       document.documentElement.style.visibility = 'hidden';
       location.replace('login.html');
     }
-  } catch {
-    document.documentElement.style.visibility = 'hidden';
-    location.replace('login.html');
-  }
-}();
-</script>
-
-
+  }();
+  </script>
 
   <title>PowerUp — Power Hours</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -32,21 +28,17 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
   <link rel="preconnect" href="https://powerup-proxy.onrender.com" crossorigin>
-  <!-- Favicon (SVG + PNG fallback) -->
-<link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
-<link rel="alternate icon" type="image/png" href="assets/favicon.png">
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+  <link rel="alternate icon" type="image/png" href="assets/favicon.png">
 
-
-  <!-- Page-local tweaks to make the card a bit smaller than the dashboard version -->
+  <!-- Page-local tweaks to keep this card compact -->
   <style>
-    /* mini clone of dashboard Power Hours card */
     .power-card.power-mini { max-width: 560px; padding: 12px 14px; }
     .power-card.power-mini h3 { font-size: 14px; margin-bottom: 6px; }
     .power-card.power-mini p { font-size: 14px; margin-bottom: 8px; }
     .power-card.power-mini .phbar { height: 12px; }
     .power-card.power-mini .phbar__thumb { width: 12px; height: 12px; }
 
-    /* metrics strip */
     .metrics { display:flex; gap:18px; flex-wrap:wrap; align-items:center; }
     .metrics .label { color: var(--info); margin-right: 6px; }
     .metrics .value { font-weight: 700; }
@@ -56,7 +48,7 @@
   <!-- layout.js injects sidebar + header; everything below becomes .content -->
   <div class="content-inner" style="padding: 12px 14px 16px;">
 
-    <!-- === PROGRESS CARD (EXACT REPLICA OF DASHBOARD, just smaller) === -->
+    <!-- === PROGRESS CARD (same hooks used in scripts/progress.js) === -->
     <div class="card power-card power-mini" style="margin-bottom: 14px;">
       <h3>Power Hours Logged</h3>
       <p>
@@ -64,7 +56,6 @@
         <span data-hook="ph.goalMax">8</span>
       </p>
 
-      <!-- same markup & hooks used by scripts/progress.js -->
       <div class="phbar"
            data-hook="ph.track"
            role="progressbar"
@@ -80,7 +71,7 @@
 
     <!-- Header row with Date Range filter -->
     <div class="table-header-row" style="margin: 8px 0 10px;">
-      <h3 style="font-size:16px;">Your Power Hour Sessions</h3>
+      <h3 style="font-size:16px;">Power Hour Sessions</h3>
       <div class="table-header-controls" style="margin-left:auto; gap:8px;">
         <label class="muted" for="range">Date Range</label>
         <select id="range">
@@ -110,23 +101,17 @@
       </div>
     </div>
 
-    <!-- Sessions table -->
+    <!-- Sessions table (Employee column appears for admins) -->
     <div class="card table-card">
       <div class="table-scroll">
         <table id="ph-table" class="dashboard-table">
           <thead>
-          <tr>
-            <th data-k="Date" data-sort="none">Date</th>
-            <th data-k="Start" data-sort="none">Start</th>
-            <th data-k="End" data-sort="none">End</th>
-            <th class="t-right" data-k="Completed Hours" data-sort="none">Completed Hours</th>
-            <th data-k="Scheduled" data-sort="none">Scheduled</th>
-            <th data-k="Completed" data-sort="none">Completed</th>
-            <th data-k="Topic" data-sort="none">Topic</th>
+          <tr id="ph-head-row">
+            <!-- headers injected by JS to support admin Employee column -->
           </tr>
           </thead>
           <tbody id="rows">
-          <tr><td colspan="7" class="muted" style="text-align:center;padding:20px;">Loading…</td></tr>
+            <tr><td class="muted" style="text-align:center;padding:20px;">Loading…</td></tr>
           </tbody>
         </table>
       </div>
@@ -139,193 +124,226 @@
   <script src="scripts/roles.js"></script>
   <script src="scripts/layout.js"></script>
 
-  <!-- Use the SAME logic as the dashboard card -->
+  <!-- Use the SAME progress-card logic as dashboard (for signed-in user) -->
   <script src="scripts/progress.js"></script>
 
-
   <script>
-    // ----- column aliases -----
-    const COLS = {
-      employeeId: ['Employee ID','Position ID'],
-      date: ['Date','Session Date','Power Hour Date'],
-      start: ['Start Time','Start'],
-      end: ['End Time','End'],
-      completedHours: ['Completed Hours','Hours','Duration (h)','Duration (hrs)'],
-      durationPlanned: ['Duration (hrs)','Duration (h)','Duration','Planned Hours','Scheduled Hours'],
-      scheduled: ['Scheduled','Is Scheduled?','Planned'],
-      completed: ['Completed','Is Completed?','Done'],
-      topic: ['Activity Description','Activity','Topic','Description','Notes'] // <- ensures Topic shows
-    };
+    (function(){
+      const IS_ADMIN = !!(window.PowerUp?.auth?.isAdmin && PowerUp.auth.isAdmin());
 
-    // ----- helpers -----
-    const pick = (row, list, d='') => { for (const k of list) if (row[k]!=null && row[k]!=='' ) return row[k]; return d; };
-    const isTrue = (v) => v === true || /^(true|yes|y|checked)$/i.test(String(v ?? "").trim());
-    const toNum  = PowerUp.api.toNumber;
-    const fmt    = (v) => (v==null || String(v).trim()==='') ? '-' : String(v);
+      // ----- column aliases -----
+      const COLS = {
+        employeeId: ['Employee ID','Position ID'],
+        employeeName: ['Submitted By','Employee Name','Name','Display Name'],
+        date: ['Date','Session Date','Power Hour Date'],
+        start: ['Start Time','Start'],
+        end: ['End Time','End'],
+        completedHours: ['Completed Hours','Hours','Duration (h)','Duration (hrs)'],
+        durationPlanned: ['Duration (hrs)','Duration (h)','Duration','Planned Hours','Scheduled Hours'],
+        scheduled: ['Scheduled','Is Scheduled?','Planned'],
+        completed: ['Completed','Is Completed?','Done'],
+        topic: ['Activity Description','Activity','Topic','Description','Notes']
+      };
 
-    function parseDateLocal(s){
-      if (s==null || s==='') return null;
-      const t = String(s).trim();
-      let m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
-      if (m) return new Date(+m[1], +m[2]-1, +m[3]);
-      m = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/);
-      if (m){ let y=+m[3]; if (y<100) y+=2000; return new Date(y, +m[1]-1, +m[2]); }
-      const d = new Date(t);
-      return isNaN(d) ? null : d;
-    }
+      // ----- helpers -----
+      const pick = (row, list, d='') => { for (const k of list) if (row[k]!=null && row[k]!=='' ) return row[k]; return d; };
+      const isTrue = (v) => v === true || /^(true|yes|y|checked)$/i.test(String(v ?? "").trim());
+      const toNum  = PowerUp.api.toNumber;
+      const fmt    = (v) => (v==null || String(v).trim()==='') ? '-' : String(v);
 
-    const state = { all: [], view: [] };
-
-    function byCurrentUser(row, empId) {
-      const rid = (pick(row, COLS.employeeId, '')+'').trim();
-      return rid === (empId+'').trim();
-    }
-
-    // ----- ranges -----
-    function firstOfMonth(y, m){ return new Date(y, m, 1); }
-    function lastOfMonth(y, m){ return new Date(y, m+1, 0, 23,59,59,999); }
-
-    function getRangeBounds(kind){
-      const now = new Date();
-      const y = now.getFullYear(), m = now.getMonth();
-      const todayEnd = new Date(y, m, now.getDate(), 23,59,59,999);
-
-      switch (kind) {
-        case 'this-month':   return { start: firstOfMonth(y, m), end: todayEnd };
-        case 'last-month': { const lm=m-1, ly=lm<0?y-1:y, lmm=(lm+12)%12; return { start:firstOfMonth(ly,lmm), end:lastOfMonth(ly,lmm) }; }
-        case 'last-3':       return { start: firstOfMonth(y, m-2), end: todayEnd };
-        case 'last-6':       return { start: firstOfMonth(y, m-5), end: todayEnd };
-        case 'this-quarter': { const q=Math.floor(m/3)*3; return { start:firstOfMonth(y,q), end:todayEnd }; }
-        case 'ytd':          return { start: new Date(y, 0, 1), end: todayEnd };
-        case 'next-month': { const nm=m+1, ny=nm>11?y+1:y, nmm=nm%12; return { start:firstOfMonth(ny,nmm), end:lastOfMonth(ny,nmm) }; }
-        case 'next-90':    { const s=new Date(y,m,now.getDate()); const e=new Date(s); e.setDate(e.getDate()+89); e.setHours(23,59,59,999); return { start:s, end:e }; }
-        case 'all':
-        default:             return { start: null, end: null };
-      }
-    }
-
-    function withinRange(row, range) {
-      if (range === 'all') return true;
-      const d = parseDateLocal(pick(row, COLS.date));
-      if (!d) return false;
-      const { start, end } = getRangeBounds(range);
-      if (start && d < start) return false;
-      if (end && d > end) return false;
-      return true;
-    }
-
-    function renderTable() {
-      const tb = document.getElementById('rows');
-      if (!state.view.length) {
-        tb.innerHTML = `<tr><td colspan="7" class="muted" style="text-align:center;padding:20px;">No rows</td></tr>`;
-        document.getElementById('m-hours').textContent = '0.00';
-        document.getElementById('m-sessions').textContent = '0';
-        document.getElementById('m-sched').textContent = '0';
-        document.getElementById('m-sched-hours').textContent = '0.00';
-        return;
+      function parseDateLocal(s){
+        if (s==null || s==='') return null;
+        const t = String(s).trim();
+        let m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+        if (m) return new Date(+m[1], +m[2]-1, +m[3]);
+        m = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/);
+        if (m){ let y=+m[3]; if (y<100) y+=2000; return new Date(y, +m[1]-1, +m[2]); }
+        const d = new Date(t);
+        return isNaN(d) ? null : d;
       }
 
-      tb.innerHTML = state.view.map(r => {
-        const dt  = fmt(pick(r, COLS.date));
-        const st  = fmt(pick(r, COLS.start));
-        const en  = fmt(pick(r, COLS.end));
-        const hrs = toNum(pick(r, COLS.completedHours, 0)).toFixed(2);
-        const sch = isTrue(pick(r, COLS.scheduled)) ? `<span class="pill pill--blue">Scheduled</span>` : '-';
-        const cmp = isTrue(pick(r, COLS.completed)) ? `<span class="pill pill--green">Completed</span>` : '-';
-        const tp  = fmt(pick(r, COLS.topic));
-        return `<tr>
-          <td>${dt}</td>
-          <td>${st}</td>
-          <td>${en}</td>
-          <td class="t-right mono">${hrs}</td>
-          <td class="t-center">${sch}</td>
-          <td class="t-center">${cmp}</td>
-          <td class="wrap">${tp}</td>
-        </tr>`;
-      }).join('');
+      const state = { all: [], view: [], nameById: new Map(), target: null };
 
-      // metrics
-      const totalHrs = state.view.reduce((a,r)=> a + toNum(pick(r, COLS.completedHours, 0)), 0);
-      const sessions = state.view.length;
+      // Resolve the *target employee* (admin selection or current user)
+      async function resolveTargetEmployee(){
+        const me = PowerUp.session.get() || {};
+        if (!IS_ADMIN) return { id: String(me.employeeId||'').trim(), name: String(me.displayName||'').trim() };
 
-      // upcoming scheduled from ALL rows (future, scheduled, not completed)
-      const now = new Date();
-      const upcoming = state.all.filter(r=>{
-        const d = parseDateLocal(pick(r, COLS.date));
-        const scheduled = isTrue(pick(r, COLS.scheduled));
-        const completed = isTrue(pick(r, COLS.completed));
-        return scheduled && !completed && d && d >= now;
-      });
-      const upcomingCount = upcoming.length;
-      const upcomingHours = upcoming.reduce((sum, r) => sum + toNum(pick(r, COLS.durationPlanned, 0)), 0);
+        // Admin: read selected display name from sessionStorage and map to ID via Employee Master
+        const selName = (sessionStorage.getItem('pu.adminEmployeeFilter') || '').trim();
+        if (!selName || selName === '__ALL__') {
+          return { id: String(me.employeeId||'').trim(), name: String(me.displayName||'').trim() };
+        }
 
-      document.getElementById('m-hours').textContent = totalHrs.toFixed(2);
-      document.getElementById('m-sessions').textContent = sessions;
-      document.getElementById('m-sched').textContent = String(upcomingCount);
-      document.getElementById('m-sched-hours').textContent = upcomingHours.toFixed(2);
-    }
+        try {
+          const em = await PowerUp.api.getRowsByTitle(PowerUp.api.SHEETS.EMPLOYEE_MASTER);
+          const norm = (s) => String(s||'').trim().toLowerCase();
+          const row = em.find(r => norm(r['Display Name']||r['Employee Name']||r['Name']) === norm(selName));
+          const id = row ? String(row['Position ID'] || row['Employee ID'] || '').trim() : '';
+          return { id, name: selName };
+        } catch {
+          return { id: String(me.employeeId||'').trim(), name: String(me.displayName||'').trim() };
+        }
+      }
 
-    function wireSort() {
-      const ths = document.querySelectorAll('th[data-k]');
-      ths.forEach(th => {
-        th.style.cursor = 'pointer';
-        th.addEventListener('click', () => {
-          const key = th.dataset.k;
-          const asc = th.getAttribute('data-sort') !== 'asc';
-          ths.forEach(h => h.setAttribute('data-sort','none'));
-          th.setAttribute('data-sort', asc ? 'asc' : 'desc');
+      function byTarget(row, target) {
+        const id = String(pick(row, COLS.employeeId, '')).trim().toLowerCase();
+        const name = String(pick(row, COLS.employeeName, '')).trim().toLowerCase();
+        const tgtId = String(target.id||'').trim().toLowerCase();
+        const tgtName = String(target.name||'').trim().toLowerCase();
+        return (tgtId && id === tgtId) || (tgtName && !!tgtName && name === tgtName);
+      }
 
-          state.view.sort((a,b)=>{
-            const av = String(a[key] ?? '');
-            const bv = String(b[key] ?? '');
-            if (key === 'Completed Hours') {
-              return asc ? (toNum(av)-toNum(bv)) : (toNum(bv)-toNum(av));
-            }
-            return asc ? av.localeCompare(bv) : bv.localeCompare(av);
-          });
-          renderTable();
+      // ---------- ranges ----------
+      function firstOfMonth(y, m){ return new Date(y, m, 1); }
+      function lastOfMonth(y, m){ return new Date(y, m+1, 0, 23,59,59,999); }
+
+      function getRangeBounds(kind){
+        const now = new Date();
+        const y = now.getFullYear(), m = now.getMonth();
+        const todayEnd = new Date(y, m, now.getDate(), 23,59,59,999);
+
+        switch (kind) {
+          case 'this-month':   return { start: firstOfMonth(y, m), end: todayEnd };
+          case 'last-month': { const lm=m-1, ly=lm<0?y-1:y, lmm=(lm+12)%12; return { start:firstOfMonth(ly,lmm), end:lastOfMonth(ly,lmm) }; }
+          case 'last-3':       return { start: firstOfMonth(y, m-2), end: todayEnd };
+          case 'last-6':       return { start: firstOfMonth(y, m-5), end: todayEnd };
+          case 'this-quarter': { const q=Math.floor(m/3)*3; return { start:firstOfMonth(y,q), end:todayEnd }; }
+          case 'ytd':          return { start: new Date(y, 0, 1), end: todayEnd };
+          case 'next-month': { const nm=m+1, ny=nm>11?y+1:y, nmm=nm%12; return { start:firstOfMonth(ny,nmm), end:lastOfMonth(ny,nmm) }; }
+          case 'next-90':    { const s=new Date(y,m,now.getDate()); const e=new Date(s); e.setDate(e.getDate()+89); e.setHours(23,59,59,999); return { start:s, end:e }; }
+          case 'all':
+          default:             return { start: null, end: null };
+        }
+      }
+
+      function withinRange(row, range) {
+        if (range === 'all') return true;
+        const d = parseDateLocal(pick(row, COLS.date));
+        if (!d) return false;
+        const { start, end } = getRangeBounds(range);
+        if (start && d < start) return false;
+        if (end && d > end) return false;
+        return true;
+      }
+
+      function buildHead(){
+        const tr = document.getElementById('ph-head-row');
+        const heads = [
+          ...(IS_ADMIN ? ['Employee'] : []),
+          'Date','Start','End','Completed Hours','Scheduled','Completed','Topic'
+        ];
+        tr.innerHTML = heads.map(h => `<th>${h}</th>`).join('');
+      }
+
+      function renderTable() {
+        const tb = document.getElementById('rows');
+        if (!state.view.length) {
+          tb.innerHTML = `<tr><td colspan="${IS_ADMIN?8:7}" class="muted" style="text-align:center;padding:20px;">No rows</td></tr>`;
+          document.getElementById('m-hours').textContent = '0.00';
+          document.getElementById('m-sessions').textContent = '0';
+          document.getElementById('m-sched').textContent = '0';
+          document.getElementById('m-sched-hours').textContent = '0.00';
+          return;
+        }
+
+        tb.innerHTML = state.view.map(r => {
+          const empId  = String(pick(r, COLS.employeeId, '')).trim();
+          const empNm  = state.nameById.get(empId.toLowerCase()) || pick(r, COLS.employeeName, '') || empId || '-';
+          const dt  = fmt(pick(r, COLS.date));
+          const st  = fmt(pick(r, COLS.start));
+          const en  = fmt(pick(r, COLS.end));
+          const hrs = toNum(pick(r, COLS.completedHours, 0)).toFixed(2);
+          const sch = isTrue(pick(r, COLS.scheduled)) ? `<span class="pill pill--blue">Scheduled</span>` : '-';
+          const cmp = isTrue(pick(r, COLS.completed)) ? `<span class="pill pill--green">Completed</span>` : '-';
+          const tp  = fmt(pick(r, COLS.topic));
+          return `<tr>
+            ${IS_ADMIN ? `<td>${empNm}</td>` : ``}
+            <td>${dt}</td>
+            <td>${st}</td>
+            <td>${en}</td>
+            <td class="t-right mono">${hrs}</td>
+            <td class="t-center">${sch}</td>
+            <td class="t-center">${cmp}</td>
+            <td class="wrap">${tp}</td>
+          </tr>`;
+        }).join('');
+
+        // metrics
+        const totalHrs = state.view.reduce((a,r)=> a + toNum(pick(r, COLS.completedHours, 0)), 0);
+        const sessions = state.view.length;
+
+        // upcoming scheduled from ALL rows (future, scheduled, not completed) — for the target employee only
+        const now = new Date();
+        const upcoming = state.all.filter(r=>{
+          if (!byTarget(r, state.target)) return false;
+          const d = parseDateLocal(pick(r, COLS.date));
+          const scheduled = isTrue(pick(r, COLS.scheduled));
+          const completed = isTrue(pick(r, COLS.completed));
+          return scheduled && !completed && d && d >= now;
         });
+        const upcomingCount = upcoming.length;
+        const upcomingHours = upcoming.reduce((sum, r) => sum + toNum(pick(r, COLS.durationPlanned, 0)), 0);
+
+        document.getElementById('m-hours').textContent = totalHrs.toFixed(2);
+        document.getElementById('m-sessions').textContent = sessions;
+        document.getElementById('m-sched').textContent = String(upcomingCount);
+        document.getElementById('m-sched-hours').textContent = upcomingHours.toFixed(2);
+      }
+
+      function applyRange() {
+        const range = document.getElementById('range').value;
+        state.view = state.all.filter(r => byTarget(r, state.target) && withinRange(r, range));
+        renderTable();
+      }
+
+      async function loadNames() {
+        state.nameById.clear();
+        try {
+          const em = await PowerUp.api.getRowsByTitle(PowerUp.api.SHEETS.EMPLOYEE_MASTER);
+          em.forEach(r => {
+            const id = String(r['Position ID'] || r['Employee ID'] || '').trim();
+            const nm = String(r['Display Name'] || r['Employee Name'] || r['Name'] || '').trim();
+            if (id) state.nameById.set(id.toLowerCase(), nm);
+          });
+        } catch {}
+      }
+
+      async function loadTableAndProgress() {
+        state.target = await resolveTargetEmployee();
+        buildHead();
+        await loadNames();
+
+        const rows = await PowerUp.api.getRowsByTitle(PowerUp.api.SHEETS.POWER_HOURS);
+        state.all = rows;
+
+        applyRange();
+
+        // hydrate the progress card using the SAME logic as the dashboard (signed-in user)
+        // If you want this card to reflect the admin target instead, I can swap in an admin-aware version.
+        await PowerUp.renderDashboardPowerHours();
+      }
+
+      function bindControls() {
+        const sel = document.getElementById('range');
+        if (sel) sel.addEventListener('change', applyRange);
+
+        // Re-apply instantly when the admin changes the selected employee
+        document.addEventListener('powerup-admin-filter-change', async () => {
+          state.target = await resolveTargetEmployee();
+          applyRange();
+        });
+      }
+
+      document.addEventListener('DOMContentLoaded', async () => {
+        PowerUp.session.requireLogin();
+        PowerUp.layout.injectLayout();
+        PowerUp.layout.setPageTitle('Power Hours');
+        await PowerUp.session.initHeader();
+        await loadTableAndProgress();
+        bindControls();
       });
-    }
-
-    function applyRange() {
-      const range = document.getElementById('range').value;
-      state.view = state.all.filter(r => withinRange(r, range));
-      renderTable();
-    }
-
-    async function loadTableAndProgress() {
-      const s = PowerUp.session.get();
-      const rows = await PowerUp.api.getRowsByTitle(PowerUp.api.SHEETS.POWER_HOURS);
-      state.all = rows.filter(r => byCurrentUser(r, s.employeeId));
-      applyRange();
-      wireSort();
-
-      // hydrate the progress card using the SAME logic as the dashboard
-      await PowerUp.renderDashboardPowerHours();
-    }
-
-    function bindControls() {
-      const sel = document.getElementById('range');
-      if (sel) sel.addEventListener('change', applyRange);
-    }
-
-    document.addEventListener('DOMContentLoaded', async () => {
-      PowerUp.session.requireLogin();
-      PowerUp.layout.injectLayout();
-      PowerUp.layout.setPageTitle('Power Hours');
-      await PowerUp.session.initHeader();
-      await loadTableAndProgress();
-      bindControls();
-    });
+    })();
   </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
