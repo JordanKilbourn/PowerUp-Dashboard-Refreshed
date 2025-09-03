@@ -41,7 +41,6 @@
           <p>
             Welcome: <span data-hook="userName">—</span>
             &emsp; Level: <span data-hook="userLevel">Level Unknown</span>
-            <!-- 🔹 Added: Refresh control (small, unobtrusive) -->
             &emsp; <button id="pu-refresh" class="btn btn-xs" style="margin-left:8px;border:1px solid #2a354b;background:#0b1328;color:#e5e7eb;border-radius:8px;padding:6px 10px;cursor:pointer">Refresh Data</button>
           </p>
         </div>
@@ -92,12 +91,11 @@
       });
     }
 
-    // 🔹 Added: Refresh button wiring (clear cache + reload)
+    // Refresh button wiring (clear cache + reload)
     const refreshBtn = document.getElementById('pu-refresh');
     if (refreshBtn) {
       refreshBtn.addEventListener('click', () => {
         try { window.P && P.api && P.api.clearCache && P.api.clearCache(); } catch {}
-        // hard wipe the key too (defensive)
         try { sessionStorage.removeItem('pu.sheetCache.v1'); } catch {}
         location.reload();
       });
@@ -110,8 +108,11 @@
     // Initial layout sizing
     requestAnimationFrame(fitDashboardBlocks);
 
-    // 🔹 Hydrate header user info (name + level) from Employee Master / roles
+    // Hydrate header user info (name + level)
     setUserHeaderFromEmployeeMaster();
+
+    // 🔹 NEW: render admin employee filter dropdown (admins only)
+    try { PowerUp.auth?.installEmployeeFilterUI && PowerUp.auth.installEmployeeFilterUI(); } catch (e) { console.debug('admin filter UI failed', e); }
   }
 
   function setPageTitle(text) {
@@ -119,7 +120,6 @@
     if (h1) h1.textContent = text || 'PowerUp';
   }
 
-  // ---- Fit dashboard table to the viewport (no page scroll) ----
   function fitDashboardBlocks() {
     const root = document.documentElement;
     const header = document.getElementById('pu-header');
@@ -139,7 +139,7 @@
   }
   window.addEventListener('resize', fitDashboardBlocks);
 
-  // 🔹 Central header hydration from Employee Master / roles
+  // Central header hydration
   function norm(s){ return String(s || "").trim().toLowerCase(); }
   async function setUserHeaderFromEmployeeMaster() {
     try {
@@ -148,13 +148,11 @@
       const levelEl = document.querySelector('[data-hook="userLevel"]');
       if (nameEl && sess.displayName) nameEl.textContent = sess.displayName;
 
-      // If allowlisted admin → show Admin and stop
       if (PowerUp.auth?.isAdmin && PowerUp.auth.isAdmin()) {
         if (levelEl) levelEl.textContent = 'Admin';
         return;
       }
 
-      // Otherwise, Level lookup:
       const rows = await PowerUp.api.getRowsByTitle("EMPLOYEE_MASTER");
       const row =
         rows.find(r => norm(r["Position ID"]) === norm(sess.employeeId)) ||
@@ -167,25 +165,20 @@
     }
   }
 
-  // 🔸 EXPORT (restored) — make these available to pages
   P.layout = { injectLayout, setPageTitle, setUserHeaderFromEmployeeMaster };
   window.PowerUp = P;
 
 })(window.PowerUp || {});
 
-// ---- PowerUp: robust logout wiring (append-only) --------------------------
+// ---- PowerUp: robust logout wiring (append-only)
 (function () {
   function safe(fn) { try { fn && fn(); } catch (_) {} }
 
   window.PowerUpLogout = function () {
-    // Clear cached Smartsheet data (module way)
     safe(() => window.P && P.api && P.api.clearCache && P.api.clearCache());
-    // Hard wipe the storage key as a fallback
     safe(() => sessionStorage.removeItem('pu.sheetCache.v1'));
-    // Clear session mirrors
     safe(() => sessionStorage.removeItem('pu.session'));
     safe(() => localStorage.removeItem('powerup_session'));
-    // Back to login
     location.href = 'login.html';
   };
 
