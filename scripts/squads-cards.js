@@ -1,4 +1,3 @@
-
 (function (PowerUp) {
   const P = PowerUp || (window.PowerUp = {});
   const { SHEETS, getRowsByTitle } = P.api;
@@ -23,7 +22,13 @@
   };
 
   const CATS = ['All','CI','Quality','Safety','Training','Other'];
-  const CAT_CLASS = { CI:'cat-ci', Quality:'cat-quality', Safety:'cat-safety', Training:'cat-training', Other:'cat-other' };
+  const CAT_CLASS = {
+    CI: 'cat-ci',
+    Quality: 'cat-quality',
+    Safety: 'cat-safety',
+    Training: 'cat-training',
+    Other: 'cat-other'
+  };
 
   const pick = (row, list, d='') => { for (const k of list) if (row[k]!=null && row[k]!=='' ) return row[k]; return d; };
   const dash = (v) => (v==null || String(v).trim()==='') ? '-' : String(v);
@@ -40,8 +45,16 @@
   function parseMemberTokens(text) {
     return String(text || '').split(/[,;\n]+/).map(s => s.trim()).filter(Boolean);
   }
+
   function catVar(cat) {
-    switch (cat) { case 'CI': return 'var(--sq-ci)'; case 'Quality': return 'var(--sq-quality)'; case 'Safety': return 'var(--sq-safety)'; case 'Training': return 'var(--sq-training)'; case 'Other': return 'var(--sq-other)'; default: return 'var(--accent)'; }
+    switch (cat) {
+      case 'CI':       return 'var(--sq-ci)';
+      case 'Quality':  return 'var(--sq-quality)';
+      case 'Safety':   return 'var(--sq-safety)';
+      case 'Training': return 'var(--sq-training)';
+      case 'Other':    return 'var(--sq-other)';
+      default:         return 'var(--accent)';
+    }
   }
 
   const MEMBERS_BY_SQUAD = new Map();
@@ -109,9 +122,13 @@
           .map(x => (x.name || idToName.get(x.id) || x.id || '').toString().trim())
           .filter(Boolean)
           .sort((a,b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
-        if (names.length === 1) leaderLine = names[0];
-        else if (names.length === 2) leaderLine = `${names[0]}, ${names[1]}`;
-        else leaderLine = `${names[0]}, ${names[1]} +${names.length - 2} more`;
+        if (names.length === 1) {
+          leaderLine = names[0];
+        } else if (names.length === 2) {
+          leaderLine = `${names[0]}, ${names[1]}`;
+        } else if (names.length > 2) {
+          leaderLine = `${names[0]}, ${names[1]} +${names.length - 2} more`;
+        }
       }
 
       const detailsHref = sq.id
@@ -195,7 +212,9 @@
           }
         });
       }
-    } catch (_) {}
+    } catch (_) {
+      // Silent fallback to comma-separated column on SQUADS
+    }
 
     const rows = await getRowsByTitle(SHEETS.SQUADS);
     ALL = rows
@@ -236,20 +255,6 @@
     document.getElementById('myOnly')?.addEventListener('change', applyFilters);
     document.getElementById('activeOnly')?.addEventListener('change', applyFilters);
     document.getElementById('search')?.addEventListener('input', applyFilters);
-
-    // 🔹 NEW: Admin-only top buttons
-    const addBtn = document.getElementById('btn-add');
-    const manageBtn = document.getElementById('btn-manage');
-    const activitiesBtn = document.getElementById('btn-activities');
-
-    if (IS_ADMIN) {
-      if (addBtn) addBtn.onclick = () => { location.href = 'add-squad.html'; };
-      if (manageBtn) manageBtn.onclick = () => { alert('Manage Squads (admin view) — wire to your management UI or Smartsheet as desired.'); };
-      if (activitiesBtn) activitiesBtn.onclick = () => { alert('All Activities — wire as desired.'); };
-    } else {
-      // hide for non-admins
-      [addBtn, manageBtn, activitiesBtn].forEach(b => { if (b) b.style.display = 'none'; });
-    }
   }
 
   document.addEventListener('DOMContentLoaded', async () => {
@@ -261,6 +266,7 @@
     P.layout.setPageTitle(IS_ADMIN ? 'Squads (Admin)' : 'Squads');
 
     await P.session.initHeader();
+
     wireUI();
 
     if (IS_ADMIN) {
@@ -276,4 +282,3 @@
 
   window.PowerUp = P;
 })(window.PowerUp || {});
-
