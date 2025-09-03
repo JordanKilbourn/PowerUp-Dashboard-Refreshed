@@ -60,7 +60,7 @@
 
   // ---- robust fetch with timeout + retry/backoff (ADD) ----
   const API_RETRY_LIMIT = 2;          // total attempts = 1 + retries
-  const API_TIMEOUT_MS  = 15000;      // 15s per request
+  const API_TIMEOUT_MS  = 30000;      // 15s per request
   const API_BACKOFF_MS  = 600;        // base backoff; jitter added
 
   function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
