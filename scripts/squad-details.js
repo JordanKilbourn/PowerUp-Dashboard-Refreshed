@@ -1,16 +1,11 @@
+// DROP-IN REPLACEMENT
 (function (P) {
   const { api, session, roles, layout } = P;
 
   const qs = (k) => new URLSearchParams(location.search).get(k) || "";
-  const esc = (s) => String(s ?? "")
-    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-
-  function fmtDate(v) {
-    if (!v) return "-";
-    const d = new Date(v);
-    if (isNaN(d)) return esc(v);
-    return `${String(d.getMonth()+1).padStart(2,"0")}/${String(d.getDate()).padStart(2,"0")}/${d.getFullYear()}`;
-  }
+  const esc = (s) => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  function fmtDate(v) { if (!v) return "-"; const d=new Date(v); return isNaN(d)?esc(v):`${String(d.getMonth()+1).padStart(2,"0")}/${String(d.getDate()).padStart(2,"0")}/${d.getFullYear()}`; }
+  function norm(s){return String(s||"").trim().toLowerCase();}
 
   async function loadEmployeeMap() {
     const rows = await api.getRowsByTitle('EMPLOYEE_MASTER');
@@ -24,15 +19,12 @@
   }
 
   function renderMembers(allRows, empMap, squadId, showEmpId) {
-    const rows = allRows.filter(r => String(r["Squad ID"]).trim().toLowerCase() === String(squadId).trim().toLowerCase());
-
+    const rows = allRows.filter(r => norm(r["Squad ID"]) === norm(squadId));
     const thead = document.querySelector("#members-table thead tr");
     const tbody = document.querySelector("#members-table tbody");
-
     thead.innerHTML = showEmpId
       ? "<th>Member</th><th>Employee ID</th><th>Role</th><th>Status</th><th>Start</th>"
       : "<th>Member</th><th>Role</th><th>Status</th><th>Start</th>";
-
     tbody.innerHTML = rows.map(r => {
       const eid = String(r["Employee ID"] || "").trim();
       const name = empMap[eid] || eid || "-";
@@ -43,15 +35,12 @@
         `<td>${esc(name)}</td>`,
         ...(showEmpId ? [`<td class="mono">${esc(eid || "-")}</td>`] : []),
         `<td>${esc(role)}</td>`,
-        `<td>${active ? '<span class="status-pill status-on">Active</span>'
-                      : '<span class="status-pill status-off">Inactive</span>'}</td>`,
+        `<td>${active ? '<span class="status-pill status-on">Active</span>' : '<span class="status-pill status-off">Inactive</span>'}</td>`,
         `<td>${fmtDate(start)}</td>`
       ];
       return `<tr>${cells.join("")}</tr>`;
     }).join("") || `<tr><td colspan="${showEmpId ? 5 : 4}" style="opacity:.7;text-align:center;">No members yet</td></tr>`;
   }
-
-  function norm(s) { return String(s || "").trim().toLowerCase(); }
 
   async function main() {
     layout.injectLayout?.();
@@ -65,9 +54,13 @@
       return;
     }
 
+    // Robust admin detection: support either P.auth or roles namespace
+    const isAdmin =
+      (!!(P.auth && P.auth.isAdmin && P.auth.isAdmin())) ||
+      (!!(roles && roles.isAdmin && roles.isAdmin()));
+
     const me = session.get?.() || {};
     const userId = (me.employeeId || "").trim();
-    const isAdmin = !!(roles && roles.isAdmin && roles.isAdmin());
 
     const [squads, members, empMap] = await Promise.all([
       api.getRowsByTitle('SQUADS', { force: true }),
@@ -75,11 +68,8 @@
       loadEmployeeMap()
     ]);
 
-    const urlIdLC = norm(urlId);
-    let squad = squads.find(r => norm(r["Squad ID"]) === urlIdLC);
-    if (!squad) {
-      squad = squads.find(r => norm(r["Squad Name"]) === urlIdLC);
-    }
+    const sidLC = norm(urlId);
+    let squad = squads.find(r => norm(r["Squad ID"]) === sidLC) || squads.find(r => norm(r["Squad Name"]) === sidLC);
     if (!squad) {
       layout.setPageTitle?.("Squad: Not Found");
       const el = document.querySelector("#card-core .kv");
@@ -89,12 +79,11 @@
 
     const squadId   = squad["Squad ID"] || urlId;
     const squadName = squad["Squad Name"] || squadId;
+    layout.setPageTitle?.(`Squad: ${squadName}`);
 
     const active = (String(squad["Active"]||"").toLowerCase() === "true") ? "Active" : "Inactive";
     const category = squad["Category"] || "-";
     const created  = squad["Created Date"] || squad["Created"] || "";
-
-    layout.setPageTitle?.(`Squad: ${squadName}`);
 
     // Leaders from Squad Members (source of truth)
     const leaders = members
@@ -102,9 +91,7 @@
       .map(r => String(r["Employee ID"] || "").trim())
       .filter(Boolean);
 
-    const leaderNames = leaders
-      .map(eid => (empMap[eid] || eid))
-      .filter(Boolean);
+    const leaderNames = leaders.map(eid => (empMap[eid] || eid)).filter(Boolean);
 
     const core = document.querySelector("#card-core .kv");
     if (core) {
@@ -113,7 +100,6 @@
            : leaderNames.length === 2 ? `${leaderNames[0]}, ${leaderNames[1]}`
            : `${leaderNames[0]}, ${leaderNames[1]} +${leaderNames.length - 2} more`)
         : "-";
-
       core.innerHTML = `
         <div><b>Name:</b> ${esc(squadName)}</div>
         <div><b>${leaderNames.length > 1 ? 'Leaders' : 'Leader'}:</b> ${esc(leaderText)}</div>
@@ -130,18 +116,10 @@
     const notes = document.querySelector("#card-notes .kv");
     if (notes) notes.textContent = squad["Notes"] || "-";
 
-    const backBtn = document.getElementById("btn-back");
-    if (backBtn) backBtn.onclick = (e) => {
-      e.preventDefault();
-      if (history.length > 1) history.back();
-      else location.href = "squads.html";
-    };
-
-    // Add Member permissions (admin OR active leader in this squad)
     const addBtn = document.getElementById("btn-addmember");
     if (addBtn) {
+      // Admins may always add; otherwise, only active leaders of this squad
       let canAdd = isAdmin;
-
       if (!canAdd) {
         const leaderRows = members.filter(r =>
           norm(r["Squad ID"]) === norm(squadId) &&
@@ -150,7 +128,6 @@
         );
         canAdd = leaderRows.some(r => norm(r["Employee ID"]) === norm(userId));
       }
-
       if (canAdd) {
         addBtn.style.display = "inline-flex";
         addBtn.disabled = false;
@@ -168,13 +145,18 @@
       }
     }
 
-    // Render members (show Employee ID column for admins only)
     const showEmpId = isAdmin;
     renderMembers(members, empMap, squadId, showEmpId);
 
     document.addEventListener("squad-member-added", async () => {
       const latest = await api.getRowsByTitle('SQUAD_MEMBERS', { force: true });
       renderMembers(latest, empMap, squadId, showEmpId);
+    });
+
+    document.getElementById("btn-back")?.addEventListener("click", (e) => {
+      e.preventDefault();
+      if (history.length > 1) history.back();
+      else location.href = "squads.html";
     });
   }
 
