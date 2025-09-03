@@ -1,5 +1,4 @@
-<!-- /scripts/squads-cards.js -->
-<script>
+
 (function (PowerUp) {
   const P = PowerUp || (window.PowerUp = {});
   const { SHEETS, getRowsByTitle } = P.api;
@@ -277,4 +276,4 @@
 
   window.PowerUp = P;
 })(window.PowerUp || {});
-</script>
+
