@@ -48,7 +48,7 @@ window.PowerUp = window.PowerUp || {};
     ci: {
       selectId: "ci-filter",
       countId: "ci-count",
-      friendlyHeader: "Status",    // filter column header (friendly)
+      friendlyHeader: "Status",
       options: [
         "All",
         "Not Started",
@@ -127,19 +127,18 @@ window.PowerUp = window.PowerUp || {};
       : `${String(d.getMonth()+1).padStart(2,"0")}/${String(d.getDate()).padStart(2,"0")}/${d.getFullYear()}`;
   };
 
-// ✓ / ✗ for explicit boolean-ish values only
-const boolMark = (v) => {
-  const raw = String(v ?? "").trim().toLowerCase();
-  if (raw === "") return "-";
-  if (v === true || raw === "true" || raw === "yes" || raw === "paid") {
-    return `<span class="pill pill--green" title="Yes">✓</span>`;
-  }
-  if (v === false || raw === "false" || raw === "no") {
-    return `<span class="pill pill--red" title="No">✗</span>`;
-  }
-  // Anything else (including "1"/"0") is shown as text
-  return esc(v);
-};
+  // ✓ / ✗ for explicit boolean-ish values only
+  const boolMark = (v) => {
+    const raw = String(v ?? "").trim().toLowerCase();
+    if (raw === "") return "-";
+    if (v === true || raw === "true" || raw === "yes" || raw === "paid") {
+      return `<span class="pill pill--green" title="Yes">✓</span>`;
+    }
+    if (v === false || raw === "false" || raw === "no") {
+      return `<span class="pill pill--red" title="No">✗</span>`;
+    }
+    return esc(v);
+  };
 
   const statusPill = (v) => {
     if (v == null || String(v).trim() === "") return "-";
@@ -153,43 +152,29 @@ const boolMark = (v) => {
   function format(col, value) {
     const t = String(col || "").toLowerCase();
 
-    // Dates (handles "Submission Date", "Entry Date", etc.)
     if (t.includes("date")) return fmtDate(value);
-
-    // Tokens — ensure only one "$" by stripping any existing symbols first
     if (t.includes("token")) {
       const n = Number(String(value).replace(/[^0-9.\-]/g, ""));
       if (Number.isFinite(n)) return n !== 0 ? `$${n}` : "$0";
       return "-";
     }
+    if (t === "paid" || t === "resourced") return boolMark(value);
+    if (t.includes("status") || t.includes("approval")) return statusPill(value);
 
-    // Paid / Resourced — green ✓ or red ✗
-    if (t === "paid" || t === "resourced") {
-      return boolMark(value);
-    }
-
-    // Status / Approval — use colored pills
-    if (t.includes("status") || t.includes("approval")) {
-      return statusPill(value);
-    }
-
-    // Everything else
     const blank = value == null || String(value).trim() === "";
     return blank ? "-" : esc(value);
   }
 
-  // === Render function with sorting (KEEPING YOUR PATTERN) ===
-  function renderTable(tbody, rows, colMap, tableId) {
+  // === Render with sorting (unchanged) ===
+  function renderTable(tbody, rows, colMap) {
     if (!tbody) return;
     const cols = Object.keys(colMap);
     const friendly = Object.values(colMap);
 
-    // Fill body
     const html = rows.map(r => {
       const tds = cols.map(c => {
         const raw = r[c];
         const val = format(c, raw);
-        // For sorting, also store a normalized value
         let sortVal = (raw ?? "").toString().toLowerCase();
         if (c.toLowerCase().includes("date")) {
           const d = new Date(raw);
@@ -205,59 +190,47 @@ const boolMark = (v) => {
 
     tbody.innerHTML = html || `<tr><td colspan="${cols.length}" style="text-align:center;opacity:.7;">No rows</td></tr>`;
 
-    // Fill header
     const thead = tbody.closest("table")?.querySelector("thead tr");
     if (thead) {
       thead.innerHTML = friendly.map(label => `<th>${label}</th>`).join("");
-      // Bind sorting
       bindHeaderSort(thead, tbody);
     }
   }
 
-  // === Sorting logic (arrows use th[data-sort]="asc|desc") ===
-function bindHeaderSort(thead, tbody) {
-  let state = { col: 0, asc: true };
-
-  // draw header indicators
-  const applyIndicators = () => {
-    thead.querySelectorAll("th").forEach((h, i) => {
-      // default: show neutral arrow on all headers
-      h.setAttribute("data-sort", "none");
-      h.removeAttribute("aria-sort");
-      // active column shows asc/desc
-      if (i === state.col) {
-        h.setAttribute("data-sort", state.asc ? "asc" : "desc");
-        h.setAttribute("aria-sort", state.asc ? "ascending" : "descending"); // a11y
-      }
-    });
-  };
-
-  thead.querySelectorAll("th").forEach((th, idx) => {
-    th.style.cursor = "pointer";
-    th.onclick = () => {
-      state.asc = state.col === idx ? !state.asc : true;
-      state.col = idx;
-
-      const rows = Array.from(tbody.querySelectorAll("tr"));
-      rows.sort((ra, rb) => {
-        const a = ra.children[idx]?.getAttribute("data-sort") ?? "";
-        const b = rb.children[idx]?.getAttribute("data-sort") ?? "";
-        const na = Number(a), nb = Number(b);
-        const bothNum = !isNaN(na) && !isNaN(nb);
-        const cmp = bothNum ? (na - nb) : a.localeCompare(b);
-        return state.asc ? cmp : -cmp;
+  function bindHeaderSort(thead, tbody) {
+    let state = { col: 0, asc: true };
+    const applyIndicators = () => {
+      thead.querySelectorAll("th").forEach((h, i) => {
+        h.setAttribute("data-sort", "none");
+        h.removeAttribute("aria-sort");
+        if (i === state.col) {
+          h.setAttribute("data-sort", state.asc ? "asc" : "desc");
+          h.setAttribute("aria-sort", state.asc ? "ascending" : "descending");
+        }
       });
-
-      rows.forEach(r => tbody.appendChild(r));
-      applyIndicators(); // refresh arrows
     };
-  });
+    thead.querySelectorAll("th").forEach((th, idx) => {
+      th.style.cursor = "pointer";
+      th.onclick = () => {
+        state.asc = state.col === idx ? !state.asc : true;
+        state.col = idx;
+        const rows = Array.from(tbody.querySelectorAll("tr"));
+        rows.sort((ra, rb) => {
+          const a = ra.children[idx]?.getAttribute("data-sort") ?? "";
+          const b = rb.children[idx]?.getAttribute("data-sort") ?? "";
+          const na = Number(a), nb = Number(b);
+          const bothNum = !isNaN(na) && !isNaN(nb);
+          const cmp = bothNum ? (na - nb) : a.localeCompare(b);
+          return state.asc ? cmp : -cmp;
+        });
+        rows.forEach(r => tbody.appendChild(r));
+        applyIndicators();
+      };
+    });
+    applyIndicators();
+  }
 
-  // show neutral arrows immediately on load
-  applyIndicators();
-}
-
-  // === Filtering (operates on rendered rows using friendly header to find the column) ===
+  // === Filtering (client-side UI filters you already had) ===
   function findHeaderIndexByText(tableEl, friendlyHeader) {
     const ths = tableEl?.querySelectorAll('thead th');
     if (!ths) return -1;
@@ -302,7 +275,6 @@ function bindHeaderSort(thead, tbody) {
       const cellText = (tr.children[colIdx]?.textContent || "");
       tr.style.display = cfg.match(cellText, selected) ? "" : "none";
     });
-
     updateCount(cfg.countId, tableEl);
   }
 
@@ -316,17 +288,26 @@ function bindHeaderSort(thead, tbody) {
           selectEl.addEventListener("change", () => applyFilterFor(kind));
         }
       }
-      // run once
       applyFilterFor(kind);
     });
   }
 
-  // === Main hydrate function (RENDERS + WIRE FILTERS + DISPATCH) ===
+  // === Scope helpers ===
+  function scopeRowsForView(allRows) {
+    // Admin scope (All or single employee by name/ID)
+    if (ns.auth?.maybeFilterByEmployee) {
+      const cols = ['Employee ID','Position ID','Display Name','Employee Name','Name','Submitted By'];
+      return ns.auth.maybeFilterByEmployee(allRows, cols);
+    }
+    // Fallback for non-admins: mine only
+    const { employeeId } = ns.session.get();
+    return allRows.filter(r => String(r["Employee ID"] || r["Position ID"] || "").trim() === String(employeeId || "").trim());
+  }
+
+  // === Main hydrate ===
   ns.tables = ns.tables || {};
   ns.tables.hydrateDashboardTables = async function () {
     console.log("[tables] Hydrating dashboard tables…");
-
-    const { employeeId } = ns.session.get();
 
     const [ciSheet, safetySheet, qualitySheet] = await Promise.all([
       fetchSheet(SHEETS.CI),
@@ -334,18 +315,19 @@ function bindHeaderSort(thead, tbody) {
       fetchSheet(SHEETS.QUALITY)
     ]);
 
-    const filterMine = (rows) =>
-      rows.filter(r => r["Employee ID"] === employeeId || r["Position ID"] === employeeId);
+    const ciRowsAll      = rowsByTitle(ciSheet);
+    const safetyRowsAll  = rowsByTitle(safetySheet);
+    const qualityRowsAll = rowsByTitle(qualitySheet);
 
-    const ciRows = filterMine(rowsByTitle(ciSheet));
-    const safetyRows = filterMine(rowsByTitle(safetySheet));
-    const qualityRows = filterMine(rowsByTitle(qualitySheet));
+    const ciRows      = scopeRowsForView(ciRowsAll);
+    const safetyRows  = scopeRowsForView(safetyRowsAll);
+    const qualityRows = scopeRowsForView(qualityRowsAll);
 
-    renderTable(document.querySelector('[data-hook="table.ci.tbody"]'), ciRows, COL_MAP.ci, "ci-table");
-    renderTable(document.querySelector('[data-hook="table.safety.tbody"]'), safetyRows, COL_MAP.safety, "safety-table");
-    renderTable(document.querySelector('[data-hook="table.quality.tbody"]'), qualityRows, COL_MAP.quality, "quality-table");
+    renderTable(document.querySelector('[data-hook="table.ci.tbody"]'), ciRows, COL_MAP.ci);
+    renderTable(document.querySelector('[data-hook="table.safety.tbody"]'), safetyRows, COL_MAP.safety);
+    renderTable(document.querySelector('[data-hook="table.quality.tbody"]'), qualityRows, COL_MAP.quality);
 
-    // Initial counts before filters
+    // Initial counts before UI filters
     const setCount = (id, n) => {
       const el = document.getElementById(id);
       if (el) el.textContent = `${n} submission${n === 1 ? "" : "s"}`;
@@ -357,11 +339,17 @@ function bindHeaderSort(thead, tbody) {
     // Wire the dropdowns and apply filters once
     wireFilters();
 
-    // Let the page know data is ready (your HTML listens for this)
+    // Let the page know data is ready
     document.dispatchEvent(new Event('data-hydrated'));
   };
 
   // Optional: expose filter trigger
   ns.tables.applyFilterFor = applyFilterFor;
+
+  // Re-scope if the admin filter changes
+  document.addEventListener('powerup-admin-filter-change', () => {
+    try { ns.api.clearCache(); } catch {}
+    ns.tables.hydrateDashboardTables();
+  });
 
 })(window.PowerUp);
