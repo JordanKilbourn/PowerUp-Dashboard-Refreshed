@@ -88,19 +88,6 @@
       </div>
     </div>
 
-    <!-- compact metrics strip -->
-    <div class="card" style="margin:0 0 10px;">
-      <div class="metrics">
-        <div><span class="label">Sessions:</span> <span class="value" id="m-sessions">0</span></div>
-        <div><span class="label">Hours:</span> <span class="value" id="m-hours">0.00</span></div>
-        <div>
-          <span class="label">Upcoming scheduled:</span>
-          <span class="value" id="m-sched">0</span> /
-          <span class="value" id="m-sched-hours">0.00</span> h
-        </div>
-      </div>
-    </div>
-
     <!-- Sessions table (Employee column appears for admins) -->
     <div class="card table-card">
       <div class="table-scroll">
@@ -124,49 +111,76 @@
   <script src="scripts/roles.js"></script>
   <script src="scripts/layout.js"></script>
 
-  <!-- Progress card logic (now supports employeeIdOverride) -->
+  <!-- Use the SAME progress-card logic as dashboard (for signed-in user) -->
   <script src="scripts/progress.js"></script>
 
- <script>
-  (function(){
-    const IS_ADMIN = !!(window.PowerUp?.auth?.isAdmin && PowerUp.auth.isAdmin());
-    const COLS = { /* … unchanged … */ };
+  <script>
+    (function(){
+      const IS_ADMIN = !!(window.PowerUp?.auth?.isAdmin && PowerUp.auth.isAdmin());
 
-    const pick = (row, list, d='') => { for (const k of list) if (row[k]!=null && row[k]!=='' ) return row[k]; return d; };
-    const isTrue = (v) => v === true || /^(true|yes|y|checked)$/i.test(String(v ?? "").trim());
-    const toNum  = PowerUp.api.toNumber;
-    const fmt    = (v) => (v==null || String(v).trim()==='') ? '-' : String(v);
+      // ----- column aliases -----
+      const COLS = {
+        employeeId: ['Employee ID','Position ID'],
+        employeeName: ['Submitted By','Employee Name','Name','Display Name'],
+        date: ['Date','Session Date','Power Hour Date'],
+        start: ['Start Time','Start'],
+        end: ['End Time','End'],
+        completedHours: ['Completed Hours','Hours','Duration (h)','Duration (hrs)'],
+        durationPlanned: ['Duration (hrs)','Duration (h)','Duration','Planned Hours','Scheduled Hours'],
+        scheduled: ['Scheduled','Is Scheduled?','Planned'],
+        completed: ['Completed','Is Completed?','Done'],
+        topic: ['Activity Description','Activity','Topic','Description','Notes']
+      };
 
-    function parseDateLocal(s){ /* … unchanged … */ }
+      // ----- helpers -----
+      const pick = (row, list, d='') => { for (const k of list) if (row[k]!=null && row[k]!=='' ) return row[k]; return d; };
+      const isTrue = (v) => v === true || /^(true|yes|y|checked|1)$/i.test(String(v ?? "").trim());
+      const toNum  = (v) => window.PowerUp?.api?.toNumber ? PowerUp.api.toNumber(v) : (Number(String(v).replace(/[^0-9.\-]/g,''))||0);
+      const fmt    = (v) => (v==null || String(v).trim()==='') ? '-' : String(v);
 
-    const state = { all: [], view: [], nameById: new Map(), target: null };
-
-    // >>> change: return null for ALL Employees (admin)
-    async function resolveTargetEmployee(){
-      const me = PowerUp.session.get() || {};
-      if (!IS_ADMIN) return { id: String(me.employeeId||'').trim(), name: String(me.displayName||'').trim() };
-      const selName = (sessionStorage.getItem('pu.adminEmployeeFilter') || '').trim();
-      if (!selName || selName === '__ALL__') return null; // ALL => show everyone
-      try {
-        const em = await PowerUp.api.getRowsByTitle(PowerUp.api.SHEETS.EMPLOYEE_MASTER);
-        const norm = (s) => String(s||'').trim().toLowerCase();
-        const row = em.find(r => norm(r['Display Name']||r['Employee Name']||r['Name']) === norm(selName));
-        const id = row ? String(row['Position ID'] || row['Employee ID'] || '').trim() : '';
-        return { id, name: selName };
-      } catch {
-        return { id: String(me.employeeId||'').trim(), name: String(me.displayName||'').trim() };
+      function parseDateLocal(s){
+        if (s==null || s==='') return null;
+        const t = String(s).trim();
+        let m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+        if (m) return new Date(+m[1], +m[2]-1, +m[3]);
+        m = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/);
+        if (m){ let y=+m[3]; if (y<100) y+=2000; return new Date(y, +m[1]-1, +m[2]); }
+        const d = new Date(t);
+        return isNaN(d) ? null : d;
       }
-    }
 
-    function byTarget(row, target) {
-      if (!target) return true; // <<< ALL employees
-      const id = String(pick(row, COLS.employeeId, '')).trim().toLowerCase();
-      const name = String(pick(row, COLS.employeeName, '')).trim().toLowerCase();
-      const tgtId = String(target.id||'').trim().toLowerCase();
-      const tgtName = String(target.name||'').trim().toLowerCase();
-      return (tgtId && id === tgtId) || (tgtName && name === tgtName);
-    }
-    
+      const state = { all: [], view: [], nameById: new Map(), target: null };
+
+      // Resolve the *target employee* (admin selection or current user)
+      async function resolveTargetEmployee(){
+        const me = PowerUp.session.get() || {};
+        if (!IS_ADMIN) return { id: String(me.employeeId||'').trim(), name: String(me.displayName||'').trim() };
+
+        // Admin: read selected display name from sessionStorage
+        const selName = (sessionStorage.getItem('pu.adminEmployeeFilter') || '').trim();
+        if (!selName || selName === '__ALL__') return null; // ALL => show everyone
+
+        try {
+          const em = await PowerUp.api.getRowsByTitle(PowerUp.api.SHEETS.EMPLOYEE_MASTER);
+          const norm = (s) => String(s||'').trim().toLowerCase();
+          const row = em.find(r => norm(r['Display Name']||r['Employee Name']||r['Name']) === norm(selName));
+          const id = row ? String(row['Position ID'] || row['Employee ID'] || '').trim() : '';
+          return { id, name: selName };
+        } catch (e) {
+          console.error('[Power Hours] Failed to resolve admin target; falling back to current user.', e);
+          return { id: String(me.employeeId||'').trim(), name: String(me.displayName||'').trim() };
+        }
+      }
+
+      function byTarget(row, target) {
+        if (!target) return true; // ALL employees
+        const id = String(pick(row, COLS.employeeId, '')).trim().toLowerCase();
+        const name = String(pick(row, COLS.employeeName, '')).trim().toLowerCase();
+        const tgtId = String(target.id||'').trim().toLowerCase();
+        const tgtName = String(target.name||'').trim().toLowerCase();
+        return (tgtId && id === tgtId) || (tgtName && name === tgtName);
+      }
+
       // ---------- ranges ----------
       function firstOfMonth(y, m){ return new Date(y, m, 1); }
       function lastOfMonth(y, m){ return new Date(y, m+1, 0, 23,59,59,999); }
@@ -211,36 +225,32 @@
 
       function renderTable() {
         const tb = document.getElementById('rows');
+
         if (!state.view.length) {
           tb.innerHTML = `<tr><td colspan="${IS_ADMIN?8:7}" class="muted" style="text-align:center;padding:20px;">No rows</td></tr>`;
-          document.getElementById('m-hours').textContent = '0.00';
-          document.getElementById('m-sessions').textContent = '0';
-          document.getElementById('m-sched').textContent = '0';
-          document.getElementById('m-sched-hours').textContent = '0.00';
-          return;
+        } else {
+          tb.innerHTML = state.view.map(r => {
+            const empId  = String(pick(r, COLS.employeeId, '')).trim();
+            const empNm  = state.nameById.get(empId.toLowerCase()) || pick(r, COLS.employeeName, '') || empId || '-';
+            const dt  = fmt(pick(r, COLS.date));
+            const st  = fmt(pick(r, COLS.start));
+            const en  = fmt(pick(r, COLS.end));
+            const hrs = toNum(pick(r, COLS.completedHours, 0)).toFixed(2);
+            const sch = isTrue(pick(r, COLS.scheduled)) ? `<span class="pill pill--blue">Scheduled</span>` : '-';
+            const cmp = isTrue(pick(r, COLS.completed)) ? `<span class="pill pill--green">Completed</span>` : '-';
+            const tp  = fmt(pick(r, COLS.topic));
+            return `<tr>
+              ${IS_ADMIN ? `<td>${empNm}</td>` : ``}
+              <td>${dt}</td>
+              <td>${st}</td>
+              <td>${en}</td>
+              <td class="t-right mono">${hrs}</td>
+              <td class="t-center">${sch}</td>
+              <td class="t-center">${cmp}</td>
+              <td class="wrap">${tp}</td>
+            </tr>`;
+          }).join('');
         }
-
-        tb.innerHTML = state.view.map(r => {
-          const empId  = String(pick(r, COLS.employeeId, '')).trim();
-          const empNm  = state.nameById.get(empId.toLowerCase()) || pick(r, COLS.employeeName, '') || empId || '-';
-          const dt  = fmt(pick(r, COLS.date));
-          const st  = fmt(pick(r, COLS.start));
-          const en  = fmt(pick(r, COLS.end));
-          const hrs = toNum(pick(r, COLS.completedHours, 0)).toFixed(2);
-          const sch = isTrue(pick(r, COLS.scheduled)) ? `<span class="pill pill--blue">Scheduled</span>` : '-';
-          const cmp = isTrue(pick(r, COLS.completed)) ? `<span class="pill pill--green">Completed</span>` : '-';
-          const tp  = fmt(pick(r, COLS.topic));
-          return `<tr>
-            ${IS_ADMIN ? `<td>${empNm}</td>` : ``}
-            <td>${dt}</td>
-            <td>${st}</td>
-            <td>${en}</td>
-            <td class="t-right mono">${hrs}</td>
-            <td class="t-center">${sch}</td>
-            <td class="t-center">${cmp}</td>
-            <td class="wrap">${tp}</td>
-          </tr>`;
-        }).join('');
 
         // metrics
         const totalHrs = state.view.reduce((a,r)=> a + toNum(pick(r, COLS.completedHours, 0)), 0);
@@ -265,7 +275,8 @@
       }
 
       function applyRange() {
-        const range = document.getElementById('range').value;
+        const sel = document.getElementById('range');
+        const range = sel ? sel.value : 'this-month';
         state.view = state.all.filter(r => byTarget(r, state.target) && withinRange(r, range));
         renderTable();
       }
@@ -279,21 +290,42 @@
             const nm = String(r['Display Name'] || r['Employee Name'] || r['Name'] || '').trim();
             if (id) state.nameById.set(id.toLowerCase(), nm);
           });
-        } catch {}
+        } catch (e) {
+          console.warn('[Power Hours] Employee Master not available; employee names will fall back to IDs.', e);
+        }
+      }
+
+      async function loadRowsSafe() {
+        try {
+          // Be maximally compatible with your API helpers
+          if (PowerUp.api.getRowsByTitle) {
+            return await PowerUp.api.getRowsByTitle(PowerUp.api.SHEETS.POWER_HOURS);
+          }
+          const sheet = await PowerUp.api.fetchSheet(PowerUp.api.SHEETS.POWER_HOURS);
+          return PowerUp.api.rowsByTitle(sheet);
+        } catch (e) {
+          console.error('[Power Hours] Failed to load Power Hours sheet.', e);
+          return [];
+        }
       }
 
       async function loadTableAndProgress() {
-        state.target = await resolveTargetEmployee();
-        buildHead();
-        await loadNames();
+        try {
+          state.target = await resolveTargetEmployee();
+          buildHead();
+          await loadNames();
 
-        const rows = await PowerUp.api.getRowsByTitle(PowerUp.api.SHEETS.POWER_HOURS);
-        state.all = rows;
+          state.all = await loadRowsSafe();
+          applyRange();
 
-        applyRange();
-
-        // 🔹 Render the progress card for the *target employee* (admin-aware)
-        await PowerUp.renderDashboardPowerHours({ employeeIdOverride: state.target.id });
+          // hydrate the progress card using the SAME logic as the dashboard (signed-in user)
+          await PowerUp.renderDashboardPowerHours();
+        } catch (e) {
+          console.error('[Power Hours] Unhandled error in loadTableAndProgress:', e);
+          // Ensure UI doesn't stay stuck on "Loading…"
+          document.getElementById('rows').innerHTML =
+            `<tr><td colspan="${IS_ADMIN?8:7}" class="muted" style="text-align:center;padding:20px;">No rows</td></tr>`;
+        }
       }
 
       function bindControls() {
@@ -302,24 +334,30 @@
 
         // Re-apply instantly when the admin changes the selected employee
         document.addEventListener('powerup-admin-filter-change', async () => {
-          state.target = await resolveTargetEmployee();
-          applyRange();
-
-          // 🔹 Also refresh the progress card for the new target
-          await PowerUp.renderDashboardPowerHours({ employeeIdOverride: state.target.id });
+          try {
+            state.target = await resolveTargetEmployee();
+            applyRange();
+          } catch (e) {
+            console.error('[Power Hours] error applying admin filter change', e);
+          }
         });
       }
 
       document.addEventListener('DOMContentLoaded', async () => {
-        PowerUp.session.requireLogin();
-        PowerUp.layout.injectLayout();
-        PowerUp.layout.setPageTitle('Power Hours');
-        await PowerUp.session.initHeader();
-        await loadTableAndProgress();
-        bindControls();
+        try {
+          PowerUp.session.requireLogin();
+          PowerUp.layout.injectLayout();
+          PowerUp.layout.setPageTitle('Power Hours');
+          await PowerUp.session.initHeader();
+          await loadTableAndProgress();
+          bindControls();
+        } catch (e) {
+          console.error('[Power Hours] boot error:', e);
+          document.getElementById('rows').innerHTML =
+            `<tr><td colspan="${IS_ADMIN?8:7}" class="muted" style="text-align:center;padding:20px;">No rows</td></tr>`;
+        }
       });
     })();
   </script>
 </body>
 </html>
-
