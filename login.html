@@ -90,6 +90,13 @@
   <div id="idLookupModal" class="modal" aria-hidden="true" aria-labelledby="idLookupTitle" role="dialog">
     <div class="modal-card">
       <h3 id="idLookupTitle">Find your Employee ID</h3>
+
+      <!-- Inline loading indicator for the modal (shown while names load) -->
+      <div id="lookupLoading" class="small" style="display:none;align-items:center;gap:8px">
+        <div class="spinner" style="width:18px;height:18px;border-width:2px"></div>
+        <span>Loading employees…</span>
+      </div>
+
       <p class="small">Choose your name, then confirm your hire date. If it matches our records, we’ll reveal your Employee ID.</p>
       <div class="modal-row">
         <div class="field" style="flex:1.6">
@@ -124,7 +131,7 @@
     try { sessionStorage.removeItem('pu.sheetCache.v1'); } catch {}
     try { localStorage.removeItem('powerup_session'); } catch {}
 
-    // 🔹 Non-blocking proxy warm-up (health ping, 6s cap)
+    // 🔹 Non-blocking proxy warm-up (health ping, 6s cap) + silent prefetch of Employee Master
     (async function warmupProxy(){
       try {
         const PROXY = (window.PowerUp && PowerUp.api && PowerUp.api.API_BASE) || 'https://powerup-proxy.onrender.com';
@@ -135,6 +142,9 @@
       } catch (e) {
         console.debug('Proxy warmup skipped:', e && e.name ? e.name : e);
       }
+
+      // Background-preload of employee rows so the modal opens populated
+      try { await ensureEmployeeRows(); } catch {}
     })();
 
     const empInput   = $('#empId');
@@ -151,6 +161,7 @@
     const resBox     = $('#lookupResult');
     const btnCheck   = $('#lookupCheck');
     const btnClose   = $('#lookupCancel');
+    const lookupLoading = document.getElementById('lookupLoading'); // NEW
 
     let coldHintTimer = null;
     let EMP_ROWS = []; // cached Employee Master rows
@@ -178,6 +189,12 @@
     function showError(msg) {
       errBox.textContent = msg;
       errBox.style.display = 'block';
+    }
+
+    // Lookup loading toggle
+    function showLookupLoading(on) {
+      if (lookupLoading) lookupLoading.style.display = on ? 'flex' : 'none';
+      selName.disabled = !!on;
     }
 
     // Mirror whatever session object exists to a canonical key the guards accept
@@ -221,32 +238,40 @@
       if (isNaN(d)) return '';
       return d.toISOString().slice(0,10);
     }
-    function openLookup() {
+    function openLookup({ loading = false } = {}) {
       resBox.style.display = 'none';
       resBox.className = 'result';
       inpHire.value = '';
       modal.setAttribute('aria-hidden','false');
       modal.style.display = 'flex';
+      showLookupLoading(loading); // show/hide spinner
     }
     function closeLookup() {
       modal.setAttribute('aria-hidden','true');
       modal.style.display = 'none';
     }
+
     async function ensureEmployeeRows() {
       if (EMP_ROWS.length) return;
-      const rs = await PowerUp.api.getRowsByTitle('EMPLOYEE_MASTER');
-      EMP_ROWS = rs.filter(r => (r['Display Name'] || r['Employee Name'] || r['Name']) && (r['Position ID'] || r['Employee ID']));
-      const opts = ['<option value="">Select your name…</option>'].concat(
-        EMP_ROWS
-          .map(r => ({
-            id: (r['Position ID'] || r['Employee ID']).toString().trim(),
-            name: (r['Display Name'] || r['Employee Name'] || r['Name']).toString().trim(),
-          }))
-          .sort((a,b) => a.name.localeCompare(b.name))
-          .map(o => `<option value="${o.id}">${o.name}</option>`)
-      );
-      selName.innerHTML = opts.join('');
+      try {
+        showLookupLoading(true);
+        const rs = await PowerUp.api.getRowsByTitle('EMPLOYEE_MASTER');
+        EMP_ROWS = rs.filter(r => (r['Display Name'] || r['Employee Name'] || r['Name']) && (r['Position ID'] || r['Employee ID']));
+        const opts = ['<option value="">Select your name…</option>'].concat(
+          EMP_ROWS
+            .map(r => ({
+              id: (r['Position ID'] || r['Employee ID']).toString().trim(),
+              name: (r['Display Name'] || r['Employee Name'] || r['Name']).toString().trim(),
+            }))
+            .sort((a,b) => a.name.localeCompare(b.name))
+            .map(o => `<option value="${o.id}">${o.name}</option>`)
+        );
+        selName.innerHTML = opts.join('');
+      } finally {
+        showLookupLoading(false);
+      }
     }
+
     function showLookupResult(ok, html) {
       resBox.className = 'result ' + (ok ? 'ok' : 'err');
       resBox.innerHTML = html;
@@ -257,19 +282,25 @@
       return EMP_ROWS.find(r => String(r['Position ID'] || r['Employee ID']).trim().toLowerCase() === idLC);
     }
 
+    // Open modal immediately, populate in background
     btnHelp.addEventListener('click', async () => {
       try {
+        openLookup({ loading: true });
+        btnHelp.disabled = true;
         await ensureEmployeeRows();
-        openLookup();
+        showLookupLoading(false);
       } catch {
+        showLookupLoading(false);
         alert("We couldn't load the employee list. Please try again or contact support.");
+      } finally {
+        btnHelp.disabled = false;
       }
     });
 
     btnCheck.addEventListener('click', () => {
       const id = selName.value;
       const row = findRowById(id);
-      const picked = inpHire.value;         // yyyy-mm-dd
+      const picked = inpHire.value; // yyyy-mm-dd
       if (!row || !picked) {
         showLookupResult(false, 'Please choose your name and enter your hire date.');
         return;
