@@ -1,4 +1,3 @@
-<!-- /scripts/layout.js -->
 
 (function (PowerUp) {
   const P = PowerUp || (PowerUp = {});
