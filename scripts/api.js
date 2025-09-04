@@ -3,7 +3,7 @@
   const P = PowerUp || (PowerUp = {});
   const API_BASE = "https://powerup-proxy.onrender.com";
 
-  // ✅ Smartsheet IDs (unchanged)
+  // ✅ Smartsheet IDs
   const SHEETS = {
     EMPLOYEE_MASTER: "2195459817820036",
     POWER_HOUR_GOALS: "3542697273937796",
@@ -17,9 +17,9 @@
   };
 
   // ---------- caches ----------
-  const _rawCache  = new Map();  // id -> raw sheet json (in-memory)
-  const _inflight  = new Map();  // id -> Promise (dedupe concurrent)
-  const _rowsCache = new Map();  // id -> [{title:value,...}] (in-memory)
+  const _rawCache  = new Map();  // id -> raw sheet json
+  const _inflight  = new Map();  // id -> Promise
+  const _rowsCache = new Map();  // id -> array of row objects
 
   // ---- persistent (session) cache with TTL ----
   const STORE_KEY    = "pu.sheetCache.v1";
@@ -58,9 +58,9 @@
     });
   }
 
-  // ---- robust fetch with timeout + retry/backoff (ADD) ----
+  // ---- robust fetch with timeout + retry/backoff ----
   const API_RETRY_LIMIT = 2;          // total attempts = 1 + retries
-  const API_TIMEOUT_MS  = 30000;      // 15s per request
+  const API_TIMEOUT_MS  = 30000;      // 30s per request
   const API_BACKOFF_MS  = 600;        // base backoff; jitter added
 
   function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
@@ -71,7 +71,6 @@
     });
   }
 
-  // single-attempt fetch (kept for parity with your previous logic)
   async function fetchJSON(url, init) {
     const res = await withTimeout(fetch(url, { credentials: "omit", cache: "no-store", ...(init||{}) }), API_TIMEOUT_MS);
     if (!res.ok) {
@@ -85,7 +84,6 @@
     try { return JSON.parse(text); } catch { return text; }
   }
 
-  // retry wrapper for transient failures (NEW)
   async function fetchJSONRetry(url, init) {
     let attempt = 0;
     while (true) {
@@ -123,7 +121,6 @@
     }
 
     const p = (async () => {
-      // CHANGED: use retry wrapper
       const json = await fetchJSONRetry(`${API_BASE}/sheet/${id}`);
       _rawCache.set(id, json);
       const store = loadStore();
@@ -163,18 +160,12 @@
     return Number.isFinite(n) ? n : 0;
   }
 
-  // ---------- WRITE: add rows (client maps titles → columnId) ----------
-  /**
-   * addRows('SHEET_KEY_OR_ID', [
-   *   { "Squad ID": "SQ-001", "Employee ID": "IX7992604", "Role": "Member", "Active": true, "Start Date": "2025-08-28" }
-   * ])
-   */
+  // ---------- WRITE: add rows ----------
   async function addRows(sheetIdOrKey, titleRows, { toTop = true } = {}) {
     const id = resolveSheetId(sheetIdOrKey);
     assertValidId(id, `addRows(${String(sheetIdOrKey)})`);
     if (!Array.isArray(titleRows) || !titleRows.length) throw new Error("addRows: 'titleRows' must be a non-empty array");
 
-    // Get column metadata (includes column formula info)
     let columns;
     try {
       columns = await fetchJSONRetry(`${API_BASE}/sheet/${id}/columns`);
@@ -187,7 +178,7 @@
     const titleToCol = {};
     (columns || []).forEach(c => {
       const k = String(c.title).replace(/\s+/g, " ").trim().toLowerCase();
-      titleToCol[k] = c; // keep full column (id, type, formula, systemColumnType, etc)
+      titleToCol[k] = c;
     });
 
     const isFormulaCol = (col) => !!(col && (col.formula || col.systemColumnType));
@@ -196,7 +187,6 @@
       const t = String(title).toLowerCase();
       let v = value;
 
-      // date columns → YYYY-MM-DD
       if (t.includes("date") || (col && String(col.type).toUpperCase() === "DATE")) {
         if (v instanceof Date) v = v.toISOString().slice(0, 10);
         else if (typeof v === "string" && !/^\d{4}-\d{2}-\d{2}$/.test(v)) {
@@ -204,8 +194,6 @@
           if (!isNaN(d)) v = d.toISOString().slice(0, 10);
         }
       }
-
-      // checkbox → boolean
       if (typeof v === "string" && (t.includes("active") || t.includes("checkbox") || (col && String(col.type).toUpperCase() === "CHECKBOX"))) {
         const s = v.trim().toLowerCase();
         if (["true","yes","1","y","on"].includes(s)) v = true;
@@ -233,9 +221,6 @@
     }
 
     const payload = { rows: nonEmpty };
-    console.debug("[addRows] payload", { sheetId: id, payload });
-
-    // CHANGED: use retry wrapper
     return fetchJSONRetry(`${API_BASE}/sheet/${id}/rows`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -243,7 +228,6 @@
     });
   }
 
-  // ---------- export ----------
   P.api = {
     API_BASE,
     SHEETS,
