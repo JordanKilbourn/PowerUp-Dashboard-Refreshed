@@ -1,4 +1,4 @@
-// scripts/session.js  (stay-on-login flow; redirect handled by login.html)
+// scripts/session.js  (stay-on-login, admin-safe, primes before redirect)
 (function (PowerUp) {
   const P = PowerUp || (window.PowerUp = {});
   const SKEY = 'pu.session';
@@ -30,9 +30,8 @@
       ], '') || 'Level Unknown'
     );
   }
-
   async function findEmployeeRowById(id) {
-    const rows = await P.api.getRowsByTitle(P.api.SHEETS.EMPLOYEE_MASTER, { force: true });
+    const rows = await P.api.getRowsByTitle(P.api.SHEETS.EMPLOYEE_MASTER);
     const idLC = String(id || '').trim().toLowerCase();
     return rows.find(r => {
       const pid = String(r['Position ID'] ?? '').trim().toLowerCase();
@@ -41,11 +40,13 @@
     }) || null;
   }
 
-  // Robust admin check (works even before header is ready)
+  // Robust admin check that does NOT depend on session being set yet
   function isAdminId(rawId) {
     try {
       const id = String(rawId || '').trim().toUpperCase();
-      if (P.auth?.ADMIN_IDS && typeof P.auth.ADMIN_IDS.has === 'function') return !!id && P.auth.ADMIN_IDS.has(id);
+      if (P.auth?.ADMIN_IDS && typeof P.auth.ADMIN_IDS.has === 'function') {
+        return !!id && P.auth.ADMIN_IDS.has(id);
+      }
     } catch {}
     try { return !!(P.auth?.isAdmin && P.auth.isAdmin()); } catch {}
     return false;
@@ -60,28 +61,45 @@
     }
   }
 
-  /**
-   * Login with an ID. Looks up Employee Master, writes session, and RETURNS the matched row.
-   * IMPORTANT: It does NOT redirect. The caller (login.html) decides when to navigate.
-   */
-  async function loginWithId(inputId) {
+  // Mirror minimal session for legacy guards in localStorage (your early guard reads this)
+  function mirrorCanonicalSession() {
+    try {
+      const s = get();
+      if (!s.employeeId) return;
+      const canonical = { employeeId: String(s.employeeId), displayName: String(s.displayName || '') };
+      localStorage.setItem('powerup_session', JSON.stringify(canonical));
+    } catch {}
+  }
+
+  // ---- login (STAYS on login page until session saved AND data is primed) ----
+  async function loginWithId(inputId, { primeBeforeRedirect = true } = {}) {
     const id = String(inputId || '').trim();
     if (!id) throw new Error('Please enter your Position ID or Employee ID.');
 
+    // 1) Find employee
     const row = await findEmployeeRowById(id);
     if (!row) throw new Error('ID not found. Double-check your Position ID or Employee ID.');
 
-    const displayName = pick(row, ['Display Name','Employee Name','Name'], id);
-
+    // 2) Build session
+    const displayName = pick(row, ['Display Name', 'Employee Name', 'Name'], id);
     let level = resolveLevel(row);
-    if (isAdminId(id)) level = 'Admin';
+    if (isAdminId(id)) level = 'Admin'; // hard override if admin
 
     set({ employeeId: id, displayName, level, levelText: level });
+    mirrorCanonicalSession(); // keep early guards happy
 
-    return row; // caller may want extra bits (e.g., hire date) if needed
+    // 3) Optional: prime key sheets so the dashboard isn't empty on first paint
+    if (primeBeforeRedirect && P.api?.prefetchEssential) {
+      try { await P.api.prefetchEssential(); } catch (e) { console.debug('prefetch skipped:', e); }
+    }
+
+    // 4) Redirect
+    const dest = sessionStorage.getItem('pu.postLoginRedirect') || 'Dashboard-Refresh.html';
+    sessionStorage.removeItem('pu.postLoginRedirect');
+    location.href = dest;
   }
 
-  // ---- header hydration ----
+  // ---- header hydration (name/level + logout) ----
   async function initHeader() {
     const s = get();
 
@@ -100,7 +118,7 @@
       }
     }
 
-    // Enforce Admin label if this session’s ID is an admin
+    // ALWAYS enforce Admin label if this session’s ID is an admin
     try {
       if (isAdminId(s.employeeId) && s.level !== 'Admin') {
         s.level = 'Admin';
@@ -112,7 +130,7 @@
     // Fill header placeholders if present
     const $name = document.querySelector('[data-hook="userName"]');
     const $level = document.querySelector('[data-hook="userLevel"]');
-    if ($name)  $name.textContent  = s.displayName || s.employeeId || 'Unknown User';
+    if ($name) $name.textContent = s.displayName || s.employeeId || 'Unknown User';
     if ($level) $level.textContent = s.level || s.levelText || 'Level Unknown';
 
     // Wire logout
@@ -122,11 +140,16 @@
       $logout.addEventListener('click', logout);
     }
 
+    // Signal to pages that auth/session is ready
     try { document.dispatchEvent(new Event('powerup-auth-ready')); } catch {}
+
+    mirrorCanonicalSession();
   }
 
   function logout() {
     clear();
+    try { sessionStorage.removeItem('pu.sheetCache.v1'); } catch {}
+    try { localStorage.removeItem('powerup_session'); } catch {}
     location.href = 'login.html';
   }
 
