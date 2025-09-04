@@ -2,6 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+
+<!-- EARLY AUTH GUARD — must be the first thing in <head> -->
 <script>
 !function () {
   try {
@@ -17,6 +19,7 @@
   }
 }();
 </script>
+  
   <title>PowerUp — Level Tracker</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
@@ -41,9 +44,11 @@
 <script src="scripts/session.js"></script>
 <script src="scripts/roles.js"></script>
 <script src="scripts/layout.js"></script>
+
 <script>
   const IS_ADMIN = !!(window.PowerUp?.auth?.isAdmin && PowerUp.auth.isAdmin());
 
+  // ---- Desired columns (display header -> sheet column) ----
   const COLS = [
     { label: "Month",   sources: ["Month Key","Month"] },
     ...(IS_ADMIN ? [{ label: "Employee", sources: ["Display Name","Employee Name","Name"] }] : []),
@@ -58,24 +63,75 @@
     { label: "Job Relations Follow-up",   sources: ["Job Relations Follow-up"] }
   ];
 
+  // ==== helpers ====
   const esc = (s) => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
   const isTrueish = (v) => { const t = String(v ?? "").trim().toLowerCase(); return v === true || t === "true" || t === "yes"; };
   const boolPill = (v) => isTrueish(v) ? '<span class="pill pill--green">✓</span>' : '<span class="pill pill--red">✗</span>';
+
+  // sortable header binding (same feel as dashboard)
+  function bindHeaderSort(thead, tbody){
+    let state = { col: 0, asc: true };
+    const applyIndicators = () => {
+      thead.querySelectorAll("th").forEach((h,i)=>{
+        h.setAttribute("data-sort","none");
+        h.removeAttribute("aria-sort");
+        if (i===state.col){
+          h.setAttribute("data-sort", state.asc ? "asc":"desc");
+          h.setAttribute("aria-sort", state.asc ? "ascending":"descending");
+        }
+      });
+    };
+    thead.querySelectorAll("th").forEach((th, idx)=>{
+      th.style.cursor = "pointer";
+      th.onclick = () => {
+        state.asc = state.col === idx ? !state.asc : true;
+        state.col = idx;
+        const rows = Array.from(tbody.querySelectorAll("tr"));
+        rows.sort((ra, rb)=>{
+          const a = ra.children[idx]?.getAttribute("data-sort") ?? "";
+          const b = rb.children[idx]?.getAttribute("data-sort") ?? "";
+          const na = Number(a), nb = Number(b);
+          const bothNum = !isNaN(na) && !isNaN(nb);
+          const cmp = bothNum ? (na - nb) : a.localeCompare(b);
+          return state.asc ? cmp : -cmp;
+        });
+        rows.forEach(r => tbody.appendChild(r));
+        applyIndicators();
+      };
+    });
+    applyIndicators();
+  }
 
   function fmtCell(v){
     const t = String(v ?? "").trim().toLowerCase();
     if (v === true || v === false || t === "true" || t === "false" || t === "yes" || t === "no") return boolPill(v);
     return (v == null || String(v).trim() === "") ? "-" : esc(v);
   }
+
   function fmtMonth(v){
     if (v == null || String(v).trim() === "") return "-";
     const s = String(v).trim();
+
     let m = s.match(/^(\d{4})-(\d{1,2})(?:-(\d{1,2}))?$/);
-    if (m) { const y=+m[1], mo=+m[2], d=+(m[3]||1); const dt=new Date(y,mo-1,d); return dt.toLocaleDateString(undefined,{month:'short',year:'numeric'}); }
+    if (m) {
+      const y = +m[1], mo = +m[2], d = +(m[3] || 1);
+      const dt = new Date(y, mo - 1, d);
+      return dt.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+    }
+
     m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/);
-    if (m) { let y=+m[3]; if (y<100) y+=2000; const dt=new Date(y,+m[1]-1,+m[2]); return dt.toLocaleDateString(undefined,{month:'short',year:'numeric'}); }
+    if (m) {
+      let y = +m[3]; if (y < 100) y += 2000;
+      const mo = +m[1], d = +m[2];
+      const dt = new Date(y, mo - 1, d);
+      return dt.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+    }
+
     const parsed = new Date(s);
-    if (!isNaN(parsed)) { const dt=new Date(parsed.getUTCFullYear(),parsed.getUTCMonth(),1); return dt.toLocaleDateString(undefined,{month:'short',year:'numeric'}); }
+    if (!isNaN(parsed)) {
+      const dt = new Date(parsed.getUTCFullYear(), parsed.getUTCMonth(), 1);
+      return dt.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+    }
     return esc(v);
   }
 
@@ -88,41 +144,23 @@
     return null;
   }
 
-  async function resolveAdminTargetOrAll() {
-    if (!IS_ADMIN) return null; // non-admins handled later
-    const selName = (sessionStorage.getItem('pu.adminEmployeeFilter') || '').trim();
-    if (!selName || selName === '__ALL__') return null; // ALL => null target to show everyone
-    try {
-      const em = await PowerUp.api.getRowsByTitle(PowerUp.api.SHEETS.EMPLOYEE_MASTER);
-      const norm = (s)=>String(s||'').trim().toLowerCase();
-      const row = em.find(r => norm(r['Display Name']||r['Employee Name']||r['Name']) === norm(selName));
-      const id = row ? String(row['Position ID'] || row['Employee ID'] || '').trim() : '';
-      return { id, name: selName };
-    } catch { return null; }
-  }
-
   async function loadLevelTracker(){
-    const me = PowerUp.session.get() || {};
+    PowerUp.session.requireLogin();
+    const { employeeId } = PowerUp.session.get() || {};
+    if (!employeeId){ document.getElementById("lt-tbody").innerHTML = `<tr><td>-</td></tr>`; return; }
+
     const raw  = await PowerUp.api.fetchSheet(PowerUp.api.SHEETS.LEVEL_TRACKER);
     const rows = PowerUp.api.rowsByTitle(raw);
     const sheetCols = (raw.columns || []).map(c => c.title);
     const idCol = chooseIdColumn(sheetCols);
+    if (!rows.length || !idCol){ document.getElementById("lt-tbody").innerHTML = `<tr><td>-</td></tr>`; return; }
 
-    const target = await resolveAdminTargetOrAll();
-
-    let view = rows;
-    if (!IS_ADMIN) {
-      view = rows.filter(r => String(r[idCol]||"").trim() === String(me.employeeId||'').trim());
-    } else if (target) {
-      // Admin selected a specific employee
-      view = rows.filter(r => {
-        const id = String(r["Employee ID"] || r["Position ID"] || "").trim();
-        return id && id.toLowerCase() === String(target.id||'').trim().toLowerCase();
-      });
-    } // else: admin + ALL => no filtering
+    const mine = rows.filter(r => String(r[idCol]||"").trim() === String(employeeId).trim());
+    if (!mine.length){ document.getElementById("lt-tbody").innerHTML = `<tr><td>-</td></tr>`; return; }
 
     const resolved = COLS.map(c => ({ label: c.label, sheet: resolveSheetColumn(c.sources, sheetCols) }));
-    document.getElementById("lt-thead").innerHTML = resolved.map(c => `<th>${c.label}</th>`).join("");
+    const thead = document.getElementById("lt-thead");
+    thead.innerHTML = resolved.map(c => `<th>${c.label}</th>`).join("");
 
     // Build id->name map for admin Employee column fallback
     let nameById = {};
@@ -138,34 +176,49 @@
       } catch {}
     }
 
-    const body = view.length
-      ? view.map(r => `<tr>${
-          resolved.map(c => {
-            let v = c.sheet ? r[c.sheet] : "";
-            if (c.label === "Month") return `<td>${fmtMonth(v)}</td>`;
-            if (c.label === "Employee") {
-              const id = String(r["Employee ID"] || r["Position ID"] || "").trim();
-              const nm = v || nameById[id] || id || "-";
-              return `<td>${fmtCell(nm)}</td>`;
-            }
-            return `<td>${fmtCell(v)}</td>`;
-          }).join("")
-        }</tr>`).join("")
-      : `<tr><td colspan="${resolved.length}" style="opacity:.7;text-align:center;">No rows</td></tr>`;
+    // Render rows with sortable data-sort values
+    const tbody = document.getElementById("lt-tbody");
+    tbody.innerHTML = mine.map(r => {
+      return `<tr>${
+        resolved.map(c => {
+          let v = c.sheet ? r[c.sheet] : "";
+          let sortVal = String(v ?? "").toLowerCase();
 
-    document.getElementById("lt-tbody").innerHTML = body;
-  }
+          if (c.label === "Month") {
+            // use YYYY-MM numeric key if possible
+            const s = String(v||"").trim();
+            let key = s;
+            const d = new Date(s);
+            if (!isNaN(d)) key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+            sortVal = key;
+            return `<td data-sort="${sortVal}">${fmtMonth(v)}</td>`;
+          }
+          if (c.label === "Employee") {
+            const id = String(r["Employee ID"] || r["Position ID"] || "").trim();
+            const nm = v || nameById[id] || id || "-";
+            sortVal = String(nm).toLowerCase();
+            return `<td data-sort="${sortVal}">${fmtCell(nm)}</td>`;
+          }
 
-  function bindAdminLiveRefresh(){
-    document.addEventListener('powerup-admin-filter-change', loadLevelTracker);
+          // numeric-like columns sort numerically
+          const num = Number(String(v).replace(/[^0-9.\-]/g,''));
+          if (!Number.isNaN(num) && String(v).trim() !== "") {
+            sortVal = String(num);
+          }
+          return `<td data-sort="${sortVal}">${fmtCell(v)}</td>`;
+        }).join("")
+      }</tr>`;
+    }).join("");
+
+    bindHeaderSort(thead.parentElement.querySelector('tr'), tbody);
   }
 
   document.addEventListener('DOMContentLoaded', async () => {
     PowerUp.layout.injectLayout();
     await PowerUp.session.initHeader();
     await loadLevelTracker();
-    bindAdminLiveRefresh();
   });
 </script>
+
 </body>
 </html>
