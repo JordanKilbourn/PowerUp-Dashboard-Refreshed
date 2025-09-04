@@ -18,7 +18,7 @@
   // Persisted selection so admins keep the same employee filter across tabs
   const ADMIN_FILTER_KEY = 'pu.adminEmployeeFilter'; // value: display name or "__ALL__"
 
-  function norm(s){ return String(s || "").trim().toLowerCase(); }
+  function norm(s){ return String(s || "").trim(); }
   function pickCol(row, candidates){
     for (const c of candidates) if (Object.prototype.hasOwnProperty.call(row, c)) return c;
     return null;
@@ -35,7 +35,7 @@
       const rows = await P.api.getRowsByTitle('EMPLOYEE_MASTER');
       const col = pickCol(rows[0] || {}, ['Display Name','Employee Name','Name']);
       names = (rows || [])
-        .map(r => String(r[col] || '').trim())
+        .map(r => norm(r[col] || ''))
         .filter(Boolean)
         .sort((a,b) => a.localeCompare(b));
     } catch { /* keep empty, UI still renders */ }
@@ -75,19 +75,8 @@
       document.dispatchEvent(new CustomEvent('powerup-admin-filter-change', { detail:{ value: sel.value }}));
     });
 
-    const clearBtn = document.createElement('button');
-    clearBtn.className = 'btn btn-xs';
-    clearBtn.style.cssText = 'padding:6px 8px;border-radius:8px;border:1px solid #2a354b;background:#111a2f;color:#e5e7eb;cursor:pointer';
-    clearBtn.textContent = 'Clear Filter';
-    clearBtn.addEventListener('click', () => {
-      sel.value = '__ALL__';
-      sessionStorage.setItem(ADMIN_FILTER_KEY, '__ALL__');
-      document.dispatchEvent(new CustomEvent('powerup-admin-filter-change', { detail:{ value: '__ALL__' }}));
-    });
-
     box.appendChild(label);
     box.appendChild(sel);
-    box.appendChild(clearBtn);
   }
 
   // Admin-only: apply employee filter to a rows[] array.
@@ -111,13 +100,14 @@
     try {
       const me = P.session?.get?.();
       const myId = norm((me.employeeId || '').toString().toUpperCase());
-      const rows = await P.api.getRowsByTitle('SQUADS');
-      const idCol = pickCol(rows[0] || {}, ['Leader ID','LeaderId','Leader','Position ID','Employee ID']);
-      if (!idCol) return false;
-      return rows.some(r => norm(String(r[idCol]||'').toUpperCase()) === myId);
-    } catch {
-      return false;
-    }
+      const rows = await P.api.getRowsByTitle('SQUAD_MEMBERS');
+      return rows.some(r => {
+        const rid  = norm((r['Employee ID'] || r['Position ID'] || '').toString().toUpperCase());
+        const role = norm((r['Role'] || r['Member Role'] || '').toString().toLowerCase());
+        const sid  = norm((r['Squad ID'] || r['Squad'] || '').toString());
+        return rid === myId && role.includes('lead') && (!_squadId || sid === norm(String(_squadId)));
+      });
+    } catch { return false; }
   }
 
   P.auth = {
