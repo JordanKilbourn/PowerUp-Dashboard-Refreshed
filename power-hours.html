@@ -31,24 +31,20 @@
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
   <link rel="alternate icon" type="image/png" href="assets/favicon.png">
 
-  <!-- Page-local tweaks to keep this card compact -->
   <style>
     .power-card.power-mini { max-width: 560px; padding: 12px 14px; }
     .power-card.power-mini h3 { font-size: 14px; margin-bottom: 6px; }
     .power-card.power-mini p { font-size: 14px; margin-bottom: 8px; }
     .power-card.power-mini .phbar { height: 12px; }
     .power-card.power-mini .phbar__thumb { width: 12px; height: 12px; }
-
     .metrics { display:flex; gap:18px; flex-wrap:wrap; align-items:center; }
     .metrics .label { color: var(--info); margin-right: 6px; }
     .metrics .value { font-weight: 700; }
   </style>
 </head>
 <body>
-  <!-- layout.js injects sidebar + header; everything below becomes .content -->
   <div class="content-inner" style="padding: 12px 14px 16px;">
 
-    <!-- === PROGRESS CARD (same hooks used in scripts/progress.js) === -->
     <div class="card power-card power-mini" style="margin-bottom: 14px;">
       <h3>Power Hours Logged</h3>
       <p>
@@ -69,7 +65,6 @@
       <small data-hook="ph.message">—</small>
     </div>
 
-    <!-- Header row with Date Range filter -->
     <div class="table-header-row" style="margin: 8px 0 10px;">
       <h3 style="font-size:16px;">Power Hour Sessions</h3>
       <div class="table-header-controls" style="margin-left:auto; gap:8px;">
@@ -88,14 +83,11 @@
       </div>
     </div>
 
-    <!-- Sessions table (Employee column appears for admins) -->
     <div class="card table-card">
       <div class="table-scroll">
         <table id="ph-table" class="dashboard-table">
           <thead>
-          <tr id="ph-head-row">
-            <!-- headers injected by JS to support admin Employee column -->
-          </tr>
+            <tr id="ph-head-row"></tr>
           </thead>
           <tbody id="rows">
             <tr><td class="muted" style="text-align:center;padding:20px;">Loading…</td></tr>
@@ -110,8 +102,6 @@
   <script src="scripts/session.js"></script>
   <script src="scripts/roles.js"></script>
   <script src="scripts/layout.js"></script>
-
-  <!-- Use the SAME progress-card logic as dashboard (for signed-in user) -->
   <script src="scripts/progress.js"></script>
 
   <script>
@@ -149,31 +139,60 @@
         return isNaN(d) ? null : d;
       }
 
+      // sortable header binding
+      function bindHeaderSort(thead, tbody){
+        let state = { col: 0, asc: true };
+        const applyIndicators = () => {
+          thead.querySelectorAll("th").forEach((h,i)=>{
+            h.setAttribute("data-sort","none");
+            h.removeAttribute("aria-sort");
+            if (i===state.col){
+              h.setAttribute("data-sort", state.asc ? "asc":"desc");
+              h.setAttribute("aria-sort", state.asc ? "ascending":"descending");
+            }
+          });
+        };
+        thead.querySelectorAll("th").forEach((th, idx)=>{
+          th.style.cursor = "pointer";
+          th.onclick = () => {
+            state.asc = state.col === idx ? !state.asc : true;
+            state.col = idx;
+            const rows = Array.from(tbody.querySelectorAll("tr"));
+            rows.sort((ra, rb)=>{
+              const a = ra.children[idx]?.getAttribute("data-sort") ?? "";
+              const b = rb.children[idx]?.getAttribute("data-sort") ?? "";
+              const na = Number(a), nb = Number(b);
+              const bothNum = !isNaN(na) && !isNaN(nb);
+              const cmp = bothNum ? (na - nb) : a.localeCompare(b);
+              return state.asc ? cmp : -cmp;
+            });
+            rows.forEach(r => tbody.appendChild(r));
+            applyIndicators();
+          };
+        });
+        applyIndicators();
+      }
+
       const state = { all: [], view: [], nameById: new Map(), target: null };
 
-      // Resolve the *target employee* (admin selection or current user)
       async function resolveTargetEmployee(){
         const me = PowerUp.session.get() || {};
         if (!IS_ADMIN) return { id: String(me.employeeId||'').trim(), name: String(me.displayName||'').trim() };
-
-        // Admin: read selected display name from sessionStorage
         const selName = (sessionStorage.getItem('pu.adminEmployeeFilter') || '').trim();
-        if (!selName || selName === '__ALL__') return null; // ALL => show everyone
-
+        if (!selName || selName === '__ALL__') return null;
         try {
           const em = await PowerUp.api.getRowsByTitle(PowerUp.api.SHEETS.EMPLOYEE_MASTER);
           const norm = (s) => String(s||'').trim().toLowerCase();
           const row = em.find(r => norm(r['Display Name']||r['Employee Name']||r['Name']) === norm(selName));
           const id = row ? String(row['Position ID'] || row['Employee ID'] || '').trim() : '';
           return { id, name: selName };
-        } catch (e) {
-          console.error('[Power Hours] Failed to resolve admin target; falling back to current user.', e);
+        } catch {
           return { id: String(me.employeeId||'').trim(), name: String(me.displayName||'').trim() };
         }
       }
 
       function byTarget(row, target) {
-        if (!target) return true; // ALL employees
+        if (!target) return true;
         const id = String(pick(row, COLS.employeeId, '')).trim().toLowerCase();
         const name = String(pick(row, COLS.employeeName, '')).trim().toLowerCase();
         const tgtId = String(target.id||'').trim().toLowerCase();
@@ -181,7 +200,6 @@
         return (tgtId && id === tgtId) || (tgtName && name === tgtName);
       }
 
-      // ---------- ranges ----------
       function firstOfMonth(y, m){ return new Date(y, m, 1); }
       function lastOfMonth(y, m){ return new Date(y, m+1, 0, 23,59,59,999); }
 
@@ -232,22 +250,27 @@
           tb.innerHTML = state.view.map(r => {
             const empId  = String(pick(r, COLS.employeeId, '')).trim();
             const empNm  = state.nameById.get(empId.toLowerCase()) || pick(r, COLS.employeeName, '') || empId || '-';
-            const dt  = fmt(pick(r, COLS.date));
-            const st  = fmt(pick(r, COLS.start));
-            const en  = fmt(pick(r, COLS.end));
-            const hrs = toNum(pick(r, COLS.completedHours, 0)).toFixed(2);
-            const sch = isTrue(pick(r, COLS.scheduled)) ? `<span class="pill pill--blue">Scheduled</span>` : '-';
-            const cmp = isTrue(pick(r, COLS.completed)) ? `<span class="pill pill--green">Completed</span>` : '-';
-            const tp  = fmt(pick(r, COLS.topic));
+
+            const dStr = String(pick(r, COLS.date) ?? '');
+            const d = parseDateLocal(dStr);
+            const dateSort = d ? String(d.getTime()) : dStr.toLowerCase();
+
+            const st  = String(pick(r, COLS.start) ?? '');
+            const en  = String(pick(r, COLS.end) ?? '');
+            const hrsNum = toNum(pick(r, COLS.completedHours, 0));
+            const isSched = isTrue(pick(r, COLS.scheduled));
+            const isComp  = isTrue(pick(r, COLS.completed));
+            const tp  = String(pick(r, COLS.topic) ?? '');
+
             return `<tr>
-              ${IS_ADMIN ? `<td>${empNm}</td>` : ``}
-              <td>${dt}</td>
-              <td>${st}</td>
-              <td>${en}</td>
-              <td class="t-right mono">${hrs}</td>
-              <td class="t-center">${sch}</td>
-              <td class="t-center">${cmp}</td>
-              <td class="wrap">${tp}</td>
+              ${IS_ADMIN ? `<td data-sort="${empNm.toLowerCase()}">${empNm || '-'}</td>` : ``}
+              <td data-sort="${dateSort}">${d ? `${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}/${d.getFullYear()}` : (dStr||'-')}</td>
+              <td data-sort="${st.toLowerCase()}">${fmt(st)}</td>
+              <td data-sort="${en.toLowerCase()}">${fmt(en)}</td>
+              <td class="t-right mono" data-sort="${hrsNum}">${hrsNum.toFixed(2)}</td>
+              <td class="t-center" data-sort="${isSched ? 1 : 0}">${isSched ? `<span class="pill pill--blue">Scheduled</span>` : '-'}</td>
+              <td class="t-center" data-sort="${isComp ? 1 : 0}">${isComp ? `<span class="pill pill--green">Completed</span>` : '-'}</td>
+              <td class="wrap" data-sort="${tp.toLowerCase()}">${fmt(tp)}</td>
             </tr>`;
           }).join('');
         }
@@ -256,7 +279,6 @@
         const totalHrs = state.view.reduce((a,r)=> a + toNum(pick(r, COLS.completedHours, 0)), 0);
         const sessions = state.view.length;
 
-        // upcoming scheduled from ALL rows (future, scheduled, not completed) — for the target employee only
         const now = new Date();
         const upcoming = state.all.filter(r=>{
           if (!byTarget(r, state.target)) return false;
@@ -272,6 +294,10 @@
         document.getElementById('m-sessions').textContent = sessions;
         document.getElementById('m-sched').textContent = String(upcomingCount);
         document.getElementById('m-sched-hours').textContent = upcomingHours.toFixed(2);
+
+        // wire sorting after rows exist
+        const thead = document.getElementById('ph-head-row');
+        bindHeaderSort(thead, tb);
       }
 
       function applyRange() {
@@ -290,72 +316,46 @@
             const nm = String(r['Display Name'] || r['Employee Name'] || r['Name'] || '').trim();
             if (id) state.nameById.set(id.toLowerCase(), nm);
           });
-        } catch (e) {
-          console.warn('[Power Hours] Employee Master not available; employee names will fall back to IDs.', e);
-        }
+        } catch {}
       }
 
       async function loadRowsSafe() {
         try {
-          // Be maximally compatible with your API helpers
           if (PowerUp.api.getRowsByTitle) {
             return await PowerUp.api.getRowsByTitle(PowerUp.api.SHEETS.POWER_HOURS);
           }
           const sheet = await PowerUp.api.fetchSheet(PowerUp.api.SHEETS.POWER_HOURS);
           return PowerUp.api.rowsByTitle(sheet);
-        } catch (e) {
-          console.error('[Power Hours] Failed to load Power Hours sheet.', e);
+        } catch {
           return [];
         }
       }
 
       async function loadTableAndProgress() {
-        try {
-          state.target = await resolveTargetEmployee();
-          buildHead();
-          await loadNames();
-
-          state.all = await loadRowsSafe();
-          applyRange();
-
-          // hydrate the progress card using the SAME logic as the dashboard (signed-in user)
-          await PowerUp.renderDashboardPowerHours();
-        } catch (e) {
-          console.error('[Power Hours] Unhandled error in loadTableAndProgress:', e);
-          // Ensure UI doesn't stay stuck on "Loading…"
-          document.getElementById('rows').innerHTML =
-            `<tr><td colspan="${IS_ADMIN?8:7}" class="muted" style="text-align:center;padding:20px;">No rows</td></tr>`;
-        }
+        state.target = await resolveTargetEmployee();
+        buildHead();
+        await loadNames();
+        state.all = await loadRowsSafe();
+        applyRange();
+        await PowerUp.renderDashboardPowerHours();
       }
 
       function bindControls() {
         const sel = document.getElementById('range');
         if (sel) sel.addEventListener('change', applyRange);
-
-        // Re-apply instantly when the admin changes the selected employee
         document.addEventListener('powerup-admin-filter-change', async () => {
-          try {
-            state.target = await resolveTargetEmployee();
-            applyRange();
-          } catch (e) {
-            console.error('[Power Hours] error applying admin filter change', e);
-          }
+          state.target = await resolveTargetEmployee();
+          applyRange();
         });
       }
 
       document.addEventListener('DOMContentLoaded', async () => {
-        try {
-          PowerUp.session.requireLogin();
-          PowerUp.layout.injectLayout();
-          PowerUp.layout.setPageTitle('Power Hours');
-          await PowerUp.session.initHeader();
-          await loadTableAndProgress();
-          bindControls();
-        } catch (e) {
-          console.error('[Power Hours] boot error:', e);
-          document.getElementById('rows').innerHTML =
-            `<tr><td colspan="${IS_ADMIN?8:7}" class="muted" style="text-align:center;padding:20px;">No rows</td></tr>`;
-        }
+        PowerUp.session.requireLogin();
+        PowerUp.layout.injectLayout();
+        PowerUp.layout.setPageTitle('Power Hours');
+        await PowerUp.session.initHeader();
+        await loadTableAndProgress();
+        bindControls();
       });
     })();
   </script>
