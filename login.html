@@ -19,21 +19,35 @@
     .muted { color:#94a3b8; font-size:13px; margin-top:2px;}
     .field { margin-top:16px;}
     .field label { display:block; font-size:13px; color:#cbd5e1; margin-bottom:6px;}
-    .field input { width:100%; padding:12px 14px; border-radius:10px; background:#0b1328; border:1px solid #293449; color:#e5e7eb; outline:none;}
+    .field input, .modal select, .modal input[type="date"] { width:100%; padding:12px 14px; border-radius:10px; background:#0b1328; border:1px solid #293449; color:#e5e7eb; outline:none;}
     .field input:focus { border-color:#00ffc6; box-shadow:0 0 0 3px rgba(0,255,198,.15);}
     .actions { margin-top:18px; display:flex; gap:10px; align-items:center;}
     .btn { padding:12px 14px; border-radius:10px; border:1px solid #2a354b; background:#111a2f; color:#e5e7eb; cursor:pointer;}
     .btn.primary { background:#FF6600; border-color:#FF6600; color:#111827; font-weight:700;}
     .btn[disabled] { opacity:.6; cursor:not-allowed; }
     .error { margin-top:14px; color:#fecaca; background:#450a0a; border:1px solid #7f1d1d; padding:10px 12px; border-radius:10px; display:none;}
+    .hint { margin-top:10px; font-size:12px; color:#9ca3af;}
 
-    /* Busy overlay */
+    /* Busy overlay (spinner + helpful text) */
     .busy-overlay{position:fixed;inset:0;display:none;place-items:center;background:rgba(7,10,20,.6);z-index:9999;}
-    .busy-card{background:#0b1020;border:1px solid rgba(0,255,198,.4);border-radius:14px;padding:18px 20px;min-width:300px;box-shadow:0 10px 30px rgba(0,0,0,.35);text-align:center}
+    .busy-card{background:#0b1020;border:1px solid rgba(0,255,198,.4);border-radius:14px;padding:18px 20px;min-width:280px;box-shadow: 0 10px 30px rgba(0,0,0,.35);text-align:center}
     .spinner{width:28px;height:28px;border:3px solid rgba(255,255,255,.2);border-top-color:#00ffc6;border-radius:50%;margin:0 auto 10px;animation:spin .9s linear infinite}
     @keyframes spin{to{transform:rotate(360deg)}}
     .busy-title{color:#e5e7eb;font-weight:700;margin-bottom:4px}
     .busy-sub{color:#9ca3af;font-size:12px}
+
+    /* ID Lookup modal */
+    .modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:9998}
+    .modal[aria-hidden="false"]{display:flex}
+    .modal-card{background:#0b1020;border:1px solid #294957;border-radius:14px;padding:18px;min-width:320px;max-width:560px;width:92%}
+    .modal-card h3{margin:0 0 10px;color:#00ffc6;font-size:18px}
+    .modal-row{display:flex;gap:10px;flex-wrap:wrap}
+    .modal-row .field{flex:1;margin-top:10px}
+    .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+    .small{font-size:12px;color:#9ca3af}
+    .result{margin-top:10px;padding:10px;border-radius:10px;background:#0b1328;border:1px dashed #2a354b;color:#e5e7eb;display:none}
+    .result.ok{border-color:#10b981}
+    .result.err{border-color:#b91c1c}
   </style>
 </head>
 <body>
@@ -52,11 +66,11 @@
 
       <div class="actions">
         <button class="btn primary" id="signin">Sign In</button>
-        <button class="btn" id="help">Where do I find this?</button>
+        <button class="btn" id="help">Retrieve my Employee ID</button>
       </div>
 
       <div id="error" class="error" role="alert" aria-live="polite"></div>
-      <div class="muted" style="margin-top:10px;">We’ll match your ID in Employee Master and preload your dashboard.</div>
+      <div class="hint">We’ll match your ID in Employee Master and personalize your dashboard.</div>
     </div>
   </div>
 
@@ -64,41 +78,108 @@
   <div id="busy" class="busy-overlay" aria-hidden="true" aria-live="polite">
     <div class="busy-card">
       <div class="spinner" aria-hidden="true"></div>
-      <div class="busy-title" id="busyTitle">Signing you in…</div>
-      <div class="busy-sub" id="busySub">Authorizing and warming up your data.</div>
+      <div class="busy-title">Signing you in…</div>
+      <div class="busy-sub" id="busySub">Authorizing and loading your data.</div>
     </div>
   </div>
 
-  <!-- Core libs (no version query strings) -->
+  <!-- ID Lookup modal -->
+  <div id="idLookupModal" class="modal" aria-hidden="true" aria-labelledby="idLookupTitle" role="dialog">
+    <div class="modal-card">
+      <h3 id="idLookupTitle">Find your Employee ID</h3>
+
+      <!-- Inline loading indicator while names load -->
+      <div id="lookupLoading" class="small" style="display:none;align-items:center;gap:8px">
+        <div class="spinner" style="width:18px;height:18px;border-width:2px"></div>
+        <span>Loading employees…</span>
+      </div>
+
+      <p class="small">Choose your name, then confirm your hire date. If it matches our records, we’ll reveal your Employee ID.</p>
+      <div class="modal-row">
+        <div class="field" style="flex:1.6">
+          <label for="lookupName">Name</label>
+          <select id="lookupName">
+            <option value="">Loading…</option>
+          </select>
+        </div>
+        <div class="field" style="flex:1">
+          <label for="lookupHire">Hire Date</label>
+          <input id="lookupHire" type="date" />
+        </div>
+      </div>
+      <div id="lookupResult" class="result"></div>
+      <div class="modal-actions">
+        <button class="btn" id="lookupCancel">Close</button>
+        <button class="btn primary" id="lookupCheck">Reveal ID</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Core libs (no version query; keep consistent across pages) -->
   <script src="scripts/api.js"></script>
   <script src="scripts/session.js"></script>
 
   <script>
   (function () {
     const $ = (s) => document.querySelector(s);
-    const errBox   = $('#error');
-    const empInput = $('#empId');
-    const btnSign  = $('#signin');
 
-    const busy     = $('#busy');
-    const busyTitle= $('#busyTitle');
-    const busySub  = $('#busySub');
-
-    // Clear any stray cached session on the login page itself (belt & suspenders)
+    // ---- Start clean on the login page (belt + suspenders) ----
+    try { window.P && P.api && P.api.clearCache && P.api.clearCache(); } catch {}
     try { sessionStorage.removeItem('pu.sheetCache.v1'); } catch {}
     try { localStorage.removeItem('powerup_session'); } catch {}
 
-    $('#help').addEventListener('click', () => {
-      alert("If you don't know your Employee ID number, ask your supervisor or manager and they can provide it to you.");
-    });
+    // 🔹 Non-blocking proxy warm-up (health ping, 6s cap) + silent prefetch of Employee Master
+    (async function warmupProxy(){
+      try {
+        const PROXY = (window.PowerUp && PowerUp.api && PowerUp.api.API_BASE) || 'https://powerup-proxy.onrender.com';
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 6000);
+        await fetch(`${PROXY}/health`, { mode:'cors', signal: ctrl.signal });
+        clearTimeout(t);
+      } catch (e) {
+        console.debug('Proxy warmup skipped:', e && e.name ? e.name : e);
+      }
+      try { await ensureEmployeeRows(); } catch {}
+    })();
 
-    function setBusy(on, title, sub) {
-      if (title) busyTitle.textContent = title;
-      if (sub)   busySub.textContent = sub;
-      busy.style.display = on ? 'grid' : 'none';
-      busy.setAttribute('aria-hidden', on ? 'false' : 'true');
-      btnSign.disabled = !!on;
-      empInput.disabled = !!on;
+    const empInput   = $('#empId');
+    const btnSignIn  = $('#signin');
+    const btnHelp    = $('#help');
+    const errBox     = $('#error');
+
+    const busy       = $('#busy');
+    const busySub    = $('#busySub');
+
+    const modal      = $('#idLookupModal');
+    const selName    = $('#lookupName');
+    const inpHire    = $('#lookupHire');
+    const resBox     = $('#lookupResult');
+    const btnCheck   = $('#lookupCheck');
+    const btnClose   = $('#lookupCancel');
+    const lookupLoading = document.getElementById('lookupLoading');
+
+    let coldHintTimer = null;
+    let EMP_ROWS = [];
+
+    function setBusy(on) {
+      if (on) {
+        busy.style.display = 'grid';
+        busy.setAttribute('aria-hidden', 'false');
+        btnSignIn.disabled = true;
+        empInput.disabled  = true;
+        errBox.style.display = 'none';
+        clearTimeout(coldHintTimer);
+        coldHintTimer = setTimeout(() => {
+          busySub.textContent = 'First load after a while can take longer while the server wakes up.';
+        }, 1200);
+      } else {
+        busy.style.display = 'none';
+        busy.setAttribute('aria-hidden', 'true');
+        btnSignIn.disabled = false;
+        empInput.disabled  = false;
+        busySub.textContent = 'Authorizing and loading your data.';
+        clearTimeout(coldHintTimer);
+      }
     }
 
     function showError(msg) {
@@ -106,30 +187,9 @@
       errBox.style.display = 'block';
     }
 
-    // Small helper to prefetch critical sheets so dashboard is hot on first paint
-    async function prefetchCriticalSheets() {
-      const A = PowerUp.api;
-      const keys = [
-        A.SHEETS.EMPLOYEE_MASTER,
-        A.SHEETS.POWER_HOUR_GOALS,
-        A.SHEETS.POWER_HOURS,
-        A.SHEETS.CI,
-        A.SHEETS.SAFETY,
-        A.SHEETS.QUALITY,
-        A.SHEETS.LEVEL_TRACKER,
-        A.SHEETS.SQUADS,
-        A.SHEETS.SQUAD_MEMBERS,
-      ];
-
-      // Fetch in 2 waves to show progress (avoids hammering the proxy)
-      const wave1 = keys.slice(0, 4);
-      const wave2 = keys.slice(4);
-
-      busySub.textContent = 'Loading employee records and core tables…';
-      await Promise.all(wave1.map(k => A.getRowsByTitle(k, { force: true }).catch(e => e)));
-
-      busySub.textContent = 'Loading remaining datasets…';
-      await Promise.all(wave2.map(k => A.getRowsByTitle(k, { force: true }).catch(e => e)));
+    function showLookupLoading(on) {
+      if (lookupLoading) lookupLoading.style.display = on ? 'flex' : 'none';
+      selName.disabled = !!on;
     }
 
     async function doLogin() {
@@ -137,45 +197,124 @@
       const id = (empInput.value || '').trim();
       if (!id) { showError('Please enter your Employee ID.'); return; }
 
-      setBusy(true, 'Signing you in…', 'Authorizing and warming up your data.');
-
+      setBusy(true);
       try {
-        // 1) Create session (no redirect)
-        await PowerUp.session.loginWithId(id);
-
-        // 2) Warm the proxy (best effort)
-        try {
-          const ctrl = new AbortController();
-          const t = setTimeout(() => ctrl.abort(), 6000);
-          await fetch(PowerUp.api.API_BASE + '/health', { signal: ctrl.signal });
-          clearTimeout(t);
-        } catch {}
-
-        // 3) Prefetch the sheets so dashboard is hot
-        await prefetchCriticalSheets();
-
-        // 4) Navigate only after everything above is done (or best-effort)
-        const dest = sessionStorage.getItem('pu.postLoginRedirect') || 'Dashboard-Refresh.html';
-        sessionStorage.removeItem('pu.postLoginRedirect');
-        setBusy(true, 'Almost there…', 'Opening your dashboard.');
-        window.location.assign(dest);
+        // loginWithId now primes key sheets BEFORE redirect
+        await PowerUp.session.loginWithId(id, { primeBeforeRedirect: true });
+        // (no code runs after successful redirect)
       } catch (e) {
-        setBusy(false);
         showError(e?.message || 'Sign-in failed. Please try again.');
+        setBusy(false);
       }
     }
 
-    document.addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
-    btnSign.addEventListener('click', doLogin);
+    // ---------- ID Lookup modal ----------
+    function toISODateOnly(v) {
+      if (!v) return '';
+      const d = new Date(v);
+      if (isNaN(d)) return '';
+      return d.toISOString().slice(0,10);
+    }
+    function openLookup({ loading = false } = {}) {
+      resBox.style.display = 'none';
+      resBox.className = 'result';
+      inpHire.value = '';
+      modal.setAttribute('aria-hidden','false');
+      modal.style.display = 'flex';
+      showLookupLoading(loading);
+    }
+    function closeLookup() {
+      modal.setAttribute('aria-hidden','true');
+      modal.style.display = 'none';
+    }
 
-    // If a session already exists, keep the old UX (go straight in)
-    try {
-      const s = PowerUp.session.get();
-      if (s && s.employeeId) {
-        setBusy(true, 'Welcome back…', 'Loading your dashboard.');
-        window.location.assign('Dashboard-Refresh.html');
+    async function ensureEmployeeRows() {
+      if (EMP_ROWS.length) return;
+      try {
+        showLookupLoading(true);
+        const rs = await PowerUp.api.getRowsByTitle('EMPLOYEE_MASTER');
+        EMP_ROWS = rs.filter(r => (r['Display Name'] || r['Employee Name'] || r['Name']) && (r['Position ID'] || r['Employee ID']));
+        const opts = ['<option value="">Select your name…</option>'].concat(
+          EMP_ROWS
+            .map(r => ({
+              id: (r['Position ID'] || r['Employee ID']).toString().trim(),
+              name: (r['Display Name'] || r['Employee Name'] || r['Name']).toString().trim(),
+            }))
+            .sort((a,b) => a.name.localeCompare(b.name))
+            .map(o => `<option value="${o.id}">${o.name}</option>`)
+        );
+        selName.innerHTML = opts.join('');
+      } finally {
+        showLookupLoading(false);
       }
-    } catch {}
+    }
+
+    function showLookupResult(ok, html) {
+      resBox.className = 'result ' + (ok ? 'ok' : 'err');
+      resBox.innerHTML = html;
+      resBox.style.display = 'block';
+    }
+    function findRowById(id) {
+      const idLC = String(id || '').trim().toLowerCase();
+      return EMP_ROWS.find(r => String(r['Position ID'] || r['Employee ID']).trim().toLowerCase() === idLC);
+    }
+
+    btnHelp.addEventListener('click', async () => {
+      try {
+        openLookup({ loading: true });
+        btnHelp.disabled = true;
+        await ensureEmployeeRows();
+        showLookupLoading(false);
+      } catch {
+        showLookupLoading(false);
+        alert("We couldn't load the employee list. Please try again or contact support.");
+      } finally {
+        btnHelp.disabled = false;
+      }
+    });
+
+    btnCheck.addEventListener('click', () => {
+      const id = selName.value;
+      const row = findRowById(id);
+      const picked = inpHire.value; // yyyy-mm-dd
+      if (!row || !picked) {
+        showLookupResult(false, 'Please choose your name and enter your hire date.');
+        return;
+      }
+      const hireRaw = row['Hire Date'] || row['HireDate'] || row['Start Date'];
+      const hireISO = toISODateOnly(hireRaw);
+      if (hireISO && hireISO === picked) {
+        const safeName = (row['Display Name'] || row['Employee Name'] || row['Name'] || '').toString();
+        const empId = (row['Position ID'] || row['Employee ID']).toString();
+        showLookupResult(true, `
+          <div><b>${safeName}</b></div>
+          <div class="small" style="margin-top:4px">Your Employee ID is:</div>
+          <div style="font-size:18px;margin-top:4px"><code>${empId}</code></div>
+          <div style="margin-top:10px">
+            <button class="btn primary" id="useFoundId">Use this ID</button>
+          </div>
+        `);
+        setTimeout(() => {
+          const useBtn = document.getElementById('useFoundId');
+          if (useBtn) useBtn.onclick = () => {
+            document.getElementById('empId').value = empId;
+            closeLookup();
+            document.getElementById('empId').focus();
+          };
+        }, 0);
+      } else {
+        showLookupResult(false, 'That hire date doesn’t match our records for the selected name.');
+      }
+    });
+
+    btnClose.addEventListener('click', (e) => { e.preventDefault(); closeLookup(); });
+    modal.addEventListener('click', (e) => { if (e.target === modal) closeLookup(); });
+
+    // ---------- Login wiring ----------
+    document.addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
+    btnSignIn.addEventListener('click', doLogin);
+
+    // No auto-redirect here anymore; we want users to see spinner until primed
   }());
   </script>
 </body>
