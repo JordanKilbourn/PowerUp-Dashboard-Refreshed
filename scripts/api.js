@@ -3,7 +3,7 @@
   const P = PowerUp || (PowerUp = {});
   const API_BASE = "https://powerup-proxy.onrender.com";
 
-  // ✅ Smartsheet IDs
+  // Smartsheet IDs
   const SHEETS = {
     EMPLOYEE_MASTER: "2195459817820036",
     POWER_HOUR_GOALS: "3542697273937796",
@@ -17,11 +17,11 @@
   };
 
   // ---------- caches ----------
-  const _rawCache  = new Map();  // id -> raw sheet json
-  const _inflight  = new Map();  // id -> Promise
-  const _rowsCache = new Map();  // id -> array of row objects
+  const _rawCache  = new Map();  // id -> raw sheet json (in-memory)
+  const _inflight  = new Map();  // id -> Promise (dedupe concurrent)
+  const _rowsCache = new Map();  // id -> [{title:value,...}] (in-memory)
 
-  // ---- persistent (session) cache with TTL ----
+  // persistent (session) cache with TTL
   const STORE_KEY    = "pu.sheetCache.v1";
   const SHEET_TTL_MS = 5 * 60 * 1000;
 
@@ -59,9 +59,9 @@
   }
 
   // ---- robust fetch with timeout + retry/backoff ----
-  const API_RETRY_LIMIT = 2;          // total attempts = 1 + retries
-  const API_TIMEOUT_MS  = 30000;      // 30s per request
-  const API_BACKOFF_MS  = 600;        // base backoff; jitter added
+  const API_RETRY_LIMIT = 3;           // total attempts = 1 + retries
+  const API_TIMEOUT_MS  = 60000;       // 60s per request
+  const API_BACKOFF_MS  = 700;         // base backoff; jitter added
 
   function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
   function withTimeout(promise, ms) {
@@ -94,7 +94,7 @@
         const status = err && err.status;
         const retryable = !status || status === 429 || (status >= 500 && status < 600);
         if (!retryable || attempt > API_RETRY_LIMIT) throw err;
-        const jitter = Math.floor(Math.random() * 200);
+        const jitter = Math.floor(Math.random() * 250);
         await sleep(API_BACKOFF_MS * attempt + jitter);
       }
     }
@@ -158,14 +158,14 @@
     if (typeof x === "number") return x;
     const n = parseFloat(String(x).replace(/[^0-9.\-]/g, ""));
     return Number.isFinite(n) ? n : 0;
-  }
+    }
 
-  // ---------- WRITE: add rows ----------
+  // ---------- WRITE helper ----------
   async function addRows(sheetIdOrKey, titleRows, { toTop = true } = {}) {
     const id = resolveSheetId(sheetIdOrKey);
-    assertValidId(id, `addRows(${String(sheetIdOrKey)})`);
     if (!Array.isArray(titleRows) || !titleRows.length) throw new Error("addRows: 'titleRows' must be a non-empty array");
 
+    // get columns (fallback to full sheet if needed)
     let columns;
     try {
       columns = await fetchJSONRetry(`${API_BASE}/sheet/${id}/columns`);
@@ -174,27 +174,21 @@
       const sheet = await fetchSheet(id, { force: true });
       columns = sheet.columns || [];
     }
-
     const titleToCol = {};
-    (columns || []).forEach(c => {
-      const k = String(c.title).replace(/\s+/g, " ").trim().toLowerCase();
-      titleToCol[k] = c;
-    });
+    (columns || []).forEach(c => { titleToCol[String(c.title).trim().toLowerCase()] = c; });
 
     const isFormulaCol = (col) => !!(col && (col.formula || col.systemColumnType));
 
     function coerceValue(title, value, col) {
       const t = String(title).toLowerCase();
       let v = value;
-
       if (t.includes("date") || (col && String(col.type).toUpperCase() === "DATE")) {
         if (v instanceof Date) v = v.toISOString().slice(0, 10);
         else if (typeof v === "string" && !/^\d{4}-\d{2}-\d{2}$/.test(v)) {
-          const d = new Date(v);
-          if (!isNaN(d)) v = d.toISOString().slice(0, 10);
+          const d = new Date(v); if (!isNaN(d)) v = d.toISOString().slice(0, 10);
         }
       }
-      if (typeof v === "string" && (t.includes("active") || t.includes("checkbox") || (col && String(col.type).toUpperCase() === "CHECKBOX"))) {
+      if (typeof v === "string" && (t.includes("active") || (col && String(col.type).toUpperCase() === "CHECKBOX"))) {
         const s = v.trim().toLowerCase();
         if (["true","yes","1","y","on"].includes(s)) v = true;
         else if (["false","no","0","n","off",""].includes(s)) v = false;
@@ -205,20 +199,16 @@
     const rows = titleRows.map(obj => {
       const cells = [];
       Object.entries(obj || {}).forEach(([title, value]) => {
-        const key  = String(title).replace(/\s+/g, " ").trim().toLowerCase();
-        const col  = titleToCol[key];
-        if (!col) { console.warn(`[addRows] Unknown column title in sheet ${id}:`, title); return; }
-        if (isFormulaCol(col)) { console.warn(`[addRows] Skipping column with formula/system type:`, col.title); return; }
+        const col = titleToCol[String(title).trim().toLowerCase()];
+        if (!col) return;
+        if (isFormulaCol(col)) return;
         cells.push({ columnId: col.id, value: coerceValue(title, value, col) });
       });
       return { toTop, cells };
     });
 
-    const nonEmpty = rows.filter(r => r.cells && r.cells.length > 0);
-    if (!nonEmpty.length) {
-      console.error("[addRows] No valid cells matched any writable columns.", { attempted: titleRows, columns });
-      throw new Error("addRows: rows did not contain any writable columns.");
-    }
+    const nonEmpty = rows.filter(r => r.cells && r.cells.length);
+    if (!nonEmpty.length) throw new Error("addRows: rows did not contain any writable columns.");
 
     const payload = { rows: nonEmpty };
     return fetchJSONRetry(`${API_BASE}/sheet/${id}/rows`, {
@@ -228,6 +218,7 @@
     });
   }
 
+  // export
   P.api = {
     API_BASE,
     SHEETS,
