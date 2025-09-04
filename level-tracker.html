@@ -19,92 +19,49 @@
   }
 }();
 </script>
-  
-  <title>PowerUp — Level Tracker</title>
+
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <title>PowerUp — Level Tracker</title>
   <link href="style.css" rel="stylesheet" />
-  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
-  <link rel="alternate icon" type="image/png" href="assets/favicon.png">
+  <script defer src="scripts/tokens.js"></script>
+  <script defer src="scripts/api.js"></script>
+  <script defer src="scripts/layout.js"></script>
+  <script defer src="scripts/session.js"></script>
+  <script defer src="scripts/roles.js"></script>
 </head>
 <body>
-  <div class="page-block">
-    <div class="card">
-      <div class="table-scroll">
-        <table id="lt-table" class="dashboard-table">
-          <thead><tr id="lt-thead"></tr></thead>
-          <tbody id="lt-tbody"><tr><td>Loading…</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-  </div>
+  <header id="pu-header"></header>
+  <main class="wrap">
+    <h1>Level Tracker</h1>
 
-<script src="scripts/api.js"></script>
-<script src="scripts/session.js"></script>
-<script src="scripts/roles.js"></script>
-<script src="scripts/layout.js"></script>
+    <div class="table-wrap">
+      <table class="pu-table" id="lt-table">
+        <thead>
+          <tr id="lt-thead"></tr>
+        </thead>
+        <tbody id="lt-tbody">
+          <tr><td>Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
 
 <script>
-  const IS_ADMIN = !!(window.PowerUp?.auth?.isAdmin && PowerUp.auth.isAdmin());
+(function(){
+  const esc = (s) => String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 
-  // ---- Desired columns (display header -> sheet column) ----
-  const COLS = [
-    { label: "Month",   sources: ["Month Key","Month"] },
-    ...(IS_ADMIN ? [{ label: "Employee", sources: ["Display Name","Employee Name","Name"] }] : []),
-    { label: "CI Submissions",            sources: ["CI Submissions"] },
-    { label: "Safety Submissions",        sources: ["Safety Submissions"] },
-    { label: "Quality Submissions",       sources: ["Quality Submissions"] },
-    { label: "Total Submissions",         sources: ["Total Submissions"] },
-    { label: "Tuesday Tutorial Attended", sources: ["Tuesday Tutorial Attended"] },
-    { label: "Power Hours Logged",        sources: ["Power Hours Logged"] },
-    { label: "On Team",                   sources: ["On Team"] },
-    { label: "Leads Team",                sources: ["Leads Team"] },
-    { label: "Job Relations Follow-up",   sources: ["Job Relations Follow-up"] }
-  ];
-
-  // ==== helpers ====
-  const esc = (s) => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-  const isTrueish = (v) => { const t = String(v ?? "").trim().toLowerCase(); return v === true || t === "true" || t === "yes"; };
-  const boolPill = (v) => isTrueish(v) ? '<span class="pill pill--green">✓</span>' : '<span class="pill pill--red">✗</span>';
-
-  // sortable header binding (same feel as dashboard)
-  function bindHeaderSort(thead, tbody){
-    let state = { col: 0, asc: true };
-    const applyIndicators = () => {
-      thead.querySelectorAll("th").forEach((h,i)=>{
-        h.setAttribute("data-sort","none");
-        h.removeAttribute("aria-sort");
-        if (i===state.col){
-          h.setAttribute("data-sort", state.asc ? "asc":"desc");
-          h.setAttribute("aria-sort", state.asc ? "ascending":"descending");
-        }
-      });
-    };
-    thead.querySelectorAll("th").forEach((th, idx)=>{
-      th.style.cursor = "pointer";
-      th.onclick = () => {
-        state.asc = state.col === idx ? !state.asc : true;
-        state.col = idx;
-        const rows = Array.from(tbody.querySelectorAll("tr"));
-        rows.sort((ra, rb)=>{
-          const a = ra.children[idx]?.getAttribute("data-sort") ?? "";
-          const b = rb.children[idx]?.getAttribute("data-sort") ?? "";
-          const na = Number(a), nb = Number(b);
-          const bothNum = !isNaN(na) && !isNaN(nb);
-          const cmp = bothNum ? (na - nb) : a.localeCompare(b);
-          return state.asc ? cmp : -cmp;
-        });
-        rows.forEach(r => tbody.appendChild(r));
-        applyIndicators();
-      };
-    });
-    applyIndicators();
-  }
+  const boolPill = (v) => {
+    const t = String(v).trim().toLowerCase();
+    if (t === "true" || t === "yes" || t === "1") return `<span class="pill ok">Yes</span>`;
+    if (t === "false" || t === "no" || t === "0") return `<span class="pill no">No</span>`;
+    return esc(v);
+  };
 
   function fmtCell(v){
-    const t = String(v ?? "").trim().toLowerCase();
-    if (v === true || v === false || t === "true" || t === "false" || t === "yes" || t === "no") return boolPill(v);
+    const t = String(v || "").trim().toLowerCase();
+    if (t === "true" || t === "false" || t === "yes" || t === "no") return boolPill(v);
     return (v == null || String(v).trim() === "") ? "-" : esc(v);
   }
 
@@ -135,32 +92,55 @@
     return esc(v);
   }
 
-  const normalize = (s) => String(s||"").toLowerCase().replace(/[^a-z0-9]/g,"");
-  function chooseIdColumn(cols){ if (cols.includes("Employee ID")) return "Employee ID"; if (cols.includes("Position ID")) return "Position ID"; return null; }
-  function resolveSheetColumn(sources, sheetCols){
-    for (const s of sources) if (sheetCols.includes(s)) return s;
-    const byNorm = new Map(sheetCols.map(c => [normalize(c), c]));
-    for (const s of sources){ const hit = byNorm.get(normalize(s)); if (hit) return hit; }
-    return null;
-  }
+  const normalize = (s) => String(s||"").toLowerCase().replace(/\s+/g,' ').trim();
+
+  const COLS = [
+    { label: "Level",     sources: ["Level"] },
+    { label: "Month",     sources: ["Month","Date","Completed Month"] },
+    { label: "Completed", sources: ["Completed","Done"] },
+    { label: "Notes",     sources: ["Notes","Comment"] }
+  ];
 
   async function loadLevelTracker(){
-    PowerUp.session.requireLogin();
-    const { employeeId } = PowerUp.session.get() || {};
-    if (!employeeId){ document.getElementById("lt-tbody").innerHTML = `<tr><td>-</td></tr>`; return; }
+    const IS_ADMIN = PowerUp.auth?.isAdmin?.() === true;
 
-    const raw  = await PowerUp.api.fetchSheet(PowerUp.api.SHEETS.LEVEL_TRACKER);
+    const me = PowerUp.session.get();
+    const employeeId = me?.employeeId;
+    if (!employeeId) {
+      location.replace('login.html');
+      return;
+    }
+
+    // Load source sheet
+    const raw = await PowerUp.api.fetchSheet(PowerUp.api.SHEETS.LEVEL_TRACKER);
+    const title = PowerUp.api.titleById(PowerUp.api.SHEETS.LEVEL_TRACKER);
     const rows = PowerUp.api.rowsByTitle(raw);
-    const sheetCols = (raw.columns || []).map(c => c.title);
-    const idCol = chooseIdColumn(sheetCols);
-    if (!rows.length || !idCol){ document.getElementById("lt-tbody").innerHTML = `<tr><td>-</td></tr>`; return; }
+    const sheetCols = rows[0] ? Object.keys(rows[0]) : [];
 
-    const mine = rows.filter(r => String(r[idCol]||"").trim() === String(employeeId).trim());
-    if (!mine.length){ document.getElementById("lt-tbody").innerHTML = `<tr><td>-</td></tr>`; return; }
+    // Determine employee ID column
+    const idCol = ["Position ID","Employee ID","ID","Emp ID"].find(c => sheetCols.includes(c)) || "Position ID";
+
+    const resolveSheetColumn = (candidates, cols) => candidates.find(c => cols.includes(c)) || null;
+
+    if (!rows.length) { document.getElementById("lt-tbody").innerHTML = `<tr><td>-</td></tr>`; return; }
+
+    // Admin can view all or a specific employee via Admin Filter; non-admins see their own only
+    let viewRows = [];
+    if (IS_ADMIN && window.PowerUp?.auth?.maybeFilterByEmployee) {
+      viewRows = PowerUp.auth.maybeFilterByEmployee(rows, [ 'Display Name','Employee Name','Name', idCol, 'Employee ID','Position ID' ]);
+      const sel = sessionStorage.getItem('pu.adminEmployeeFilter') || '__ALL__';
+      if (!viewRows.length && sel === '__ALL__') viewRows = rows.slice();
+    } else {
+      viewRows = rows.filter(r => String(r[idCol]||"" ).trim() === String(employeeId).trim());
+    }
+    if (!viewRows.length){ document.getElementById("lt-tbody").innerHTML = `<tr><td>-</td></tr>`; return; }
 
     const resolved = COLS.map(c => ({ label: c.label, sheet: resolveSheetColumn(c.sources, sheetCols) }));
     const thead = document.getElementById("lt-thead");
-    thead.innerHTML = resolved.map(c => `<th>${c.label}</th>`).join("");
+    const showName = IS_ADMIN && ((sessionStorage.getItem('pu.adminEmployeeFilter') || '__ALL__') === '__ALL__');
+    thead.innerHTML =
+      (showName ? `<th>Employee</th>` : '') +
+      resolved.map(c => `<th>${c.label}</th>`).join("");
 
     // Build id->name map for admin Employee column fallback
     let nameById = {};
@@ -176,39 +156,66 @@
       } catch {}
     }
 
+    // parseAnyDate for sorting
+    function parseAnyDate(s){
+      if (s == null) return null;
+      const t = String(s).trim();
+      let m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+      if (m) return new Date(+m[1], +m[2]-1, +m[3]);
+      m = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/);
+      if (m){ let y=+m[3]; if (y<100) y+=2000; return new Date(y, +m[1]-1, +m[2]); }
+      const d = new Date(t);
+      return isNaN(d) ? null : d;
+    }
+
     // Render rows with sortable data-sort values
     const tbody = document.getElementById("lt-tbody");
-    tbody.innerHTML = mine.map(r => {
+    tbody.innerHTML = viewRows.map(r => {
       return `<tr>${
+        (showName ? (()=> {
+          const idVal = String(r[idCol]||'').trim();
+          const nm = nameById[idVal] || r['Display Name'] || r['Employee Name'] || r['Name'] || idVal || '-';
+          return `<td data-sort="${(nm||'').toString().toLowerCase()}">${esc(nm)}</td>`;
+        })() : '') +
         resolved.map(c => {
           let v = c.sheet ? r[c.sheet] : "";
-          let sortVal = String(v ?? "").toLowerCase();
-
-          if (c.label === "Month") {
-            // use YYYY-MM numeric key if possible
-            const s = String(v||"").trim();
-            let key = s;
-            const d = new Date(s);
-            if (!isNaN(d)) key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-            sortVal = key;
-            return `<td data-sort="${sortVal}">${fmtMonth(v)}</td>`;
-          }
-          if (c.label === "Employee") {
-            const id = String(r["Employee ID"] || r["Position ID"] || "").trim();
-            const nm = v || nameById[id] || id || "-";
-            sortVal = String(nm).toLowerCase();
-            return `<td data-sort="${sortVal}">${fmtCell(nm)}</td>`;
-          }
-
-          // numeric-like columns sort numerically
-          const num = Number(String(v).replace(/[^0-9.\-]/g,''));
-          if (!Number.isNaN(num) && String(v).trim() !== "") {
-            sortVal = String(num);
+          // For Month column, pretty-print to "Oct 2024"
+          if (/^month$/i.test(c.label)) v = fmtMonth(v);
+          let sortVal = (v == null ? '' : String(v).toLowerCase());
+          if (/date|month/i.test(c.label)) {
+            const d = parseAnyDate(v);
+            sortVal = d ? d.getTime() : '';
           }
           return `<td data-sort="${sortVal}">${fmtCell(v)}</td>`;
         }).join("")
       }</tr>`;
     }).join("");
+
+    // simple header sort: click to sort asc/desc by data-sort
+    function bindHeaderSort(thead, tbody){
+      let state = { col: 0, asc: true };
+      const applyIndicators = () => {
+        thead.querySelectorAll("th").forEach((h,i)=>{
+          h.classList.toggle("sort-asc", state.col===i && state.asc);
+          h.classList.toggle("sort-desc", state.col===i && !state.asc);
+        });
+      };
+      thead.querySelectorAll("th").forEach((th,i)=>{
+        th.addEventListener('click', ()=>{
+          if (state.col === i) state.asc = !state.asc; else { state.col = i; state.asc = true; }
+          const rows = Array.from(tbody.querySelectorAll("tr"));
+          rows.sort((a,b)=>{
+            const av = a.children[i]?.getAttribute('data-sort') || '';
+            const bv = b.children[i]?.getAttribute('data-sort') || '';
+            if (av===bv) return 0;
+            return (av>bv ? 1 : -1) * (state.asc ? 1 : -1);
+          });
+          rows.forEach(r => tbody.appendChild(r));
+          applyIndicators();
+        });
+      });
+      applyIndicators();
+    }
 
     bindHeaderSort(thead.parentElement.querySelector('tr'), tbody);
   }
@@ -217,7 +224,9 @@
     PowerUp.layout.injectLayout();
     await PowerUp.session.initHeader();
     await loadLevelTracker();
+    document.addEventListener('powerup-admin-filter-change', async () => { await loadLevelTracker(); });
   });
+})();
 </script>
 
 </body>
