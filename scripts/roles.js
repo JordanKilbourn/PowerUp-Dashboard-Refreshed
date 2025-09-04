@@ -18,7 +18,7 @@
   // Persisted selection so admins keep the same employee filter across tabs
   const ADMIN_FILTER_KEY = 'pu.adminEmployeeFilter'; // value: display name or "__ALL__"
 
-  function norm(s){ return String(s || "").trim(); }
+  function norm(s){ return String(s || "").trim().toLowerCase(); }
   function pickCol(row, candidates){
     for (const c of candidates) if (Object.prototype.hasOwnProperty.call(row, c)) return c;
     return null;
@@ -34,10 +34,10 @@
     try {
       const rows = await P.api.getRowsByTitle('EMPLOYEE_MASTER');
       const col = pickCol(rows[0] || {}, ['Display Name','Employee Name','Name']);
-      names = (rows || [])
-        .map(r => norm(r[col] || ''))
-        .filter(Boolean)
-        .sort((a,b) => a.localeCompare(b));
+       names = (rows || [])
+       .map(r => String(r[col] || '').trim())
+       .filter(Boolean)
+       .sort((a,b) => a.localeCompare(b));
     } catch { /* keep empty, UI still renders */ }
 
     // Mount point: right side of your header line
@@ -69,14 +69,27 @@
     const prev = sessionStorage.getItem(ADMIN_FILTER_KEY);
     if (prev) sel.value = prev;
 
+    // Clear Filter button
+   const clearBtn = document.createElement('button');
+   clearBtn.className = 'btn btn-xs';
+   clearBtn.style.cssText = 'padding:6px 8px;border-radius:8px;border:1px solid #2a354b;background:#111a2f;color:#e5e7eb;cursor:pointer';
+   clearBtn.textContent = 'Clear Filter';
+   clearBtn.addEventListener('click', () => {
+     sel.value = '__ALL__';
+     sessionStorage.setItem(ADMIN_FILTER_KEY, '__ALL__');
+     document.dispatchEvent(new CustomEvent('powerup-admin-filter-change', { detail:{ value: '__ALL__' }}));
+   });
+
+  
     sel.addEventListener('change', () => {
       sessionStorage.setItem(ADMIN_FILTER_KEY, sel.value);
       // Fire a small event so pages can re-render if they want
       document.dispatchEvent(new CustomEvent('powerup-admin-filter-change', { detail:{ value: sel.value }}));
     });
 
-    box.appendChild(label);
-    box.appendChild(sel);
+   box.appendChild(label);
+   box.appendChild(sel);
+   box.appendChild(clearBtn);
   }
 
   // Admin-only: apply employee filter to a rows[] array.
