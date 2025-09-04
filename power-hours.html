@@ -200,8 +200,7 @@
         return (tgtId && id === tgtId) || (tgtName && name === tgtName);
       }
 
-      /* ---- Robust date ranges ---- */
-      function firstOfMonth(y, m){ return new Date(y, m, 1, 0,0,0,0); }
+      function firstOfMonth(y, m){ return new Date(y, m, 1); }
       function lastOfMonth(y, m){ return new Date(y, m+1, 0, 23,59,59,999); }
 
       function getRangeBounds(kind){
@@ -215,9 +214,9 @@
           case 'last-3':       return { start: firstOfMonth(y, m-2), end: todayEnd };
           case 'last-6':       return { start: firstOfMonth(y, m-5), end: todayEnd };
           case 'this-quarter': { const q=Math.floor(m/3)*3; return { start:firstOfMonth(y,q), end:todayEnd }; }
-          case 'ytd':          return { start: new Date(y, 0, 1, 0,0,0,0), end: todayEnd };
+          case 'ytd':          return { start: new Date(y, 0, 1), end: todayEnd };
           case 'next-month': { const nm=m+1, ny=nm>11?y+1:y, nmm=nm%12; return { start:firstOfMonth(ny,nmm), end:lastOfMonth(ny,nmm) }; }
-          case 'next-90':    { const s=new Date(y,m,now.getDate(),0,0,0,0); const e=new Date(s); e.setDate(e.getDate()+89); e.setHours(23,59,59,999); return { start:s, end:e }; }
+          case 'next-90':    { const s=new Date(y,m,now.getDate()); const e=new Date(s); e.setDate(e.getDate()+89); e.setHours(23,59,59,999); return { start:s, end:e }; }
           case 'all':
           default:             return { start: null, end: null };
         }
@@ -276,7 +275,7 @@
           }).join('');
         }
 
-        // metrics (your existing)
+        // metrics
         const totalHrs = state.view.reduce((a,r)=> a + toNum(pick(r, COLS.completedHours, 0)), 0);
         const sessions = state.view.length;
 
@@ -341,24 +340,10 @@
         await PowerUp.renderDashboardPowerHours();
       }
 
-      /* Bind range changes immediately so UI is responsive even if later code throws */
-      (function bindRangeEarly(){
-        const sel = document.getElementById('range');
-        if (!sel) return;
-        const h = () => applyRange();
-        sel.addEventListener('change', h);
-        sel.addEventListener('input', h);
-      })();
-
       function bindControls() {
         const sel = document.getElementById('range');
         if (sel) sel.addEventListener('change', applyRange);
-
-        /* Ensure admin filter composes with date range by guaranteeing name map is loaded */
         document.addEventListener('powerup-admin-filter-change', async () => {
-          if (!state.nameById || state.nameById.size === 0) {
-            await loadNames();
-          }
           state.target = await resolveTargetEmployee();
           applyRange();
         });
