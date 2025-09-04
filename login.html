@@ -9,48 +9,42 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
-  <!-- Favicon (SVG + PNG fallback) -->
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
   <link rel="alternate icon" type="image/png" href="assets/favicon.svg">
 
   <style>
-    .auth-wrap { min-height: 100vh; display: grid; place-items: center; background: linear-gradient(180deg,#0f172a,#111827);}
-    .auth-card { width: 100%; max-width: 460px; background:#0b1020; border:1px solid #00ffc6; border-radius:16px; padding:28px; box-shadow: 0 10px 30px rgba(0,0,0,.25);}
-    .brand { display:flex; align-items:center; gap:10px; margin-bottom:18px;}
-    .brand .dot { width:12px; height:12px; border-radius:50%; background:#00ffc6; box-shadow:0 0 16px #00ffc6;}
-    .brand h1 { font-size:20px; font-weight:700; letter-spacing:.2px;color:#00ffc6;}
-    .muted { color:#94a3b8; font-size:13px; margin-top:2px;}
-    .field { margin-top:16px;}
-    .field label { display:block; font-size:13px; color:#cbd5e1; margin-bottom:6px;}
-    .field input, .modal select, .modal input[type="date"] { width:100%; padding:12px 14px; border-radius:10px; background:#0b1328; border:1px solid #293449; color:#e5e7eb; outline:none;}
-    .field input:focus { border-color:#00ffc6; box-shadow:0 0 0 3px rgba(0,255,198,.15);}
-    .actions { margin-top:18px; display:flex; gap:10px; align-items:center;}
-    .btn { padding:12px 14px; border-radius:10px; border:1px solid #2a354b; background:#111a2f; color:#e5e7eb; cursor:pointer;}
-    .btn.primary { background:#FF6600; border-color:#FF6600; color:#111827; font-weight:700;}
-    .btn[disabled] { opacity:.6; cursor:not-allowed; }
-    .error { margin-top:14px; color:#fecaca; background:#450a0a; border:1px solid #7f1d1d; padding:10px 12px; border-radius:10px; display:none;}
-    .hint { margin-top:10px; font-size:12px; color:#9ca3af;}
-
-    /* Busy overlay (spinner + helpful text) */
-    .busy-overlay{position:fixed;inset:0;display:none;place-items:center;background:rgba(7,10,20,.6);z-index:9999;}
-    .busy-card{background:#0b1020;border:1px solid rgba(0,255,198,.4);border-radius:14px;padding:18px 20px;min-width:280px;box-shadow: 0 10px 30px rgba(0,0,0,.35);text-align:center}
+    .auth-wrap{min-height:100vh;display:grid;place-items:center;background:linear-gradient(180deg,#0f172a,#111827)}
+    .auth-card{width:100%;max-width:460px;background:#0b1020;border:1px solid #00ffc6;border-radius:16px;padding:28px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+    .brand{display:flex;align-items:center;gap:10px;margin-bottom:18px}
+    .brand .dot{width:12px;height:12px;border-radius:50%;background:#00ffc6;box-shadow:0 0 16px #00ffc6}
+    .brand h1{font-size:20px;font-weight:700;letter-spacing:.2px;color:#00ffc6}
+    .muted{color:#94a3b8;font-size:13px;margin-top:2px}
+    .field{margin-top:16px}
+    .field label{display:block;font-size:13px;color:#cbd5e1;margin-bottom:6px}
+    .field input,.modal select,.modal input[type="date"]{width:100%;padding:12px 14px;border-radius:10px;background:#0b1328;border:1px solid #293449;color:#e5e7eb;outline:none}
+    .field input:focus{border-color:#00ffc6;box-shadow:0 0 0 3px rgba(0,255,198,.15)}
+    .actions{margin-top:18px;display:flex;gap:10px;align-items:center}
+    .btn{padding:12px 14px;border-radius:10px;border:1px solid #2a354b;background:#111a2f;color:#e5e7eb;cursor:pointer}
+    .btn.primary{background:#FF6600;border-color:#FF6600;color:#111827;font-weight:700}
+    .btn[disabled]{opacity:.6;cursor:not-allowed}
+    .error{margin-top:14px;color:#fecaca;background:#450a0a;border:1px solid #7f1d1d;padding:10px 12px;border-radius:10px;display:none}
+    .hint{margin-top:10px;font-size:12px;color:#9ca3af}
+    .busy-overlay{position:fixed;inset:0;display:none;place-items:center;background:rgba(7,10,20,.6);z-index:9999}
+    .busy-card{background:#0b1020;border:1px solid rgba(0,255,198,.4);border-radius:14px;padding:18px 20px;min-width:280px;box-shadow:0 10px 30px rgba(0,0,0,.35);text-align:center}
     .spinner{width:28px;height:28px;border:3px solid rgba(255,255,255,.2);border-top-color:#00ffc6;border-radius:50%;margin:0 auto 10px;animation:spin .9s linear infinite}
     @keyframes spin{to{transform:rotate(360deg)}}
     .busy-title{color:#e5e7eb;font-weight:700;margin-bottom:4px}
     .busy-sub{color:#9ca3af;font-size:12px}
-
-    /* ID Lookup modal */
     .modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:9998}
     .modal[aria-hidden="false"]{display:flex}
-    .modal-card{background:#0b1020;border:1px solid #294957;border-radius:14px;padding:18px;min-width:320px;max-width:560px;width:92%}
+    .modal-card{background:#0b1320;border:1px solid #294957;border-radius:14px;padding:18px;min-width:320px;max-width:560px;width:92%}
     .modal-card h3{margin:0 0 10px;color:#00ffc6;font-size:18px}
     .modal-row{display:flex;gap:10px;flex-wrap:wrap}
     .modal-row .field{flex:1;margin-top:10px}
     .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
     .small{font-size:12px;color:#9ca3af}
     .result{margin-top:10px;padding:10px;border-radius:10px;background:#0b1328;border:1px dashed #2a354b;color:#e5e7eb;display:none}
-    .result.ok{border-color:#10b981}
-    .result.err{border-color:#b91c1c}
+    .result.ok{border-color:#10b981}.result.err{border-color:#b91c1c}
   </style>
 </head>
 <body>
@@ -77,7 +71,7 @@
     </div>
   </div>
 
-  <!-- Busy overlay -->
+  <!-- Busy overlay (kept; shows briefly during redirect) -->
   <div id="busy" class="busy-overlay" aria-hidden="true" aria-live="polite">
     <div class="busy-card">
       <div class="spinner" aria-hidden="true"></div>
@@ -91,7 +85,6 @@
     <div class="modal-card">
       <h3 id="idLookupTitle">Find your Employee ID</h3>
 
-      <!-- Inline loading indicator for the modal (shown while names load) -->
       <div id="lookupLoading" class="small" style="display:none;align-items:center;gap:8px">
         <div class="spinner" style="width:18px;height:18px;border-width:2px"></div>
         <span>Loading employees…</span>
@@ -118,32 +111,27 @@
     </div>
   </div>
 
-  <!-- Core libs (must be before we call PowerUp.session.*) -->
-  <script src="scripts/api.js?v=2025-08-29-d"></script>
-  <script src="scripts/session.js?v=2025-08-29-d"></script>
+  <!-- Core libs -->
+  <script src="scripts/api.js?v=2025-09-04-a"></script>
+  <script src="scripts/session.js?v=2025-09-04-a"></script>
 
   <script>
   (function () {
     const $ = (s) => document.querySelector(s);
 
-    // ---- Always start clean on the login page (belt + suspenders) ----
     try { window.P && P.api && P.api.clearCache && P.api.clearCache(); } catch {}
     try { sessionStorage.removeItem('pu.sheetCache.v1'); } catch {}
     try { localStorage.removeItem('powerup_session'); } catch {}
 
-    // 🔹 Non-blocking proxy warm-up (health ping, 6s cap) + silent prefetch of Employee Master
-    (async function warmupProxy(){
+    // Warmup (non-blocking) + background-preload for lookup modal
+    (async function warm() {
       try {
         const PROXY = (window.PowerUp && PowerUp.api && PowerUp.api.API_BASE) || 'https://powerup-proxy.onrender.com';
         const ctrl = new AbortController();
         const t = setTimeout(() => ctrl.abort(), 6000);
-        await fetch(`${PROXY}/health`, { mode:'cors', signal: ctrl.signal });
+        await fetch(`${PROXY}/health`, { mode: 'cors', signal: ctrl.signal });
         clearTimeout(t);
-      } catch (e) {
-        console.debug('Proxy warmup skipped:', e && e.name ? e.name : e);
-      }
-
-      // Background-preload of employee rows so the modal opens populated
+      } catch {}
       try { await ensureEmployeeRows(); } catch {}
     })();
 
@@ -161,17 +149,15 @@
     const resBox     = $('#lookupResult');
     const btnCheck   = $('#lookupCheck');
     const btnClose   = $('#lookupCancel');
-    const lookupLoading = document.getElementById('lookupLoading'); // NEW
+    const lookupLoading = document.getElementById('lookupLoading');
 
     let coldHintTimer = null;
-    let EMP_ROWS = []; // cached Employee Master rows
+    let EMP_ROWS = [];
 
     function setBusy(on) {
       if (on) {
         busy.style.display = 'grid';
         busy.setAttribute('aria-hidden', 'false');
-        btnSignIn.disabled = true;
-        empInput.disabled  = true;
         clearTimeout(coldHintTimer);
         coldHintTimer = setTimeout(() => {
           busySub.textContent = 'First load after a while can take longer while the server wakes up.';
@@ -179,8 +165,6 @@
       } else {
         busy.style.display = 'none';
         busy.setAttribute('aria-hidden', 'true');
-        btnSignIn.disabled = false;
-        empInput.disabled  = false;
         busySub.textContent = 'Authorizing and loading your data.';
         clearTimeout(coldHintTimer);
       }
@@ -191,22 +175,9 @@
       errBox.style.display = 'block';
     }
 
-    // Lookup loading toggle
     function showLookupLoading(on) {
       if (lookupLoading) lookupLoading.style.display = on ? 'flex' : 'none';
       selName.disabled = !!on;
-    }
-
-    // Mirror whatever session object exists to a canonical key the guards accept
-    function ensureCanonicalSession() {
-      try {
-        const s = PowerUp.session.get && PowerUp.session.get();
-        const empId = s && (s.employeeId || s.empId || s.id);
-        if (!empId) return false;
-        const canonical = { employeeId: String(empId), displayName: String(s.displayName || '') };
-        localStorage.setItem('powerup_session', JSON.stringify(canonical));
-        return true;
-      } catch { return false; }
     }
 
     async function doLogin() {
@@ -214,24 +185,17 @@
       const id = (empInput.value || '').trim();
       if (!id) { showError('Please enter your Employee ID.'); return; }
 
+      // NEW: optimistic, instant login (no lookup blocking here)
       setBusy(true);
       try {
-        await PowerUp.session.loginWithId(id);
-
-        // Clear any prior user's cached sheets on successful login
-        try { window.P && P.api && P.api.clearCache && P.api.clearCache(); } catch {}
-
-        // Mirror session before redirect
-        ensureCanonicalSession();
-
-        window.location.assign('Dashboard-Refresh.html');
+        await PowerUp.session.signIn(id); // redirects immediately
       } catch (e) {
         showError(e?.message || 'Sign-in failed. Please try again.');
         setBusy(false);
       }
     }
 
-    // ---------- ID Lookup modal ----------
+    // ---------- ID Lookup modal (unchanged from your version) ----------
     function toISODateOnly(v) {
       if (!v) return '';
       const d = new Date(v);
@@ -244,13 +208,12 @@
       inpHire.value = '';
       modal.setAttribute('aria-hidden','false');
       modal.style.display = 'flex';
-      showLookupLoading(loading); // show/hide spinner
+      showLookupLoading(loading);
     }
     function closeLookup() {
       modal.setAttribute('aria-hidden','true');
       modal.style.display = 'none';
     }
-
     async function ensureEmployeeRows() {
       if (EMP_ROWS.length) return;
       try {
@@ -267,11 +230,8 @@
             .map(o => `<option value="${o.id}">${o.name}</option>`)
         );
         selName.innerHTML = opts.join('');
-      } finally {
-        showLookupLoading(false);
-      }
+      } finally { showLookupLoading(false); }
     }
-
     function showLookupResult(ok, html) {
       resBox.className = 'result ' + (ok ? 'ok' : 'err');
       resBox.innerHTML = html;
@@ -281,8 +241,6 @@
       const idLC = String(id || '').trim().toLowerCase();
       return EMP_ROWS.find(r => String(r['Position ID'] || r['Employee ID']).trim().toLowerCase() === idLC);
     }
-
-    // Open modal immediately, populate in background
     btnHelp.addEventListener('click', async () => {
       try {
         openLookup({ loading: true });
@@ -296,11 +254,10 @@
         btnHelp.disabled = false;
       }
     });
-
     btnCheck.addEventListener('click', () => {
       const id = selName.value;
       const row = findRowById(id);
-      const picked = inpHire.value; // yyyy-mm-dd
+      const picked = inpHire.value;
       if (!row || !picked) {
         showLookupResult(false, 'Please choose your name and enter your hire date.');
         return;
@@ -330,21 +287,12 @@
         showLookupResult(false, 'That hire date doesn’t match our records for the selected name.');
       }
     });
-
     btnClose.addEventListener('click', (e) => { e.preventDefault(); closeLookup(); });
     modal.addEventListener('click', (e) => { if (e.target === modal) closeLookup(); });
 
     // ---------- Login wiring ----------
     document.addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
     btnSignIn.addEventListener('click', doLogin);
-
-    // If a session already exists, normalize it and go straight to the dashboard (no extra UI)
-    try {
-      if (ensureCanonicalSession()) {
-        setBusy(true);
-        window.location.assign('Dashboard-Refresh.html');
-      }
-    } catch {}
   }());
   </script>
 </body>
