@@ -200,7 +200,7 @@
         return (tgtId && id === tgtId) || (tgtName && name === tgtName);
       }
 
-      // ---- FIX: make range math robust, including future ranges ----
+      /* ---- Robust date ranges ---- */
       function firstOfMonth(y, m){ return new Date(y, m, 1, 0,0,0,0); }
       function lastOfMonth(y, m){ return new Date(y, m+1, 0, 23,59,59,999); }
 
@@ -276,7 +276,7 @@
           }).join('');
         }
 
-        // metrics
+        // metrics (your existing)
         const totalHrs = state.view.reduce((a,r)=> a + toNum(pick(r, COLS.completedHours, 0)), 0);
         const sessions = state.view.length;
 
@@ -341,9 +341,8 @@
         await PowerUp.renderDashboardPowerHours();
       }
 
-      // ---- FIX: bind the range change immediately, even before bindControls() ----
+      /* Bind range changes immediately so UI is responsive even if later code throws */
       (function bindRangeEarly(){
-        // Use both 'change' and 'input' to be resilient across browsers
         const sel = document.getElementById('range');
         if (!sel) return;
         const h = () => applyRange();
@@ -354,7 +353,12 @@
       function bindControls() {
         const sel = document.getElementById('range');
         if (sel) sel.addEventListener('change', applyRange);
+
+        /* Ensure admin filter composes with date range by guaranteeing name map is loaded */
         document.addEventListener('powerup-admin-filter-change', async () => {
+          if (!state.nameById || state.nameById.size === 0) {
+            await loadNames();
+          }
           state.target = await resolveTargetEmployee();
           applyRange();
         });
