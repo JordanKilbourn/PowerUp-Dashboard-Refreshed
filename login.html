@@ -2,433 +2,223 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>PowerUp — Sign In</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="theme-color" content="#0b1020">
 
-  <link href="style.css" rel="stylesheet" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap">
+<!-- EARLY AUTH GUARD — must be the first thing in <head> -->
+<script>
+!function () {
+  try {
+    const s = JSON.parse(sessionStorage.getItem('pu.session') || 'null')
+           || JSON.parse(localStorage.getItem('powerup_session') || 'null');
+    if (!s || !s.employeeId) {
+      document.documentElement.style.visibility = 'hidden';
+      location.replace('login.html');
+    }
+  } catch {
+    document.documentElement.style.visibility = 'hidden';
+    location.replace('login.html');
+  }
+}();
+</script>
+  
+  <title>PowerUp — Level Tracker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <link href="style.css" rel="stylesheet" />
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
   <link rel="alternate icon" type="image/png" href="assets/favicon.png">
-
-  <style>
-    .auth-wrap { min-height: 100vh; display: grid; place-items: center; background: linear-gradient(180deg,#0f172a,#111827);}
-    .auth-card { width: 100%; max-width: 460px; background:#0b1020; border:1px solid #00ffc6; border-radius:16px; padding:28px; box-shadow: 0 10px 30px rgba(0,0,0,.25);}
-    .brand { display:flex; align-items:center; gap:10px; margin-bottom:18px;}
-    .brand .dot { width:12px; height:12px; border-radius:50%; background:#00ffc6; box-shadow:0 0 16px #00ffc6;}
-    .brand h1 { font-size:20px; font-weight:700; letter-spacing:.2px;color:#00ffc6;}
-    .muted { color:#94a3b8; font-size:13px; margin-top:2px;}
-    .field { margin-top:16px;}
-    .field label { display:block; font-size:13px; color:#cbd5e1; margin-bottom:6px;}
-    .field input, .modal select, .modal input[type="date"] { width:100%; padding:12px 14px; border-radius:10px; background:#0b1328; border:1px solid #293449; color:#e5e7eb; outline:none;}
-    .field input:focus, .modal select:focus, .modal input[type="date"]:focus { border-color:#00ffc6; box-shadow:0 0 0 3px rgba(0,255,198,.15);}
-    .actions { margin-top:18px; display:flex; gap:10px; align-items:center;}
-    .btn { padding:12px 14px; border-radius:10px; border:1px solid #2a354b; background:#111a2f; color:#e5e7eb; cursor:pointer;}
-    .btn.primary { background:#FF6600; border-color:#FF6600; color:#111827; font-weight:700;}
-    .btn[disabled] { opacity:.6; cursor:not-allowed; }
-    .error { margin-top:14px; color:#fecaca; background:#450a0a; border:1px solid #7f1d1d; padding:10px 12px; border-radius:10px; display:none;}
-    .hint { margin-top:10px; font-size:12px; color:#9ca3af;}
-
-    /* Busy overlay (spinner + helpful text) */
-    .busy-overlay{position:fixed;inset:0;display:none;place-items:center;background:rgba(7,10,20,.6);z-index:9999;}
-    .busy-card{background:#0b1020;border:1px solid rgba(0,255,198,.4);border-radius:14px;padding:18px 20px;min-width:280px;box-shadow: 0 10px 30px rgba(0,0,0,.35);text-align:center}
-    .spinner{width:28px;height:28px;border:3px solid rgba(255,255,255,.2);border-top-color:#00ffc6;border-radius:50%;margin:0 auto 10px;animation:spin .9s linear infinite}
-    @keyframes spin{to{transform:rotate(360deg)}}
-    .busy-title{color:#e5e7eb;font-weight:700;margin-bottom:4px}
-    .busy-sub{color:#9ca3af;font-size:12px}
-
-    /* Modal */
-    .modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:9998}
-    .modal[aria-hidden="false"]{display:flex}
-    .modal-card{background:#0b1020;border:1px solid #294957;border-radius:14px;padding:18px;min-width:320px;max-width:560px;width:92%}
-    .modal-row{display:flex;gap:10px;flex-wrap:wrap}
-    .modal-row .field{flex:1;margin-top:10px}
-    .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
-    .small{font-size:12px;color:#9ca3af}
-    .result{margin-top:10px;padding:10px;border-radius:10px;background:#0b1328;border:1px dashed #2a354b;color:#e5e7eb;display:none}
-    .result.ok{border-color:#10b981}
-    .result.err{border-color:#b91c1c}
-
-    /* Clean header with right-aligned loading badge */
-    .modal-head { display:flex; align-items:center; justify-content:space-between; margin:0 0 10px; }
-    .loading-badge { display:none; align-items:center; gap:8px; color:#93c5fd; font-size:12px; }
-    .loading-badge .spinner { width:14px; height:14px; border-width:2px; margin:0; }
-  </style>
 </head>
 <body>
-  <div class="auth-wrap">
-    <!-- Use a real form to scope Enter key behavior -->
-    <form class="auth-card" id="loginForm" aria-labelledby="loginTitle">
-      <div class="brand">
-        <div class="dot" aria-hidden="true"></div>
-        <h1 id="loginTitle">PowerUp</h1>
-      </div>
-      <div class="muted">Sign in with your <strong>Employee ID</strong></div>
-
-      <div class="field">
-        <label for="empId">Employee ID</label>
-        <input id="empId" name="empId" type="text" placeholder="e.g., IX12345" autocomplete="off" />
-      </div>
-
-      <div class="actions">
-        <button class="btn primary" id="signin" type="submit">Sign In</button>
-        <button class="btn" id="help" type="button">Retrieve my Employee ID</button>
-      </div>
-
-      <div id="error" class="error" role="alert" aria-live="polite"></div>
-      <div class="hint">We’ll match your ID in Employee Master and personalize your dashboard.</div>
-    </form>
-  </div>
-
-  <!-- Busy overlay -->
-  <div id="busy" class="busy-overlay" aria-hidden="true" aria-live="polite">
-    <div class="busy-card">
-      <div class="spinner" aria-hidden="true"></div>
-      <div class="busy-title">Signing you in…</div>
-      <div class="busy-sub" id="busySub">Authorizing and loading your data.</div>
-    </div>
-  </div>
-
-  <!-- ID Lookup modal -->
-  <div id="idLookupModal" class="modal" aria-hidden="true" aria-modal="true" aria-labelledby="idLookupTitle" role="dialog">
-    <div class="modal-card" role="document">
-      <div class="modal-head">
-        <h3 id="idLookupTitle">Find your Employee ID</h3>
-        <div id="lookupLoading" class="loading-badge" aria-live="polite">
-          <div class="spinner" aria-hidden="true"></div>
-          <span>Loading employees…</span>
-        </div>
-      </div>
-
-      <p class="small">Choose your name, then confirm your hire date. If it matches our records, we’ll reveal your Employee ID.</p>
-      <div class="modal-row">
-        <div class="field" style="flex:1.6">
-          <label for="lookupName">Name</label>
-          <select id="lookupName">
-            <option value="">Loading…</option>
-          </select>
-        </div>
-        <div class="field" style="flex:1">
-          <label for="lookupHire">Hire Date</label>
-          <input id="lookupHire" type="date" />
-        </div>
-      </div>
-      <div id="lookupResult" class="result" aria-live="polite"></div>
-      <div class="modal-actions">
-        <button class="btn" id="lookupCancel" type="button">Close</button>
-        <button class="btn primary" id="lookupCheck" type="button" disabled>Reveal ID</button>
+  <div class="page-block">
+    <div class="card">
+      <div class="table-scroll">
+        <table id="lt-table" class="dashboard-table">
+          <thead><tr id="lt-thead"></tr></thead>
+          <tbody id="lt-tbody"><tr><td>Loading…</td></tr></tbody>
+        </table>
       </div>
     </div>
   </div>
 
-  <!-- Core libs (no version query to keep this consistent with the rest of the site) -->
-  <script src="scripts/api.js"></script>
-  <script src="scripts/session.js"></script>
+<script src="scripts/api.js"></script>
+<script src="scripts/session.js"></script>
+<script src="scripts/roles.js"></script>
+<script src="scripts/layout.js"></script>
 
-  <script>
-  (function () {
-    const $ = (s) => document.querySelector(s);
+<script>
+  const IS_ADMIN = !!(window.PowerUp?.auth?.isAdmin && PowerUp.auth.isAdmin());
 
-    // ---- Always start clean on the login page (belt + suspenders) ----
-    try { window.P && P.api && P.api.clearCache && P.api.clearCache(); } catch {}
-    try { sessionStorage.removeItem('pu.sheetCache.v1'); } catch {}
-    try { localStorage.removeItem('powerup_session'); } catch {}
+  // ---- Desired columns (display header -> sheet column) ----
+  const COLS = [
+    { label: "Month",   sources: ["Month Key","Month"] },
+    ...(IS_ADMIN ? [{ label: "Employee", sources: ["Display Name","Employee Name","Name"] }] : []),
+    { label: "CI Submissions",            sources: ["CI Submissions"] },
+    { label: "Safety Submissions",        sources: ["Safety Submissions"] },
+    { label: "Quality Submissions",       sources: ["Quality Submissions"] },
+    { label: "Total Submissions",         sources: ["Total Submissions"] },
+    { label: "Tuesday Tutorial Attended", sources: ["Tuesday Tutorial Attended"] },
+    { label: "Power Hours Logged",        sources: ["Power Hours Logged"] },
+    { label: "On Team",                   sources: ["On Team"] },
+    { label: "Leads Team",                sources: ["Leads Team"] },
+    { label: "Job Relations Follow-up",   sources: ["Job Relations Follow-up"] }
+  ];
 
-    // 🔒 Escaper for any untrusted text we render via innerHTML
-    const esc = (s) => String(s)
-      .replace(/&/g,'&amp;').replace(/</g,'&lt;')
-      .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  // ==== helpers ====
+  const esc = (s) => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  const isTrueish = (v) => { const t = String(v ?? "").trim().toLowerCase(); return v === true || t === "true" || t === "yes"; };
+  const boolPill = (v) => isTrueish(v) ? '<span class="pill pill--green">✓</span>' : '<span class="pill pill--red">✗</span>';
 
-    // 🔹 Non-blocking proxy warm-up (health ping, 6s cap) + silent prefetch of Employee Master
-    (async function warmupProxy(){
-      try {
-        const PROXY = (window.PowerUp && PowerUp.api && PowerUp.api.API_BASE) || 'https://powerup-proxy.onrender.com';
-        const ctrl = new AbortController();
-        const t = setTimeout(() => ctrl.abort(), 6000);
-        await fetch(`${PROXY}/health`, { mode:'cors', signal: ctrl.signal });
-        clearTimeout(t);
-      } catch (e) {
-        console.debug('Proxy warmup skipped:', e && e.name ? e.name : e);
-      }
-
-      // Background-preload of employee rows so the modal opens populated
-      try { await ensureEmployeeRows(); } catch {}
-    })();
-
-    const form       = $('#loginForm');
-    const empInput   = $('#empId');
-    const btnSignIn  = $('#signin');
-    const btnHelp    = $('#help');
-    const errBox     = $('#error');
-
-    const busy       = $('#busy');
-    const busySub    = $('#busySub');
-
-    const modal      = $('#idLookupModal');
-    const selName    = $('#lookupName');
-    const inpHire    = $('#lookupHire');
-    const resBox     = $('#lookupResult');
-    const btnCheck   = $('#lookupCheck');
-    const btnClose   = $('#lookupCancel');
-    const lookupLoading = document.getElementById('lookupLoading'); // header badge
-
-    let coldHintTimer = null;
-    let EMP_ROWS = []; // cached Employee Master rows
-    let lastFocusedEl = null;
-
-    function setBusy(on) {
-      if (on) {
-        busy.style.display = 'grid';
-        busy.setAttribute('aria-hidden', 'false');
-        btnSignIn.disabled = true;
-        empInput.disabled  = true;
-        clearTimeout(coldHintTimer);
-        coldHintTimer = setTimeout(() => {
-          busySub.textContent = 'First load after a while can take longer while the server wakes up.';
-        }, 1200);
-      } else {
-        busy.style.display = 'none';
-        busy.setAttribute('aria-hidden', 'true');
-        btnSignIn.disabled = false;
-        empInput.disabled  = false;
-        busySub.textContent = 'Authorizing and loading your data.';
-        clearTimeout(coldHintTimer);
-      }
-    }
-
-    function showError(msg) {
-      errBox.textContent = msg;
-      errBox.style.display = 'block';
-    }
-
-    // Lookup loading toggle (header badge + disable select)
-    function showLookupLoading(on) {
-      if (lookupLoading) lookupLoading.style.display = on ? 'flex' : 'none';
-      if (selName) selName.disabled = !!on;
-      updateRevealState();
-    }
-
-    // Mirror whatever session object exists to a canonical key the guards accept
-    function ensureCanonicalSession() {
-      try {
-        const s = PowerUp.session.get && PowerUp.session.get();
-        const empId = s && (s.employeeId || s.empId || s.id);
-        if (!empId) return false;
-        const canonical = { employeeId: String(empId), displayName: String(s.displayName ?? '') };
-        localStorage.setItem('powerup_session', JSON.stringify(canonical));
-        return true;
-      } catch { return false; }
-    }
-
-    async function doLogin() {
-      errBox.style.display = 'none';
-      const id = (empInput.value || '').trim();
-      if (!id) { showError('Please enter your Employee ID.'); return; }
-
-      if (!window.PowerUp?.session?.loginWithId) {
-        showError('App libraries failed to load. Please refresh or contact support.');
-        return;
-      }
-
-      setBusy(true);
-      try {
-        // Stay on this page until the login really succeeds; library will redirect.
-        await PowerUp.session.loginWithId(id);
-
-        // If we ever return (shouldn’t), make sure caches are clean and session mirrored.
-        try { window.P && P.api && P.api.clearCache && P.api.clearCache(); } catch {}
-        ensureCanonicalSession();
-      } catch (e) {
-        showError(e?.message || 'Sign-in failed. Please try again.');
-        setBusy(false);
-      }
-    }
-
-    // ---------- ID Lookup modal ----------
-    function toISODateOnly(v) {
-      if (!v) return '';
-      const s = String(v).trim();
-      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s; // already yyyy-mm-dd
-      const d = new Date(s);
-      if (isNaN(d)) return '';
-      const y = d.getFullYear();
-      const m = String(d.getMonth()+1).padStart(2,'0');
-      const day = String(d.getDate()).padStart(2,'0');
-      return `${y}-${m}-${day}`;
-    }
-
-    function trapFocus(e) {
-      if (modal.getAttribute('aria-hidden') === 'true') return;
-      const focusables = modal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
-      if (!focusables.length) return;
-      const first = focusables[0];
-      const last = focusables[focusables.length - 1];
-      if (e.key === 'Tab') {
-        if (e.shiftKey && document.activeElement === first) { last.focus(); e.preventDefault(); }
-        else if (!e.shiftKey && document.activeElement === last) { first.focus(); e.preventDefault(); }
-      }
-      if (e.key === 'Escape') { closeLookup(); }
-    }
-
-    function openLookup({ loading = false } = {}) {
-      resBox.style.display = 'none';
-      resBox.className = 'result';
-      resBox.textContent = '';
-      inpHire.value = '';
-      lastFocusedEl = document.activeElement;
-      modal.setAttribute('aria-hidden','false');
-      modal.style.display = 'flex';
-      document.addEventListener('keydown', trapFocus);
-      showLookupLoading(loading);
-      // focus first usable control
-      setTimeout(()=> (selName.disabled ? inpHire : selName).focus(), 0);
-    }
-
-    function closeLookup() {
-      modal.setAttribute('aria-hidden','true');
-      modal.style.display = 'none';
-      document.removeEventListener('keydown', trapFocus);
-      if (lastFocusedEl && typeof lastFocusedEl.focus === 'function') lastFocusedEl.focus();
-    }
-
-    async function ensureEmployeeRows() {
-      if (EMP_ROWS.length) return;
-      try {
-        showLookupLoading(true);
-        if (!window.PowerUp?.api?.getRowsByTitle) throw new Error('API not available');
-        const rs = await PowerUp.api.getRowsByTitle('EMPLOYEE_MASTER');
-        EMP_ROWS = rs.filter(r => (r['Display Name'] || r['Employee Name'] || r['Name']) && (r['Position ID'] || r['Employee ID']));
-        const opts = ['<option value="">Select your name…</option>'].concat(
-          EMP_ROWS
-            .map(r => ({
-              id: String(r['Position ID'] || r['Employee ID']).trim(),
-              name: String(r['Display Name'] || r['Employee Name'] || r['Name']).trim(),
-            }))
-            .sort((a,b) => a.name.localeCompare(b.name))
-            .map(o => `<option value="${esc(o.id)}">${esc(o.name)}</option>`)
-        );
-        selName.innerHTML = opts.join('');
-      } finally {
-        showLookupLoading(false);
-      }
-    }
-
-    function showLookupResult(ok, nodeOrText) {
-      resBox.className = 'result ' + (ok ? 'ok' : 'err');
-      resBox.style.display = 'block';
-      resBox.replaceChildren(); // clear
-      if (nodeOrText instanceof Node) {
-        resBox.appendChild(nodeOrText);
-      } else {
-        // text only (safe)
-        resBox.textContent = String(nodeOrText ?? '');
-      }
-    }
-
-    function findRowById(id) {
-      const idLC = String(id || '').trim().toLowerCase();
-      return EMP_ROWS.find(r => String(r['Position ID'] || r['Employee ID']).trim().toLowerCase() === idLC);
-    }
-
-    function updateRevealState() {
-      btnCheck.disabled = !selName.value || !inpHire.value || selName.disabled;
-    }
-
-    // Open modal immediately, populate in background
-    btnHelp.addEventListener('click', async () => {
-      try {
-        openLookup({ loading: true });
-        btnHelp.disabled = true;
-        await ensureEmployeeRows();
-        showLookupLoading(false);
-      } catch {
-        showLookupLoading(false);
-        alert("We couldn't load the employee list. Please try again or contact support.");
-      } finally {
-        btnHelp.disabled = false;
-        updateRevealState();
-      }
-    });
-
-    selName.addEventListener('change', updateRevealState);
-    inpHire.addEventListener('input', updateRevealState);
-
-    btnCheck.addEventListener('click', () => {
-      const id = selName.value;
-      const row = findRowById(id);
-      const picked = inpHire.value; // yyyy-mm-dd
-      if (!row || !picked) {
-        showLookupResult(false, 'Please choose your name and enter your hire date.');
-        return;
-      }
-      const hireRaw = row['Hire Date'] || row['HireDate'] || row['Start Date'];
-      const hireISO = toISODateOnly(hireRaw);
-      if (hireISO && hireISO === picked) {
-        const safeName = String(row['Display Name'] || row['Employee Name'] || row['Name'] || '');
-        const empId = String(row['Position ID'] || row['Employee ID'] || '');
-        // Build a safe fragment
-        const frag = document.createDocumentFragment();
-
-        const name = document.createElement('div');
-        name.innerHTML = `<b>${esc(safeName)}</b>`;
-
-        const label = document.createElement('div');
-        label.className = 'small';
-        label.style.marginTop = '4px';
-        label.textContent = 'Your Employee ID is:';
-
-        const codeWrap = document.createElement('div');
-        codeWrap.style.cssText = 'font-size:18px;margin-top:4px';
-        codeWrap.innerHTML = `<code>${esc(empId)}</code>`;
-
-        const btnWrap = document.createElement('div');
-        btnWrap.style.marginTop = '10px';
-        const useBtn = Object.assign(document.createElement('button'), { className:'btn primary', id:'useFoundId', type:'button' });
-        useBtn.textContent = 'Use this ID';
-        btnWrap.appendChild(useBtn);
-
-        frag.append(name, label, codeWrap, btnWrap);
-        showLookupResult(true, frag);
-
-        // Wire up the button immediately
-        useBtn.addEventListener('click', () => {
-          empInput.value = empId;
-          closeLookup();
-          empInput.focus();
+  // sortable header binding (same feel as dashboard)
+  function bindHeaderSort(thead, tbody){
+    let state = { col: 0, asc: true };
+    const applyIndicators = () => {
+      thead.querySelectorAll("th").forEach((h,i)=>{
+        h.setAttribute("data-sort","none");
+        h.removeAttribute("aria-sort");
+        if (i===state.col){
+          h.setAttribute("data-sort", state.asc ? "asc":"desc");
+          h.setAttribute("aria-sort", state.asc ? "ascending":"descending");
+        }
+      });
+    };
+    thead.querySelectorAll("th").forEach((th, idx)=>{
+      th.style.cursor = "pointer";
+      th.onclick = () => {
+        state.asc = state.col === idx ? !state.asc : true;
+        state.col = idx;
+        const rows = Array.from(tbody.querySelectorAll("tr"));
+        rows.sort((ra, rb)=>{
+          const a = ra.children[idx]?.getAttribute("data-sort") ?? "";
+          const b = rb.children[idx]?.getAttribute("data-sort") ?? "";
+          const na = Number(a), nb = Number(b);
+          const bothNum = !isNaN(na) && !isNaN(nb);
+          const cmp = bothNum ? (na - nb) : a.localeCompare(b);
+          return state.asc ? cmp : -cmp;
         });
-      } else {
-        showLookupResult(false, 'That hire date doesn’t match our records for the selected name.');
-      }
+        rows.forEach(r => tbody.appendChild(r));
+        applyIndicators();
+      };
     });
+    applyIndicators();
+  }
 
-    btnClose.addEventListener('click', (e) => { e.preventDefault(); closeLookup(); });
-    modal.addEventListener('click', (e) => { if (e.target === modal) closeLookup(); });
+  function fmtCell(v){
+    const t = String(v ?? "").trim().toLowerCase();
+    if (v === true || v === false || t === "true" || t === "false" || t === "yes" || t === "no") return boolPill(v);
+    return (v == null || String(v).trim() === "") ? "-" : esc(v);
+  }
 
-    // ---------- Login wiring ----------
-    form.addEventListener('submit', (e) => {
-      e.preventDefault();
-      // If modal is open, ignore submit
-      if (modal.getAttribute('aria-hidden') === 'false') return;
-      doLogin();
-    });
+  function fmtMonth(v){
+    if (v == null || String(v).trim() === "") return "-";
+    const s = String(v).trim();
 
-    // Escape closes modal
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && modal.getAttribute('aria-hidden') === 'false') closeLookup();
-    });
+    let m = s.match(/^(\d{4})-(\d{1,2})(?:-(\d{1,2}))?$/);
+    if (m) {
+      const y = +m[1], mo = +m[2], d = +(m[3] || 1);
+      const dt = new Date(y, mo - 1, d);
+      return dt.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+    }
 
-    // If a valid session already exists, bounce to dashboard immediately
-    try {
-      if (ensureCanonicalSession()) {
-        setBusy(true);
-        window.location.assign('Dashboard-Refresh.html');
-      }
-    } catch {}
+    m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/);
+    if (m) {
+      let y = +m[3]; if (y < 100) y += 2000;
+      const mo = +m[1], d = +m[2];
+      const dt = new Date(y, mo - 1, d);
+      return dt.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+    }
 
-  }());
-  </script>
+    const parsed = new Date(s);
+    if (!isNaN(parsed)) {
+      const dt = new Date(parsed.getUTCFullYear(), parsed.getUTCMonth(), 1);
+      return dt.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+    }
+    return esc(v);
+  }
+
+  const normalize = (s) => String(s||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+  function chooseIdColumn(cols){ if (cols.includes("Employee ID")) return "Employee ID"; if (cols.includes("Position ID")) return "Position ID"; return null; }
+  function resolveSheetColumn(sources, sheetCols){
+    for (const s of sources) if (sheetCols.includes(s)) return s;
+    const byNorm = new Map(sheetCols.map(c => [normalize(c), c]));
+    for (const s of sources){ const hit = byNorm.get(normalize(s)); if (hit) return hit; }
+    return null;
+  }
+
+  async function loadLevelTracker(){
+    PowerUp.session.requireLogin();
+    const { employeeId } = PowerUp.session.get() || {};
+    if (!employeeId){ document.getElementById("lt-tbody").innerHTML = `<tr><td>-</td></tr>`; return; }
+
+    const raw  = await PowerUp.api.fetchSheet(PowerUp.api.SHEETS.LEVEL_TRACKER);
+    const rows = PowerUp.api.rowsByTitle(raw);
+    const sheetCols = (raw.columns || []).map(c => c.title);
+    const idCol = chooseIdColumn(sheetCols);
+    if (!rows.length || !idCol){ document.getElementById("lt-tbody").innerHTML = `<tr><td>-</td></tr>`; return; }
+
+    const mine = rows.filter(r => String(r[idCol]||"").trim() === String(employeeId).trim());
+    if (!mine.length){ document.getElementById("lt-tbody").innerHTML = `<tr><td>-</td></tr>`; return; }
+
+    const resolved = COLS.map(c => ({ label: c.label, sheet: resolveSheetColumn(c.sources, sheetCols) }));
+    const thead = document.getElementById("lt-thead");
+    thead.innerHTML = resolved.map(c => `<th>${c.label}</th>`).join("");
+
+    // Build id->name map for admin Employee column fallback
+    let nameById = {};
+    if (IS_ADMIN) {
+      try {
+        const emRaw = await PowerUp.api.fetchSheet(PowerUp.api.SHEETS.EMPLOYEE_MASTER);
+        const em = PowerUp.api.rowsByTitle(emRaw);
+        em.forEach(r => {
+          const id = String(r["Position ID"] || r["Employee ID"] || "").trim();
+          const nm = String(r["Display Name"] || r["Employee Name"] || r["Name"] || "").trim();
+          if (id) nameById[id] = nm;
+        });
+      } catch {}
+    }
+
+    // Render rows with sortable data-sort values
+    const tbody = document.getElementById("lt-tbody");
+    tbody.innerHTML = mine.map(r => {
+      return `<tr>${
+        resolved.map(c => {
+          let v = c.sheet ? r[c.sheet] : "";
+          let sortVal = String(v ?? "").toLowerCase();
+
+          if (c.label === "Month") {
+            // use YYYY-MM numeric key if possible
+            const s = String(v||"").trim();
+            let key = s;
+            const d = new Date(s);
+            if (!isNaN(d)) key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+            sortVal = key;
+            return `<td data-sort="${sortVal}">${fmtMonth(v)}</td>`;
+          }
+          if (c.label === "Employee") {
+            const id = String(r["Employee ID"] || r["Position ID"] || "").trim();
+            const nm = v || nameById[id] || id || "-";
+            sortVal = String(nm).toLowerCase();
+            return `<td data-sort="${sortVal}">${fmtCell(nm)}</td>`;
+          }
+
+          // numeric-like columns sort numerically
+          const num = Number(String(v).replace(/[^0-9.\-]/g,''));
+          if (!Number.isNaN(num) && String(v).trim() !== "") {
+            sortVal = String(num);
+          }
+          return `<td data-sort="${sortVal}">${fmtCell(v)}</td>`;
+        }).join("")
+      }</tr>`;
+    }).join("");
+
+    bindHeaderSort(thead.parentElement.querySelector('tr'), tbody);
+  }
+
+  document.addEventListener('DOMContentLoaded', async () => {
+    PowerUp.layout.injectLayout();
+    await PowerUp.session.initHeader();
+    await loadLevelTracker();
+  });
+</script>
+
 </body>
 </html>
