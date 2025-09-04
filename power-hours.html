@@ -200,7 +200,8 @@
         return (tgtId && id === tgtId) || (tgtName && name === tgtName);
       }
 
-      function firstOfMonth(y, m){ return new Date(y, m, 1); }
+      // ---- FIX: make range math robust, including future ranges ----
+      function firstOfMonth(y, m){ return new Date(y, m, 1, 0,0,0,0); }
       function lastOfMonth(y, m){ return new Date(y, m+1, 0, 23,59,59,999); }
 
       function getRangeBounds(kind){
@@ -214,9 +215,9 @@
           case 'last-3':       return { start: firstOfMonth(y, m-2), end: todayEnd };
           case 'last-6':       return { start: firstOfMonth(y, m-5), end: todayEnd };
           case 'this-quarter': { const q=Math.floor(m/3)*3; return { start:firstOfMonth(y,q), end:todayEnd }; }
-          case 'ytd':          return { start: new Date(y, 0, 1), end: todayEnd };
+          case 'ytd':          return { start: new Date(y, 0, 1, 0,0,0,0), end: todayEnd };
           case 'next-month': { const nm=m+1, ny=nm>11?y+1:y, nmm=nm%12; return { start:firstOfMonth(ny,nmm), end:lastOfMonth(ny,nmm) }; }
-          case 'next-90':    { const s=new Date(y,m,now.getDate()); const e=new Date(s); e.setDate(e.getDate()+89); e.setHours(23,59,59,999); return { start:s, end:e }; }
+          case 'next-90':    { const s=new Date(y,m,now.getDate(),0,0,0,0); const e=new Date(s); e.setDate(e.getDate()+89); e.setHours(23,59,59,999); return { start:s, end:e }; }
           case 'all':
           default:             return { start: null, end: null };
         }
@@ -339,6 +340,16 @@
         applyRange();
         await PowerUp.renderDashboardPowerHours();
       }
+
+      // ---- FIX: bind the range change immediately, even before bindControls() ----
+      (function bindRangeEarly(){
+        // Use both 'change' and 'input' to be resilient across browsers
+        const sel = document.getElementById('range');
+        if (!sel) return;
+        const h = () => applyRange();
+        sel.addEventListener('change', h);
+        sel.addEventListener('input', h);
+      })();
 
       function bindControls() {
         const sel = document.getElementById('range');
