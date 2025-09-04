@@ -3,28 +3,31 @@
 <head>
   <meta charset="UTF-8" />
 
-<!-- EARLY AUTH GUARD — must be the first thing in <head> -->
-<script>
-!function () {
-  try {
-    const s = JSON.parse(sessionStorage.getItem('pu.session') || 'null')
-           || JSON.parse(localStorage.getItem('powerup_session') || 'null');
-    if (!s || !s.employeeId) {
+  <!-- EARLY AUTH GUARD — must be the first thing in <head> -->
+  <script>
+  !function () {
+    try {
+      const s = JSON.parse(sessionStorage.getItem('pu.session') || 'null')
+             || JSON.parse(localStorage.getItem('powerup_session') || 'null');
+      if (!s || !s.employeeId) {
+        document.documentElement.style.visibility = 'hidden';
+        location.replace('login.html');
+      }
+    } catch {
       document.documentElement.style.visibility = 'hidden';
       location.replace('login.html');
     }
-  } catch {
-    document.documentElement.style.visibility = 'hidden';
-    location.replace('login.html');
-  }
-}();
-</script>
+  }();
+  </script>
 
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>PowerUp — Level Tracker</title>
   <link href="style.css" rel="stylesheet" />
-  <script defer src="scripts/tokens.js"></script>
+
+  <!-- IMPORTANT: api.js must load before tokens.js -->
   <script defer src="scripts/api.js"></script>
+  <script defer src="scripts/tokens.js"></script>
+
   <script defer src="scripts/layout.js"></script>
   <script defer src="scripts/session.js"></script>
   <script defer src="scripts/roles.js"></script>
@@ -46,117 +49,59 @@
     </div>
   </main>
 
-<script>
-(function(){
-  const esc = (s) => String(s)
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  <script>
+  (function(){
+    const esc = (s) => String(s)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 
-  const boolPill = (v) => {
-    const t = String(v).trim().toLowerCase();
-    if (t === "true" || t === "yes" || t === "1") return `<span class="pill ok">Yes</span>`;
-    if (t === "false" || t === "no" || t === "0") return `<span class="pill no">No</span>`;
-    return esc(v);
-  };
+    const boolPill = (v) => {
+      const t = String(v).trim().toLowerCase();
+      if (t === "true" || t === "yes" || t === "1") return `<span class="pill ok">Yes</span>`;
+      if (t === "false" || t === "no" || t === "0") return `<span class="pill no">No</span>`;
+      return esc(v);
+    };
 
-  function fmtCell(v){
-    const t = String(v || "").trim().toLowerCase();
-    if (t === "true" || t === "false" || t === "yes" || t === "no") return boolPill(v);
-    return (v == null || String(v).trim() === "") ? "-" : esc(v);
-  }
-
-  function fmtMonth(v){
-    if (v == null || String(v).trim() === "") return "-";
-    const s = String(v).trim();
-
-    let m = s.match(/^(\d{4})-(\d{1,2})(?:-(\d{1,2}))?$/);
-    if (m) {
-      const y = +m[1], mo = +m[2], d = +(m[3] || 1);
-      const dt = new Date(y, mo - 1, d);
-      return dt.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+    function fmtCell(v){
+      const t = String(v || "").trim().toLowerCase();
+      if (t === "true" || t === "false" || t === "yes" || t === "no") return boolPill(v);
+      return (v == null || String(v).trim() === "") ? "-" : esc(v);
     }
 
-    m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/);
-    if (m) {
-      let y = +m[3]; if (y < 100) y += 2000;
-      const mo = +m[1], d = +m[2];
-      const dt = new Date(y, mo - 1, d);
-      return dt.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+    function fmtMonth(v){
+      if (v == null || String(v).trim() === "") return "-";
+      const s = String(v).trim();
+
+      let m = s.match(/^(\d{4})-(\d{1,2})(?:-(\d{1,2}))?$/);
+      if (m) {
+        const y = +m[1], mo = +m[2], d = +(m[3] || 1);
+        const dt = new Date(y, mo - 1, d);
+        return dt.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+      }
+
+      m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/);
+      if (m) {
+        let y = +m[3]; if (y < 100) y += 2000;
+        const mo = +m[1], d = +m[2];
+        const dt = new Date(y, mo - 1, d);
+        return dt.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+      }
+
+      const parsed = new Date(s);
+      if (!isNaN(parsed)) {
+        const dt = new Date(parsed.getUTCFullYear(), parsed.getUTCMonth(), 1);
+        return dt.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+      }
+      return esc(v);
     }
 
-    const parsed = new Date(s);
-    if (!isNaN(parsed)) {
-      const dt = new Date(parsed.getUTCFullYear(), parsed.getUTCMonth(), 1);
-      return dt.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
-    }
-    return esc(v);
-  }
+    const COLS = [
+      { label: "Level",     sources: ["Level"] },
+      { label: "Month",     sources: ["Month","Date","Completed Month"] },
+      { label: "Completed", sources: ["Completed","Done"] },
+      { label: "Notes",     sources: ["Notes","Comment"] }
+    ];
 
-  const normalize = (s) => String(s||"").toLowerCase().replace(/\s+/g,' ').trim();
-
-  const COLS = [
-    { label: "Level",     sources: ["Level"] },
-    { label: "Month",     sources: ["Month","Date","Completed Month"] },
-    { label: "Completed", sources: ["Completed","Done"] },
-    { label: "Notes",     sources: ["Notes","Comment"] }
-  ];
-
-  async function loadLevelTracker(){
-    const IS_ADMIN = PowerUp.auth?.isAdmin?.() === true;
-
-    const me = PowerUp.session.get();
-    const employeeId = me?.employeeId;
-    if (!employeeId) {
-      location.replace('login.html');
-      return;
-    }
-
-    // Load source sheet
-    const raw = await PowerUp.api.fetchSheet(PowerUp.api.SHEETS.LEVEL_TRACKER);
-    const title = PowerUp.api.titleById(PowerUp.api.SHEETS.LEVEL_TRACKER);
-    const rows = PowerUp.api.rowsByTitle(raw);
-    const sheetCols = rows[0] ? Object.keys(rows[0]) : [];
-
-    // Determine employee ID column
-    const idCol = ["Position ID","Employee ID","ID","Emp ID"].find(c => sheetCols.includes(c)) || "Position ID";
-
-    const resolveSheetColumn = (candidates, cols) => candidates.find(c => cols.includes(c)) || null;
-
-    if (!rows.length) { document.getElementById("lt-tbody").innerHTML = `<tr><td>-</td></tr>`; return; }
-
-    // Admin can view all or a specific employee via Admin Filter; non-admins see their own only
-    let viewRows = [];
-    if (IS_ADMIN && window.PowerUp?.auth?.maybeFilterByEmployee) {
-      viewRows = PowerUp.auth.maybeFilterByEmployee(rows, [ 'Display Name','Employee Name','Name', idCol, 'Employee ID','Position ID' ]);
-      const sel = sessionStorage.getItem('pu.adminEmployeeFilter') || '__ALL__';
-      if (!viewRows.length && sel === '__ALL__') viewRows = rows.slice();
-    } else {
-      viewRows = rows.filter(r => String(r[idCol]||"" ).trim() === String(employeeId).trim());
-    }
-    if (!viewRows.length){ document.getElementById("lt-tbody").innerHTML = `<tr><td>-</td></tr>`; return; }
-
-    const resolved = COLS.map(c => ({ label: c.label, sheet: resolveSheetColumn(c.sources, sheetCols) }));
-    const thead = document.getElementById("lt-thead");
-    const showName = IS_ADMIN && ((sessionStorage.getItem('pu.adminEmployeeFilter') || '__ALL__') === '__ALL__');
-    thead.innerHTML =
-      (showName ? `<th>Employee</th>` : '') +
-      resolved.map(c => `<th>${c.label}</th>`).join("");
-
-    // Build id->name map for admin Employee column fallback
-    let nameById = {};
-    if (IS_ADMIN) {
-      try {
-        const emRaw = await PowerUp.api.fetchSheet(PowerUp.api.SHEETS.EMPLOYEE_MASTER);
-        const em = PowerUp.api.rowsByTitle(emRaw);
-        em.forEach(r => {
-          const id = String(r["Position ID"] || r["Employee ID"] || "").trim();
-          const nm = String(r["Display Name"] || r["Employee Name"] || r["Name"] || "").trim();
-          if (id) nameById[id] = nm;
-        });
-      } catch {}
-    }
-
-    // parseAnyDate for sorting
     function parseAnyDate(s){
       if (s == null) return null;
       const t = String(s).trim();
@@ -167,29 +112,6 @@
       const d = new Date(t);
       return isNaN(d) ? null : d;
     }
-
-    // Render rows with sortable data-sort values
-    const tbody = document.getElementById("lt-tbody");
-    tbody.innerHTML = viewRows.map(r => {
-      return `<tr>${
-        (showName ? (()=> {
-          const idVal = String(r[idCol]||'').trim();
-          const nm = nameById[idVal] || r['Display Name'] || r['Employee Name'] || r['Name'] || idVal || '-';
-          return `<td data-sort="${(nm||'').toString().toLowerCase()}">${esc(nm)}</td>`;
-        })() : '') +
-        resolved.map(c => {
-          let v = c.sheet ? r[c.sheet] : "";
-          // For Month column, pretty-print to "Oct 2024"
-          if (/^month$/i.test(c.label)) v = fmtMonth(v);
-          let sortVal = (v == null ? '' : String(v).toLowerCase());
-          if (/date|month/i.test(c.label)) {
-            const d = parseAnyDate(v);
-            sortVal = d ? d.getTime() : '';
-          }
-          return `<td data-sort="${sortVal}">${fmtCell(v)}</td>`;
-        }).join("")
-      }</tr>`;
-    }).join("");
 
     // simple header sort: click to sort asc/desc by data-sort
     function bindHeaderSort(thead, tbody){
@@ -217,17 +139,104 @@
       applyIndicators();
     }
 
-    bindHeaderSort(thead.parentElement.querySelector('tr'), tbody);
-  }
+    async function loadLevelTracker(){
+      const thead = document.getElementById("lt-thead");
+      const tbody = document.getElementById("lt-tbody");
 
-  document.addEventListener('DOMContentLoaded', async () => {
-    PowerUp.layout.injectLayout();
-    await PowerUp.session.initHeader();
-    await loadLevelTracker();
-    document.addEventListener('powerup-admin-filter-change', async () => { await loadLevelTracker(); });
-  });
-})();
-</script>
+      try {
+        const IS_ADMIN = PowerUp.auth?.isAdmin?.() === true;
+        const me = PowerUp.session.get();
+        const employeeId = me?.employeeId;
+        if (!employeeId) {
+          location.replace('login.html');
+          return;
+        }
+
+        // Load source sheet
+        const raw = await PowerUp.api.fetchSheet(PowerUp.api.SHEETS.LEVEL_TRACKER);
+        const rows = PowerUp.api.rowsByTitle(raw);
+        const sheetCols = rows[0] ? Object.keys(rows[0]) : [];
+
+        // Determine employee ID column
+        const idCol = ["Position ID","Employee ID","ID","Emp ID"].find(c => sheetCols.includes(c)) || "Position ID";
+
+        const resolveSheetColumn = (candidates, cols) => candidates.find(c => cols.includes(c)) || null;
+
+        if (!rows.length) { tbody.innerHTML = `<tr><td>-</td></tr>`; return; }
+
+        // Admin can view all or a specific employee via Admin Filter; non-admins see their own only
+        let viewRows = [];
+        if (IS_ADMIN && window.PowerUp?.auth?.maybeFilterByEmployee) {
+          viewRows = PowerUp.auth.maybeFilterByEmployee(rows, [ 'Display Name','Employee Name','Name', idCol, 'Employee ID','Position ID' ]);
+          const sel = sessionStorage.getItem('pu.adminEmployeeFilter') || '__ALL__';
+          if (!viewRows.length && sel === '__ALL__') viewRows = rows.slice();
+        } else {
+          viewRows = rows.filter(r => String(r[idCol]||"").trim() === String(employeeId).trim());
+        }
+        if (!viewRows.length){ tbody.innerHTML = `<tr><td>-</td></tr>`; return; }
+
+        const resolved = COLS.map(c => ({ label: c.label, sheet: resolveSheetColumn(c.sources, sheetCols) }));
+        const showName = IS_ADMIN && ((sessionStorage.getItem('pu.adminEmployeeFilter') || '__ALL__') === '__ALL__');
+        thead.innerHTML =
+          (showName ? `<th>Employee</th>` : '') +
+          resolved.map(c => `<th>${c.label}</th>`).join("");
+
+        // Build id->name map for admin Employee column fallback
+        let nameById = {};
+        if (IS_ADMIN) {
+          try {
+            const emRaw = await PowerUp.api.fetchSheet(PowerUp.api.SHEETS.EMPLOYEE_MASTER);
+            const em = PowerUp.api.rowsByTitle(emRaw);
+            em.forEach(r => {
+              const id = String(r["Position ID"] || r["Employee ID"] || "").trim();
+              const nm = String(r["Display Name"] || r["Employee Name"] || r["Name"] || "").trim();
+              if (id) nameById[id] = nm;
+            });
+          } catch {}
+        }
+
+        // Render rows with sortable data-sort values
+        tbody.innerHTML = viewRows.map(r => {
+          return `<tr>${
+            (showName ? (()=> {
+              const idVal = String(r[idCol]||'').trim();
+              const nm = nameById[idVal] || r['Display Name'] || r['Employee Name'] || r['Name'] || idVal || '-';
+              return `<td data-sort="${(nm||'').toString().toLowerCase()}">${esc(nm)}</td>`;
+            })() : '') +
+            resolved.map(c => {
+              let v = c.sheet ? r[c.sheet] : "";
+              // For Month column, pretty-print to "Oct 2024"
+              if (/^month$/i.test(c.label)) v = fmtMonth(v);
+              let sortVal = (v == null ? '' : String(v).toLowerCase());
+              if (/date|month/i.test(c.label)) {
+                const d = parseAnyDate(v);
+                sortVal = d ? d.getTime() : '';
+              }
+              return `<td data-sort="${sortVal}">${fmtCell(v)}</td>`;
+            }).join("")
+          }</tr>`;
+        }).join("");
+
+        bindHeaderSort(thead.parentElement.querySelector('tr'), tbody);
+      } catch (err) {
+        console.error('Level Tracker failed:', err);
+        const tbody = document.getElementById("lt-tbody");
+        tbody.innerHTML = `<tr><td class="muted" style="padding:10px;">Could not load Level Tracker. Check console for details.</td></tr>`;
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      try {
+        PowerUp.layout.injectLayout();
+        await PowerUp.session.initHeader();
+      } catch (e) {
+        console.error('Header init failed:', e);
+      }
+      await loadLevelTracker(); // never throws to top now
+      document.addEventListener('powerup-admin-filter-change', async () => { await loadLevelTracker(); });
+    });
+  })();
+  </script>
 
 </body>
 </html>
