@@ -1,4 +1,4 @@
-// scripts/session.js  (stay-on-login, admin-safe, primes before redirect)
+// scripts/session.js  (login hardened + warmup + cached employee master)
 (function (PowerUp) {
   const P = PowerUp || (window.PowerUp = {});
   const SKEY = 'pu.session';
@@ -30,8 +30,26 @@
       ], '') || 'Level Unknown'
     );
   }
+
+  async function getEmployeeRowsCachedFirst() {
+    // try shared cache (set by login.html warmup)
+    const CK = 'pu.cache.EMPLOYEE_MASTER.rows';
+    const cached = sessionStorage.getItem(CK);
+    if (cached) {
+      try { return JSON.parse(cached); } catch {}
+    }
+    // fallback to fetch
+    const rows = await P.api.getRowsByTitle(P.api.SHEETS.EMPLOYEE_MASTER)
+      .catch(async () => {
+        const sheet = await P.api.fetchSheet(P.api.SHEETS.EMPLOYEE_MASTER);
+        return P.api.rowsByTitle(sheet);
+      });
+    try { sessionStorage.setItem(CK, JSON.stringify(rows)); } catch {}
+    return rows;
+  }
+
   async function findEmployeeRowById(id) {
-    const rows = await P.api.getRowsByTitle(P.api.SHEETS.EMPLOYEE_MASTER);
+    const rows = await getEmployeeRowsCachedFirst();
     const idLC = String(id || '').trim().toLowerCase();
     return rows.find(r => {
       const pid = String(r['Position ID'] ?? '').trim().toLowerCase();
@@ -61,7 +79,7 @@
     }
   }
 
-  // Mirror minimal session for legacy guards in localStorage (your early guard reads this)
+  // Mirror minimal session for legacy guards in localStorage
   function mirrorCanonicalSession() {
     try {
       const s = get();
@@ -71,16 +89,25 @@
     } catch {}
   }
 
-  // ---- login (STAYS on login page until session saved AND data is primed) ----
+  // ---- login (warm proxy + prefer cached employee list + prime sheets) ----
   async function loginWithId(inputId, { primeBeforeRedirect = true } = {}) {
     const id = String(inputId || '').trim();
     if (!id) throw new Error('Please enter your Position ID or Employee ID.');
 
-    // 1) Find employee
-    const row = await findEmployeeRowById(id);
+    // Warm proxy once (reduces first-login timeouts)
+    try { await P.api.warmProxy(); } catch {}
+
+    let row;
+    try {
+      row = await findEmployeeRowById(id);
+    } catch (e) {
+      // try one more time after a warm attempt
+      try { await P.api.warmProxy(); } catch {}
+      row = await findEmployeeRowById(id);
+    }
     if (!row) throw new Error('ID not found. Double-check your Position ID or Employee ID.');
 
-    // 2) Build session
+    // Build session
     const displayName = pick(row, ['Display Name', 'Employee Name', 'Name'], id);
     let level = resolveLevel(row);
     if (isAdminId(id)) level = 'Admin'; // hard override if admin
@@ -88,12 +115,12 @@
     set({ employeeId: id, displayName, level, levelText: level });
     mirrorCanonicalSession(); // keep early guards happy
 
-    // 3) Optional: prime key sheets so the dashboard isn't empty on first paint
+    // Prime key sheets (cap the wait so UI stays snappy)
     if (primeBeforeRedirect && P.api?.prefetchEssential) {
-      try { await P.api.prefetchEssential(); } catch (e) { console.debug('prefetch skipped:', e); }
+      try { await P.api.prefetchEssential(); } catch {}
     }
 
-    // 4) Redirect
+    // Redirect
     const dest = sessionStorage.getItem('pu.postLoginRedirect') || 'Dashboard-Refresh.html';
     sessionStorage.removeItem('pu.postLoginRedirect');
     location.href = dest;
@@ -106,7 +133,12 @@
     // Backfill missing name/level from Employee Master if needed
     if (!s.displayName || !s.level) {
       try {
-        const row = await findEmployeeRowById(s.employeeId);
+        const rows = await getEmployeeRowsCachedFirst();
+        const row = rows.find(r => {
+          const pid = String(r['Position ID'] ?? '').trim();
+          const eid = String(r['Employee ID'] ?? '').trim();
+          return pid === s.employeeId || eid === s.employeeId;
+        });
         if (row) {
           s.displayName = pick(row, ['Display Name', 'Employee Name', 'Name'], s.employeeId);
           s.level = resolveLevel(row);
