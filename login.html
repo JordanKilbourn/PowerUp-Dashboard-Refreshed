@@ -130,11 +130,7 @@
 
     // 🔹 Non-blocking proxy warm-up + silent prefetch of Employee Master
     (async function warmup() {
-      try {
-        // Warm proxy (health + columns)
-        await PowerUp.api.warmProxy();
-      } catch {}
-      // Prefetch rows and share them via session cache so login & modal are instant
+      try { await PowerUp.api.warmProxy(); } catch {}
       try {
         const rows = await PowerUp.api.getRowsByTitle('EMPLOYEE_MASTER');
         try { sessionStorage.setItem('pu.cache.EMPLOYEE_MASTER.rows', JSON.stringify(rows)); } catch {}
@@ -192,14 +188,49 @@
       selName.disabled = !!on;
     }
 
+    // ---- Safe cache helpers for Employee Master ----
+    const EMP_CACHE_KEY = 'pu.cache.EMPLOYEE_MASTER.rows';
+
+    function getCachedEmployeeRows() {
+      const raw = sessionStorage.getItem(EMP_CACHE_KEY);
+      if (!raw) return null;
+      try {
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) throw new Error('not array');
+        return parsed;
+      } catch {
+        // cache was corrupt/partial — remove and force a fresh fetch
+        try { sessionStorage.removeItem(EMP_CACHE_KEY); } catch {}
+        return null;
+      }
+    }
+
+    async function fetchEmployeeRowsFresh() {
+      try {
+        return await PowerUp.api.getRowsByTitle('EMPLOYEE_MASTER');
+      } catch (e) {
+        // one warm retry handles proxy cold-starts
+        try { await PowerUp.api.warmProxy(); } catch {}
+        return await PowerUp.api.getRowsByTitle('EMPLOYEE_MASTER');
+      }
+    }
+
     async function ensureEmployeeRows() {
       if (EMP_ROWS.length) return;
+
+      showLookupLoading(true);
       try {
-        showLookupLoading(true);
-        // prefer cached rows from warmup
-        const cached = sessionStorage.getItem('pu.cache.EMPLOYEE_MASTER.rows');
-        const rows = cached ? JSON.parse(cached) : await PowerUp.api.getRowsByTitle('EMPLOYEE_MASTER');
-        EMP_ROWS = rows.filter(r => (r['Display Name'] || r['Employee Name'] || r['Name']) && (r['Position ID'] || r['Employee ID']));
+        let rows = getCachedEmployeeRows();
+        if (!rows) {
+          rows = await fetchEmployeeRowsFresh();
+          try { sessionStorage.setItem(EMP_CACHE_KEY, JSON.stringify(rows)); } catch {}
+        }
+        EMP_ROWS = rows.filter(r =>
+          (r['Display Name'] || r['Employee Name'] || r['Name']) &&
+          (r['Position ID'] || r['Employee ID'])
+        );
+
+        // Build options
         const opts = ['<option value="">Select your name…</option>'].concat(
           EMP_ROWS
             .map(r => ({
@@ -271,16 +302,19 @@
 
     // ---------- ID Lookup modal ----------
     btnHelp.addEventListener('click', async () => {
+      openLookup({ loading: true });
+      btnHelp.disabled = true;
       try {
-        openLookup({ loading: true });
-        btnHelp.disabled = true;
         await ensureEmployeeRows();
-        showLookupLoading(false);
-      } catch {
-        showLookupLoading(false);
-        alert("We couldn't load the employee list. Please try again or contact support.");
+        // If we still have no rows, show inline error instead of alert
+        if (!EMP_ROWS.length) {
+          showLookupResult(false, 'We couldn’t load the employee list. Please try again in a moment.');
+        }
+      } catch (e) {
+        showLookupResult(false, 'We couldn’t load the employee list. Please try again in a moment.');
       } finally {
         btnHelp.disabled = false;
+        showLookupLoading(false);
       }
     });
 
