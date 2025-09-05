@@ -145,7 +145,6 @@
   }
 
   function getAdminSelectedName(){
-    // Header stores the selection here; '__ALL__' means everyone
     return sessionStorage.getItem('pu.adminEmployeeFilter') || '__ALL__';
   }
 
@@ -163,12 +162,10 @@
       return;
     }
 
-    // --- Admin filtering (NEW): All vs specific person ---
     let view = rows;
     if (IS_ADMIN) {
       const sel = getAdminSelectedName();
       if (sel && sel !== '__ALL__') {
-        // match by Employee Name / Display Name; if none, try by ID (if header put an ID there)
         const nameCols = ['Display Name','Employee Name','Name','Submitted By'].filter(c => sheetCols.includes(c));
         view = rows.filter(r => {
           const nameHit = nameCols.some(c => String(r[c] || '').trim() === sel);
@@ -177,21 +174,19 @@
         });
       }
     } else {
-      // Non-admin: only my rows (by ID match, robust)
       view = rows.filter(r => String(r[idCol]||"").trim() === myId);
     }
 
+    const thead = document.getElementById("lt-thead");
+    const tbody = document.getElementById("lt-tbody");
+
     if (!view.length){
-      document.getElementById("lt-tbody").innerHTML = `<tr><td class="muted" style="text-align:center;padding:20px;">No rows match the current filter.</td></tr>`;
-      // Still build header so sorting isn’t broken later
-      const resolvedEmpty = COLS.map(c => ({ label: c.label, sheet: resolveSheetColumn(c.sources, sheetCols) }));
-      const theadEmpty = document.getElementById("lt-thead");
-      theadEmpty.innerHTML = resolvedEmpty.map(c => `<th>${c.label}</th>`).join("");
+      thead.innerHTML = COLS.map(c => `<th>${c.label}</th>`).join("");
+      tbody.innerHTML = `<tr><td class="muted" style="text-align:center;padding:20px;">No rows match the current filter.</td></tr>`;
       return;
     }
 
-    const resolved = COLS.map(c => ({ label: c.label, sheet: resolveSheetColumn(c.sources, sheetCols) }));
-    const thead = document.getElementById("lt-thead");
+    const resolved = COLS.map(c => ({ label: c.label, sheet: resolveSheetColumn(c.sources, (raw.columns||[]).map(c=>c.title)) }));
     thead.innerHTML = resolved.map(c => `<th>${c.label}</th>`).join("");
 
     // Build id->name map for admin Employee column fallback
@@ -208,8 +203,6 @@
       } catch {}
     }
 
-    // Render rows with sortable data-sort values
-    const tbody = document.getElementById("lt-tbody");
     tbody.innerHTML = view.map(r => {
       return `<tr>${
         resolved.map(c => {
@@ -232,9 +225,7 @@
           }
 
           const num = Number(String(v).replace(/[^0-9.\-]/g,''));
-          if (!Number.isNaN(num) && String(v).trim() !== "") {
-            sortVal = String(num);
-          }
+          if (!Number.isNaN(num) && String(v).trim() !== "") sortVal = String(num);
           return `<td data-sort="${sortVal}">${fmtCell(v)}</td>`;
         }).join("")
       }</tr>`;
@@ -243,13 +234,28 @@
     bindHeaderSort(thead.parentElement.querySelector('tr'), tbody);
   }
 
+  // --- make sure we react immediately to Admin filter changes, regardless of emitter ---
+  let _lastAdminSel = sessionStorage.getItem('pu.adminEmployeeFilter') || '__ALL__';
+  function watchAdminFilter(){
+    const now = sessionStorage.getItem('pu.adminEmployeeFilter') || '__ALL__';
+    if (now !== _lastAdminSel) {
+      _lastAdminSel = now;
+      loadLevelTracker();
+    }
+    // run cheap check ~3 times per second; stops if page is hidden to avoid work
+    if (!document.hidden) window.setTimeout(watchAdminFilter, 350);
+    else window.setTimeout(watchAdminFilter, 800);
+  }
+
   document.addEventListener('DOMContentLoaded', async () => {
     PowerUp.layout.injectLayout();
     await PowerUp.session.initHeader();
 
-    // Re-render when Admin filter changes in the header
-    window.addEventListener('powerup-admin-filter-change', () => { loadLevelTracker(); });
+    // compatible with either event name; some older headers may use a different one
+    window.addEventListener('powerup-admin-filter-change', () => loadLevelTracker());
+    window.addEventListener('pu-admin-filter-change', () => loadLevelTracker());
 
+    watchAdminFilter(); // fallback watcher (cheap) so UI always updates
     await loadLevelTracker();
   });
 </script>
