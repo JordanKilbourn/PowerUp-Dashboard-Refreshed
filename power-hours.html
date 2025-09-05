@@ -80,6 +80,15 @@
           <option value="next-90">Next 90 Days</option>
           <option value="all">All</option>
         </select>
+
+        <!-- Restored metrics strip -->
+        <div class="metrics">
+          <span><span class="label">Sessions:</span> <span class="value" id="m-sessions">0</span></span>
+          <span><span class="label">Completed:</span> <span class="value" id="m-comp">0</span></span>
+          <span><span class="label">Completed hrs:</span> <span class="value" id="m-comp-hrs">0.00</span></span>
+          <span><span class="label">Scheduled:</span> <span class="value" id="m-sched">0</span></span>
+          <span><span class="label">Scheduled hrs:</span> <span class="value" id="m-sched-hrs">0.00</span></span>
+        </div>
       </div>
     </div>
 
@@ -246,6 +255,33 @@
         tr.innerHTML = heads.map(h => `<th>${h}</th>`).join('');
       }
 
+      function updateProgressFromView() {
+        // Progress is based on COMPLETED hours in the current filtered view.
+        const totalCompleted = state.view.reduce((a,r)=> a + toNum(pick(r, COLS.completedHours, 0)), 0);
+        const goalMax = toNum(document.querySelector('[data-hook="ph.goalMax"]')?.textContent || 8) || 8;
+
+        const pct = Math.max(0, Math.min(1, goalMax ? (totalCompleted/goalMax) : 0));
+
+        const track = document.querySelector('[data-hook="ph.track"]');
+        const fill  = document.querySelector('[data-hook="ph.fill"]');
+        const thumb = document.querySelector('[data-hook="ph.thumb"]');
+        const totalEl = document.querySelector('[data-hook="ph.total"]');
+        const msg   = document.querySelector('[data-hook="ph.message"]');
+
+        if (totalEl) totalEl.textContent = totalCompleted.toFixed(2);
+        if (track) {
+          track.setAttribute('aria-valuenow', String(Math.round(pct*goalMax)));
+          track.setAttribute('aria-valuemax', String(goalMax));
+        }
+        if (fill)  fill.style.width = `${pct*100}%`;
+        if (thumb) thumb.style.left  = `${pct*100}%`;
+
+        if (msg) {
+          const remain = Math.max(0, goalMax - totalCompleted);
+          msg.textContent = `${remain.toFixed(1)}h left to hit minimum (${goalMax}h) in the selected range.`;
+        }
+      }
+
       function renderTable() {
         const tb = document.getElementById('rows');
 
@@ -273,37 +309,40 @@
             return `<tr>
               ${IS_ADMIN ? `<td data-sort="${empNm.toLowerCase()}">${empNm || '-'}</td>` : ``}
               <td data-sort="${dateSort}">${d ? `${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}/${d.getFullYear()}` : (dStr||'-')}</td>
-              <td data-sort="${st.toLowerCase()}">${fmt(st)}</td>
-              <td data-sort="${en.toLowerCase()}">${fmt(en)}</td>
-              <td class="t-right mono" data-sort="${hrsNum}">${hrsNum.toFixed(2)}</td>
+              <td data-sort="${st.toLowerCase()}">${st||'-'}</td>
+              <td data-sort="${en.toLowerCase()}">${en||'-'}</td>
+              <td class="t-right mono" data-sort="${hrsNum}">${isFinite(hrsNum)? hrsNum.toFixed(2): '0.00'}</td>
               <td class="t-center" data-sort="${isSched ? 1 : 0}">${isSched ? `<span class="pill pill--blue">Scheduled</span>` : '-'}</td>
               <td class="t-center" data-sort="${isComp ? 1 : 0}">${isComp ? `<span class="pill pill--green">Completed</span>` : '-'}</td>
-              <td class="wrap" data-sort="${tp.toLowerCase()}">${fmt(tp)}</td>
+              <td class="wrap" data-sort="${tp.toLowerCase()}">${tp||'-'}</td>
             </tr>`;
           }).join('');
         }
 
-        // metrics
-        const totalHrs = state.view.reduce((a,r)=> a + toNum(pick(r, COLS.completedHours, 0)), 0);
+        // metrics (view-scoped)
         const sessions = state.view.length;
+        const completedRows = state.view.filter(r => isTrue(pick(r, COLS.completed)));
+        const completedHrs  = completedRows.reduce((a,r)=> a + toNum(pick(r, COLS.completedHours, 0)), 0);
 
         const now = new Date();
-        const upcoming = state.all.filter(r=>{
-          if (!byTarget(r, state.target)) return false;
+        const upcoming = state.view.filter(r => {
           const d = parseDateLocal(pick(r, COLS.date));
-          const scheduled = isTrue(pick(r, COLS.scheduled));
-          const completed = isTrue(pick(r, COLS.completed));
-          return scheduled && !completed && d && d >= now;
+          return isTrue(pick(r, COLS.scheduled)) && !isTrue(pick(r, COLS.completed)) && d && d >= now;
         });
-        const upcomingCount = upcoming.length;
-        const upcomingHours = upcoming.reduce((sum, r) => sum + toNum(pick(r, COLS.durationPlanned, 0)), 0);
+        const upcomingHrs = upcoming.reduce((sum, r) => sum + toNum(pick(r, COLS.durationPlanned, 0)), 0);
 
-        document.querySelector('[data-hook="ph.total"]').textContent = totalHrs.toFixed(2);
-        // goal bar left as-is; we don’t attempt to infer a group goal for “All Employees”
+        const byId = id => document.getElementById(id);
+        byId('m-sessions').textContent   = String(sessions);
+        byId('m-comp').textContent       = String(completedRows.length);
+        byId('m-comp-hrs').textContent   = completedHrs.toFixed(2);
+        byId('m-sched').textContent      = String(upcoming.length);
+        byId('m-sched-hrs').textContent  = upcomingHrs.toFixed(2);
 
-        // wire sorting after rows exist
-        const thead = document.getElementById('ph-head-row');
-        bindHeaderSort(thead, tb);
+        // Sort wiring
+        bindHeaderSort(document.getElementById('ph-head-row'), tb);
+
+        // Progress bar reflects current filtered view
+        updateProgressFromView();
       }
 
       function applyRange() {
@@ -349,7 +388,6 @@
         await loadNames();
         state.all = await loadRowsSafe();
         applyRange();
-        await PowerUp.renderDashboardPowerHours();
       }
 
       function bindControls() {
@@ -357,6 +395,10 @@
         if (sel) sel.addEventListener('change', applyRange);
 
         document.addEventListener('powerup-admin-filter-change', async () => {
+          state.target = await resolveTargetEmployee();
+          applyRange();
+        });
+        document.addEventListener('pu-admin-filter-change', async () => {
           state.target = await resolveTargetEmployee();
           applyRange();
         });
