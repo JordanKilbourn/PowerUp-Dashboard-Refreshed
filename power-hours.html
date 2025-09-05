@@ -32,37 +32,22 @@
   <link rel="alternate icon" type="image/png" href="assets/favicon.png">
 
   <style>
-    /* Mini progress card (unchanged sizing) */
+    /* Mini progress card */
     .power-card.power-mini { max-width: 560px; padding: 12px 14px; }
     .power-card.power-mini h3 { font-size: 14px; margin-bottom: 6px; }
     .power-card.power-mini p { font-size: 14px; margin-bottom: 8px; }
     .power-card.power-mini .phbar { height: 12px; }
     .power-card.power-mini .phbar__thumb { width: 12px; height: 12px; }
 
-    /* Header controls row */
-    .toolbar {
-      display:flex; align-items:center; gap:12px;
-      margin: 8px 0 8px;
-      flex-wrap: wrap;
-    }
-    .toolbar .spacer { flex: 1 1 auto; }
-
-    /* Range select */
-    .toolbar label { color: var(--muted, #9fb0c3); font-size: 13px; }
-    .toolbar select {
-      padding: 8px 10px; border-radius: 8px;
-      background:#0b1328; border:1px solid #293449; color:#e5e7eb
-    }
-
-    /* ===== Redesigned metrics rail ===== */
+    /* ===== Metrics rail (unchanged from last version) ===== */
     .stats-rail {
       display: grid;
       grid-template-columns: repeat(12, minmax(0,1fr));
       gap: 8px;
-      margin: 6px 0 12px;
+      margin: 10px 0 12px;
     }
     .stat {
-      grid-column: span 2 / span 2;               /* 5 items fit cleanly on wide screens */
+      grid-column: span 2 / span 2;
       display:flex; align-items:center; gap:10px;
       background: rgba(18,24,38,.55);
       border:1px solid #233046;
@@ -74,7 +59,6 @@
     @media (max-width: 1200px) { .stat { grid-column: span 3 / span 3; } }
     @media (max-width: 920px)  { .stat { grid-column: span 4 / span 4; } }
     @media (max-width: 640px)  { .stat { grid-column: span 6 / span 6; } }
-
     .stat .ico {
       width:28px; height:28px; display:grid; place-items:center;
       border-radius: 8px; background:#0c1a2d; border:1px solid #1f2b41;
@@ -85,20 +69,28 @@
     .stat .meta { line-height:1.15 }
     .stat .label { font-size:12px; color:#9fb0c3 }
     .stat .value { font-weight:700; font-variant-numeric: tabular-nums; }
-
-    /* Emphasis colors for different stat flavors (subtle, not neon) */
-    .stat--sessions .ico { color:#a8e0ff; }
+    .stat--sessions  .ico { color:#a8e0ff; }
     .stat--completed .ico { color:#67e8f9; }
-    .stat--comp-hrs .ico { color:#34d399; }
+    .stat--comp-hrs  .ico { color:#34d399; }
     .stat--scheduled .ico { color:#93c5fd; }
     .stat--sched-hrs .ico { color:#fbbf24; }
+
+    /* ===== Date Range control (header-aligned) ===== */
+    .range-inline {
+      display:flex; align-items:center; gap:8px;
+    }
+    .range-inline label { color:#9fb0c3; font-size:13px; }
+    .range-inline select {
+      padding: 8px 10px; border-radius: 8px;
+      background:#0b1328; border:1px solid #293449; color:#e5e7eb;
+    }
   </style>
 </head>
 <body>
   <div class="content-inner" style="padding: 12px 14px 16px;">
 
     <!-- Progress card -->
-    <div class="card power-card power-mini" style="margin-bottom: 14px;">
+    <div class="card power-card power-mini" style="margin-bottom: 10px;">
       <h3>Power Hours Logged</h3>
       <p>
         <span data-hook="ph.total">0.0</span> /
@@ -118,24 +110,7 @@
       <small data-hook="ph.message">—</small>
     </div>
 
-    <!-- Controls + Metrics -->
-    <div class="toolbar" aria-label="Power Hours filters and metrics">
-      <div class="spacer"></div>
-      <label class="muted" for="range">Date Range</label>
-      <select id="range" aria-label="Date Range">
-        <option value="this-month">This Month</option>
-        <option value="last-month">Last Month</option>
-        <option value="last-3">Last 3 Months</option>
-        <option value="last-6">Last 6 Months</option>
-        <option value="this-quarter">This Quarter</option>
-        <option value="ytd">Year to Date</option>
-        <option value="next-month">Next Month</option>
-        <option value="next-90">Next 90 Days</option>
-        <option value="all">All</option>
-      </select>
-    </div>
-
-    <!-- New metrics rail (left-aligned, responsive, compact) -->
+    <!-- Metrics rail -->
     <div class="stats-rail">
       <div class="stat stat--sessions" role="status" aria-live="polite">
         <div class="ico"><i class="fa-regular fa-calendar-check" aria-hidden="true"></i></div>
@@ -295,10 +270,10 @@
       function byTarget(row, target) {
         if (!target) return true;
         const id = String(pick(row, COLS.employeeId, '')).trim().toLowerCase();
-        const name = String(pick(row, COLS.employeeName, '')).trim().toLowerCase();
+        theName = String(pick(row, COLS.employeeName, '')).trim().toLowerCase();
         const tgtId = String(target.id||'').trim().toLowerCase();
         const tgtName = String(target.name||'').trim().toLowerCase();
-        return (tgtId && id === tgtId) || (tgtName && name === tgtName);
+        return (tgtId && id === tgtId) || (tgtName && theName === tgtName);
       }
 
       function firstOfMonth(y, m){ return new Date(y, m, 1); }
@@ -343,7 +318,6 @@
       }
 
       function updateProgressFromView() {
-        // Progress = COMPLETED hours in the current filtered view.
         const totalCompleted = state.view.reduce((a,r)=> a + toNum(pick(r, COLS.completedHours, 0)), 0);
         const goalMax = toNum(document.querySelector('[data-hook="ph.goalMax"]')?.textContent || 8) || 8;
         const pct = Math.max(0, Math.min(1, goalMax ? (totalCompleted/goalMax) : 0));
@@ -417,17 +391,13 @@
         });
         const upcomingHrs = upcoming.reduce((sum, r) => sum + toNum(pick(r, COLS.durationPlanned, 0)), 0);
 
-        // write metrics
         document.getElementById('m-sessions').textContent   = String(sessions);
         document.getElementById('m-comp').textContent       = String(completedRows.length);
         document.getElementById('m-comp-hrs').textContent   = completedHrs.toFixed(2);
         document.getElementById('m-sched').textContent      = String(upcoming.length);
         document.getElementById('m-sched-hrs').textContent  = upcomingHrs.toFixed(2);
 
-        // Sort wiring
         bindHeaderSort(document.getElementById('ph-head-row'), tb);
-
-        // Progress bar reflects current filtered view
         updateProgressFromView();
       }
 
@@ -463,11 +433,54 @@
         }
       }
 
+      // --- Inject Date Range control into header's filter row (next to Admin filter if present) ---
+      function mountRangeIntoHeader() {
+        // try to find admin filter select or its container
+        const adminSel = document.querySelector('[data-hook="adminFilter"]') ||
+                         document.querySelector('#adminFilter') ||
+                         document.querySelector('select[name="adminFilter"]');
+
+        // create the range control
+        const wrap = document.createElement('div');
+        wrap.className = 'range-inline';
+        wrap.innerHTML = `
+          <label for="range">Date Range</label>
+          <select id="range" aria-label="Date Range">
+            <option value="this-month">This Month</option>
+            <option value="last-month">Last Month</option>
+            <option value="last-3">Last 3 Months</option>
+            <option value="last-6">Last 6 Months</option>
+            <option value="this-quarter">This Quarter</option>
+            <option value="ytd">Year to Date</option>
+            <option value="next-month">Next Month</option>
+            <option value="next-90">Next 90 Days</option>
+            <option value="all">All</option>
+          </select>
+        `;
+
+        // place logic:
+        // - if admin filter exists, insert right after it
+        // - else try a generic header controls container
+        // - as a last resort, prepend to the page just above the progress card (rare)
+        if (adminSel && adminSel.parentElement) {
+          adminSel.parentElement.insertAdjacentElement('afterend', wrap);
+        } else {
+          const headerControls = document.querySelector('[data-hook="headerControls"]') ||
+                                 document.querySelector('.table-header-controls') ||
+                                 document.querySelector('.content-inner');
+          (headerControls || document.body).insertAdjacentElement('afterbegin', wrap);
+        }
+
+        // bind change handler
+        wrap.querySelector('#range').addEventListener('change', applyRange);
+        return wrap.querySelector('#range');
+      }
+
       async function loadTableAndProgress() {
-        // restore persisted range before data fetch / render
-        const sel = document.getElementById('range');
+        // Mount range control up top and restore saved selection
+        const rangeEl = mountRangeIntoHeader();
         const saved = getSavedRange();
-        if (sel && [...sel.options].some(o => o.value === saved)) sel.value = saved;
+        if (rangeEl && [...rangeEl.options].some(o => o.value === saved)) rangeEl.value = saved;
 
         state.target = await resolveTargetEmployee();
         buildHead();
@@ -477,9 +490,7 @@
       }
 
       function bindControls() {
-        const sel = document.getElementById('range');
-        if (sel) sel.addEventListener('change', applyRange);
-
+        // react to Admin filter changes
         document.addEventListener('powerup-admin-filter-change', async () => {
           state.target = await resolveTargetEmployee();
           applyRange();
@@ -494,6 +505,7 @@
         PowerUp.session.requireLogin();
         PowerUp.layout.injectLayout();
         PowerUp.layout.setPageTitle('Power Hours');
+
         await PowerUp.session.initHeader();
         await loadTableAndProgress();
         bindControls();
