@@ -175,6 +175,11 @@
 
       const state = { all: [], view: [], nameById: new Map(), target: null };
 
+      // --- persist date range selection ---
+      const RANGE_KEY = 'pu.ph.range';
+      const getSavedRange = () => sessionStorage.getItem(RANGE_KEY) || 'this-month';
+      const saveRange = (v) => { try { sessionStorage.setItem(RANGE_KEY, v); } catch {} };
+
       async function resolveTargetEmployee(){
         const me = PowerUp.session.get() || {};
         if (!IS_ADMIN) return { id: String(me.employeeId||'').trim(), name: String(me.displayName||'').trim() };
@@ -245,7 +250,10 @@
         const tb = document.getElementById('rows');
 
         if (!state.view.length) {
-          tb.innerHTML = `<tr><td colspan="${IS_ADMIN?8:7}" class="muted" style="text-align:center;padding:20px;">No rows</td></tr>`;
+          const who = state.target ? (state.target.name || state.target.id || 'Employee') : 'All Employees';
+          const sel = document.getElementById('range');
+          const label = sel?.selectedOptions?.[0]?.text || 'Current Range';
+          tb.innerHTML = `<tr><td colspan="${IS_ADMIN?8:7}" class="muted" style="text-align:center;padding:20px;">No sessions for <b>${who}</b> in <b>${label}</b>.</td></tr>`;
         } else {
           tb.innerHTML = state.view.map(r => {
             const empId  = String(pick(r, COLS.employeeId, '')).trim();
@@ -290,10 +298,8 @@
         const upcomingCount = upcoming.length;
         const upcomingHours = upcoming.reduce((sum, r) => sum + toNum(pick(r, COLS.durationPlanned, 0)), 0);
 
-        document.getElementById('m-hours').textContent = totalHrs.toFixed(2);
-        document.getElementById('m-sessions').textContent = sessions;
-        document.getElementById('m-sched').textContent = String(upcomingCount);
-        document.getElementById('m-sched-hours').textContent = upcomingHours.toFixed(2);
+        document.querySelector('[data-hook="ph.total"]').textContent = totalHrs.toFixed(2);
+        // goal bar left as-is; we don’t attempt to infer a group goal for “All Employees”
 
         // wire sorting after rows exist
         const thead = document.getElementById('ph-head-row');
@@ -303,6 +309,7 @@
       function applyRange() {
         const sel = document.getElementById('range');
         const range = sel ? sel.value : 'this-month';
+        saveRange(range);
         state.view = state.all.filter(r => byTarget(r, state.target) && withinRange(r, range));
         renderTable();
       }
@@ -332,6 +339,11 @@
       }
 
       async function loadTableAndProgress() {
+        // restore persisted range before data fetch / render
+        const sel = document.getElementById('range');
+        const saved = getSavedRange();
+        if (sel && [...sel.options].some(o => o.value === saved)) sel.value = saved;
+
         state.target = await resolveTargetEmployee();
         buildHead();
         await loadNames();
@@ -343,6 +355,7 @@
       function bindControls() {
         const sel = document.getElementById('range');
         if (sel) sel.addEventListener('change', applyRange);
+
         document.addEventListener('powerup-admin-filter-change', async () => {
           state.target = await resolveTargetEmployee();
           applyRange();
