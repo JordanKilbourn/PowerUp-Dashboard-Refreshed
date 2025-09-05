@@ -32,14 +32,12 @@
   <link rel="alternate icon" type="image/png" href="assets/favicon.png">
 
   <style>
-    /* Progress card */
     .power-card.power-mini { max-width: 560px; padding: 12px 14px; }
     .power-card.power-mini h3 { font-size: 14px; margin-bottom: 6px; }
     .power-card.power-mini p { font-size: 14px; margin-bottom: 8px; }
     .power-card.power-mini .phbar { height: 12px; }
     .power-card.power-mini .phbar__thumb { width: 12px; height: 12px; }
 
-    /* Metrics rail */
     .stats-rail {
       display: grid;
       grid-template-columns: repeat(12, minmax(0,1fr));
@@ -72,13 +70,12 @@
     .stat--sessions  .ico { color:#a8e0ff; }
     .stat--completed .ico { color:#67e8f9; }
     .stat--comp-hrs  .ico { color:#34d399; }
-    .stat--scheduled .ico { color:#93c5fd; }
-    .stat--sched-hrs .ico { color:#fbbf24; }
+    .stat--upcoming  .ico { color:#93c5fd; }
+    .stat--up-hrs    .ico { color:#fbbf24; }
 
-    /* Inline Date Range (sits next to Admin filter or in header row for users) */
     .range-inline {
       display:inline-flex; align-items:center; gap:8px;
-      margin-left: 12px; /* when next to Admin filter */
+      margin-left: 12px;
       vertical-align: middle;
     }
     .range-inline--standalone { margin-left: 0; margin-bottom: 8px; display:inline-flex; }
@@ -92,7 +89,6 @@
 <body>
   <div class="content-inner" style="padding: 12px 14px 16px;">
 
-    <!-- Progress card -->
     <div class="card power-card power-mini" style="margin-bottom: 10px;">
       <h3>Power Hours Logged</h3>
       <p>
@@ -113,7 +109,6 @@
       <small data-hook="ph.message">—</small>
     </div>
 
-    <!-- Metrics -->
     <div class="stats-rail">
       <div class="stat stat--sessions" role="status" aria-live="polite">
         <div class="ico"><i class="fa-regular fa-calendar-check" aria-hidden="true"></i></div>
@@ -139,24 +134,24 @@
         </div>
       </div>
 
-      <div class="stat stat--scheduled">
+      <!-- RENAMED + NEW IDS -->
+      <div class="stat stat--upcoming">
         <div class="ico"><i class="fa-regular fa-clock" aria-hidden="true"></i></div>
         <div class="meta">
-          <div class="label">Scheduled</div>
-          <div class="value" id="m-sched">0</div>
+          <div class="label">Upcoming</div>
+          <div class="value" id="m-up">0</div>
         </div>
       </div>
 
-      <div class="stat stat--sched-hrs">
+      <div class="stat stat--up-hrs">
         <div class="ico"><i class="fa-solid fa-hourglass-half" aria-hidden="true"></i></div>
         <div class="meta">
-          <div class="label">Scheduled hrs</div>
-          <div class="value" id="m-sched-hrs">0.00</div>
+          <div class="label">Upcoming hrs</div>
+          <div class="value" id="m-up-hrs">0.00</div>
         </div>
       </div>
     </div>
 
-    <!-- Table -->
     <div class="card table-card">
       <div class="table-scroll">
         <table id="ph-table" class="dashboard-table">
@@ -182,7 +177,6 @@
     (function(){
       const IS_ADMIN = !!(window.PowerUp?.auth?.isAdmin && PowerUp.auth.isAdmin());
 
-      // ----- column aliases -----
       const COLS = {
         employeeId: ['Employee ID','Position ID'],
         employeeName: ['Submitted By','Employee Name','Name','Display Name'],
@@ -196,7 +190,6 @@
         topic: ['Activity Description','Activity','Topic','Description','Notes']
       };
 
-      // ----- helpers -----
       const pick = (row, list, d='') => { for (const k of list) if (row[k]!=null && row[k]!=='' ) return row[k]; return d; };
       const isTrue = (v) => v === true || /^(true|yes|y|checked|1)$/i.test(String(v ?? "").trim());
       const toNum  = (v) => window.PowerUp?.api?.toNumber ? PowerUp.api.toNumber(v) : (Number(String(v).replace(/[^0-9.\-]/g,''))||0);
@@ -213,7 +206,6 @@
         return isNaN(d) ? null : d;
       }
 
-      // sortable header binding
       function bindHeaderSort(thead, tbody){
         let state = { col: 0, asc: true };
         const applyIndicators = () => {
@@ -249,7 +241,6 @@
 
       const state = { all: [], view: [], nameById: new Map(), target: null };
 
-      // --- persist date range selection ---
       const RANGE_KEY = 'pu.ph.range';
       const getSavedRange = () => sessionStorage.getItem(RANGE_KEY) || 'this-month';
       const saveRange = (v) => { try { sessionStorage.setItem(RANGE_KEY, v); } catch {} };
@@ -382,23 +373,25 @@
           }).join('');
         }
 
-        // metrics (view-scoped)
+        /* ---------- metrics (view-scoped) ---------- */
         const sessions = state.view.length;
+
         const completedRows = state.view.filter(r => isTrue(pick(r, COLS.completed)));
         const completedHrs  = completedRows.reduce((a,r)=> a + toNum(pick(r, COLS.completedHours, 0)), 0);
 
-        const now = new Date();
-        const upcoming = state.view.filter(r => {
+        // UPCOMING: Scheduled && !Completed && Date >= today (local)
+        const today = new Date(); today.setHours(0,0,0,0);
+        const upcomingRows = state.view.filter(r => {
           const d = parseDateLocal(pick(r, COLS.date));
-          return isTrue(pick(r, COLS.scheduled)) && !isTrue(pick(r, COLS.completed)) && d && d >= now;
+          return isTrue(pick(r, COLS.scheduled)) && !isTrue(pick(r, COLS.completed)) && d && d >= today;
         });
-        const upcomingHrs = upcoming.reduce((sum, r) => sum + toNum(pick(r, COLS.durationPlanned, 0)), 0);
+        const upcomingHrs  = upcomingRows.reduce((sum, r) => sum + toNum(pick(r, COLS.durationPlanned, 0)), 0);
 
         document.getElementById('m-sessions').textContent   = String(sessions);
         document.getElementById('m-comp').textContent       = String(completedRows.length);
         document.getElementById('m-comp-hrs').textContent   = completedHrs.toFixed(2);
-        document.getElementById('m-sched').textContent      = String(upcoming.length);
-        document.getElementById('m-sched-hrs').textContent  = upcomingHrs.toFixed(2);
+        document.getElementById('m-up').textContent         = String(upcomingRows.length);
+        document.getElementById('m-up-hrs').textContent     = upcomingHrs.toFixed(2);
 
         bindHeaderSort(document.getElementById('ph-head-row'), tb);
         updateProgressFromView();
@@ -436,7 +429,6 @@
         }
       }
 
-      /* ---------- Date Range placement ---------- */
       function findAdminFilterSelect() {
         let sel = document.querySelector('[data-hook="adminFilter"]')
                || document.querySelector('#adminFilter')
@@ -486,13 +478,11 @@
         const adminSel = findAdminFilterSelect();
 
         if (adminSel && adminSel.parentElement) {
-          // Admin view: place right after Admin filter
           if (!wrap.isConnected) document.body.appendChild(wrap);
           wrap.classList.remove('range-inline--standalone');
           adminSel.insertAdjacentElement('afterend', wrap);
           wrap.style.display = 'inline-flex';
         } else {
-          // User view (no Admin filter): place in header zone above progress card
           const progressCard = document.querySelector('.power-card.power-mini');
           const container = progressCard && progressCard.parentElement ? progressCard.parentElement : document.querySelector('.content-inner');
           if (!wrap.isConnected) container.insertBefore(wrap, progressCard || container.firstChild);
@@ -508,7 +498,7 @@
       }
 
       function observeForAdminFilter(savedValue) {
-        if (!IS_ADMIN) return; // only needed when an Admin filter will appear
+        if (!IS_ADMIN) return;
         const obs = new MutationObserver(() => {
           const adminSel = findAdminFilterSelect();
           const wrap = document.querySelector('.range-inline');
@@ -524,8 +514,6 @@
 
       async function loadTableAndProgress() {
         const saved = getSavedRange();
-
-        // Build Date Range in the right place for current role
         mountRangeInline(saved);
         observeForAdminFilter(saved);
 
