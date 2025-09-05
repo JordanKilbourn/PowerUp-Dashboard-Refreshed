@@ -32,22 +32,7 @@
   <link rel="alternate icon" type="image/png" href="assets/favicon.png">
 
   <style>
-    /* -------- controls injected into header next to Admin filter -------- */
-    .inline-controls { display:inline-flex; align-items:center; gap:10px; margin-left:10px; vertical-align:middle; }
-    .inline-controls .range-inline { display:inline-flex; align-items:center; gap:8px; }
-    .inline-controls label { color:#9fb0c3; font-size:13px; }
-    .inline-controls select {
-      padding: 8px 10px; border-radius: 8px;
-      background:#0b1328; border:1px solid #293449; color:#e5e7eb;
-    }
-    .inline-controls .btn-cta {
-      padding:8px 10px; border-radius:10px; font-weight:700; cursor:pointer;
-      background:#10b981; border:1px solid #0e9f73; color:#04241d;
-    }
-    .inline-controls .btn-cta:hover { filter:brightness(1.03); }
-    .inline-controls.standalone { display:flex; align-items:center; gap:10px; margin: 6px 0 2px; }
-
-    /* -------- progress card parity with dashboard (accent + 1 decimal) -------- */
+    /* ---------- PROGRESS CARD: match dashboard (accent + one-decimal) ---------- */
     .power-card.power-mini {
       max-width: 560px; padding: 12px 14px;
       border:1px solid #00ffc6; border-radius: 14px;
@@ -59,7 +44,7 @@
     .power-card.power-mini .phbar { height: 12px; }
     .power-card.power-mini .phbar__thumb { width:12px; height:12px; }
 
-    /* -------- metrics rail (unchanged layout, just tidy) -------- */
+    /* ---------- METRICS STRIP (unchanged logic, tidy visuals) ---------- */
     .stats-rail {
       display:grid; grid-template-columns: repeat(12, minmax(0,1fr));
       gap:8px; margin:10px 0 12px;
@@ -81,7 +66,36 @@
     .stat .label { font-size:12px; color:#9fb0c3 }
     .stat .value { font-weight:700; font-variant-numeric: tabular-nums; }
 
-    /* -------- modal (styling only; behavior wired below) -------- */
+    /* ---------- INLINE CONTROLS (Date Range + CTA) ---------- */
+    .ph-inline { display:inline-flex; align-items:center; gap:10px; margin-left:10px; vertical-align:middle; }
+    .ph-inline label { color:#9fb0c3; font-size:13px; }
+    .ph-inline select {
+      padding: 8px 10px; border-radius: 8px;
+      background:#0b1328; border:1px solid #293449; color:#e5e7eb;
+    }
+
+    /* ---------- CTA button (higher polish) ---------- */
+    .btn-cta {
+      --bg1:#10b981; --bg2:#0fb38f; --ring:#0e9f73; --txt:#05271f;
+      position:relative; display:inline-flex; align-items:center; gap:8px;
+      padding:9px 12px; border-radius:12px; font-weight:700; cursor:pointer;
+      background:linear-gradient(180deg,var(--bg1),var(--bg2));
+      border:1px solid var(--ring); color:var(--txt);
+      box-shadow:
+        0 0 0 2px rgba(14,159,115,.15),
+        0 6px 12px rgba(16,185,129,.18),
+        inset 0 1px 0 rgba(255,255,255,.15);
+      transition: transform .06s ease, box-shadow .12s ease, filter .12s ease;
+      user-select:none;
+    }
+    .btn-cta .ico { width:18px; height:18px; display:grid; place-items:center; }
+    .btn-cta:hover { filter:brightness(1.04); box-shadow:
+        0 0 0 3px rgba(14,159,115,.22),
+        0 10px 18px rgba(16,185,129,.22),
+        inset 0 1px 0 rgba(255,255,255,.18); }
+    .btn-cta:active { transform: translateY(1px); }
+
+    /* ---------- Modal (unchanged behavior; style only) ---------- */
     .modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:9998}
     .modal[aria-hidden="false"]{display:flex}
     .modal-card{background:#0b1020;border:1px solid #294957;border-radius:14px;padding:16px 16px 14px;min-width:320px;max-width:640px;width:94%}
@@ -126,7 +140,8 @@
         <div class="phbar__thumb" data-hook="ph.thumb" title="Current"></div>
       </div>
 
-      <small data-hook="ph.message">—</small>
+      <!-- keep the original message tone; guarantee it renders -->
+      <small data-hook="ph.message">8.0h left to hit minimum (8h) in the selected range.</small>
     </div>
 
     <!-- ===== Metrics ===== -->
@@ -216,7 +231,7 @@
     (function(){
       const IS_ADMIN = !!(window.PowerUp?.auth?.isAdmin && PowerUp.auth.isAdmin());
 
-      // ----- column aliases (unchanged) -----
+      /* -------------------- column aliases (unchanged) -------------------- */
       const COLS = {
         employeeId: ['Employee ID','Position ID'],
         employeeName: ['Submitted By','Employee Name','Name','Display Name'],
@@ -231,7 +246,6 @@
         squad: ['Squad']
       };
 
-      // ----- helpers (untouched patterns) -----
       const pick = (row, list, d='') => { for (const k of list) if (row[k]!=null && row[k]!=='' ) return row[k]; return d; };
       const isTrue = (v) => v === true || /^(true|yes|y|checked|1)$/i.test(String(v ?? "").trim());
       const toNum  = (v) => window.PowerUp?.api?.toNumber ? PowerUp.api.toNumber(v) : (Number(String(v).replace(/[^0-9.\-]/g,''))||0);
@@ -248,7 +262,7 @@
         return isNaN(d) ? null : d;
       }
 
-      // sortable header binding
+      /* -------------------- sorting -------------------- */
       function bindHeaderSort(thead, tbody){
         let state = { col: 0, asc: true };
         const applyIndicators = () => {
@@ -282,18 +296,9 @@
         applyIndicators();
       }
 
-      // ----- state -----
-      const state = {
-        all: [],
-        view: [],
-        nameById: new Map(),
-        target: null,
-        startOptions: [],
-        endOptions: [],
-        sheetCols: []   // raw column titles for resolve
-      };
+      const state = { all: [], view: [], nameById: new Map(), target: null, sheetCols: [] };
 
-      // ----- range helpers (unchanged) -----
+      /* -------------------- range helpers -------------------- */
       function firstOfMonth(y, m){ return new Date(y, m, 1); }
       function lastOfMonth(y, m){ return new Date(y, m+1, 0, 23,59,59,999); }
       function getRangeBounds(kind){
@@ -323,7 +328,7 @@
         return true;
       }
 
-      // ----- resolve target employee (unchanged behavior) -----
+      /* -------------------- target employee -------------------- */
       async function resolveTargetEmployee(){
         const me = PowerUp.session.get() || {};
         if (!IS_ADMIN) return { id: String(me.employeeId||'').trim(), name: String(me.displayName||'').trim() };
@@ -348,7 +353,7 @@
         return (tgtId && id === tgtId) || (tgtName && name === tgtName);
       }
 
-      // ----- header + table -----
+      /* -------------------- head + render -------------------- */
       function buildHead(){
         const tr = document.getElementById('ph-head-row');
         const heads = [
@@ -395,13 +400,13 @@
         const totalHrs = state.view.reduce((a,r)=> a + toNum(pick(r, COLS.completedHours, 0)), 0);
         const sessions = state.view.length;
 
-        const now = new Date();
+        const today = new Date(); today.setHours(0,0,0,0);
         const upcoming = state.all.filter(r=>{
           if (!byTarget(r, state.target)) return false;
           const d = parseDateLocal(pick(r, COLS.date));
           const scheduled = isTrue(pick(r, COLS.scheduled));
           const completed = isTrue(pick(r, COLS.completed));
-          return scheduled && !completed && d && d >= new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          return scheduled && !completed && d && d >= today;
         });
         const upcomingCount = upcoming.length;
         const upcomingHours = upcoming.reduce((sum, r) => sum + toNum(pick(r, COLS.durationPlanned, 0)), 0);
@@ -416,10 +421,19 @@
         const thead = document.getElementById('ph-head-row');
         bindHeaderSort(thead, tb);
 
-        // progress card number with ONE decimal, dashboard style
+        // progress number one-decimal & message
         const phTot = document.querySelector('[data-hook="ph.total"]');
         if (phTot) phTot.textContent = totalHrs.toFixed(1);
-        // keep existing progress renderer
+
+        const rngSel = document.getElementById('range');
+        const msg = document.querySelector('[data-hook="ph.message"]');
+        if (msg) {
+          const goal = Number(document.querySelector('[data-hook="ph.goalMax"]').textContent || 8) || 8;
+          const left = Math.max(0, goal - totalHrs);
+          const label = rngSel ? 'in the selected range.' : '';
+          msg.textContent = `${left.toFixed(1)}h left to hit minimum (${goal}h) ${label}`;
+        }
+
         PowerUp.renderDashboardPowerHours && PowerUp.renderDashboardPowerHours();
       }
 
@@ -460,70 +474,81 @@
         await loadNames();
         state.all = await loadRowsSafe();
         applyRange();
-        await PowerUp.renderDashboardPowerHours();
       }
 
-      function bindControls() {
-        const sel = document.getElementById('range');
-        if (sel) sel.addEventListener('change', applyRange);
-        document.addEventListener('powerup-admin-filter-change', async () => {
-          state.target = await resolveTargetEmployee();
-          applyRange();
-        });
-      }
-
-      // ===== Inject Date Range + CTA in header row next to Admin filter =====
-      function injectHeaderControls() {
-        const range = document.createElement('select');
-        range.id = 'range';
-        range.innerHTML = `
-          <option value="this-month">This Month</option>
-          <option value="last-month">Last Month</option>
-          <option value="last-3">Last 3 Months</option>
-          <option value="last-6">Last 6 Months</option>
-          <option value="this-quarter">This Quarter</option>
-          <option value="ytd">Year to Date</option>
-          <option value="next-month">Next Month</option>
-          <option value="next-90">Next 90 Days</option>
-          <option value="all">All</option>
+      /* -------------------- header controls injection -------------------- */
+      function makeControls() {
+        const wrap = document.createElement('span');
+        wrap.className = 'ph-inline';
+        wrap.innerHTML = `
+          <label for="range">Date Range</label>
+          <select id="range">
+            <option value="this-month">This Month</option>
+            <option value="last-month">Last Month</option>
+            <option value="last-3">Last 3 Months</option>
+            <option value="last-6">Last 6 Months</option>
+            <option value="this-quarter">This Quarter</option>
+            <option value="ytd">Year to Date</option>
+            <option value="next-month">Next Month</option>
+            <option value="next-90">Next 90 Days</option>
+            <option value="all">All</option>
+          </select>
+          <button class="btn-cta" id="phOpen" type="button">
+            <span class="ico"><i class="fa-solid fa-plus"></i></span>
+            <span>Log / Schedule</span>
+          </button>
         `;
+        return wrap;
+      }
 
-        const grouping = document.createElement('span');
-        grouping.className = 'inline-controls';
-        grouping.innerHTML = `<span class="range-inline"><label for="range">Date Range</label></span>`;
-        grouping.querySelector('.range-inline').appendChild(range);
-
-        const btn = document.createElement('button');
-        btn.className = 'btn-cta';
-        btn.type = 'button';
-        btn.id = 'phOpen';
-        btn.textContent = 'Log / Schedule';
-        grouping.appendChild(btn);
-
-        // try hard to locate the admin filter row and place to the right of it
-        const adminSel =
+      function findAdminFilterContainer() {
+        // The select usually lives inside a container with data-hook="adminFilter"
+        const sel =
           document.querySelector('[data-hook="adminFilter"] select') ||
           document.querySelector('select[data-hook="adminFilter"]') ||
           document.querySelector('#adminFilter select') ||
           document.querySelector('#adminFilter') ||
           document.querySelector('select[name="adminFilter"]');
+        if (sel) return sel.parentElement || sel;
+        return null;
+      }
 
-        if (adminSel && adminSel.parentElement) {
-          adminSel.parentElement.insertAdjacentElement('afterend', grouping);
+      function findHeaderToolbar() {
+        // Try typical header containers used by layout.js
+        return (
+          document.querySelector('[data-hook="headerToolbar"]') ||
+          document.querySelector('.page-head .header-toolbar') ||
+          document.querySelector('.content-head .header-toolbar') ||
+          document.querySelector('.content-head') ||
+          document.querySelector('.page-head')
+        );
+      }
+
+      function injectHeaderControls() {
+        const controls = makeControls();
+        const adminBox = findAdminFilterContainer();
+        if (IS_ADMIN && adminBox) {
+          // Admin: put controls immediately to the right of admin filter
+          adminBox.insertAdjacentElement('afterend', controls);
         } else {
-          // fallback: place in header toolbar row (still above divider)
-          const head = document.querySelector('.content-head') || document.querySelector('.page-head');
-          if (head) {
-            grouping.classList.add('standalone');
-            head.appendChild(grouping);
+          // Non-admin: place controls where the admin filter would sit (header toolbar row)
+          const toolbar = findHeaderToolbar();
+          if (toolbar) {
+            // If toolbar is flex-row, appending will place inline
+            toolbar.appendChild(controls);
+          } else {
+            // Hard fallback: keep them above the divider but within header area
+            const head = document.querySelector('.content-inner');
+            head && head.insertBefore(controls, head.firstChild);
           }
         }
 
-        // wire open modal
-        btn.addEventListener('click', () => openModal());
+        // wire
+        controls.querySelector('#range').addEventListener('change', applyRange);
+        controls.querySelector('#phOpen').addEventListener('click', openModal);
       }
 
-      // ===== Modal behavior (save to Smartsheet) =====
+      /* -------------------- modal helpers + save -------------------- */
       function pad2(n){ return String(n).padStart(2,'0'); }
       function buildHalfHourOptions() {
         const opts = [];
@@ -536,20 +561,15 @@
         }
         return opts;
       }
-
       function fillTimeSelects() {
         const startSel = document.getElementById('phStart');
         const endSel   = document.getElementById('phEnd');
-        const base = buildHalfHourOptions(); // safe default
-        state.startOptions = base;
-        state.endOptions   = base;
+        const base = buildHalfHourOptions();
         startSel.innerHTML = base.map(v => `<option value="${v}">${v}</option>`).join('');
         endSel.innerHTML   = base.map(v => `<option value="${v}">${v}</option>`).join('');
-        // sensible defaults
         startSel.value = '1:00 PM';
         endSel.value   = '2:00 PM';
       }
-
       function setStatusByDate(dISO) {
         const hint = document.getElementById('phStatusHint');
         const now  = new Date(); now.setHours(0,0,0,0);
@@ -565,31 +585,7 @@
           hint.textContent = '';
         }
       }
-
-      function openModal() {
-        // reset messages
-        document.getElementById('phError').style.display='none';
-        document.getElementById('phOk').style.display='none';
-        // defaults
-        const today = new Date();
-        const dISO = `${today.getFullYear()}-${pad2(today.getMonth()+1)}-${pad2(today.getDate())}`;
-        document.getElementById('phDate').value = dISO;
-        setStatusByDate(dISO);
-        document.getElementById('phTopic').value = '';
-        document.getElementById('phShowAllSquads').checked = false;
-        populateSquads(false);
-
-        document.getElementById('phModal').setAttribute('aria-hidden','false');
-        document.getElementById('phModal').style.display='flex';
-      }
-      function closeModal() {
-        document.getElementById('phModal').setAttribute('aria-hidden','true');
-        document.getElementById('phModal').style.display='none';
-      }
-
       async function populateSquads(showAll) {
-        // Use existing Squad sources in the app (roles/squads modules may already load these);
-        // fall back to SQUADS + SQUAD_MEMBERS if available, else empty.
         const sel = document.getElementById('phSquad');
         const me  = PowerUp.session.get() || {};
         let all = [];
@@ -612,6 +608,23 @@
         const opts = ['<option value="">None</option>'].concat(list.sort((a,b)=>a.localeCompare(b)).map(n=>`<option value="${n}">${n}</option>`));
         sel.innerHTML = opts.join('');
       }
+      function openModal() {
+        document.getElementById('phError').style.display='none';
+        document.getElementById('phOk').style.display='none';
+        const today = new Date();
+        const dISO = `${today.getFullYear()}-${pad2(today.getMonth()+1)}-${pad2(today.getDate())}`;
+        document.getElementById('phDate').value = dISO;
+        setStatusByDate(dISO);
+        document.getElementById('phTopic').value = '';
+        document.getElementById('phShowAllSquads').checked = false;
+        populateSquads(false);
+        document.getElementById('phModal').setAttribute('aria-hidden','false');
+        document.getElementById('phModal').style.display='flex';
+      }
+      function closeModal() {
+        document.getElementById('phModal').setAttribute('aria-hidden','true');
+        document.getElementById('phModal').style.display='none';
+      }
 
       async function saveRow() {
         const errBox = document.getElementById('phError');
@@ -629,20 +642,16 @@
 
         if (!dateISO) { errBox.textContent = 'Please choose a date.'; errBox.style.display='block'; return; }
 
-        // get actual sheet columns to resolve titles
         const raw = await PowerUp.api.fetchSheet(PowerUp.api.SHEETS.POWER_HOURS);
         state.sheetCols = (raw.columns || []).map(c => c.title);
-
         const resolve = (list) => {
           for (const t of list) if (state.sheetCols.includes(t)) return t;
-          // normalize loose match
           const norm = s => String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
           const by = new Map(state.sheetCols.map(c => [norm(c), c]));
           for (const t of list) { const hit = by.get(norm(t)); if (hit) return hit; }
           return null;
         };
 
-        // Build row object by sheet titles; only coerce DATE + CHECKBOX explicitly.
         const row = {};
         const tEmployeeId   = resolve(COLS.employeeId);
         const tEmployeeName = resolve(COLS.employeeName);
@@ -656,13 +665,13 @@
 
         if (tEmployeeId)   row[tEmployeeId]   = String(me.employeeId||'');
         if (tEmployeeName) row[tEmployeeName] = String(me.displayName||'') || String(me.employeeId||'');
-        if (tDate)         row[tDate]         = dateISO;                         // DATE in YYYY-MM-DD
-        if (tStart)        row[tStart]        = start;                           // time kept as text
-        if (tEnd)          row[tEnd]          = end;                             // time kept as text
-        if (tScheduled)    row[tScheduled]    = !!isSched;                       // CHECKBOX
-        if (tCompleted)    row[tCompleted]    = !!isComp;                        // CHECKBOX
+        if (tDate)         row[tDate]         = dateISO;       // DATE
+        if (tStart)        row[tStart]        = start;         // TEXT time
+        if (tEnd)          row[tEnd]          = end;           // TEXT time
+        if (tScheduled)    row[tScheduled]    = !!isSched;     // CHECKBOX
+        if (tCompleted)    row[tCompleted]    = !!isComp;      // CHECKBOX
         if (tTopic)        row[tTopic]        = topic;
-        if (tSquad)        row[tSquad]        = squad;                           // TEXT/NUMBER per your sheet
+        if (tSquad)        row[tSquad]        = squad;         // TEXT/NUMBER (not a picklist)
 
         try {
           const res = await fetch(`${PowerUp.api.API_BASE}/sheet/${PowerUp.api.SHEETS.POWER_HOURS}/rows`, {
@@ -676,7 +685,6 @@
           }
           okBox.textContent = 'Saved.';
           okBox.style.display = 'block';
-          // refresh table data
           state.all = await loadRowsSafe();
           applyRange();
           setTimeout(closeModal, 500);
@@ -686,25 +694,20 @@
         }
       }
 
-      // ===== boot =====
+      /* -------------------- boot -------------------- */
       document.addEventListener('DOMContentLoaded', async () => {
         PowerUp.session.requireLogin();
         PowerUp.layout.injectLayout();
         PowerUp.layout.setPageTitle('Power Hours');
         await PowerUp.session.initHeader();
 
-        // inject header controls exactly in the header row
-        injectHeaderControls();
-        // bind after inject
-        bindControls();
-
-        // wire modal small bits
-        fillTimeSelects();
-        document.getElementById('phDate').addEventListener('change', (e)=> setStatusByDate(e.target.value));
+        injectHeaderControls();                 // <- exact placement logic for both admin & non-admin
         document.getElementById('phClose').addEventListener('click', closeModal);
         document.getElementById('phReset').addEventListener('click', openModal);
         document.getElementById('phShowAllSquads').addEventListener('change', (e)=> populateSquads(e.target.checked));
         document.getElementById('phSave').addEventListener('click', saveRow);
+        fillTimeSelects();
+        document.getElementById('phDate').addEventListener('change', (e)=> setStatusByDate(e.target.value));
 
         await loadTableAndProgress();
       });
