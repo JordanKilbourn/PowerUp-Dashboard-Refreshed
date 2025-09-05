@@ -58,21 +58,16 @@
     });
   }
 
-  // ---- robust fetch with timeout + retry/backoff ----
-  const API_RETRY_LIMIT = 2;
-  const API_TIMEOUT_MS  = 30000;
-  const API_BACKOFF_MS  = 600;
+  // ---- robust fetch with timeout + retry/backoff + overall deadline ----
+  const API_RETRY_LIMIT     = 3;      // a little more generous for first-load
+  const ATTEMPT_TIMEOUT_MS  = 12000;  // per attempt
+  const OVERALL_DEADLINE_MS = 30000;  // hard cap for the whole op
+  const BACKOFF_BASE_MS     = 300;    // jittered backoff
 
   function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
-  function withTimeout(promise, ms) {
-    return new Promise((resolve, reject) => {
-      const t = setTimeout(() => reject(new Error(`Request timed out after ${ms}ms`)), ms);
-      promise.then(v => { clearTimeout(t); resolve(v); }, e => { clearTimeout(t); reject(e); });
-    });
-  }
 
-  async function fetchJSON(url, init) {
-    const res = await withTimeout(fetch(url, { credentials: "omit", cache: "no-store", ...(init||{}) }), API_TIMEOUT_MS);
+  async function fetchOnce(url, init, signal) {
+    const res = await fetch(url, { credentials: "omit", cache: "no-store", ...(init||{}), signal });
     if (!res.ok) {
       let detail = ""; try { detail = await res.text(); } catch {}
       const err = new Error(`Proxy error ${res.status} for ${url}${detail ? `: ${detail}` : ""}`);
@@ -85,17 +80,53 @@
   }
 
   async function fetchJSONRetry(url, init) {
+    const start = Date.now();
     let attempt = 0;
-    while (true) {
-      try { return await fetchJSON(url, init); }
-      catch (err) {
-        attempt++;
+    let lastErr;
+
+    while (attempt < API_RETRY_LIMIT) {
+      attempt++;
+      const controller = new AbortController();
+      const perAttemptTimeout = setTimeout(() => controller.abort(), ATTEMPT_TIMEOUT_MS);
+
+      try {
+        const remaining = OVERALL_DEADLINE_MS - (Date.now() - start);
+        if (remaining <= 0) throw new Error("deadline");
+        // run the attempt
+        return await fetchOnce(url, init, controller.signal);
+      } catch (err) {
+        lastErr = err;
         const status = err && err.status;
-        const retryable = !status || status === 429 || (status >= 500 && status < 600);
-        if (!retryable || attempt > API_RETRY_LIMIT) throw err;
-        const jitter = Math.floor(Math.random() * 200);
-        await sleep(API_BACKOFF_MS * attempt + jitter);
+        const retryable = err.name === "AbortError" || err.message === "deadline" ||
+                          !status || status === 429 || (status >= 500 && status < 600);
+        if (!retryable || attempt >= API_RETRY_LIMIT) break;
+        const jitter = Math.floor(Math.random() * 250);
+        await sleep(BACKOFF_BASE_MS * attempt + jitter);
+      } finally {
+        clearTimeout(perAttemptTimeout);
       }
+    }
+    throw lastErr || new Error("request failed");
+  }
+
+  // ---------- warm proxy (health + tiny call) ----------
+  const WARM_KEY  = "pu.proxy.warmAt";
+  const WARM_TTL  = 5 * 60 * 1000; // 5 minutes
+
+  async function warmProxy() {
+    try {
+      const last = Number(sessionStorage.getItem(WARM_KEY) || 0);
+      if (last && (Date.now() - last) < WARM_TTL) return;
+
+      // 1) health ping
+      try { await fetchJSONRetry(`${API_BASE}/health`, { method: "GET" }); } catch {}
+
+      // 2) very light sheet call (columns only) to wake Smartsheet side too
+      try { await fetchJSONRetry(`${API_BASE}/sheet/${SHEETS.EMPLOYEE_MASTER}/columns`, { method: "GET" }); } catch {}
+
+      sessionStorage.setItem(WARM_KEY, String(Date.now()));
+    } catch {
+      // not fatal
     }
   }
 
@@ -155,7 +186,7 @@
   function toNumber(x) {
     if (x == null) return 0;
     if (typeof x === "number") return x;
-    const n = parseFloat(String(x).replace(/[^0-9.\-]/g, ""));
+    const n = parseFloat(String(x).replace(/[^0-9.\-]/g, "")); // strip commas/$/hrs
     return Number.isFinite(n) ? n : 0;
   }
 
@@ -183,6 +214,7 @@
     clearCache,
     toNumber,
     prefetchEssential,
+    warmProxy,                 // NEW: used by login flow
   };
   window.PowerUp = P;
 })(window.PowerUp || {});
