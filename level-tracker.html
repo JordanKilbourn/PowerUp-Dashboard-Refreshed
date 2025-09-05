@@ -144,19 +144,51 @@
     return null;
   }
 
+  function getAdminSelectedName(){
+    // Header stores the selection here; '__ALL__' means everyone
+    return sessionStorage.getItem('pu.adminEmployeeFilter') || '__ALL__';
+  }
+
   async function loadLevelTracker(){
     PowerUp.session.requireLogin();
-    const { employeeId } = PowerUp.session.get() || {};
-    if (!employeeId){ document.getElementById("lt-tbody").innerHTML = `<tr><td>-</td></tr>`; return; }
+    const me = PowerUp.session.get() || {};
+    const myId = String(me.employeeId || '').trim();
 
     const raw  = await PowerUp.api.fetchSheet(PowerUp.api.SHEETS.LEVEL_TRACKER);
     const rows = PowerUp.api.rowsByTitle(raw);
     const sheetCols = (raw.columns || []).map(c => c.title);
     const idCol = chooseIdColumn(sheetCols);
-    if (!rows.length || !idCol){ document.getElementById("lt-tbody").innerHTML = `<tr><td>-</td></tr>`; return; }
+    if (!rows.length || !idCol){
+      document.getElementById("lt-tbody").innerHTML = `<tr><td>-</td></tr>`;
+      return;
+    }
 
-    const mine = rows.filter(r => String(r[idCol]||"").trim() === String(employeeId).trim());
-    if (!mine.length){ document.getElementById("lt-tbody").innerHTML = `<tr><td>-</td></tr>`; return; }
+    // --- Admin filtering (NEW): All vs specific person ---
+    let view = rows;
+    if (IS_ADMIN) {
+      const sel = getAdminSelectedName();
+      if (sel && sel !== '__ALL__') {
+        // match by Employee Name / Display Name; if none, try by ID (if header put an ID there)
+        const nameCols = ['Display Name','Employee Name','Name','Submitted By'].filter(c => sheetCols.includes(c));
+        view = rows.filter(r => {
+          const nameHit = nameCols.some(c => String(r[c] || '').trim() === sel);
+          const idHit = String(r[idCol] || '').trim() === sel;
+          return nameHit || idHit;
+        });
+      }
+    } else {
+      // Non-admin: only my rows (by ID match, robust)
+      view = rows.filter(r => String(r[idCol]||"").trim() === myId);
+    }
+
+    if (!view.length){
+      document.getElementById("lt-tbody").innerHTML = `<tr><td class="muted" style="text-align:center;padding:20px;">No rows match the current filter.</td></tr>`;
+      // Still build header so sorting isn’t broken later
+      const resolvedEmpty = COLS.map(c => ({ label: c.label, sheet: resolveSheetColumn(c.sources, sheetCols) }));
+      const theadEmpty = document.getElementById("lt-thead");
+      theadEmpty.innerHTML = resolvedEmpty.map(c => `<th>${c.label}</th>`).join("");
+      return;
+    }
 
     const resolved = COLS.map(c => ({ label: c.label, sheet: resolveSheetColumn(c.sources, sheetCols) }));
     const thead = document.getElementById("lt-thead");
@@ -178,14 +210,13 @@
 
     // Render rows with sortable data-sort values
     const tbody = document.getElementById("lt-tbody");
-    tbody.innerHTML = mine.map(r => {
+    tbody.innerHTML = view.map(r => {
       return `<tr>${
         resolved.map(c => {
           let v = c.sheet ? r[c.sheet] : "";
           let sortVal = String(v ?? "").toLowerCase();
 
           if (c.label === "Month") {
-            // use YYYY-MM numeric key if possible
             const s = String(v||"").trim();
             let key = s;
             const d = new Date(s);
@@ -200,7 +231,6 @@
             return `<td data-sort="${sortVal}">${fmtCell(nm)}</td>`;
           }
 
-          // numeric-like columns sort numerically
           const num = Number(String(v).replace(/[^0-9.\-]/g,''));
           if (!Number.isNaN(num) && String(v).trim() !== "") {
             sortVal = String(num);
@@ -216,6 +246,10 @@
   document.addEventListener('DOMContentLoaded', async () => {
     PowerUp.layout.injectLayout();
     await PowerUp.session.initHeader();
+
+    // Re-render when Admin filter changes in the header
+    window.addEventListener('powerup-admin-filter-change', () => { loadLevelTracker(); });
+
     await loadLevelTracker();
   });
 </script>
