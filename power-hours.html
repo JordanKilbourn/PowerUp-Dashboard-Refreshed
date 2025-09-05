@@ -75,12 +75,13 @@
     .stat--scheduled .ico { color:#93c5fd; }
     .stat--sched-hrs .ico { color:#fbbf24; }
 
-    /* Inline Date Range (sits next to Admin filter) */
+    /* Inline Date Range (sits next to Admin filter or in header row for users) */
     .range-inline {
       display:inline-flex; align-items:center; gap:8px;
-      margin-left: 12px; /* slight breathing room from Admin filter */
+      margin-left: 12px; /* when next to Admin filter */
       vertical-align: middle;
     }
+    .range-inline--standalone { margin-left: 0; margin-bottom: 8px; display:inline-flex; }
     .range-inline label { color:#9fb0c3; font-size:13px; }
     .range-inline select {
       padding: 8px 10px; border-radius: 8px;
@@ -435,16 +436,13 @@
         }
       }
 
-      /* ---------- Mount Date Range inline next to Admin filter ---------- */
+      /* ---------- Date Range placement ---------- */
       function findAdminFilterSelect() {
-        // 1) Direct hooks we already try in other pages
         let sel = document.querySelector('[data-hook="adminFilter"]')
                || document.querySelector('#adminFilter')
                || document.querySelector('select[name="adminFilter"]');
-
         if (sel) return sel;
 
-        // 2) Find label whose text includes "Admin filter", then pair with its 'for'
         const labels = Array.from(document.querySelectorAll('label'));
         const adminLbl = labels.find(l => /admin\s*filter/i.test((l.textContent||'').trim()));
         if (adminLbl) {
@@ -458,21 +456,12 @@
                         ? adminLbl.nextElementSibling : null;
           if (nextSel) return nextSel;
         }
-
-        // 3) Last resort: any SELECT near text "Admin filter"
-        const textNodes = Array.from(document.querySelectorAll('*')).filter(n => /admin\s*filter/i.test(n.textContent||''));
-        for (const n of textNodes) {
-          const near = n.querySelector && n.querySelector('select');
-          if (near) return near;
-        }
-
         return null;
       }
 
       function createRangeControl() {
         let wrap = document.querySelector('.range-inline');
-        if (wrap) return wrap; // already exists
-
+        if (wrap) return wrap;
         wrap = document.createElement('span');
         wrap.className = 'range-inline';
         wrap.innerHTML = `
@@ -496,15 +485,19 @@
         const wrap = createRangeControl();
         const adminSel = findAdminFilterSelect();
 
-        // If admin filter exists, place Range control immediately after it
         if (adminSel && adminSel.parentElement) {
-          // Avoid duplicates: if wrap already in DOM, move it
+          // Admin view: place right after Admin filter
           if (!wrap.isConnected) document.body.appendChild(wrap);
+          wrap.classList.remove('range-inline--standalone');
           adminSel.insertAdjacentElement('afterend', wrap);
+          wrap.style.display = 'inline-flex';
         } else {
-          // If we still can't find it, keep wrap hidden near top; observer will re-home it when admin filter appears
-          if (!wrap.isConnected) document.body.appendChild(wrap);
-          wrap.style.display = 'none';
+          // User view (no Admin filter): place in header zone above progress card
+          const progressCard = document.querySelector('.power-card.power-mini');
+          const container = progressCard && progressCard.parentElement ? progressCard.parentElement : document.querySelector('.content-inner');
+          if (!wrap.isConnected) container.insertBefore(wrap, progressCard || container.firstChild);
+          wrap.classList.add('range-inline--standalone');
+          wrap.style.display = 'inline-flex';
         }
 
         const rng = wrap.querySelector('#range');
@@ -515,11 +508,13 @@
       }
 
       function observeForAdminFilter(savedValue) {
+        if (!IS_ADMIN) return; // only needed when an Admin filter will appear
         const obs = new MutationObserver(() => {
           const adminSel = findAdminFilterSelect();
           const wrap = document.querySelector('.range-inline');
           if (adminSel && wrap) {
             adminSel.insertAdjacentElement('afterend', wrap);
+            wrap.classList.remove('range-inline--standalone');
             wrap.style.display = 'inline-flex';
             obs.disconnect();
           }
@@ -530,7 +525,7 @@
       async function loadTableAndProgress() {
         const saved = getSavedRange();
 
-        // Build inline Date Range (and move it as soon as Admin filter is found)
+        // Build Date Range in the right place for current role
         mountRangeInline(saved);
         observeForAdminFilter(saved);
 
@@ -542,7 +537,6 @@
       }
 
       function bindControls() {
-        // React to Admin filter changes
         document.addEventListener('powerup-admin-filter-change', async () => {
           state.target = await resolveTargetEmployee();
           applyRange();
