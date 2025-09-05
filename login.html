@@ -115,7 +115,7 @@
     </div>
   </div>
 
-  <!-- Core libs (no version query; keep consistent across pages) -->
+  <!-- Core libs -->
   <script src="scripts/api.js"></script>
   <script src="scripts/session.js"></script>
 
@@ -128,46 +128,46 @@
     try { sessionStorage.removeItem('pu.sheetCache.v1'); } catch {}
     try { localStorage.removeItem('powerup_session'); } catch {}
 
-    // 🔹 Non-blocking proxy warm-up (health ping, 6s cap) + silent prefetch of Employee Master
-    (async function warmupProxy(){
+    // 🔹 Non-blocking proxy warm-up + silent prefetch of Employee Master
+    (async function warmup() {
       try {
-        const PROXY = (window.PowerUp && PowerUp.api && PowerUp.api.API_BASE) || 'https://powerup-proxy.onrender.com';
-        const ctrl = new AbortController();
-        const t = setTimeout(() => ctrl.abort(), 6000);
-        await fetch(`${PROXY}/health`, { mode:'cors', signal: ctrl.signal });
-        clearTimeout(t);
-      } catch (e) {
-        console.debug('Proxy warmup skipped:', e && e.name ? e.name : e);
-      }
-      try { await ensureEmployeeRows(); } catch {}
+        // Warm proxy (health + columns)
+        await PowerUp.api.warmProxy();
+      } catch {}
+      // Prefetch rows and share them via session cache so login & modal are instant
+      try {
+        const rows = await PowerUp.api.getRowsByTitle('EMPLOYEE_MASTER');
+        try { sessionStorage.setItem('pu.cache.EMPLOYEE_MASTER.rows', JSON.stringify(rows)); } catch {}
+      } catch {}
     })();
 
-    const empInput   = $('#empId');
-    const btnSignIn  = $('#signin');
-    const btnHelp    = $('#help');
-    const errBox     = $('#error');
+    const empInput      = $('#empId');
+    const btnSignIn     = $('#signin');
+    const btnHelp       = $('#help');
+    const errBox        = $('#error');
 
-    const busy       = $('#busy');
-    const busySub    = $('#busySub');
+    const busy          = $('#busy');
+    const busySub       = $('#busySub');
 
-    const modal      = $('#idLookupModal');
-    const selName    = $('#lookupName');
-    const inpHire    = $('#lookupHire');
-    const resBox     = $('#lookupResult');
-    const btnCheck   = $('#lookupCheck');
-    const btnClose   = $('#lookupCancel');
+    const modal         = $('#idLookupModal');
+    const selName       = $('#lookupName');
+    const inpHire       = $('#lookupHire');
+    const resBox        = $('#lookupResult');
+    const btnCheck      = $('#lookupCheck');
+    const btnClose      = $('#lookupCancel');
     const lookupLoading = document.getElementById('lookupLoading');
 
     let coldHintTimer = null;
     let EMP_ROWS = [];
 
-    function setBusy(on) {
+    function setBusy(on, subText) {
       if (on) {
         busy.style.display = 'grid';
         busy.setAttribute('aria-hidden', 'false');
         btnSignIn.disabled = true;
         empInput.disabled  = true;
         errBox.style.display = 'none';
+        if (subText) busySub.textContent = subText;
         clearTimeout(coldHintTimer);
         coldHintTimer = setTimeout(() => {
           busySub.textContent = 'First load after a while can take longer while the server wakes up.';
@@ -192,48 +192,14 @@
       selName.disabled = !!on;
     }
 
-    async function doLogin() {
-      errBox.style.display = 'none';
-      const id = (empInput.value || '').trim();
-      if (!id) { showError('Please enter your Employee ID.'); return; }
-
-      setBusy(true);
-      try {
-        // loginWithId now primes key sheets BEFORE redirect
-        await PowerUp.session.loginWithId(id, { primeBeforeRedirect: true });
-        // (no code runs after successful redirect)
-      } catch (e) {
-        showError(e?.message || 'Sign-in failed. Please try again.');
-        setBusy(false);
-      }
-    }
-
-    // ---------- ID Lookup modal ----------
-    function toISODateOnly(v) {
-      if (!v) return '';
-      const d = new Date(v);
-      if (isNaN(d)) return '';
-      return d.toISOString().slice(0,10);
-    }
-    function openLookup({ loading = false } = {}) {
-      resBox.style.display = 'none';
-      resBox.className = 'result';
-      inpHire.value = '';
-      modal.setAttribute('aria-hidden','false');
-      modal.style.display = 'flex';
-      showLookupLoading(loading);
-    }
-    function closeLookup() {
-      modal.setAttribute('aria-hidden','true');
-      modal.style.display = 'none';
-    }
-
     async function ensureEmployeeRows() {
       if (EMP_ROWS.length) return;
       try {
         showLookupLoading(true);
-        const rs = await PowerUp.api.getRowsByTitle('EMPLOYEE_MASTER');
-        EMP_ROWS = rs.filter(r => (r['Display Name'] || r['Employee Name'] || r['Name']) && (r['Position ID'] || r['Employee ID']));
+        // prefer cached rows from warmup
+        const cached = sessionStorage.getItem('pu.cache.EMPLOYEE_MASTER.rows');
+        const rows = cached ? JSON.parse(cached) : await PowerUp.api.getRowsByTitle('EMPLOYEE_MASTER');
+        EMP_ROWS = rows.filter(r => (r['Display Name'] || r['Employee Name'] || r['Name']) && (r['Position ID'] || r['Employee ID']));
         const opts = ['<option value="">Select your name…</option>'].concat(
           EMP_ROWS
             .map(r => ({
@@ -249,16 +215,61 @@
       }
     }
 
+    function toISODateOnly(v) {
+      if (!v) return '';
+      const d = new Date(v);
+      if (isNaN(d)) return '';
+      return d.toISOString().slice(0,10);
+    }
+
+    function openLookup({ loading = false } = {}) {
+      resBox.style.display = 'none';
+      resBox.className = 'result';
+      inpHire.value = '';
+      modal.setAttribute('aria-hidden','false');
+      modal.style.display = 'flex';
+      showLookupLoading(loading);
+    }
+    function closeLookup() {
+      modal.setAttribute('aria-hidden','true');
+      modal.style.display = 'none';
+    }
+
     function showLookupResult(ok, html) {
       resBox.className = 'result ' + (ok ? 'ok' : 'err');
       resBox.innerHTML = html;
       resBox.style.display = 'block';
     }
+
     function findRowById(id) {
       const idLC = String(id || '').trim().toLowerCase();
       return EMP_ROWS.find(r => String(r['Position ID'] || r['Employee ID']).trim().toLowerCase() === idLC);
     }
 
+    async function doLogin() {
+      errBox.style.display = 'none';
+      const id = (empInput.value || '').trim();
+      if (!id) { showError('Please enter your Employee ID.'); return; }
+
+      setBusy(true, 'Warming server and validating your ID…');
+      try {
+        await PowerUp.session.loginWithId(id, { primeBeforeRedirect: true });
+        // redirect happens inside loginWithId
+      } catch (e) {
+        if (/deadline|timeout|AbortError/i.test(e?.message || '')) {
+          showError('The server is waking up. Please try again in a moment.');
+        } else if (/HTTP 5\d\d/.test(e?.message || '')) {
+          showError('Temporary server issue. Please retry.');
+        } else if (/not found/i.test(e?.message || '')) {
+          showError('ID not found. Double-check your ID or use “Retrieve my Employee ID”.');
+        } else {
+          showError('Sign-in failed. Please try again.');
+        }
+        setBusy(false);
+      }
+    }
+
+    // ---------- ID Lookup modal ----------
     btnHelp.addEventListener('click', async () => {
       try {
         openLookup({ loading: true });
@@ -313,8 +324,6 @@
     // ---------- Login wiring ----------
     document.addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
     btnSignIn.addEventListener('click', doLogin);
-
-    // No auto-redirect here anymore; we want users to see spinner until primed
   }());
   </script>
 </body>
