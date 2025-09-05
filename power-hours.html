@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
 
-  <!-- EARLY AUTH GUARD — must be the first thing in <head> -->
+  <!-- EARLY AUTH GUARD -->
   <script>
   !function () {
     try {
@@ -32,12 +32,39 @@
   <link rel="alternate icon" type="image/png" href="assets/favicon.png">
 
   <style>
+    /* Compact inline controls injected beside the Admin filter */
+    .inline-controls {
+      display:inline-flex; align-items:center; gap:10px; margin-left:10px;
+      vertical-align: middle;
+    }
+    .inline-controls .range-inline {
+      display:inline-flex; align-items:center; gap:8px;
+    }
+    .inline-controls label { color:#9fb0c3; font-size:13px; }
+    .inline-controls select {
+      padding: 8px 10px; border-radius: 8px;
+      background:#0b1328; border:1px solid #293449; color:#e5e7eb;
+    }
+    .inline-controls .btn-cta {
+      padding:8px 10px; border-radius:10px; font-weight:700; cursor:pointer;
+      background:#10b981; border:1px solid #0e9f73; color:#04241d;
+    }
+    .inline-controls .btn-cta:hover { filter:brightness(1.03); }
+
+    /* Fallback if we must place controls ourselves (rare) */
+    .inline-controls.standalone {
+      display:flex; align-items:center; gap:10px;
+      margin: 8px 0 4px;
+    }
+
+    /* Progress card */
     .power-card.power-mini { max-width: 560px; padding: 12px 14px; }
     .power-card.power-mini h3 { font-size: 14px; margin-bottom: 6px; }
     .power-card.power-mini p { font-size: 14px; margin-bottom: 8px; }
     .power-card.power-mini .phbar { height: 12px; }
     .power-card.power-mini .phbar__thumb { width: 12px; height: 12px; }
 
+    /* Metrics rail */
     .stats-rail {
       display: grid;
       grid-template-columns: repeat(12, minmax(0,1fr));
@@ -61,8 +88,7 @@
       width:28px; height:28px; display:grid; place-items:center;
       border-radius: 8px; background:#0c1a2d; border:1px solid #1f2b41;
       box-shadow: 0 0 0 2px rgba(0,255,198,.06);
-      color:#9cc9ff;
-      flex: 0 0 auto;
+      color:#9cc9ff; flex: 0 0 auto;
     }
     .stat .meta { line-height:1.15 }
     .stat .label { font-size:12px; color:#9fb0c3 }
@@ -73,22 +99,35 @@
     .stat--upcoming  .ico { color:#93c5fd; }
     .stat--up-hrs    .ico { color:#fbbf24; }
 
-    .range-inline {
-      display:inline-flex; align-items:center; gap:8px;
-      margin-left: 12px;
-      vertical-align: middle;
-    }
-    .range-inline--standalone { margin-left: 0; margin-bottom: 8px; display:inline-flex; }
-    .range-inline label { color:#9fb0c3; font-size:13px; }
-    .range-inline select {
-      padding: 8px 10px; border-radius: 8px;
-      background:#0b1328; border:1px solid #293449; color:#e5e7eb;
-    }
+    /* Modal */
+    .modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:9998}
+    .modal[aria-hidden="false"]{display:flex}
+    .modal-card{background:#0b1020;border:1px solid #294957;border-radius:14px;padding:16px 16px 14px;min-width:320px;max-width:640px;width:94%}
+    .modal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+    .modal-head h3{margin:0;color:#00ffc6;font-size:18px}
+    .modal-body{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:10px}
+    .field{display:flex;flex-direction:column;gap:6px}
+    .field label{font-size:13px;color:#cbd5e1}
+    .field input,.field select,.field textarea{padding:10px;border-radius:10px;background:#0b1328;border:1px solid #293449;color:#e5e7eb;outline:none}
+    .field textarea{min-height:72px;resize:vertical}
+    .span-6{grid-column:span 6 / span 6}
+    .span-3{grid-column:span 3 / span 3}
+    .span-12{grid-column:span 12 / span 12}
+    .row{display:flex;gap:8px;align-items:center}
+    .hint{font-size:12px;color:#9ca3af}
+    .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:10px}
+    .btn{padding:10px 12px;border-radius:10px;border:1px solid #2a354b;background:#111a2f;color:#e5e7eb;cursor:pointer}
+    .btn.primary{background:#10b981;border-color:#0e9f73;color:#04241d;font-weight:700}
+    .btn[disabled]{opacity:.6;cursor:not-allowed}
+    .error{margin-top:8px;color:#fecaca;background:#450a0a;border:1px solid #7f1d1d;padding:8px 10px;border-radius:10px;display:none}
+    .ok{margin-top:8px;color:#bbf7d0;background:#052e22;border:1px solid #0f5132;padding:8px 10px;border-radius:10px;display:none}
+    .switch{display:inline-flex;align-items:center;gap:8px;font-size:12px;color:#9fb0c3;cursor:pointer}
   </style>
 </head>
 <body>
   <div class="content-inner" style="padding: 12px 14px 16px;">
 
+    <!-- Progress -->
     <div class="card power-card power-mini" style="margin-bottom: 10px;">
       <h3>Power Hours Logged</h3>
       <p>
@@ -109,59 +148,93 @@
       <small data-hook="ph.message">—</small>
     </div>
 
+    <!-- Metrics -->
     <div class="stats-rail">
       <div class="stat stat--sessions" role="status" aria-live="polite">
         <div class="ico"><i class="fa-regular fa-calendar-check" aria-hidden="true"></i></div>
-        <div class="meta">
-          <div class="label">Sessions</div>
-          <div class="value" id="m-sessions">0</div>
-        </div>
+        <div class="meta"><div class="label">Sessions</div><div class="value" id="m-sessions">0</div></div>
       </div>
-
       <div class="stat stat--completed">
         <div class="ico"><i class="fa-solid fa-circle-check" aria-hidden="true"></i></div>
-        <div class="meta">
-          <div class="label">Completed</div>
-          <div class="value" id="m-comp">0</div>
-        </div>
+        <div class="meta"><div class="label">Completed</div><div class="value" id="m-comp">0</div></div>
       </div>
-
       <div class="stat stat--comp-hrs">
         <div class="ico"><i class="fa-solid fa-stopwatch" aria-hidden="true"></i></div>
-        <div class="meta">
-          <div class="label">Completed hrs</div>
-          <div class="value" id="m-comp-hrs">0.00</div>
-        </div>
+        <div class="meta"><div class="label">Completed hrs</div><div class="value" id="m-comp-hrs">0.00</div></div>
       </div>
-
-      <!-- RENAMED + NEW IDS -->
       <div class="stat stat--upcoming">
         <div class="ico"><i class="fa-regular fa-clock" aria-hidden="true"></i></div>
-        <div class="meta">
-          <div class="label">Upcoming</div>
-          <div class="value" id="m-up">0</div>
-        </div>
+        <div class="meta"><div class="label">Upcoming</div><div class="value" id="m-up">0</div></div>
       </div>
-
       <div class="stat stat--up-hrs">
         <div class="ico"><i class="fa-solid fa-hourglass-half" aria-hidden="true"></i></div>
-        <div class="meta">
-          <div class="label">Upcoming hrs</div>
-          <div class="value" id="m-up-hrs">0.00</div>
-        </div>
+        <div class="meta"><div class="label">Upcoming hrs</div><div class="value" id="m-up-hrs">0.00</div></div>
       </div>
     </div>
 
+    <!-- Table -->
     <div class="card table-card">
       <div class="table-scroll">
         <table id="ph-table" class="dashboard-table">
-          <thead>
-            <tr id="ph-head-row"></tr>
-          </thead>
-          <tbody id="rows">
-            <tr><td class="muted" style="text-align:center;padding:20px;">Loading…</td></tr>
-          </tbody>
+          <thead><tr id="ph-head-row"></tr></thead>
+          <tbody id="rows"><tr><td class="muted" style="text-align:center;padding:20px;">Loading…</td></tr></tbody>
         </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal -->
+  <div id="phModal" class="modal" aria-hidden="true" role="dialog" aria-labelledby="phTitle">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3 id="phTitle">Log / Schedule Power Hour</h3>
+        <button class="btn" id="phClose">Close</button>
+      </div>
+
+      <div id="phError" class="error"></div>
+      <div id="phOk" class="ok"></div>
+
+      <div class="modal-body">
+        <div class="field span-6">
+          <label for="phDate">Date</label>
+          <input type="date" id="phDate">
+        </div>
+        <div class="field span-3">
+          <label for="phStart">Start Time</label>
+          <select id="phStart"></select>
+        </div>
+        <div class="field span-3">
+          <label for="phEnd">End Time</label>
+          <select id="phEnd"></select>
+        </div>
+
+        <div class="field span-12">
+          <label>Status</label>
+          <div class="row">
+            <label class="row"><input type="radio" name="phStatus" value="scheduled" id="phStatusScheduled"> <span>Scheduled</span></label>
+            <label class="row" style="margin-left:16px"><input type="radio" name="phStatus" value="completed" id="phStatusCompleted"> <span>Completed</span></label>
+            <span class="hint" id="phStatusHint" style="margin-left:10px"></span>
+          </div>
+        </div>
+
+        <div class="field span-12">
+          <label for="phTopic">Activity / Description</label>
+          <textarea id="phTopic" placeholder="What will you work on (or what did you complete)?"></textarea>
+        </div>
+
+        <div class="field span-12">
+          <div class="row" style="justify-content:space-between; width:100%">
+            <label for="phSquad">Squad (optional)</label>
+            <label class="switch"><input type="checkbox" id="phShowAllSquads"> Show all squads</label>
+          </div>
+          <select id="phSquad"><option value="">None</option></select>
+          <div class="hint">Default shows squads you lead or belong to. Toggle to see all active squads.</div>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn" id="phReset">Reset</button>
+        <button class="btn primary" id="phSave">Save</button>
       </div>
     </div>
   </div>
@@ -177,6 +250,7 @@
     (function(){
       const IS_ADMIN = !!(window.PowerUp?.auth?.isAdmin && PowerUp.auth.isAdmin());
 
+      /* ----- column aliases ----- */
       const COLS = {
         employeeId: ['Employee ID','Position ID'],
         employeeName: ['Submitted By','Employee Name','Name','Display Name'],
@@ -187,7 +261,8 @@
         durationPlanned: ['Duration (hrs)','Duration (h)','Duration','Planned Hours','Scheduled Hours'],
         scheduled: ['Scheduled','Is Scheduled?','Planned'],
         completed: ['Completed','Is Completed?','Done'],
-        topic: ['Activity Description','Activity','Topic','Description','Notes']
+        topic: ['Activity Description','Activity','Topic','Description','Notes'],
+        squad: ['Squad']
       };
 
       const pick = (row, list, d='') => { for (const k of list) if (row[k]!=null && row[k]!=='' ) return row[k]; return d; };
@@ -206,6 +281,7 @@
         return isNaN(d) ? null : d;
       }
 
+      /* ===== Sorting, metrics, render ===== */
       function bindHeaderSort(thead, tbody){
         let state = { col: 0, asc: true };
         const applyIndicators = () => {
@@ -239,7 +315,7 @@
         applyIndicators();
       }
 
-      const state = { all: [], view: [], nameById: new Map(), target: null };
+      const state = { all: [], view: [], nameById: new Map(), target: null, squads: [], mySquadIds: new Set() };
 
       const RANGE_KEY = 'pu.ph.range';
       const getSavedRange = () => sessionStorage.getItem(RANGE_KEY) || 'this-month';
@@ -373,13 +449,10 @@
           }).join('');
         }
 
-        /* ---------- metrics (view-scoped) ---------- */
         const sessions = state.view.length;
-
         const completedRows = state.view.filter(r => isTrue(pick(r, COLS.completed)));
         const completedHrs  = completedRows.reduce((a,r)=> a + toNum(pick(r, COLS.completedHours, 0)), 0);
 
-        // UPCOMING: Scheduled && !Completed && Date >= today (local)
         const today = new Date(); today.setHours(0,0,0,0);
         const upcomingRows = state.view.filter(r => {
           const d = parseDateLocal(pick(r, COLS.date));
@@ -429,6 +502,7 @@
         }
       }
 
+      /* ===== Control mounting: inject beside Admin filter (or header row), not under divider ===== */
       function findAdminFilterSelect() {
         let sel = document.querySelector('[data-hook="adminFilter"]')
                || document.querySelector('#adminFilter')
@@ -451,71 +525,307 @@
         return null;
       }
 
-      function createRangeControl() {
-        let wrap = document.querySelector('.range-inline');
-        if (wrap) return wrap;
-        wrap = document.createElement('span');
-        wrap.className = 'range-inline';
+      function findHeaderControlsContainer() {
+        // Try a few likely containers created by layout.js
+        return (
+          (document.querySelector('.table-header-controls') && document.querySelector('.table-header-controls').parentElement) ||
+          document.querySelector('.page-controls') ||
+          document.querySelector('.page-block .card') || // last resort (but still above divider)
+          null
+        );
+      }
+
+      function createInlineControls() {
+        const wrap = document.createElement('span');
+        wrap.className = 'inline-controls';
         wrap.innerHTML = `
-          <label for="range">Date Range</label>
-          <select id="range" aria-label="Date Range">
-            <option value="this-month">This Month</option>
-            <option value="last-month">Last Month</option>
-            <option value="last-3">Last 3 Months</option>
-            <option value="last-6">Last 6 Months</option>
-            <option value="this-quarter">This Quarter</option>
-            <option value="ytd">Year to Date</option>
-            <option value="next-month">Next Month</option>
-            <option value="next-90">Next 90 Days</option>
-            <option value="all">All</option>
-          </select>
+          <span class="range-inline">
+            <label for="range">Date Range</label>
+            <select id="range" aria-label="Date Range">
+              <option value="this-month">This Month</option>
+              <option value="last-month">Last Month</option>
+              <option value="last-3">Last 3 Months</option>
+              <option value="last-6">Last 6 Months</option>
+              <option value="this-quarter">This Quarter</option>
+              <option value="ytd">Year to Date</option>
+              <option value="next-month">Next Month</option>
+              <option value="next-90">Next 90 Days</option>
+              <option value="all">All</option>
+            </select>
+          </span>
+          <button class="btn-cta" id="openPHModal"><i class="fa-solid fa-plus" aria-hidden="true"></i> Log / Schedule Power Hour</button>
         `;
         return wrap;
       }
 
-      function mountRangeInline(savedValue) {
-        const wrap = createRangeControl();
+      function mountControls(savedRange) {
+        const existing = document.querySelector('.inline-controls');
+        if (existing) existing.remove();
+
+        const controls = createInlineControls();
         const adminSel = findAdminFilterSelect();
 
         if (adminSel && adminSel.parentElement) {
-          if (!wrap.isConnected) document.body.appendChild(wrap);
-          wrap.classList.remove('range-inline--standalone');
-          adminSel.insertAdjacentElement('afterend', wrap);
-          wrap.style.display = 'inline-flex';
+          adminSel.insertAdjacentElement('afterend', controls);
         } else {
-          const progressCard = document.querySelector('.power-card.power-mini');
-          const container = progressCard && progressCard.parentElement ? progressCard.parentElement : document.querySelector('.content-inner');
-          if (!wrap.isConnected) container.insertBefore(wrap, progressCard || container.firstChild);
-          wrap.classList.add('range-inline--standalone');
-          wrap.style.display = 'inline-flex';
+          // Insert into header controls row (not below divider). If not found, fallback just before progress card.
+          const host = findHeaderControlsContainer();
+          if (host) {
+            host.appendChild(controls);
+          } else {
+            const progressCard = document.querySelector('.power-card.power-mini');
+            const container = progressCard && progressCard.parentElement ? progressCard.parentElement : document.querySelector('.content-inner');
+            controls.classList.add('standalone');
+            container.insertBefore(controls, progressCard || container.firstChild);
+          }
         }
 
-        const rng = wrap.querySelector('#range');
+        const rng = document.getElementById('range');
         if (rng) {
-          if (savedValue && [...rng.options].some(o => o.value === savedValue)) rng.value = savedValue;
+          const v = savedRange || getSavedRange();
+          if ([...rng.options].some(o => o.value === v)) rng.value = v;
           rng.onchange = applyRange;
         }
+
+        // Wire the CTA after mount
+        const btnOpen = document.getElementById('openPHModal');
+        if (btnOpen) btnOpen.addEventListener('click', openModal);
       }
 
-      function observeForAdminFilter(savedValue) {
-        if (!IS_ADMIN) return;
+      function observeForAdminFilter(savedRange) {
         const obs = new MutationObserver(() => {
           const adminSel = findAdminFilterSelect();
-          const wrap = document.querySelector('.range-inline');
-          if (adminSel && wrap) {
-            adminSel.insertAdjacentElement('afterend', wrap);
-            wrap.classList.remove('range-inline--standalone');
-            wrap.style.display = 'inline-flex';
+          if (adminSel) {
+            mountControls(savedRange);
             obs.disconnect();
           }
         });
         obs.observe(document.body, { childList: true, subtree: true });
       }
 
+      /* ===== Modal logic (unchanged) ===== */
+      const $ = s => document.querySelector(s);
+
+      const modal   = $('#phModal');
+      const btnClose= $('#phClose');
+      const btnSave = $('#phSave');
+      const btnReset= $('#phReset');
+
+      const inpDate = $('#phDate');
+      const selStart= $('#phStart');
+      const selEnd  = $('#phEnd');
+      const radioSched = $('#phStatusScheduled');
+      const radioComp  = $('#phStatusCompleted');
+      const statusHint = $('#phStatusHint');
+      const txtTopic = $('#phTopic');
+      const selSquad = $('#phSquad');
+      const chkShowAll = $('#phShowAllSquads');
+
+      const errBox = $('#phError');
+      const okBox  = $('#phOk');
+
+      function openModal(){
+        errBox.style.display = 'none';
+        okBox.style.display = 'none';
+        modal.setAttribute('aria-hidden','false');
+        modal.style.display = 'flex';
+        if (!inpDate.value) inpDate.valueAsDate = new Date();
+        recommendStatus();
+      }
+      function closeModal(){
+        modal.setAttribute('aria-hidden','true');
+        modal.style.display = 'none';
+      }
+      btnClose.addEventListener('click', closeModal);
+      modal.addEventListener('click', (e)=>{ if (e.target === modal) closeModal(); });
+
+      btnReset.addEventListener('click', ()=>{
+        inpDate.value = '';
+        selStart.selectedIndex = 16; // 8:00 AM
+        selEnd.selectedIndex = 20;   // 10:00 AM
+        txtTopic.value = '';
+        radioSched.checked = false;
+        radioComp.checked = false;
+        recommendStatus();
+        errBox.style.display='none'; okBox.style.display='none';
+      });
+
+      function halfHourOptions(){
+        const opts = [];
+        for (let h=5; h<=22; h++){
+          for (let m of [0,30]) {
+            const dt = new Date(2000,0,1,h,m);
+            opts.push({
+              value: dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              sort: h*60 + m,
+              label: dt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+            });
+          }
+        }
+        return opts;
+      }
+      function populateTimeSelects(){
+        const opts = halfHourOptions();
+        selStart.innerHTML = opts.map(o => `<option value="${o.value}" data-min="${o.sort}">${o.label}</option>`).join('');
+        selEnd.innerHTML   = opts.map(o => `<option value="${o.value}" data-min="${o.sort}">${o.label}</option>`).join('');
+        selStart.selectedIndex = 16;
+        selEnd.selectedIndex   = 20;
+      }
+
+      function minutesFromOption(val){
+        const el = [...selStart.options, ...selEnd.options].find(o => o.value === val);
+        return el ? parseInt(el.getAttribute('data-min')||'0',10) : 0;
+      }
+
+      function computeHours(){
+        const sMin = minutesFromOption(selStart.value);
+        const eMin = minutesFromOption(selEnd.value);
+        const diff = Math.max(0, eMin - sMin);
+        return diff / 60;
+      }
+
+      function recommendStatus(){
+        const d = inpDate.value ? new Date(inpDate.value) : null;
+        const today = new Date(); today.setHours(0,0,0,0);
+        if (d && d >= today) {
+          radioSched.checked = true; radioComp.checked = false;
+          statusHint.textContent = 'Future dates default to Scheduled.';
+        } else {
+          radioSched.checked = false; radioComp.checked = true;
+          statusHint.textContent = 'Past/today default to Completed.';
+        }
+      }
+
+      inpDate.addEventListener('change', recommendStatus);
+
+      async function loadSquadsAndMine() {
+        try {
+          const sqRows = await PowerUp.api.getRowsByTitle(PowerUp.api.SHEETS.SQUADS);
+          const onlyActive = (r) => {
+            const raw = r['Active'] ?? r['Is Active'] ?? r['Status'];
+            if (raw == null || raw === '') return true;
+            const t = String(raw).trim().toLowerCase();
+            return (raw === true) || ['true','yes','y','active','1'].includes(t);
+          };
+          state.squads = sqRows.filter(onlyActive).map(r => ({
+            id: String(r['Squad ID'] || r['ID'] || r['Row ID'] || r['Name'] || '').trim() || (r['Name']||'').trim(),
+            name: String(r['Name'] || r['Squad Name'] || r['Title'] || '').trim() || '(Untitled)'
+          }));
+
+          state.mySquadIds = new Set();
+          try {
+            const me = PowerUp.session.get() || {};
+            const myId = String(me.employeeId||'').trim().toLowerCase();
+            const memRows = await PowerUp.api.getRowsByTitle(PowerUp.api.SHEETS.SQUAD_MEMBERS);
+            memRows.forEach(r => {
+              const eid = String(r['Employee ID'] || r['Position ID'] || '').trim().toLowerCase();
+              const sid = String(r['Squad ID'] || r['Squad'] || r['Squad Name'] || '').trim();
+              if (eid && sid && eid === myId) state.mySquadIds.add(sid);
+            });
+          } catch {}
+
+          renderSquadSelect();
+        } catch (e) {
+          console.error('loadSquads failed', e);
+          renderSquadSelect(true);
+        }
+      }
+
+      function renderSquadSelect(fallbackAll=false) {
+        const showAll = document.getElementById('phShowAllSquads').checked || fallbackAll;
+        const list = showAll ? state.squads
+                             : state.squads.filter(s => state.mySquadIds.has(s.id) || state.mySquadIds.has(s.name));
+        const opts = ['<option value="">None</option>']
+          .concat(list.sort((a,b)=>a.name.localeCompare(b.name)).map(s => `<option value="${s.name}">${s.name}</option>`));
+        document.getElementById('phSquad').innerHTML = opts.join('');
+      }
+      document.getElementById('phShowAllSquads').addEventListener('change', ()=> renderSquadSelect());
+
+      async function createPHRow(payloadObj){
+        const sheetId = PowerUp.api.SHEETS.POWER_HOURS;
+        const url = `${PowerUp.api.API_BASE}/sheet/${sheetId}/rows`;
+        const body = [ Object.assign({ toTop: true }, payloadObj) ];
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+          credentials: 'omit',
+          cache: 'no-store'
+        });
+        if (!res.ok) {
+          let detail = ''; try { detail = await res.text(); } catch {}
+          throw new Error(`Save failed (${res.status}) ${detail || ''}`.trim());
+        }
+        return res.json();
+      }
+
+      function showError(msg){ const e=document.getElementById('phError'); e.textContent=msg; e.style.display='block'; document.getElementById('phOk').style.display='none'; }
+      function showOk(msg){ const e=document.getElementById('phOk'); e.textContent=msg; e.style.display='block'; document.getElementById('phError').style.display='none'; }
+
+      document.getElementById('phSave').addEventListener('click', async () => {
+        try {
+          document.getElementById('phError').style.display='none';
+          document.getElementById('phOk').style.display='none';
+
+          const me = PowerUp.session.get() || {};
+          const date = document.getElementById('phDate').value;
+          const start = document.getElementById('phStart').value;
+          const end   = document.getElementById('phEnd').value;
+          if (!date) throw new Error('Please choose a date.');
+          if (!start || !end) throw new Error('Please choose start and end times.');
+          const hrs = computeHours();
+          if (hrs <= 0) throw new Error('End time must be after start time.');
+
+          const isFuture = (d => { const t=new Date(); t.setHours(0,0,0,0); const dd=new Date(d); dd.setHours(0,0,0,0); return dd >= t; })(date);
+          const mark = document.getElementById('phStatusCompleted').checked ? 'completed'
+                       : document.getElementById('phStatusScheduled').checked ? 'scheduled'
+                       : (isFuture ? 'scheduled':'completed');
+
+          const desc = (document.getElementById('phTopic').value || '').trim();
+          const squad = document.getElementById('phSquad').value || '';
+
+          const row = {};
+          row['Date'] = date;
+          row['Start Time'] = start;
+          row['End Time'] = end;
+          row['Employee ID'] = String(me.employeeId||'');
+          row['Employee Name'] = String(me.displayName||'');
+          row['Submitted By'] = String(me.displayName||'');
+
+          if (mark === 'completed') {
+            row['Completed'] = true;
+            row['Scheduled'] = false;
+            row['Completed Hours'] = hrs;
+            row['Duration (hrs)'] = hrs;
+          } else {
+            row['Completed'] = false;
+            row['Scheduled'] = true;
+            row['Completed Hours'] = 0;
+            row['Duration (hrs)'] = hrs;
+          }
+
+          if (desc) { row['Activity Description'] = desc; row['Topic'] = desc; row['Description'] = desc; }
+          if (squad) row['Squad'] = squad;
+
+          document.getElementById('phSave').disabled = true;
+          await createPHRow(row);
+          showOk('Saved! Updating table…');
+
+          state.all = await loadRowsSafe();
+          applyRange();
+          setTimeout(()=>{ closeModal(); }, 500);
+        } catch (e) {
+          showError(e.message || 'Save failed.');
+        } finally {
+          document.getElementById('phSave').disabled = false;
+        }
+      });
+
+      /* ===== Boot ===== */
       async function loadTableAndProgress() {
         const saved = getSavedRange();
-        mountRangeInline(saved);
-        observeForAdminFilter(saved);
+        mountControls(saved);        // mount beside Admin filter or header row
+        observeForAdminFilter(saved);// if Admin filter appears later, re-mount beside it
 
         state.target = await resolveTargetEmployee();
         buildHead();
@@ -524,16 +834,14 @@
         applyRange();
       }
 
-      function bindControls() {
-        document.addEventListener('powerup-admin-filter-change', async () => {
-          state.target = await resolveTargetEmployee();
-          applyRange();
-        });
-        document.addEventListener('pu-admin-filter-change', async () => {
-          state.target = await resolveTargetEmployee();
-          applyRange();
-        });
-      }
+      document.addEventListener('powerup-admin-filter-change', async () => {
+        state.target = await resolveTargetEmployee();
+        applyRange();
+      });
+      document.addEventListener('pu-admin-filter-change', async () => {
+        state.target = await resolveTargetEmployee();
+        applyRange();
+      });
 
       document.addEventListener('DOMContentLoaded', async () => {
         PowerUp.session.requireLogin();
@@ -542,7 +850,9 @@
 
         await PowerUp.session.initHeader();
         await loadTableAndProgress();
-        bindControls();
+
+        populateTimeSelects();
+        await loadSquadsAndMine();
       });
     })();
   </script>
