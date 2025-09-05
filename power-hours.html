@@ -32,14 +32,14 @@
   <link rel="alternate icon" type="image/png" href="assets/favicon.png">
 
   <style>
-    /* Mini progress card */
+    /* Progress card */
     .power-card.power-mini { max-width: 560px; padding: 12px 14px; }
     .power-card.power-mini h3 { font-size: 14px; margin-bottom: 6px; }
     .power-card.power-mini p { font-size: 14px; margin-bottom: 8px; }
     .power-card.power-mini .phbar { height: 12px; }
     .power-card.power-mini .phbar__thumb { width: 12px; height: 12px; }
 
-    /* ===== Metrics rail (unchanged from last version) ===== */
+    /* Metrics rail */
     .stats-rail {
       display: grid;
       grid-template-columns: repeat(12, minmax(0,1fr));
@@ -75,9 +75,11 @@
     .stat--scheduled .ico { color:#93c5fd; }
     .stat--sched-hrs .ico { color:#fbbf24; }
 
-    /* ===== Date Range control (header-aligned) ===== */
+    /* Inline Date Range (sits next to Admin filter) */
     .range-inline {
-      display:flex; align-items:center; gap:8px;
+      display:inline-flex; align-items:center; gap:8px;
+      margin-left: 12px; /* slight breathing room from Admin filter */
+      vertical-align: middle;
     }
     .range-inline label { color:#9fb0c3; font-size:13px; }
     .range-inline select {
@@ -110,7 +112,7 @@
       <small data-hook="ph.message">—</small>
     </div>
 
-    <!-- Metrics rail -->
+    <!-- Metrics -->
     <div class="stats-rail">
       <div class="stat stat--sessions" role="status" aria-live="polite">
         <div class="ico"><i class="fa-regular fa-calendar-check" aria-hidden="true"></i></div>
@@ -270,10 +272,10 @@
       function byTarget(row, target) {
         if (!target) return true;
         const id = String(pick(row, COLS.employeeId, '')).trim().toLowerCase();
-        theName = String(pick(row, COLS.employeeName, '')).trim().toLowerCase();
+        const name = String(pick(row, COLS.employeeName, '')).trim().toLowerCase();
         const tgtId = String(target.id||'').trim().toLowerCase();
         const tgtName = String(target.name||'').trim().toLowerCase();
-        return (tgtId && id === tgtId) || (tgtName && theName === tgtName);
+        return (tgtId && id === tgtId) || (tgtName && name === tgtName);
       }
 
       function firstOfMonth(y, m){ return new Date(y, m, 1); }
@@ -433,15 +435,45 @@
         }
       }
 
-      // --- Inject Date Range control into header's filter row (next to Admin filter if present) ---
-      function mountRangeIntoHeader() {
-        // try to find admin filter select or its container
-        const adminSel = document.querySelector('[data-hook="adminFilter"]') ||
-                         document.querySelector('#adminFilter') ||
-                         document.querySelector('select[name="adminFilter"]');
+      /* ---------- Mount Date Range inline next to Admin filter ---------- */
+      function findAdminFilterSelect() {
+        // 1) Direct hooks we already try in other pages
+        let sel = document.querySelector('[data-hook="adminFilter"]')
+               || document.querySelector('#adminFilter')
+               || document.querySelector('select[name="adminFilter"]');
 
-        // create the range control
-        const wrap = document.createElement('div');
+        if (sel) return sel;
+
+        // 2) Find label whose text includes "Admin filter", then pair with its 'for'
+        const labels = Array.from(document.querySelectorAll('label'));
+        const adminLbl = labels.find(l => /admin\s*filter/i.test((l.textContent||'').trim()));
+        if (adminLbl) {
+          if (adminLbl.htmlFor) {
+            const byFor = document.getElementById(adminLbl.htmlFor);
+            if (byFor && byFor.tagName === 'SELECT') return byFor;
+          }
+          const sibSel = adminLbl.parentElement && adminLbl.parentElement.querySelector('select');
+          if (sibSel) return sibSel;
+          const nextSel = adminLbl.nextElementSibling && adminLbl.nextElementSibling.tagName === 'SELECT'
+                        ? adminLbl.nextElementSibling : null;
+          if (nextSel) return nextSel;
+        }
+
+        // 3) Last resort: any SELECT near text "Admin filter"
+        const textNodes = Array.from(document.querySelectorAll('*')).filter(n => /admin\s*filter/i.test(n.textContent||''));
+        for (const n of textNodes) {
+          const near = n.querySelector && n.querySelector('select');
+          if (near) return near;
+        }
+
+        return null;
+      }
+
+      function createRangeControl() {
+        let wrap = document.querySelector('.range-inline');
+        if (wrap) return wrap; // already exists
+
+        wrap = document.createElement('span');
         wrap.className = 'range-inline';
         wrap.innerHTML = `
           <label for="range">Date Range</label>
@@ -457,30 +489,50 @@
             <option value="all">All</option>
           </select>
         `;
+        return wrap;
+      }
 
-        // place logic:
-        // - if admin filter exists, insert right after it
-        // - else try a generic header controls container
-        // - as a last resort, prepend to the page just above the progress card (rare)
+      function mountRangeInline(savedValue) {
+        const wrap = createRangeControl();
+        const adminSel = findAdminFilterSelect();
+
+        // If admin filter exists, place Range control immediately after it
         if (adminSel && adminSel.parentElement) {
-          adminSel.parentElement.insertAdjacentElement('afterend', wrap);
+          // Avoid duplicates: if wrap already in DOM, move it
+          if (!wrap.isConnected) document.body.appendChild(wrap);
+          adminSel.insertAdjacentElement('afterend', wrap);
         } else {
-          const headerControls = document.querySelector('[data-hook="headerControls"]') ||
-                                 document.querySelector('.table-header-controls') ||
-                                 document.querySelector('.content-inner');
-          (headerControls || document.body).insertAdjacentElement('afterbegin', wrap);
+          // If we still can't find it, keep wrap hidden near top; observer will re-home it when admin filter appears
+          if (!wrap.isConnected) document.body.appendChild(wrap);
+          wrap.style.display = 'none';
         }
 
-        // bind change handler
-        wrap.querySelector('#range').addEventListener('change', applyRange);
-        return wrap.querySelector('#range');
+        const rng = wrap.querySelector('#range');
+        if (rng) {
+          if (savedValue && [...rng.options].some(o => o.value === savedValue)) rng.value = savedValue;
+          rng.onchange = applyRange;
+        }
+      }
+
+      function observeForAdminFilter(savedValue) {
+        const obs = new MutationObserver(() => {
+          const adminSel = findAdminFilterSelect();
+          const wrap = document.querySelector('.range-inline');
+          if (adminSel && wrap) {
+            adminSel.insertAdjacentElement('afterend', wrap);
+            wrap.style.display = 'inline-flex';
+            obs.disconnect();
+          }
+        });
+        obs.observe(document.body, { childList: true, subtree: true });
       }
 
       async function loadTableAndProgress() {
-        // Mount range control up top and restore saved selection
-        const rangeEl = mountRangeIntoHeader();
         const saved = getSavedRange();
-        if (rangeEl && [...rangeEl.options].some(o => o.value === saved)) rangeEl.value = saved;
+
+        // Build inline Date Range (and move it as soon as Admin filter is found)
+        mountRangeInline(saved);
+        observeForAdminFilter(saved);
 
         state.target = await resolveTargetEmployee();
         buildHead();
@@ -490,7 +542,7 @@
       }
 
       function bindControls() {
-        // react to Admin filter changes
+        // React to Admin filter changes
         document.addEventListener('powerup-admin-filter-change', async () => {
           state.target = await resolveTargetEmployee();
           applyRange();
