@@ -524,29 +524,70 @@
         );
       }
 
-      function injectHeaderControls() {
-        const controls = makeControls();
-        const adminBox = findAdminFilterContainer();
-        if (IS_ADMIN && adminBox) {
-          // Admin: put controls immediately to the right of admin filter
-          adminBox.insertAdjacentElement('afterend', controls);
-        } else {
-          // Non-admin: place controls where the admin filter would sit (header toolbar row)
-          const toolbar = findHeaderToolbar();
-          if (toolbar) {
-            // If toolbar is flex-row, appending will place inline
-            toolbar.appendChild(controls);
-          } else {
-            // Hard fallback: keep them above the divider but within header area
-            const head = document.querySelector('.content-inner');
-            head && head.insertBefore(controls, head.firstChild);
-          }
-        }
+/* ------- Header controls: row directly under the header (same row Admin filter uses) ------- */
+function injectHeaderControls() {
+  const controls = makeControls();
 
-        // wire
-        controls.querySelector('#range').addEventListener('change', applyRange);
-        controls.querySelector('#phOpen').addEventListener('click', openModal);
+  // 1) Try to piggyback on the existing Admin filter row (preferred & exact)
+  const adminSelect =
+    document.querySelector('[data-hook="adminFilter"] select') ||
+    document.querySelector('select[data-hook="adminFilter"]') ||
+    document.querySelector('#adminFilter select') ||
+    document.querySelector('#adminFilter') ||
+    document.querySelector('select[name="adminFilter"]');
+
+  if (IS_ADMIN && adminSelect) {
+    // Place to the right of the Admin filter in the same row
+    const row = adminSelect.closest('[data-hook="header-filters-row"]') ||
+                adminSelect.parentElement; // fallback: the admin filter container itself
+    adminSelect.insertAdjacentElement('afterend', controls);
+  } else {
+    // 2) No Admin filter: ensure we’re still in the same "filters row" directly under the header
+    // We try a few stable anchors used by layout; if not found, we create a row just under the header title.
+    let row =
+      document.querySelector('[data-hook="header-filters-row"]') ||
+      document.querySelector('.header-filters-row');
+
+    if (!row) {
+      // Create a filters row directly under the header title (still above the divider)
+      const header =
+        document.querySelector('.page-head') ||
+        document.querySelector('.content-head') ||
+        document.querySelector('.header');
+
+      // Find the top header row (title/welcome/level/refresh) and insert our row right after it
+      const topRow =
+        (header && (header.querySelector('[data-hook="title-row"]') || header.firstElementChild)) || null;
+
+      row = document.createElement('div');
+      row.setAttribute('data-hook', 'header-filters-row');
+      row.style.display = 'flex';
+      row.style.gap = '10px';
+      row.style.alignItems = 'center';
+      row.style.marginTop = '8px';
+
+      if (header && topRow) {
+        topRow.insertAdjacentElement('afterend', row);
+      } else if (header) {
+        header.appendChild(row);
+      } else {
+        // Last resort: put it before the main content so it’s still above the divider content
+        const content = document.querySelector('.content-inner');
+        if (content && content.parentElement) {
+          content.parentElement.insertBefore(row, content);
+        } else {
+          document.body.insertBefore(row, document.body.firstChild);
+        }
       }
+    }
+
+    row.appendChild(controls);
+  }
+
+  // Wire up controls
+  controls.querySelector('#range').addEventListener('change', applyRange);
+  controls.querySelector('#phOpen').addEventListener('click', openModal);
+}
 
       /* -------------------- modal helpers + save -------------------- */
       function pad2(n){ return String(n).padStart(2,'0'); }
@@ -715,3 +756,4 @@
   </script>
 </body>
 </html>
+
