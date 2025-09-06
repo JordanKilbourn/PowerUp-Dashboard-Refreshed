@@ -524,72 +524,71 @@
         );
       }
 
-/* ------- Header controls: sit one row BELOW the top row, in the same spot as Admin filter ------- */
+/* --- Single source of truth for the header filter row (keeps Admin + DateRange + Log together) --- */
 function injectHeaderControls() {
-  // avoid duplicates if re-injected
+  // prevent duplicates on re-init
   document.querySelectorAll('.ph-controls').forEach(n => n.remove());
 
-  const controls = makeControls();
+  const controls = makeControls();                // your existing builder (unchanged)
   controls.classList.add('ph-controls');
 
-  // If Admin filter exists, put our controls in that SAME row, to the right
-  const adminSelect = document.querySelector(
-    '[data-hook="adminFilter"] select, ' +
-    'select[data-hook="adminFilter"], ' +
-    '#adminFilter select, ' +
-    '#adminFilter, ' +
-    'select[name="adminFilter"]'
-  );
+  // 1) Anchor under the Welcome/Level row (keeps us above the divider)
+  const headerEl =
+    document.getElementById('pu-header') ||        // from your screenshot: div#pu-header.header
+    document.querySelector('.content-head') ||
+    document.querySelector('.page-head') ||
+    document.querySelector('.header') ||
+    document.body;
 
-  if (IS_ADMIN && adminSelect) {
-    const adminRow =
-      adminSelect.closest('[data-hook="header-filters-row"]') ||
-      adminSelect.closest('.header-filters-row') ||
-      adminSelect.parentElement;
-    adminRow.appendChild(controls);
-  } else {
-    // No Admin filter: anchor directly UNDER the Welcome/Level row
-    const nameNode  = document.querySelector('[data-hook="userName"]');
-    const levelNode = document.querySelector('[data-hook="userLevel"]');
+  // The top row is the one that contains the welcome/level/refresh
+  const welcomeRow =
+    headerEl.querySelector('[data-hook="header-info-row"]') ||
+    headerEl.querySelector('.header-info-row') ||
+    headerEl.firstElementChild || headerEl;
 
-    // Find the row that contains Welcome/Level and insert our filters row RIGHT AFTER it
-    let infoRow =
-      (nameNode && (nameNode.closest('[data-hook="header-info-row"]') ||
-                    nameNode.closest('.header-info-row') ||
-                    nameNode.closest('.header__row') ||
-                    nameNode.parentElement)) ||
-      (levelNode && (levelNode.closest('[data-hook="header-info-row"]') ||
-                     levelNode.closest('.header-info-row') ||
-                     levelNode.closest('.header__row') ||
-                     levelNode.parentElement));
-
-    if (!infoRow) {
-      // Fallback: use the header container so we still stay above the divider
-      infoRow = document.querySelector('.content-head') ||
-                document.querySelector('.page-head') ||
-                document.querySelector('.header') ||
-                document.body.firstElementChild || document.body;
-    }
-
-    // Reuse an existing filters row if present, otherwise create one
-    let filtersRow = infoRow.nextElementSibling;
-    if (!(filtersRow &&
-          (filtersRow.matches('[data-hook="header-filters-row"]') ||
-           filtersRow.classList.contains('header-filters-row')))) {
+  // Ensure one shared filters row right AFTER the welcome row
+  let filtersRow = headerEl.querySelector('[data-hook="header-filters-row"], .header-filters-row');
+  if (!filtersRow || filtersRow.previousElementSibling !== welcomeRow) {
+    // Create if missing OR move it to be right after the welcome row
+    if (!filtersRow) {
       filtersRow = document.createElement('div');
       filtersRow.setAttribute('data-hook', 'header-filters-row');
-      filtersRow.classList.add('header-filters-row'); // harmless if class not styled
-      filtersRow.style.display = 'flex';
-      filtersRow.style.gap = '10px';
-      filtersRow.style.alignItems = 'center';
-      filtersRow.style.marginTop = '8px';
-      infoRow.insertAdjacentElement('afterend', filtersRow);
+      filtersRow.classList.add('header-filters-row');
     }
+    welcomeRow.insertAdjacentElement('afterend', filtersRow);
+  }
 
+  // Flex so children appear on the same line; wrap on small screens
+  Object.assign(filtersRow.style, {
+    display: 'flex',
+    gap: '10px',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    marginTop: '8px'
+  });
+
+  // 2) If an Admin filter exists but is NOT in this row, move it **into** this row (first position)
+  const adminContainer =
+    document.getElementById('pu-admin-filter') ||
+    headerEl.querySelector('[data-hook="adminFilterContainer"]') ||
+    headerEl.querySelector('[data-hook="adminFilter"]')?.closest('div');
+
+  if (adminContainer && adminContainer.parentElement !== filtersRow) {
+    filtersRow.appendChild(adminContainer); // append first, then reorder below
+  }
+
+  // 3) Place our controls. If Admin is present, controls go to its right; otherwise simply append.
+  if (adminContainer && adminContainer.parentElement === filtersRow) {
+    // Ensure Admin is the first item in the row; then insert our controls right after it
+    if (filtersRow.firstElementChild !== adminContainer) {
+      filtersRow.insertBefore(adminContainer, filtersRow.firstElementChild);
+    }
+    adminContainer.insertAdjacentElement('afterend', controls);
+  } else {
     filtersRow.appendChild(controls);
   }
 
-  // Wire up
+  // 4) Wire up events
   const rangeSel = controls.querySelector('#range');
   if (rangeSel) rangeSel.addEventListener('change', applyRange);
   const openBtn = controls.querySelector('#phOpen');
@@ -763,5 +762,6 @@ function injectHeaderControls() {
   </script>
 </body>
 </html>
+
 
 
