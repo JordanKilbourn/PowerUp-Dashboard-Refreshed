@@ -524,41 +524,37 @@
         );
       }
 
-/* --- Single source of truth for the header filter row (keeps Admin + DateRange + Log together) --- */
+/* --- Put Admin + Date Range + Log/Schedule on one line directly under Welcome/Level --- */
 function injectHeaderControls() {
-  // prevent duplicates on re-init
+  // remove any previous control instance to avoid dupes
   document.querySelectorAll('.ph-controls').forEach(n => n.remove());
 
-  const controls = makeControls();                // your existing builder (unchanged)
+  const controls = makeControls();              // existing builder; unchanged
   controls.classList.add('ph-controls');
 
-  // 1) Anchor under the Welcome/Level row (keeps us above the divider)
+  // 1) Locate the header and, critically, the *Welcome/Level* row
   const headerEl =
-    document.getElementById('pu-header') ||        // from your screenshot: div#pu-header.header
-    document.querySelector('.content-head') ||
-    document.querySelector('.page-head') ||
-    document.querySelector('.header') ||
+    document.getElementById('pu-header') ||
+    document.querySelector('.content-head, .page-head, .header') ||
     document.body;
 
-  // The top row is the one that contains the welcome/level/refresh
-  const welcomeRow =
-    headerEl.querySelector('[data-hook="header-info-row"]') ||
-    headerEl.querySelector('.header-info-row') ||
-    headerEl.firstElementChild || headerEl;
+  const nameNode  = headerEl.querySelector('[data-hook="userName"]');
+  const levelNode = headerEl.querySelector('[data-hook="userLevel"]');
 
-  // Ensure one shared filters row right AFTER the welcome row
-  let filtersRow = headerEl.querySelector('[data-hook="header-filters-row"], .header-filters-row');
-  if (!filtersRow || filtersRow.previousElementSibling !== welcomeRow) {
-    // Create if missing OR move it to be right after the welcome row
-    if (!filtersRow) {
-      filtersRow = document.createElement('div');
-      filtersRow.setAttribute('data-hook', 'header-filters-row');
-      filtersRow.classList.add('header-filters-row');
-    }
-    welcomeRow.insertAdjacentElement('afterend', filtersRow);
+  // climb up from name/level to the containing row (this avoids anchoring to the title row)
+  const infoRow = (nameNode && (nameNode.closest('.header-info-row, .header__row, .header-row') || nameNode.parentElement))
+               || (levelNode && (levelNode.closest('.header-info-row, .header__row, .header-row') || levelNode.parentElement))
+               || headerEl.firstElementChild; // last-resort fallback
+
+  // 2) Ensure ONE filters row immediately after the Welcome/Level row
+  let filtersRow = infoRow.nextElementSibling;
+  const isFiltersRow = el => !!el && (el.matches('[data-hook="header-filters-row"]') || el.classList.contains('header-filters-row'));
+  if (!isFiltersRow(filtersRow)) {
+    filtersRow = document.createElement('div');
+    filtersRow.setAttribute('data-hook', 'header-filters-row');
+    filtersRow.classList.add('header-filters-row');
+    infoRow.insertAdjacentElement('afterend', filtersRow);
   }
-
-  // Flex so children appear on the same line; wrap on small screens
   Object.assign(filtersRow.style, {
     display: 'flex',
     gap: '10px',
@@ -567,25 +563,21 @@ function injectHeaderControls() {
     marginTop: '8px'
   });
 
-  // 2) If an Admin filter exists but is NOT in this row, move it **into** this row (first position)
+  // 3) Move Admin filter into this row (first), then put our controls to the right
   const adminContainer =
     document.getElementById('pu-admin-filter') ||
     headerEl.querySelector('[data-hook="adminFilterContainer"]') ||
     headerEl.querySelector('[data-hook="adminFilter"]')?.closest('div');
 
-  if (adminContainer && adminContainer.parentElement !== filtersRow) {
-    filtersRow.appendChild(adminContainer); // append first, then reorder below
-  }
-
-  // 3) Place our controls. If Admin is present, controls go to its right; otherwise simply append.
-  if (adminContainer && adminContainer.parentElement === filtersRow) {
-    // Ensure Admin is the first item in the row; then insert our controls right after it
+  if (adminContainer) {
+    // ensure Admin is first item in row
+    if (adminContainer.parentElement !== filtersRow) filtersRow.appendChild(adminContainer);
     if (filtersRow.firstElementChild !== adminContainer) {
       filtersRow.insertBefore(adminContainer, filtersRow.firstElementChild);
     }
-    adminContainer.insertAdjacentElement('afterend', controls);
+    adminContainer.insertAdjacentElement('afterend', controls); // controls right of Admin
   } else {
-    filtersRow.appendChild(controls);
+    filtersRow.appendChild(controls); // non-admin: controls alone, left-aligned
   }
 
   // 4) Wire up events
@@ -762,6 +754,7 @@ function injectHeaderControls() {
   </script>
 </body>
 </html>
+
 
 
 
