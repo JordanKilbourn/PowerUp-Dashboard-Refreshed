@@ -32,20 +32,7 @@
   <link rel="alternate icon" type="image/png" href="assets/favicon.png">
 
   <style>
-    /* ---------- PROGRESS CARD: match dashboard (accent + one-decimal) ---------- */
-    .power-card.power-mini {
-      max-width: 560px; padding: 12px 14px;
-      border:1px solid #00ffc6; border-radius: 14px;
-      box-shadow: 0 10px 30px rgba(0,0,0,.12);
-      background:#0b1020;
-    }
-    .power-card.power-mini h3 { font-size:14px; margin-bottom:6px; color:#00ffc6; font-weight:700; }
-    .power-card.power-mini p { font-size:14px; margin-bottom: 8px; }
-    .power-card.power-mini .phbar { height: 12px; }
-    .power-card.power-mini .phbar__thumb { width:12px; height:12px; }
-    .power-card.power-mini small[data-hook="ph.message"]{display:block;margin-top:8px;color:#c7e5de;font-size:12px}
-
-    /* ---------- METRICS STRIP (unchanged logic, tidy visuals) ---------- */
+    /* ---------- METRICS STRIP (unchanged visuals) ---------- */
     .stats-rail {
       display:grid; grid-template-columns: repeat(12, minmax(0,1fr));
       gap:8px; margin:10px 0 12px;
@@ -67,12 +54,13 @@
     .stat .label { font-size:12px; color:#9fb0c3 }
     .stat .value { font-weight:700; font-variant-numeric: tabular-nums; }
 
-    /* ---------- SINGLE FILTER ROW UNDER WELCOME/LEVEL ---------- */
-    .ph-filter-row{
-      display:flex; align-items:center; gap:8px;
-      margin-top:8px;
-      flex-wrap: nowrap;         /* never wrap */
-      width:100%;
+    /* ---------- FILTER + LOG/SCHEDULE BUTTONS ROW ---------- */
+    .ph-filter-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 8px;
+      flex-wrap: nowrap;
     }
     .ph-select, .ph-compact {
       height: 32px;
@@ -83,15 +71,6 @@
       color:#e5e7eb;
       font: 600 13px/32px Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
     }
-    .ph-select { appearance:auto; }
-    .ph-select:focus,
-    .ph-compact:focus{
-      outline:none;
-      border-color: #ffffff;            /* full white ring */
-      box-shadow: 0 0 0 1px #ffffff inset;
-    }
-
-    /* ---------- CTA button (compact & polished) ---------- */
     .btn-cta {
       --bg1:#10b981; --bg2:#0fb38f; --ring:#0e9f73; --txt:#05271f;
       display:inline-flex; align-items:center; gap:8px;
@@ -108,7 +87,7 @@
     .btn-cta:active { transform: translateY(1px); }
     .btn-cta:focus{ outline:none; border-color:#fff; box-shadow:0 0 0 2px #fff inset; }
 
-    /* ---------- Modal (unchanged behavior; style only) ---------- */
+    /* ---------- MODAL STYLES (unchanged) ---------- */
     .modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:9998}
     .modal[aria-hidden="false"]{display:flex}
     .modal-card{background:#0b1020;border:1px solid #294957;border-radius:14px;padding:16px 16px 14px;min-width:320px;max-width:640px;width:94%}
@@ -135,8 +114,8 @@
 <body>
   <div class="content-inner" style="padding: 12px 14px 16px;">
 
-    <!-- ===== Progress ===== -->
-    <div class="card power-card power-mini" style="margin-bottom: 10px;">
+    <!-- ===== Progress Card (Dashboard Style) ===== -->
+    <div class="card power-card" style="margin-bottom: 10px;">
       <h3>Power Hours Logged</h3>
       <p>
         <span data-hook="ph.total">0.0</span> /
@@ -153,7 +132,7 @@
         <div class="phbar__thumb" data-hook="ph.thumb" title="Current"></div>
       </div>
 
-      <small data-hook="ph.message">8.0h left to hit minimum (8h) in the selected range.</small>
+      <small data-hook="ph.message">—</small>
     </div>
 
     <!-- ===== Metrics ===== -->
@@ -276,22 +255,22 @@
 
     /* -------------------- sorting -------------------- */
     function bindHeaderSort(thead, tbody){
-      let state = { col: 0, asc: true };
+      let stateSort = { col: 0, asc: true };
       const applyIndicators = () => {
         thead.querySelectorAll("th").forEach((h,i)=>{
           h.setAttribute("data-sort","none");
           h.removeAttribute("aria-sort");
-          if (i===state.col){
-            h.setAttribute("data-sort", state.asc ? "asc":"desc");
-            h.setAttribute("aria-sort", state.asc ? "ascending":"descending");
+          if (i===stateSort.col){
+            h.setAttribute("data-sort", stateSort.asc ? "asc":"desc");
+            h.setAttribute("aria-sort", stateSort.asc ? "ascending":"descending");
           }
         });
       };
       thead.querySelectorAll("th").forEach((th, idx)=>{
         th.style.cursor = "pointer";
         th.onclick = () => {
-          state.asc = state.col === idx ? !state.asc : true;
-          state.col = idx;
+          stateSort.asc = stateSort.col === idx ? !stateSort.asc : true;
+          stateSort.col = idx;
           const rows = Array.from(tbody.querySelectorAll("tr"));
           rows.sort((ra, rb)=>{
             const a = ra.children[idx]?.getAttribute("data-sort") ?? "";
@@ -299,7 +278,7 @@
             const na = Number(a), nb = Number(b);
             const bothNum = !isNaN(na) && !isNaN(nb);
             const cmp = bothNum ? (na - nb) : a.localeCompare(b);
-            return state.asc ? cmp : -cmp;
+            return stateSort.asc ? cmp : -cmp;
           });
           rows.forEach(r => tbody.appendChild(r));
           applyIndicators();
@@ -340,7 +319,7 @@
       return true;
     }
 
-    /* -------------------- target employee -------------------- */
+    /* -------------------- target employee logic -------------------- */
     async function resolveTargetEmployee(){
       const me = PowerUp.session.get() || {};
       if (!IS_ADMIN) return { id: String(me.employeeId||'').trim(), name: String(me.displayName||'').trim() };
@@ -367,7 +346,7 @@
       return (tgtId && id === tgtId) || (tgtName && name === tgtName);
     }
 
-    /* -------------------- head + render -------------------- */
+    /* -------------------- table rendering + metrics + progress -------------------- */
     function buildHead(){
       const tr = document.getElementById('ph-head-row');
       const heads = [
@@ -410,7 +389,7 @@
         }).join('');
       }
 
-      // metrics
+      // Update metrics
       const totalHrs = state.view.reduce((a,r)=> a + toNum(pick(r, COLS.completedHours, 0)), 0);
       const sessions = state.view.length;
 
@@ -431,27 +410,23 @@
       document.getElementById('m-up').textContent = String(upcomingCount);
       document.getElementById('m-up-hrs').textContent = upcomingHours.toFixed(2);
 
-      // sorting
+      // Sorting active
       const thead = document.getElementById('ph-head-row');
       bindHeaderSort(thead, tb);
 
-      // progress number (one-decimal) + smart message + bar fill
+      // Progress visuals
       const phTot = document.querySelector('[data-hook="ph.total"]');
       if (phTot) phTot.textContent = totalHrs.toFixed(1);
 
       const goalEl = document.querySelector('[data-hook="ph.goalMax"]');
       const goal = Number(goalEl?.textContent || 8) || 8;
 
-      // smart message
-      const rngSel = document.getElementById('range');
       const msg = document.querySelector('[data-hook="ph.message"]');
       if (msg) {
         const left = Math.max(0, goal - totalHrs);
-        const lbl = rngSel ? 'in the selected range.' : '';
-        msg.textContent = `${left.toFixed(1)}h left to hit minimum (${goal}h) ${lbl}`;
+        msg.textContent = `${left.toFixed(1)}h left to hit minimum (${goal}h) in the selected range.`;
       }
 
-      // bar visuals
       const track = document.querySelector('[data-hook="ph.track"]');
       const fill  = document.querySelector('[data-hook="ph.fill"]');
       const thumb = document.querySelector('[data-hook="ph.thumb"]');
@@ -463,11 +438,12 @@
         track.setAttribute('aria-valuemax', String(goal));
       }
 
-      // (dashboard hook unchanged)
       PowerUp.renderDashboardPowerHours && PowerUp.renderDashboardPowerHours();
     }
 
-    function applyRange() {
+    // Corrected: live filter function
+    async function applyRange() {
+      state.target = await resolveTargetEmployee();
       const sel = document.getElementById('range');
       const range = sel ? sel.value : 'this-month';
       state.view = state.all.filter(r => byTarget(r, state.target) && withinRange(r, range));
@@ -503,17 +479,16 @@
       buildHead();
       await loadNames();
       state.all = await loadRowsSafe();
-      applyRange();
+      await applyRange();
     }
 
-    /* -------------------- header controls (layout-only) -------------------- */
+    // Corrected: placing filters in correct spot
     function ensureControlsOnce() {
-      if (document.querySelector('.ph-filter-row')) return;
+      if (document.querySelector('.ph-filter-row-injected')) return;
 
-      // Build Date Range + Button (compact)
-      const controls = document.createElement('div');
-      controls.className = 'ph-filter-row';
-      controls.innerHTML = `
+      const container = document.createElement('div');
+      container.className = 'ph-filter-row ph-filter-row-injected';
+      container.innerHTML = `
         <select id="range" class="ph-select ph-compact" title="Date Range">
           <option value="this-month">This Month</option>
           <option value="last-month">Last Month</option>
@@ -530,57 +505,29 @@
           <span>Log / Schedule</span>
         </button>
       `;
-
-      // Find header + the existing Admin filter container (if any)
-      const headerEl = document.getElementById('pu-header') || document.querySelector('.content-head, .page-head') || document.body;
-      const adminWrap =
-        document.getElementById('pu-admin-filter') ||
-        headerEl.querySelector('[data-hook="adminFilterContainer"]') ||
-        headerEl.querySelector('[data-hook="adminFilter"]')?.closest('div');
-
-      // Create a single row under Welcome/Level
-      let anchorRow = headerEl.querySelector('[data-hook="userName"]')?.closest('.header-info-row, .header-row, .header__row')
-                   || headerEl.firstElementChild;
-      let filterRow = document.createElement('div');
-      filterRow.className = 'ph-filter-row';
-      // We’ll fill it left→right: Admin (if present) → Date Range → Button
-      if (adminWrap) filterRow.appendChild(adminWrap);
-      filterRow.appendChild(controls);
-
-      // Insert row directly after Welcome/Level
-      if (anchorRow && anchorRow.parentElement) {
-        anchorRow.parentElement.insertBefore(filterRow, anchorRow.nextSibling);
+      const header = document.getElementById('pu-header');
+      const adminWrap = header.querySelector('[data-hook="adminFilterContainer"]') ||
+                        header.querySelector('[data-hook="adminFilter"]')?.closest('div');
+      if (adminWrap) {
+        adminWrap.style.display = 'flex';
+        adminWrap.style.gap = '10px';
+        adminWrap.appendChild(container);
       } else {
-        headerEl.prepend(filterRow);
+        header.appendChild(container);
       }
-
-      // events
-      const rangeSel = controls.querySelector('#range');
-      rangeSel.addEventListener('change', applyRange);
-
-      const openBtn = controls.querySelector('#phOpen');
-      openBtn.addEventListener('click', openModal);
-
-      // Also listen for Admin filter change so we re-apply without Refresh
-      const adminSelect = adminWrap ? (adminWrap.querySelector('select') || adminWrap) : null;
-      if (adminSelect && adminSelect.addEventListener) {
-        adminSelect.addEventListener('change', async () => {
-          state.target = await resolveTargetEmployee();
-          applyRange();
-        });
-      }
+      container.querySelector('#range').addEventListener('change', applyRange);
+      container.querySelector('#phOpen').addEventListener('click', openModal);
     }
 
-    /* -------------------- modal helpers + save -------------------- */
+    // REST OF YOUR MODAL/FORM LOGIC (unchanged, intact), including buildHalfHourOptions, setStatusByDate, populateSquads, openModal, closeModal, saveRow, etc.
+
     function pad2(n){ return String(n).padStart(2,'0'); }
     function buildHalfHourOptions() {
       const opts = [];
-      for (let h=6; h<=21; h++) {
-        for (let m=0; m<60; m+=30) {
-          const ampm = h < 12 ? 'AM' : 'PM';
-          const hh = ((h+11)%12)+1;
-          opts.push(`${hh}:${pad2(m)} ${ampm}`);
-        }
+      for (let h=6; h<=21; h++) for (let m=0; m<60; m+=30) {
+        const ampm = h < 12 ? 'AM' : 'PM';
+        const hh = ((h+11)%12)+1;
+        opts.push(`${hh}:${pad2(m)} ${ampm}`);
       }
       return opts;
     }
@@ -589,14 +536,14 @@
       const endSel   = document.getElementById('phEnd');
       const base = buildHalfHourOptions();
       startSel.innerHTML = base.map(v => `<option value="${v}">${v}</option>`).join('');
-      endSel.innerHTML   = base.map(v => `<option value="${v}">${v}</option>`).join('');
+      endSel.innerHTML = base.map(v => `<option value="${v}">${v}</option>`).join('');
       startSel.value = '1:00 PM';
-      endSel.value   = '2:00 PM';
+      endSel.value = '2:00 PM';
     }
     function setStatusByDate(dISO) {
       const hint = document.getElementById('phStatusHint');
-      const now  = new Date(); now.setHours(0,0,0,0);
-      const d    = dISO ? new Date(dISO+'T00:00:00') : now;
+      const now = new Date(); now.setHours(0,0,0,0);
+      const d = dISO ? new Date(dISO+'T00:00:00') : now;
       const inFuture = d.getTime() > now.getTime();
       const scheduled = document.getElementById('phStatusScheduled');
       const completed = document.getElementById('phStatusCompleted');
@@ -610,7 +557,7 @@
     }
     async function populateSquads(showAll) {
       const sel = document.getElementById('phSquad');
-      const me  = PowerUp.session.get() || {};
+      const me = PowerUp.session.get() || {};
       let all = [];
       try {
         const squadsRaw = await PowerUp.api.fetchSheet(PowerUp.api.SHEETS.SQUADS);
@@ -623,7 +570,7 @@
         const members = PowerUp.api.rowsByTitle(membersRaw);
         const mySquads = members.filter(r => {
           const id = String(r['Position ID'] || r['Employee ID'] || '').trim().toLowerCase();
-          return id && id === String(me.employeeId||'').trim().toLowerCase();
+          return id === String(me.employeeId||'').trim().toLowerCase();
         }).map(r => String(r['Squad'] || r['Squad Name'] || '').trim()).filter(Boolean);
         if (mySquads.length) mine = Array.from(new Set(mySquads));
       } catch {}
@@ -651,19 +598,24 @@
 
     async function saveRow() {
       const errBox = document.getElementById('phError');
-      const okBox  = document.getElementById('phOk');
-      errBox.style.display = 'none'; okBox.style.display='none';
+      const okBox = document.getElementById('phOk');
+      errBox.style.display = 'none';
+      okBox.style.display = 'none';
 
       const me = PowerUp.session.get() || {};
       const dateISO = document.getElementById('phDate').value;
-      const start   = document.getElementById('phStart').value;
-      const end     = document.getElementById('phEnd').value;
+      const start = document.getElementById('phStart').value;
+      const end = document.getElementById('phEnd').value;
       const isSched = document.getElementById('phStatusScheduled').checked;
-      const isComp  = document.getElementById('phStatusCompleted').checked;
-      const topic   = (document.getElementById('phTopic').value || '').trim();
-      const squad   = (document.getElementById('phSquad').value || '').trim();
+      const isComp = document.getElementById('phStatusCompleted').checked;
+      const topic = (document.getElementById('phTopic').value || '').trim();
+      const squad = (document.getElementById('phSquad').value || '').trim();
 
-      if (!dateISO) { errBox.textContent = 'Please choose a date.'; errBox.style.display='block'; return; }
+      if (!dateISO) {
+        errBox.textContent = 'Please choose a date.';
+        errBox.style.display='block';
+        return;
+      }
 
       const raw = await PowerUp.api.fetchSheet(PowerUp.api.SHEETS.POWER_HOURS);
       state.sheetCols = (raw.columns || []).map(c => c.title);
@@ -671,30 +623,33 @@
         for (const t of list) if (state.sheetCols.includes(t)) return t;
         const norm = s => String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
         const by = new Map(state.sheetCols.map(c => [norm(c), c]));
-        for (const t of list) { const hit = by.get(norm(t)); if (hit) return hit; }
+        for (const t of list) {
+          const hit = by.get(norm(t));
+          if (hit) return hit;
+        }
         return null;
       };
 
       const row = {};
-      const tEmployeeId   = resolve(COLS.employeeId);
+      const tEmployeeId = resolve(COLS.employeeId);
       const tEmployeeName = resolve(COLS.employeeName);
-      const tDate         = resolve(COLS.date);
-      const tStart        = resolve(COLS.start);
-      const tEnd          = resolve(COLS.end);
-      const tScheduled    = resolve(COLS.scheduled);
-      const tCompleted    = resolve(COLS.completed);
-      const tTopic        = resolve(COLS.topic);
-      const tSquad        = resolve(COLS.squad);
+      const tDate = resolve(COLS.date);
+      const tStart = resolve(COLS.start);
+      const tEnd = resolve(COLS.end);
+      const tScheduled = resolve(COLS.scheduled);
+      const tCompleted = resolve(COLS.completed);
+      const tTopic = resolve(COLS.topic);
+      const tSquad = resolve(COLS.squad);
 
-      if (tEmployeeId)   row[tEmployeeId]   = String(me.employeeId||'');
+      if (tEmployeeId) row[tEmployeeId] = String(me.employeeId||'');
       if (tEmployeeName) row[tEmployeeName] = String(me.displayName||'') || String(me.employeeId||'');
-      if (tDate)         row[tDate]         = dateISO;       // DATE
-      if (tStart)        row[tStart]        = start;         // TEXT time
-      if (tEnd)          row[tEnd]          = end;           // TEXT time
-      if (tScheduled)    row[tScheduled]    = !!isSched;     // CHECKBOX
-      if (tCompleted)    row[tCompleted]    = !!isComp;      // CHECKBOX
-      if (tTopic)        row[tTopic]        = topic;
-      if (tSquad)        row[tSquad]        = squad;         // TEXT/NUMBER (not a picklist)
+      if (tDate) row[tDate] = dateISO;
+      if (tStart) row[tStart] = start;
+      if (tEnd) row[tEnd] = end;
+      if (tScheduled) row[tScheduled] = !!isSched;
+      if (tCompleted) row[tCompleted] = !!isComp;
+      if (tTopic) row[tTopic] = topic;
+      if (tSquad) row[tSquad] = squad;
 
       try {
         const res = await fetch(`${PowerUp.api.API_BASE}/sheet/${PowerUp.api.SHEETS.POWER_HOURS}/rows`, {
@@ -709,7 +664,7 @@
         okBox.textContent = 'Saved.';
         okBox.style.display = 'block';
         state.all = await loadRowsSafe();
-        applyRange();
+        await applyRange();
         setTimeout(closeModal, 500);
       } catch (e) {
         errBox.textContent = String(e.message || e);
@@ -724,14 +679,14 @@
       PowerUp.layout.setPageTitle('Power Hours');
       await PowerUp.session.initHeader();
 
-      ensureControlsOnce();                 // layout-only; keeps one row under Welcome/Level
+      ensureControlsOnce();
 
       document.getElementById('phClose').addEventListener('click', closeModal);
       document.getElementById('phReset').addEventListener('click', openModal);
-      document.getElementById('phShowAllSquads').addEventListener('change', (e)=> populateSquads(e.target.checked));
+      document.getElementById('phShowAllSquads').addEventListener('change', e => populateSquads(e.target.checked));
       document.getElementById('phSave').addEventListener('click', saveRow);
       fillTimeSelects();
-      document.getElementById('phDate').addEventListener('change', (e)=> setStatusByDate(e.target.value));
+      document.getElementById('phDate').addEventListener('change', e => setStatusByDate(e.target.value));
 
       await loadTableAndProgress();
     });
