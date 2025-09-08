@@ -347,7 +347,7 @@
       function byTarget(row, target) {
         if (!target) return true;
         const id = String(pick(row, COLS.employeeId, '')).trim().toLowerCase();
-        const name = String(pick(row, COLS.employeeName, '')).trim().toLowerCase();
+        the name = String(pick(row, COLS.employeeName, '')).trim().toLowerCase();
         const tgtId = String(target.id||'').trim().toLowerCase();
         const tgtName = String(target.name||'').trim().toLowerCase();
         return (tgtId && id === tgtId) || (tgtName && name === tgtName);
@@ -501,18 +501,6 @@
         return wrap;
       }
 
-      function findAdminFilterContainer() {
-        // The select usually lives inside a container with data-hook="adminFilter"
-        const sel =
-          document.querySelector('[data-hook="adminFilter"] select') ||
-          document.querySelector('select[data-hook="adminFilter"]') ||
-          document.querySelector('#adminFilter select') ||
-          document.querySelector('#adminFilter') ||
-          document.querySelector('select[name="adminFilter"]');
-        if (sel) return sel.parentElement || sel;
-        return null;
-      }
-
       function findHeaderToolbar() {
         // Try typical header containers used by layout.js
         return (
@@ -524,68 +512,69 @@
         );
       }
 
-/* --- Put Admin + Date Range + Log/Schedule on one line directly under Welcome/Level --- */
-function injectHeaderControls() {
-  // remove any previous control instance to avoid dupes
-  document.querySelectorAll('.ph-controls').forEach(n => n.remove());
+      /* --- Put Admin + Date Range + Log/Schedule on one line directly under Welcome/Level --- */
+      function injectHeaderControls() {
+        // remove any previous control instance to avoid dupes
+        document.querySelectorAll('.ph-controls').forEach(n => n.remove());
 
-  const controls = makeControls();              // existing builder; unchanged
-  controls.classList.add('ph-controls');
+        const controls = makeControls();              // existing builder; unchanged
+        controls.classList.add('ph-controls');
 
-  // 1) Locate the header and, critically, the *Welcome/Level* row
-  const headerEl =
-    document.getElementById('pu-header') ||
-    document.querySelector('.content-head, .page-head, .header') ||
-    document.body;
+        // 1) Locate the header and, critically, the *Welcome/Level* row
+        const headerEl =
+          document.getElementById('pu-header') ||
+          document.querySelector('.content-head, .page-head, .header') ||
+          document.body;
 
-  const nameNode  = headerEl.querySelector('[data-hook="userName"]');
-  const levelNode = headerEl.querySelector('[data-hook="userLevel"]');
+        const nameNode  = headerEl.querySelector('[data-hook="userName"]');
+        const levelNode = headerEl.querySelector('[data-hook="userLevel"]');
 
-  // climb up from name/level to the containing row (this avoids anchoring to the title row)
-  const infoRow = (nameNode && (nameNode.closest('.header-info-row, .header__row, .header-row') || nameNode.parentElement))
-               || (levelNode && (levelNode.closest('.header-info-row, .header__row, .header-row') || levelNode.parentElement))
-               || headerEl.firstElementChild; // last-resort fallback
+        // climb up from name/level to the containing row (this avoids anchoring to the title row)
+        const infoRow = (nameNode && (nameNode.closest('.header-info-row, .header__row, .header-row') || nameNode.parentElement))
+                     || (levelNode && (levelNode.closest('.header-info-row, .header__row, .header-row') || levelNode.parentElement))
+                     || headerEl.firstElementChild; // last-resort fallback
 
-  // 2) Ensure ONE filters row immediately after the Welcome/Level row
-  let filtersRow = infoRow.nextElementSibling;
-  const isFiltersRow = el => !!el && (el.matches('[data-hook="header-filters-row"]') || el.classList.contains('header-filters-row'));
-  if (!isFiltersRow(filtersRow)) {
-    filtersRow = document.createElement('div');
-    filtersRow.setAttribute('data-hook', 'header-filters-row');
-    filtersRow.classList.add('header-filters-row');
-    infoRow.insertAdjacentElement('afterend', filtersRow);
-  }
-  Object.assign(filtersRow.style, {
-    display: 'flex',
-    gap: '10px',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    marginTop: '8px'
-  });
+        // 2) Ensure ONE filters row immediately after the Welcome/Level row
+        let filtersRow = infoRow.nextElementSibling;
+        const isFiltersRow = el => !!el && (el.matches('[data-hook="header-filters-row"]') || el.classList.contains('header-filters-row'));
+        if (!isFiltersRow(filtersRow)) {
+          filtersRow = document.createElement('div');
+          filtersRow.setAttribute('data-hook', 'header-filters-row');
+          filtersRow.classList.add('header-filters-row');
+          infoRow.insertAdjacentElement('afterend', filtersRow);
+        }
+        Object.assign(filtersRow.style, {
+          display: 'flex',
+          gap: '10px',
+          alignItems: 'center',
+          flexWrap: 'nowrap',              // <<< never wrap
+          marginTop: '8px',
+          whiteSpace: 'nowrap'             // helps enforce single-line layout
+        });
 
-  // 3) Move Admin filter into this row (first), then put our controls to the right
-  const adminContainer =
-    document.getElementById('pu-admin-filter') ||
-    headerEl.querySelector('[data-hook="adminFilterContainer"]') ||
-    headerEl.querySelector('[data-hook="adminFilter"]')?.closest('div');
+        // 3) Move Admin filter into this row (first), then put our controls to the right
+        const adminContainer =
+          document.getElementById('pu-admin-filter') ||
+          headerEl.querySelector('[data-hook="adminFilterContainer"]') ||
+          headerEl.querySelector('[data-hook="adminFilter"]')?.closest('div');
 
-  if (adminContainer) {
-    // ensure Admin is first item in row
-    if (adminContainer.parentElement !== filtersRow) filtersRow.appendChild(adminContainer);
-    if (filtersRow.firstElementChild !== adminContainer) {
-      filtersRow.insertBefore(adminContainer, filtersRow.firstElementChild);
-    }
-    adminContainer.insertAdjacentElement('afterend', controls); // controls right of Admin
-  } else {
-    filtersRow.appendChild(controls); // non-admin: controls alone, left-aligned
-  }
+        if (adminContainer) {
+          // ensure Admin is first item in row
+          if (adminContainer.parentElement !== filtersRow) filtersRow.appendChild(adminContainer);
+          if (filtersRow.firstElementChild !== adminContainer) {
+            filtersRow.insertBefore(adminContainer, filtersRow.firstElementChild);
+          }
+          adminContainer.insertAdjacentElement('afterend', controls); // controls right of Admin
+        } else {
+          filtersRow.appendChild(controls); // non-admin: controls alone, left-aligned
+        }
 
-  // 4) Wire up events
-  const rangeSel = controls.querySelector('#range');
-  if (rangeSel) rangeSel.addEventListener('change', applyRange);
-  const openBtn = controls.querySelector('#phOpen');
-  if (openBtn) openBtn.addEventListener('click', openModal);
-}
+        // 4) Wire up events
+        const rangeSel = controls.querySelector('#range');
+        if (rangeSel) rangeSel.addEventListener('change', applyRange);
+        const openBtn = controls.querySelector('#phOpen');
+        if (openBtn) openBtn.addEventListener('click', openModal);
+      }
 
       /* -------------------- modal helpers + save -------------------- */
       function pad2(n){ return String(n).padStart(2,'0'); }
@@ -740,7 +729,7 @@ function injectHeaderControls() {
         PowerUp.layout.setPageTitle('Power Hours');
         await PowerUp.session.initHeader();
 
-        injectHeaderControls();                 // <- exact placement logic for both admin & non-admin
+        injectHeaderControls();                 // <- single-line placement for both admin & non-admin
         document.getElementById('phClose').addEventListener('click', closeModal);
         document.getElementById('phReset').addEventListener('click', openModal);
         document.getElementById('phShowAllSquads').addEventListener('change', (e)=> populateSquads(e.target.checked));
@@ -754,7 +743,3 @@ function injectHeaderControls() {
   </script>
 </body>
 </html>
-
-
-
-
