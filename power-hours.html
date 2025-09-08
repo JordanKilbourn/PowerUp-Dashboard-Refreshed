@@ -32,7 +32,7 @@
   <link rel="alternate icon" type="image/png" href="assets/favicon.png">
 
   <style>
-    /* ---------- PROGRESS CARD: match dashboard (accent + one-decimal) ---------- */
+    /* ---------- PROGRESS CARD ---------- */
     .power-card.power-mini {
       max-width: 560px; padding: 12px 14px;
       border:1px solid #00ffc6; border-radius: 14px;
@@ -43,6 +43,9 @@
     .power-card.power-mini p { font-size:14px; margin-bottom: 8px; }
     .power-card.power-mini .phbar { height: 12px; }
     .power-card.power-mini .phbar__thumb { width:12px; height:12px; }
+    .power-card.power-mini small[data-hook="ph.message"]{
+      display:block; margin-top:8px; color:#9fead8; font-size:12px;
+    }
 
     /* ---------- METRICS STRIP ---------- */
     .stats-rail {
@@ -66,58 +69,49 @@
     .stat .label { font-size:12px; color:#9fb0c3 }
     .stat .value { font-weight:700; font-variant-numeric: tabular-nums; }
 
-    /* ---------- INLINE CONTROLS (Date Range + CTA) ---------- */
-    .ph-inline { display:inline-flex; align-items:center; gap:10px; margin-left:10px; vertical-align:middle; white-space:nowrap; }
-    .ph-inline label { color:#9fb0c3; font-size:13px; }
-    .ph-inline select {
-      padding: 8px 10px; border-radius: 8px;
-      background:#0b1328; border:1px solid #293449; color:#e5e7eb;
+    /* ---------- FILTER ROW (compact, single-line) ---------- */
+    .header-filters-row,
+    [data-hook="header-filters-row"]{
+      display:flex !important;
+      align-items:center;
+      gap:10px;
+      flex-wrap:nowrap;       /* never wrap */
+      overflow-x:auto;
+      margin-top:8px;
     }
 
-    /* ---------- CTA button (higher polish) ---------- */
+    /* Compact controls */
+    .ph-inline { display:inline-flex; align-items:center; gap:8px; white-space:nowrap; }
+    .ph-inline label { color:#9fb0c3; font-size:12px; }
+
+    /* compact select to match Refresh height */
+    .ph-inline select,
+    .header-filters-row select {
+      height:32px; padding:0 10px;
+      border-radius:8px; background:#0b1328; border:1px solid #293449; color:#e5e7eb;
+      font-size:13px;
+    }
+
+    /* Compact modern CTA */
     .btn-cta {
       --bg1:#10b981; --bg2:#0fb38f; --ring:#0e9f73; --txt:#05271f;
-      position:relative; display:inline-flex; align-items:center; gap:8px;
-      padding:9px 12px; border-radius:12px; font-weight:700; cursor:pointer;
+      display:inline-flex; align-items:center; gap:6px;
+      height:32px; padding:0 12px; border-radius:10px; font-weight:700; font-size:13px; cursor:pointer;
       background:linear-gradient(180deg,var(--bg1),var(--bg2));
       border:1px solid var(--ring); color:var(--txt);
-      box-shadow:
-        0 0 0 2px rgba(14,159,115,.15),
-        0 6px 12px rgba(16,185,129,.18),
-        inset 0 1px 0 rgba(255,255,255,.15);
+      box-shadow: 0 0 0 2px rgba(14,159,115,.15), 0 6px 12px rgba(16,185,129,.18), inset 0 1px 0 rgba(255,255,255,.15);
       transition: transform .06s ease, box-shadow .12s ease, filter .12s ease;
-      user-select:none;
       white-space:nowrap;
     }
-    .btn-cta .ico { width:18px; height:18px; display:grid; place-items:center; }
-    .btn-cta:hover { filter:brightness(1.04); box-shadow:
-        0 0 0 3px rgba(14,159,115,.22),
-        0 10px 18px rgba(16,185,129,.22),
-        inset 0 1px 0 rgba(255,255,255,.18); }
+    .btn-cta .ico { width:16px; height:16px; display:grid; place-items:center; }
+    .btn-cta:hover { filter:brightness(1.04); box-shadow: 0 0 0 3px rgba(14,159,115,.22), 0 10px 18px rgba(16,185,129,.22), inset 0 1px 0 rgba(255,255,255,.18); }
     .btn-cta:active { transform: translateY(1px); }
 
-    /* ---------- Modal (style only) ---------- */
-    .modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:9998}
-    .modal[aria-hidden="false"]{display:flex}
-    .modal-card{background:#0b1020;border:1px solid #294957;border-radius:14px;padding:16px 16px 14px;min-width:320px;max-width:640px;width:94%}
-    .modal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
-    .modal-head h3{margin:0;color:#00ffc6;font-size:18px}
-    .modal-body{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:10px}
-    .field{display:flex;flex-direction:column;gap:6px}
-    .field label{font-size:13px;color:#cbd5e1}
-    .field input,.field select,.field textarea{padding:10px;border-radius:10px;background:#0b1328;border:1px solid #293449;color:#e5e7eb;outline:none}
-    .field textarea{min-height:72px;resize:vertical}
-    .span-6{grid-column:span 6 / span 6}
-    .span-3{grid-column:span 3 / span 3}
-    .span-12{grid-column:span 12 / span 12}
-    .row{display:flex;gap:8px;align-items:center}
-    .hint{font-size:12px;color:#9ca3af}
-    .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:10px}
-    .btn{padding:10px 12px;border-radius:10px;border:1px solid #2a354b;background:#111a2f;color:#e5e7eb;cursor:pointer}
-    .btn.primary{background:#10b981;border-color:#0e9f73;color:#04241d;font-weight:700}
-    .btn[disabled]{opacity:.6;cursor:not-allowed}
-    .error{margin-top:8px;color:#fecaca;background:#450a0a;border:1px solid #7f1d1d;padding:8px 10px;border-radius:10px;display:none}
-    .ok{margin-top:8px;color:#bbf7d0;background:#052e22;border:1px solid #0f5132;padding:8px 10px;border-radius:10px;display:none}
+    /* Keep any admin container compact */
+    #pu-admin-filter,
+    [data-hook="adminFilterContainer"]{
+      display:flex; align-items:center; gap:8px;
+    }
   </style>
 </head>
 <body>
@@ -422,14 +416,14 @@
         const thead = document.getElementById('ph-head-row');
         bindHeaderSort(thead, tb);
 
-        // Progress bar (from progress.js) then our numbers/message
+        // Render the dashboard progress widget first (if available)
         if (window.PowerUp && PowerUp.renderDashboardPowerHours) {
           try { PowerUp.renderDashboardPowerHours(); } catch {}
         }
 
+        // Update compact number + smart message
         const phTot = document.querySelector('[data-hook="ph.total"]');
         if (phTot) phTot.textContent = totalHrs.toFixed(1);
-
         const msg = document.querySelector('[data-hook="ph.message"]');
         if (msg) {
           const goal = Number(document.querySelector('[data-hook="ph.goalMax"]').textContent || 8) || 8;
@@ -477,7 +471,7 @@
         applyRange();
       }
 
-      /* -------------------- header controls injection (single row) -------------------- */
+      /* -------------------- single filter row injection -------------------- */
       function makeControls() {
         const wrap = document.createElement('span');
         wrap.className = 'ph-inline';
@@ -502,79 +496,70 @@
         return wrap;
       }
 
-      function findAdminFilterSelect() {
+      function findAdminSelect() {
         return (
           document.querySelector('[data-hook="adminFilter"] select') ||
           document.querySelector('select[data-hook="adminFilter"]') ||
           document.querySelector('#adminFilter select') ||
-          document.querySelector('#adminFilter') ||
           null
         );
       }
 
       function injectHeaderControls() {
-        // Remove prior instance to avoid duplicates
+        // Clear old controls to avoid dupes
         document.querySelectorAll('.ph-controls').forEach(n => n.remove());
-
-        const controls = makeControls();
-        controls.classList.add('ph-controls');
+        const controls = makeControls(); controls.classList.add('ph-controls');
 
         const headerEl =
           document.getElementById('pu-header') ||
           document.querySelector('.content-head, .page-head, .header') ||
           document.body;
 
-        // Prefer the SAME row that contains the admin filter (if present).
-        const adminSel = findAdminFilterSelect();
-        if (adminSel && adminSel.parentElement) {
-          const row = adminSel.parentElement;
-          row.style.display = 'flex';
-          row.style.alignItems = 'center';
-          row.style.gap = '10px';
-          row.style.flexWrap = 'nowrap';
-          row.style.overflowX = 'auto';
-          adminSel.parentElement.insertAdjacentElement('beforeend', controls);
-        } else {
-          // Non-admin: build a single filters row directly under the welcome/level row
-          const nameNode  = headerEl.querySelector('[data-hook="userName"]');
-          const levelNode = headerEl.querySelector('[data-hook="userLevel"]');
-          const infoRow = (nameNode && (nameNode.closest('.header-info-row, .header__row, .header-row') || nameNode.parentElement))
-                       || (levelNode && (levelNode.closest('.header-info-row, .header__row, .header-row') || levelNode.parentElement))
-                       || headerEl.firstElementChild;
+        // Find the welcome/level row
+        const nameNode  = headerEl.querySelector('[data-hook="userName"]');
+        const levelNode = headerEl.querySelector('[data-hook="userLevel"]');
+        const infoRow = (nameNode && (nameNode.closest('.header-info-row, .header__row, .header-row') || nameNode.parentElement))
+                     || (levelNode && (levelNode.closest('.header-info-row, .header__row, .header-row') || levelNode.parentElement))
+                     || headerEl.firstElementChild;
 
-          let filtersRow = infoRow && infoRow.nextElementSibling;
-          const isFiltersRow = el => !!el && (el.hasAttribute('data-hook') && el.getAttribute('data-hook')==='header-filters-row' || el.classList.contains('header-filters-row'));
-          if (!isFiltersRow(filtersRow)) {
-            filtersRow = document.createElement('div');
-            filtersRow.setAttribute('data-hook','header-filters-row');
-            filtersRow.classList.add('header-filters-row');
-            infoRow.insertAdjacentElement('afterend', filtersRow);
+        // Create (or reuse) exactly one filters row directly after infoRow
+        let filtersRow = infoRow && infoRow.nextElementSibling;
+        const isFiltersRow = el => !!el && (el.getAttribute('data-hook')==='header-filters-row' || el.classList.contains('header-filters-row'));
+        if (!isFiltersRow(filtersRow)) {
+          filtersRow = document.createElement('div');
+          filtersRow.setAttribute('data-hook','header-filters-row');
+          filtersRow.classList.add('header-filters-row');
+          infoRow.insertAdjacentElement('afterend', filtersRow);
+        }
+        // Ensure compact single-line style
+        filtersRow.classList.add('header-filters-row');
+
+        // Move admin filter (if present) into this row FIRST, then place our controls to its right
+        const adminSel = findAdminSelect();
+        if (adminSel) {
+          const adminContainer = adminSel.parentElement; // keep any label with it
+          if (adminContainer.parentElement !== filtersRow) filtersRow.appendChild(adminContainer);
+          if (filtersRow.firstElementChild !== adminContainer) {
+            filtersRow.insertBefore(adminContainer, filtersRow.firstChild);
           }
-          Object.assign(filtersRow.style, {
-            display: 'flex',
-            gap: '10px',
-            alignItems: 'center',
-            flexWrap: 'nowrap',
-            overflowX: 'auto',
-            marginTop: '8px'
-          });
+          adminContainer.insertAdjacentElement('afterend', controls);
+        } else {
           filtersRow.appendChild(controls);
         }
 
-        // Wire controls
+        // Live events
         const sel = controls.querySelector('#range');
         if (sel) sel.addEventListener('change', applyRange);
 
         const openBtn = controls.querySelector('#phOpen');
         if (openBtn) openBtn.addEventListener('click', openModal);
 
-        // Listen for admin filter changes (canonical event from layout.js)
+        // keep table reactive to admin changes
         document.addEventListener('powerup-admin-filter-change', async () => {
           state.target = await resolveTargetEmployee();
           applyRange();
         }, { passive:true });
 
-        // Fallback: bind directly to the admin select if the event isn't dispatched
         if (adminSel) {
           adminSel.addEventListener('change', async () => {
             state.target = await resolveTargetEmployee();
@@ -700,13 +685,13 @@
 
         if (tEmployeeId)   row[tEmployeeId]   = String(me.employeeId||'');
         if (tEmployeeName) row[tEmployeeName] = String(me.displayName||'') || String(me.employeeId||'');
-        if (tDate)         row[tDate]         = dateISO;       // DATE
-        if (tStart)        row[tStart]        = start;         // TEXT time
-        if (tEnd)          row[tEnd]          = end;           // TEXT time
-        if (tScheduled)    row[tScheduled]    = !!isSched;     // CHECKBOX
-        if (tCompleted)    row[tCompleted]    = !!isComp;      // CHECKBOX
+        if (tDate)         row[tDate]         = dateISO;
+        if (tStart)        row[tStart]        = start;
+        if (tEnd)          row[tEnd]          = end;
+        if (tScheduled)    row[tScheduled]    = !!isSched;
+        if (tCompleted)    row[tCompleted]    = !!isComp;
         if (tTopic)        row[tTopic]        = topic;
-        if (tSquad)        row[tSquad]        = squad;         // TEXT/NUMBER
+        if (tSquad)        row[tSquad]        = squad;
 
         try {
           const res = await fetch(`${PowerUp.api.API_BASE}/sheet/${PowerUp.api.SHEETS.POWER_HOURS}/rows`, {
@@ -736,7 +721,7 @@
         PowerUp.layout.setPageTitle('Power Hours');
         await PowerUp.session.initHeader();
 
-        injectHeaderControls();       // one-row placement (admin + non-admin)
+        injectHeaderControls();  // single-row filters
 
         // Modal buttons
         document.getElementById('phClose').addEventListener('click', closeModal);
