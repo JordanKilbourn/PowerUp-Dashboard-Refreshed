@@ -67,7 +67,8 @@
     .stat .value { font-weight:700; font-variant-numeric: tabular-nums; }
 
     /* ---------- INLINE CONTROLS (Date Range + CTA) ---------- */
-    .ph-inline { display:inline-flex; align-items:center; gap:10px; margin-left:10px; vertical-align:middle; }
+    .ph-inline { display:inline-flex; align-items:center; gap:10px; margin-left:10px; vertical-align:middle; white-space:nowrap; }
+
     .ph-inline label { color:#9fb0c3; font-size:13px; }
     .ph-inline select {
       padding: 8px 10px; border-radius: 8px;
@@ -140,7 +141,6 @@
         <div class="phbar__thumb" data-hook="ph.thumb" title="Current"></div>
       </div>
 
-      <!-- keep the original message tone; guarantee it renders -->
       <small data-hook="ph.message">8.0h left to hit minimum (8h) in the selected range.</small>
     </div>
 
@@ -344,14 +344,14 @@
           return { id: String(me.employeeId||'').trim(), name: String(me.displayName||'').trim() };
         }
       }
-function byTarget(row, target) {
-  if (!target) return true;
-  const id   = String(pick(row, COLS.employeeId, '')).trim().toLowerCase();
-  const name = String(pick(row, COLS.employeeName, '')).trim().toLowerCase();
-  const tgtId   = String(target.id || '').trim().toLowerCase();
-  const tgtName = String(target.name || '').trim().toLowerCase();
-  return (tgtId && id === tgtId) || (tgtName && name === tgtName);
-}
+      function byTarget(row, target) {
+        if (!target) return true;
+        const id = String(pick(row, COLS.employeeId, '')).trim().toLowerCase();
+        const name = String(pick(row, COLS.employeeName, '')).trim().toLowerCase();
+        const tgtId = String(target.id||'').trim().toLowerCase();
+               const tgtName = String(target.name||'').trim().toLowerCase();
+        return (tgtId && id === tgtId) || (tgtName && name === tgtName);
+      }
 
       /* -------------------- head + render -------------------- */
       function buildHead(){
@@ -375,6 +375,7 @@ function byTarget(row, target) {
             const dStr = String(pick(r, COLS.date) ?? '');
             const d = parseDateLocal(dStr);
             const dateSort = d ? String(d.getTime()) : dStr.toLowerCase();
+            const dOut = d ? `${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}/${d.getFullYear()}` : (dStr||'-');
 
             const st  = String(pick(r, COLS.start) ?? '');
             const en  = String(pick(r, COLS.end) ?? '');
@@ -385,7 +386,7 @@ function byTarget(row, target) {
 
             return `<tr>
               ${IS_ADMIN ? `<td data-sort="${empNm.toLowerCase()}">${empNm || '-'}</td>` : ``}
-              <td data-sort="${dateSort}">${d ? `${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}/${d.getFullYear()}` : (dStr||'-')}</td>
+              <td data-sort="${dateSort}">${dOut}</td>
               <td data-sort="${st.toLowerCase()}">${fmt(st)}</td>
               <td data-sort="${en.toLowerCase()}">${fmt(en)}</td>
               <td class="t-right mono" data-sort="${hrsNum}">${hrsNum.toFixed(2)}</td>
@@ -421,17 +422,23 @@ function byTarget(row, target) {
         const thead = document.getElementById('ph-head-row');
         bindHeaderSort(thead, tb);
 
-        // progress number one-decimal & message
-        const phTot = document.querySelector('[data-hook="ph.total"]');
-        if (phTot) phTot.textContent = totalHrs.toFixed(1);
+        /* -------- progress card update (inline; no helper) -------- */
+        const totEl  = document.querySelector('[data-hook="ph.total"]');
+        const goalEl = document.querySelector('[data-hook="ph.goalMax"]');
+        const track  = document.querySelector('[data-hook="ph.track"]');
+        const fill   = document.querySelector('[data-hook="ph.fill"]');
+        const thumb  = document.querySelector('[data-hook="ph.thumb"]');
+        const msg    = document.querySelector('[data-hook="ph.message"]');
+        const goal   = Number(goalEl?.textContent || 8) || 8;
+        const pct    = Math.max(0, Math.min(1, totalHrs / goal));
 
-        const rngSel = document.getElementById('range');
-        const msg = document.querySelector('[data-hook="ph.message"]');
+        if (totEl) totEl.textContent = totalHrs.toFixed(1);
+        if (fill)  fill.style.width = `${pct * 100}%`;
+        if (thumb) thumb.style.left  = `${pct * 100}%`;
+        if (track) track.setAttribute('aria-valuenow', String(Math.max(0, Math.min(goal, totalHrs))));
         if (msg) {
-          const goal = Number(document.querySelector('[data-hook="ph.goalMax"]').textContent || 8) || 8;
           const left = Math.max(0, goal - totalHrs);
-          const label = rngSel ? 'in the selected range.' : '';
-          msg.textContent = `${left.toFixed(1)}h left to hit minimum (${goal}h) ${label}`;
+          msg.textContent = `${left.toFixed(1)}h left to hit minimum (${goal}h) in the selected range.`;
         }
 
         PowerUp.renderDashboardPowerHours && PowerUp.renderDashboardPowerHours();
@@ -501,40 +508,28 @@ function byTarget(row, target) {
         return wrap;
       }
 
-      function findHeaderToolbar() {
-        // Try typical header containers used by layout.js
-        return (
-          document.querySelector('[data-hook="headerToolbar"]') ||
-          document.querySelector('.page-head .header-toolbar') ||
-          document.querySelector('.content-head .header-toolbar') ||
-          document.querySelector('.content-head') ||
-          document.querySelector('.page-head')
-        );
-      }
-
-      /* --- Put Admin + Date Range + Log/Schedule on one line directly under Welcome/Level --- */
+      /* --- Put Admin + Date Range + Log/Schedule on one single no-wrap row --- */
       function injectHeaderControls() {
-        // remove any previous control instance to avoid dupes
         document.querySelectorAll('.ph-controls').forEach(n => n.remove());
 
-        const controls = makeControls();              // existing builder; unchanged
+        const controls = makeControls();
         controls.classList.add('ph-controls');
 
-        // 1) Locate the header and, critically, the *Welcome/Level* row
         const headerEl =
           document.getElementById('pu-header') ||
-          document.querySelector('.content-head, .page-head, .header') ||
+          document.querySelector('.content-head') ||
+          document.querySelector('.page-head') ||
+          document.querySelector('.header') ||
           document.body;
 
         const nameNode  = headerEl.querySelector('[data-hook="userName"]');
         const levelNode = headerEl.querySelector('[data-hook="userLevel"]');
 
-        // climb up from name/level to the containing row (this avoids anchoring to the title row)
-        const infoRow = (nameNode && (nameNode.closest('.header-info-row, .header__row, .header-row') || nameNode.parentElement))
-                     || (levelNode && (levelNode.closest('.header-info-row, .header__row, .header-row') || levelNode.parentElement))
-                     || headerEl.firstElementChild; // last-resort fallback
+        const infoRow =
+          (nameNode && (nameNode.closest('.header-info-row, .header__row, .header-row') || nameNode.parentElement)) ||
+          (levelNode && (levelNode.closest('.header-info-row, .header__row, .header-row') || levelNode.parentElement)) ||
+          headerEl.firstElementChild;
 
-        // 2) Ensure ONE filters row immediately after the Welcome/Level row
         let filtersRow = infoRow.nextElementSibling;
         const isFiltersRow = el => !!el && (el.matches('[data-hook="header-filters-row"]') || el.classList.contains('header-filters-row'));
         if (!isFiltersRow(filtersRow)) {
@@ -547,29 +542,43 @@ function byTarget(row, target) {
           display: 'flex',
           gap: '10px',
           alignItems: 'center',
-          flexWrap: 'nowrap',              // <<< never wrap
+          flexWrap: 'nowrap',
+          whiteSpace: 'nowrap',
           marginTop: '8px',
-          whiteSpace: 'nowrap'             // helps enforce single-line layout
+          overflow: 'hidden'
         });
 
-        // 3) Move Admin filter into this row (first), then put our controls to the right
         const adminContainer =
           document.getElementById('pu-admin-filter') ||
           headerEl.querySelector('[data-hook="adminFilterContainer"]') ||
           headerEl.querySelector('[data-hook="adminFilter"]')?.closest('div');
 
         if (adminContainer) {
-          // ensure Admin is first item in row
+          Object.assign(adminContainer.style, {
+            display: 'inline-flex',
+            alignItems: 'center',
+            flex: '0 0 auto',
+            maxWidth: '420px',
+            width: 'auto',
+            margin: '0'
+          });
+          const adminSelect =
+            adminContainer.querySelector('select') ||
+            adminContainer.querySelector('input') ||
+            adminContainer.firstElementChild;
+          if (adminSelect) Object.assign(adminSelect.style, { width: 'auto', maxWidth: '420px' });
+
           if (adminContainer.parentElement !== filtersRow) filtersRow.appendChild(adminContainer);
           if (filtersRow.firstElementChild !== adminContainer) {
             filtersRow.insertBefore(adminContainer, filtersRow.firstElementChild);
           }
-          adminContainer.insertAdjacentElement('afterend', controls); // controls right of Admin
+          Object.assign(controls.style, { display: 'inline-flex', flex: '0 0 auto' });
+          adminContainer.insertAdjacentElement('afterend', controls);
         } else {
-          filtersRow.appendChild(controls); // non-admin: controls alone, left-aligned
+          Object.assign(controls.style, { display: 'inline-flex', flex: '0 0 auto' });
+          filtersRow.appendChild(controls);
         }
 
-        // 4) Wire up events
         const rangeSel = controls.querySelector('#range');
         if (rangeSel) rangeSel.addEventListener('change', applyRange);
         const openBtn = controls.querySelector('#phOpen');
@@ -729,7 +738,7 @@ function byTarget(row, target) {
         PowerUp.layout.setPageTitle('Power Hours');
         await PowerUp.session.initHeader();
 
-        injectHeaderControls();                 // <- single-line placement for both admin & non-admin
+        injectHeaderControls();                 // exact placement logic for both admin & non-admin
         document.getElementById('phClose').addEventListener('click', closeModal);
         document.getElementById('phReset').addEventListener('click', openModal);
         document.getElementById('phShowAllSquads').addEventListener('change', (e)=> populateSquads(e.target.checked));
@@ -743,4 +752,3 @@ function byTarget(row, target) {
   </script>
 </body>
 </html>
-
