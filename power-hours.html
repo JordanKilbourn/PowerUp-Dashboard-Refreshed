@@ -32,7 +32,7 @@
   <link rel="alternate icon" type="image/png" href="assets/favicon.png">
 
   <style>
-    /* ---------- PROGRESS CARD: match dashboard (accent + one-decimal) ---------- */
+    /* Progress card — match dashboard accents + one-decimal formatting */
     .power-card.power-mini {
       max-width: 560px; padding: 12px 14px;
       border:1px solid #00ffc6; border-radius: 14px;
@@ -44,7 +44,7 @@
     .power-card.power-mini .phbar { height: 12px; }
     .power-card.power-mini .phbar__thumb { width:12px; height:12px; }
 
-    /* ---------- METRICS STRIP (unchanged logic, tidy visuals) ---------- */
+    /* Metrics strip visuals only (logic unchanged) */
     .stats-rail {
       display:grid; grid-template-columns: repeat(12, minmax(0,1fr));
       gap:8px; margin:10px 0 12px;
@@ -66,15 +66,15 @@
     .stat .label { font-size:12px; color:#9fb0c3 }
     .stat .value { font-weight:700; font-variant-numeric: tabular-nums; }
 
-    /* ---------- INLINE CONTROLS (Date Range + CTA) ---------- */
-    .ph-inline { display:inline-flex; align-items:center; gap:10px; margin-left:10px; vertical-align:middle; white-space:nowrap; }
+    /* Inline controls inserted into the header row */
+    .ph-inline { display:inline-flex; align-items:center; gap:10px; margin-left:10px; vertical-align:middle; }
     .ph-inline label { color:#9fb0c3; font-size:13px; }
     .ph-inline select {
       padding: 8px 10px; border-radius: 8px;
       background:#0b1328; border:1px solid #293449; color:#e5e7eb;
     }
 
-    /* ---------- CTA button (higher polish) ---------- */
+    /* CTA button (visuals only) */
     .btn-cta {
       --bg1:#10b981; --bg2:#0fb38f; --ring:#0e9f73; --txt:#05271f;
       position:relative; display:inline-flex; align-items:center; gap:8px;
@@ -87,7 +87,6 @@
         inset 0 1px 0 rgba(255,255,255,.15);
       transition: transform .06s ease, box-shadow .12s ease, filter .12s ease;
       user-select:none;
-      white-space:nowrap;
     }
     .btn-cta .ico { width:18px; height:18px; display:grid; place-items:center; }
     .btn-cta:hover { filter:brightness(1.04); box-shadow:
@@ -96,7 +95,7 @@
         inset 0 1px 0 rgba(255,255,255,.18); }
     .btn-cta:active { transform: translateY(1px); }
 
-    /* ---------- Modal (unchanged behavior; style only) ---------- */
+    /* Modal styling only */
     .modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:9998}
     .modal[aria-hidden="false"]{display:flex}
     .modal-card{background:#0b1020;border:1px solid #294957;border-radius:14px;padding:16px 16px 14px;min-width:320px;max-width:640px;width:94%}
@@ -123,7 +122,7 @@
 <body>
   <div class="content-inner" style="padding: 12px 14px 16px;">
 
-    <!-- ===== Progress ===== -->
+    <!-- Progress -->
     <div class="card power-card power-mini" style="margin-bottom: 10px;">
       <h3>Power Hours Logged</h3>
       <p>
@@ -141,11 +140,10 @@
         <div class="phbar__thumb" data-hook="ph.thumb" title="Current"></div>
       </div>
 
-      <!-- Smart message stays; we update it LAST in renderTable() -->
       <small data-hook="ph.message">8.0h left to hit minimum (8h) in the selected range.</small>
     </div>
 
-    <!-- ===== Metrics ===== -->
+    <!-- Metrics -->
     <div class="stats-rail">
       <div class="stat"><div class="ico"><i class="fa-regular fa-calendar-check"></i></div><div class="meta"><div class="label">Sessions</div><div class="value" id="m-sessions">0</div></div></div>
       <div class="stat"><div class="ico"><i class="fa-solid fa-circle-check"></i></div><div class="meta"><div class="label">Completed</div><div class="value" id="m-comp">0</div></div></div>
@@ -154,7 +152,7 @@
       <div class="stat"><div class="ico"><i class="fa-solid fa-hourglass-half"></i></div><div class="meta"><div class="label">Upcoming hrs</div><div class="value" id="m-up-hrs">0.00</div></div></div>
     </div>
 
-    <!-- ===== Table ===== -->
+    <!-- Table -->
     <div class="card table-card">
       <div class="table-scroll">
         <table id="ph-table" class="dashboard-table">
@@ -165,7 +163,7 @@
     </div>
   </div>
 
-  <!-- ===== Modal ===== -->
+  <!-- Modal -->
   <div id="phModal" class="modal" aria-hidden="true" role="dialog" aria-labelledby="phTitle">
     <div class="modal-card">
       <div class="modal-head">
@@ -221,7 +219,7 @@
     </div>
   </div>
 
-  <!-- ===== JS ===== -->
+  <!-- JS -->
   <script src="scripts/api.js"></script>
   <script src="scripts/session.js"></script>
   <script src="scripts/roles.js"></script>
@@ -232,7 +230,6 @@
     (function(){
       const IS_ADMIN = !!(window.PowerUp?.auth?.isAdmin && PowerUp.auth.isAdmin());
 
-      /* -------------------- column aliases (unchanged) -------------------- */
       const COLS = {
         employeeId: ['Employee ID','Position ID'],
         employeeName: ['Submitted By','Employee Name','Name','Display Name'],
@@ -263,7 +260,6 @@
         return isNaN(d) ? null : d;
       }
 
-      /* -------------------- sorting -------------------- */
       function bindHeaderSort(thead, tbody){
         let state = { col: 0, asc: true };
         const applyIndicators = () => {
@@ -299,7 +295,6 @@
 
       const state = { all: [], view: [], nameById: new Map(), target: null, sheetCols: [] };
 
-      /* -------------------- range helpers -------------------- */
       function firstOfMonth(y, m){ return new Date(y, m, 1); }
       function lastOfMonth(y, m){ return new Date(y, m+1, 0, 23,59,59,999); }
       function getRangeBounds(kind){
@@ -329,7 +324,6 @@
         return true;
       }
 
-      /* -------------------- target employee -------------------- */
       async function resolveTargetEmployee(){
         const me = PowerUp.session.get() || {};
         if (!IS_ADMIN) return { id: String(me.employeeId||'').trim(), name: String(me.displayName||'').trim() };
@@ -348,13 +342,12 @@
       function byTarget(row, target) {
         if (!target) return true;
         const id = String(pick(row, COLS.employeeId, '')).trim().toLowerCase();
-        const name = String(pick(row, COLS.employeeName, '')).trim().toLowerCase();
+        theName = String(pick(row, COLS.employeeName, '')).trim().toLowerCase();
         const tgtId = String(target.id||'').trim().toLowerCase();
-        aconst tgtName = String(target.name||'').trim().toLowerCase();
-        return (tgtId && id === tgtId) || (tgtName && name === tgtName);
+        const tgtName = String(target.name||'').trim().toLowerCase();
+        return (tgtId && id === tgtId) || (tgtName && theName === tgtName);
       }
 
-      /* -------------------- head + render -------------------- */
       function buildHead(){
         const tr = document.getElementById('ph-head-row');
         const heads = [
@@ -366,7 +359,6 @@
 
       function renderTable() {
         const tb = document.getElementById('rows');
-
         if (!state.view.length) {
           tb.innerHTML = `<tr><td colspan="${IS_ADMIN?8:7}" class="muted" style="text-align:center;padding:20px;">No rows</td></tr>`;
         } else {
@@ -398,7 +390,6 @@
           }).join('');
         }
 
-        // metrics
         const totalHrs = state.view.reduce((a,r)=> a + toNum(pick(r, COLS.completedHours, 0)), 0);
         const sessions = state.view.length;
 
@@ -419,24 +410,22 @@
         document.getElementById('m-up').textContent = String(upcomingCount);
         document.getElementById('m-up-hrs').textContent = upcomingHours.toFixed(2);
 
-        // sorting
         const thead = document.getElementById('ph-head-row');
         bindHeaderSort(thead, tb);
-
-        // PROGRESS: update bar first, then number/message LAST so nothing overwrites it
-        if (window.PowerUp && PowerUp.renderDashboardPowerHours) {
-          try { PowerUp.renderDashboardPowerHours(); } catch {}
-        }
 
         const phTot = document.querySelector('[data-hook="ph.total"]');
         if (phTot) phTot.textContent = totalHrs.toFixed(1);
 
+        const rngSel = document.getElementById('range');
         const msg = document.querySelector('[data-hook="ph.message"]');
         if (msg) {
           const goal = Number(document.querySelector('[data-hook="ph.goalMax"]').textContent || 8) || 8;
           const left = Math.max(0, goal - totalHrs);
-          msg.textContent = `${left.toFixed(1)}h left to hit minimum (${goal}h) in the selected range.`;
+          const label = rngSel ? 'in the selected range.' : '';
+          msg.textContent = `${left.toFixed(1)}h left to hit minimum (${goal}h) ${label}`;
         }
+
+        PowerUp.renderDashboardPowerHours && PowerUp.renderDashboardPowerHours();
       }
 
       function applyRange() {
@@ -478,7 +467,7 @@
         applyRange();
       }
 
-      /* -------------------- header controls injection (single row) -------------------- */
+      /* ------- Header controls: pin to Admin filter (if admin), else after Refresh button ------- */
       function makeControls() {
         const wrap = document.createElement('span');
         wrap.className = 'ph-inline';
@@ -503,90 +492,55 @@
         return wrap;
       }
 
-      function findAdminFilterSelect() {
-        return (
+      function findAdminFilterContainer() {
+        const sel =
           document.querySelector('[data-hook="adminFilter"] select') ||
           document.querySelector('select[data-hook="adminFilter"]') ||
           document.querySelector('#adminFilter select') ||
           document.querySelector('#adminFilter') ||
+          document.querySelector('select[name="adminFilter"]');
+        return sel ? (sel.parentElement || sel) : null;
+      }
+
+      function findRefreshButton() {
+        // Try common selectors for your existing Refresh button in header
+        return (
+          document.querySelector('[data-hook="refreshData"]') ||
+          document.querySelector('button#refreshData') ||
+          Array.from(document.querySelectorAll('button')).find(b => /refresh data/i.test(b.textContent || '')) ||
           null
         );
       }
 
       function injectHeaderControls() {
-        // Remove prior instance to avoid duplicates on re-entry
-        document.querySelectorAll('.ph-controls').forEach(n => n.remove());
-
         const controls = makeControls();
-        controls.classList.add('ph-controls');
+        const adminBox = findAdminFilterContainer();
 
-        const headerEl =
-          document.getElementById('pu-header') ||
-          document.querySelector('.content-head, .page-head, .header') ||
-          document.body;
-
-        // Prefer the SAME row that contains the admin filter (if present).
-        const adminSel = findAdminFilterSelect();
-        if (adminSel && adminSel.parentElement) {
-          const row = adminSel.parentElement;
-          // lock this row to a single line
-          row.style.display = 'flex';
-          row.style.alignItems = 'center';
-          row.style.gap = '10px';
-          row.style.flexWrap = 'nowrap';
-          row.style.overflowX = 'auto';
-
-          adminSel.parentElement.insertAdjacentElement('beforeend', controls);
+        if (IS_ADMIN && adminBox) {
+          // Admin: place controls right after Admin filter (same line)
+          adminBox.insertAdjacentElement('afterend', controls);
         } else {
-          // Non-admin: build a single filters row directly under the welcome/level row
-          const nameNode  = headerEl.querySelector('[data-hook="userName"]');
-          const levelNode = headerEl.querySelector('[data-hook="userLevel"]');
-          const infoRow = (nameNode && (nameNode.closest('.header-info-row, .header__row, .header-row') || nameNode.parentElement))
-                       || (levelNode && (levelNode.closest('.header-info-row, .header__row, .header-row') || levelNode.parentElement))
-                       || headerEl.firstElementChild;
-
-          let filtersRow = infoRow && infoRow.nextElementSibling;
-          const isFiltersRow = el => !!el && (el.hasAttribute('data-hook') && el.getAttribute('data-hook')==='header-filters-row' || el.classList.contains('header-filters-row'));
-          if (!isFiltersRow(filtersRow)) {
-            filtersRow = document.createElement('div');
-            filtersRow.setAttribute('data-hook','header-filters-row');
-            filtersRow.classList.add('header-filters-row');
-            infoRow.insertAdjacentElement('afterend', filtersRow);
+          // Non-admin (or no admin container exists): place immediately after the Refresh button in header row
+          const refreshBtn = findRefreshButton();
+          if (refreshBtn && refreshBtn.parentElement) {
+            refreshBtn.insertAdjacentElement('afterend', controls);
+          } else {
+            // Last-ditch: prepend to the very top header block if we can find it
+            const head =
+              document.querySelector('.page-head') ||
+              document.querySelector('.content-head') ||
+              document.querySelector('.header') ||
+              document.body;
+            head.insertBefore(controls, head.firstChild);
           }
-          Object.assign(filtersRow.style, {
-            display: 'flex',
-            gap: '10px',
-            alignItems: 'center',
-            flexWrap: 'nowrap',
-            overflowX: 'auto',
-            marginTop: '8px'
-          });
-          filtersRow.appendChild(controls);
         }
 
-        // Wire controls
-        const sel = controls.querySelector('#range');
-        if (sel) sel.addEventListener('change', applyRange);
-
-        const openBtn = controls.querySelector('#phOpen');
-        if (openBtn) openBtn.addEventListener('click', openModal);
-
-        // Also listen for admin filter changes (canonical event from layout.js)
-        document.addEventListener('powerup-admin-filter-change', async () => {
-          state.target = await resolveTargetEmployee();
-          applyRange();
-        }, { passive:true });
-
-        // Fallback: bind directly to the admin select if the event isn't dispatched
-        if (adminSel) {
-          adminSel.addEventListener('change', async () => {
-            state.target = await resolveTargetEmployee();
-            applyRange();
-          }, { passive:true });
-        }
+        // wire
+        controls.querySelector('#range').addEventListener('change', applyRange);
+        controls.querySelector('#phOpen').addEventListener('click', openModal);
       }
 
-      /* -------------------- modal helpers + save -------------------- */
+      /* Modal helpers + save (unchanged behavior; “Squad” is TEXT as requested) */
       function pad2(n){ return String(n).padStart(2,'0'); }
       function buildHalfHourOptions() {
         const opts = [];
@@ -615,13 +569,8 @@
         const inFuture = d.getTime() > now.getTime();
         const scheduled = document.getElementById('phStatusScheduled');
         const completed = document.getElementById('phStatusCompleted');
-        if (inFuture) {
-          scheduled.checked = true; completed.checked = false;
-          hint.textContent = 'Future dates default to Scheduled.';
-        } else {
-          completed.checked = true; scheduled.checked = false;
-          hint.textContent = '';
-        }
+        if (inFuture) { scheduled.checked = true; completed.checked = false; hint.textContent = 'Future dates default to Scheduled.'; }
+        else { completed.checked = true; scheduled.checked = false; hint.textContent = ''; }
       }
       async function populateSquads(showAll) {
         const sel = document.getElementById('phSquad');
@@ -663,7 +612,6 @@
         document.getElementById('phModal').setAttribute('aria-hidden','true');
         document.getElementById('phModal').style.display='none';
       }
-
       async function saveRow() {
         const errBox = document.getElementById('phError');
         const okBox  = document.getElementById('phOk');
@@ -677,7 +625,6 @@
         const isComp  = document.getElementById('phStatusCompleted').checked;
         const topic   = (document.getElementById('phTopic').value || '').trim();
         const squad   = (document.getElementById('phSquad').value || '').trim();
-
         if (!dateISO) { errBox.textContent = 'Please choose a date.'; errBox.style.display='block'; return; }
 
         const raw = await PowerUp.api.fetchSheet(PowerUp.api.SHEETS.POWER_HOURS);
@@ -703,13 +650,13 @@
 
         if (tEmployeeId)   row[tEmployeeId]   = String(me.employeeId||'');
         if (tEmployeeName) row[tEmployeeName] = String(me.displayName||'') || String(me.employeeId||'');
-        if (tDate)         row[tDate]         = dateISO;       // DATE
-        if (tStart)        row[tStart]        = start;         // TEXT time
-        if (tEnd)          row[tEnd]          = end;           // TEXT time
-        if (tScheduled)    row[tScheduled]    = !!isSched;     // CHECKBOX
-        if (tCompleted)    row[tCompleted]    = !!isComp;      // CHECKBOX
+        if (tDate)         row[tDate]         = dateISO;
+        if (tStart)        row[tStart]        = start;
+        if (tEnd)          row[tEnd]          = end;
+        if (tScheduled)    row[tScheduled]    = !!isSched;
+        if (tCompleted)    row[tCompleted]    = !!isComp;
         if (tTopic)        row[tTopic]        = topic;
-        if (tSquad)        row[tSquad]        = squad;         // TEXT/NUMBER
+        if (tSquad)        row[tSquad]        = squad; // TEXT/number as you set
 
         try {
           const res = await fetch(`${PowerUp.api.API_BASE}/sheet/${PowerUp.api.SHEETS.POWER_HOURS}/rows`, {
@@ -732,16 +679,13 @@
         }
       }
 
-      /* -------------------- boot -------------------- */
       document.addEventListener('DOMContentLoaded', async () => {
         PowerUp.session.requireLogin();
         PowerUp.layout.injectLayout();
         PowerUp.layout.setPageTitle('Power Hours');
         await PowerUp.session.initHeader();
 
-        injectHeaderControls();                         // one-row placement (admin + non-admin)
-
-        // Modal buttons
+        injectHeaderControls();                           // <- now guaranteed in the header row
         document.getElementById('phClose').addEventListener('click', closeModal);
         document.getElementById('phReset').addEventListener('click', openModal);
         document.getElementById('phShowAllSquads').addEventListener('change', (e)=> populateSquads(e.target.checked));
@@ -749,7 +693,6 @@
         fillTimeSelects();
         document.getElementById('phDate').addEventListener('change', (e)=> setStatusByDate(e.target.value));
 
-        // Load data & render
         await loadTableAndProgress();
       });
     })();
