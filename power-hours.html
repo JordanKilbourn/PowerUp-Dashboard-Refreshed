@@ -32,16 +32,51 @@
   <link rel="alternate icon" type="image/png" href="assets/favicon.png">
 
   <style>
-    :root { --accent:#00ffc6; }
+    /* --- Header filters row (always one line under Welcome/Level) --- */
+    .header-filters-row{
+      display:flex !important;
+      align-items:center;
+      gap:8px;
+      flex-wrap:nowrap !important;
+      white-space:nowrap;
+      margin-top:6px;
+      overflow:hidden;   /* prevent wrapping to a new line */
+    }
 
-    /* Progress card (accent border added) */
+    /* Compact, modern controls */
+    .ph-controls{ display:inline-flex; align-items:center; gap:8px; }
+    .ph-controls .label{ font-size:12px; color:#9fb0c3; margin-right:2px; }
+    .ph-controls select{
+      height:32px; line-height:32px;
+      padding:0 10px;
+      border-radius:10px;
+      background:#0b1328; border:1px solid #293449; color:#e5e7eb;
+    }
+    .btn-cta{
+      --bg1:#10b981; --bg2:#0fb38f; --ring:#0e9f73; --txt:#05271f;
+      display:inline-flex; align-items:center; gap:8px;
+      padding:6px 10px; border-radius:10px; font-weight:600; cursor:pointer;
+      background:linear-gradient(180deg,var(--bg1),var(--bg2));
+      border:1px solid var(--ring); color:var(--txt);
+      box-shadow:
+        0 0 0 2px rgba(14,159,115,.15),
+        0 6px 12px rgba(16,185,129,.18),
+        inset 0 1px 0 rgba(255,255,255,.15);
+      transition: transform .06s ease, filter .12s ease, box-shadow .12s ease;
+      user-select:none;
+    }
+    .btn-cta .ico{ width:16px; height:16px; display:grid; place-items:center; }
+    .btn-cta:hover{ filter:brightness(1.05); }
+    .btn-cta:active{ transform:translateY(1px); }
+
+    /* Progress card with accent border */
     .power-card.power-mini {
       max-width: 560px; padding: 12px 14px;
-      border:1px solid var(--accent); border-radius:14px;
+      border:1px solid #00ffc6; border-radius: 14px;
       box-shadow: 0 10px 30px rgba(0,0,0,.12);
       background:#0b1020;
     }
-    .power-card.power-mini h3 { font-size: 14px; margin-bottom: 6px; color:var(--accent); font-weight:700; }
+    .power-card.power-mini h3 { font-size: 14px; margin-bottom: 6px; color:#00ffc6; font-weight:700; }
     .power-card.power-mini p { font-size: 14px; margin-bottom: 8px; }
     .power-card.power-mini .phbar { height: 12px; }
     .power-card.power-mini .phbar__thumb { width: 12px; height: 12px; }
@@ -76,46 +111,13 @@
     .stat .meta { line-height:1.15 }
     .stat .label { font-size:12px; color:#9fb0c3 }
     .stat .value { font-weight:700; font-variant-numeric: tabular-nums; }
-    .stat--sessions  .ico { color:#a8e0ff; }
-    .stat--completed .ico { color:#67e8f9; }
-    .stat--comp-hrs  .ico { color:#34d399; }
-    .stat--scheduled .ico { color:#93c5fd; }
-    .stat--sched-hrs .ico { color:#fbbf24; }
-
-    /* Date Range + Log/Schedule row (inline with Admin filter) */
-    .range-inline {
-      display:inline-flex; align-items:center; gap:8px;
-      margin-left: 12px; /* when next to Admin filter */
-      vertical-align: middle; white-space:nowrap;
-    }
-    .range-inline--standalone { margin-left: 0; margin-bottom: 8px; display:inline-flex; }
-    .range-inline label { color:#9fb0c3; font-size:13px; }
-    .range-inline select {
-      padding: 8px 10px; border-radius: 8px;
-      background:#0b1328; border:1px solid #293449; color:#e5e7eb;
-    }
-
-    /* CTA button */
-    .btn-cta {
-      --bg1:#10b981; --bg2:#0fb38f; --ring:#0e9f73; --txt:#05271f;
-      position:relative; display:inline-flex; align-items:center; gap:8px;
-      padding:9px 12px; border-radius:12px; font-weight:700; cursor:pointer;
-      background:linear-gradient(180deg,var(--bg1),var(--bg2));
-      border:1px solid var(--ring); color:var(--txt);
-      box-shadow: 0 0 0 2px rgba(14,159,115,.15), 0 6px 12px rgba(16,185,129,.18), inset 0 1px 0 rgba(255,255,255,.15);
-      transition: transform .06s ease, box-shadow .12s ease, filter .12s ease;
-      user-select:none;
-    }
-    .btn-cta .ico { width:18px; height:18px; display:grid; place-items:center; }
-    .btn-cta:hover { filter:brightness(1.04); box-shadow: 0 0 0 3px rgba(14,159,115,.22), 0 10px 18px rgba(16,185,129,.22), inset 0 1px 0 rgba(255,255,255,.18); }
-    .btn-cta:active { transform: translateY(1px); }
 
     /* Modal */
     .modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:9998}
     .modal[aria-hidden="false"]{display:flex}
     .modal-card{background:#0b1020;border:1px solid #294957;border-radius:14px;padding:16px 16px 14px;min-width:320px;max-width:640px;width:94%}
     .modal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
-    .modal-head h3{margin:0;color:var(--accent);font-size:18px}
+    .modal-head h3{margin:0;color:#00ffc6;font-size:18px}
     .modal-body{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:10px}
     .field{display:flex;flex-direction:column;gap:6px}
     .field label{font-size:13px;color:#cbd5e1}
@@ -155,62 +157,24 @@
         <div class="phbar__thumb" data-hook="ph.thumb" title="Current"></div>
       </div>
 
-      <small data-hook="ph.message">—</small>
+      <small data-hook="ph.message">8.0h left to hit minimum (8h) in the selected range.</small>
     </div>
 
     <!-- Metrics -->
     <div class="stats-rail">
-      <div class="stat stat--sessions" role="status" aria-live="polite">
-        <div class="ico"><i class="fa-regular fa-calendar-check" aria-hidden="true"></i></div>
-        <div class="meta">
-          <div class="label">Sessions</div>
-          <div class="value" id="m-sessions">0</div>
-        </div>
-      </div>
-
-      <div class="stat stat--completed">
-        <div class="ico"><i class="fa-solid fa-circle-check" aria-hidden="true"></i></div>
-        <div class="meta">
-          <div class="label">Completed</div>
-          <div class="value" id="m-comp">0</div>
-        </div>
-      </div>
-
-      <div class="stat stat--comp-hrs">
-        <div class="ico"><i class="fa-solid fa-stopwatch" aria-hidden="true"></i></div>
-        <div class="meta">
-          <div class="label">Completed hrs</div>
-          <div class="value" id="m-comp-hrs">0.00</div>
-        </div>
-      </div>
-
-      <div class="stat stat--scheduled">
-        <div class="ico"><i class="fa-regular fa-clock" aria-hidden="true"></i></div>
-        <div class="meta">
-          <div class="label">Scheduled</div>
-          <div class="value" id="m-sched">0</div>
-        </div>
-      </div>
-
-      <div class="stat stat--sched-hrs">
-        <div class="ico"><i class="fa-solid fa-hourglass-half" aria-hidden="true"></i></div>
-        <div class="meta">
-          <div class="label">Scheduled hrs</div>
-          <div class="value" id="m-sched-hrs">0.00</div>
-        </div>
-      </div>
+      <div class="stat"><div class="ico"><i class="fa-regular fa-calendar-check"></i></div><div class="meta"><div class="label">Sessions</div><div class="value" id="m-sessions">0</div></div></div>
+      <div class="stat"><div class="ico"><i class="fa-solid fa-circle-check"></i></div><div class="meta"><div class="label">Completed</div><div class="value" id="m-comp">0</div></div></div>
+      <div class="stat"><div class="ico"><i class="fa-solid fa-stopwatch"></i></div><div class="meta"><div class="label">Completed hrs</div><div class="value" id="m-comp-hrs">0.00</div></div></div>
+      <div class="stat"><div class="ico"><i class="fa-regular fa-clock"></i></div><div class="meta"><div class="label">Scheduled</div><div class="value" id="m-sched">0</div></div></div>
+      <div class="stat"><div class="ico"><i class="fa-solid fa-hourglass-half"></i></div><div class="meta"><div class="label">Scheduled hrs</div><div class="value" id="m-sched-hrs">0.00</div></div></div>
     </div>
 
     <!-- Table -->
     <div class="card table-card">
       <div class="table-scroll">
         <table id="ph-table" class="dashboard-table">
-          <thead>
-            <tr id="ph-head-row"></tr>
-          </thead>
-          <tbody id="rows">
-            <tr><td class="muted" style="text-align:center;padding:20px;">Loading…</td></tr>
-          </tbody>
+          <thead><tr id="ph-head-row"></tr></thead>
+          <tbody id="rows"><tr><td class="muted" style="text-align:center;padding:20px;">Loading…</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -283,7 +247,7 @@
     (function(){
       const IS_ADMIN = !!(window.PowerUp?.auth?.isAdmin && PowerUp.auth.isAdmin());
 
-      // ----- column aliases -----
+      /* -------------------- column aliases -------------------- */
       const COLS = {
         employeeId: ['Employee ID','Position ID'],
         employeeName: ['Submitted By','Employee Name','Name','Display Name'],
@@ -298,7 +262,6 @@
         squad: ['Squad']
       };
 
-      // ----- helpers -----
       const pick = (row, list, d='') => { for (const k of list) if (row[k]!=null && row[k]!=='' ) return row[k]; return d; };
       const isTrue = (v) => v === true || /^(true|yes|y|checked|1)$/i.test(String(v ?? "").trim());
       const toNum  = (v) => window.PowerUp?.api?.toNumber ? PowerUp.api.toNumber(v) : (Number(String(v).replace(/[^0-9.\-]/g,''))||0);
@@ -315,7 +278,7 @@
         return isNaN(d) ? null : d;
       }
 
-      // sortable header binding
+      /* -------------------- sortable header -------------------- */
       function bindHeaderSort(thead, tbody){
         let state = { col: 0, asc: true };
         const applyIndicators = () => {
@@ -351,11 +314,37 @@
 
       const state = { all: [], view: [], nameById: new Map(), target: null, sheetCols: [] };
 
-      // --- persist date range selection ---
-      const RANGE_KEY = 'pu.ph.range';
-      const getSavedRange = () => sessionStorage.getItem(RANGE_KEY) || 'this-month';
-      const saveRange = (v) => { try { sessionStorage.setItem(RANGE_KEY, v); } catch {} };
+      /* -------------------- range helpers -------------------- */
+      function firstOfMonth(y, m){ return new Date(y, m, 1); }
+      function lastOfMonth(y, m){ return new Date(y, m+1, 0, 23,59,59,999); }
+      function getRangeBounds(kind){
+        const now = new Date();
+        const y = now.getFullYear(), m = now.getMonth();
+        const todayEnd = new Date(y, m, now.getDate(), 23,59,59,999);
+        switch (kind) {
+          case 'this-month':   return { start: firstOfMonth(y, m), end: todayEnd };
+          case 'last-month': { const lm=m-1, ly=lm<0?y-1:y, lmm=(lm+12)%12; return { start:firstOfMonth(ly,lmm), end:lastOfMonth(ly,lmm) }; }
+          case 'last-3':       return { start: firstOfMonth(y, m-2), end: todayEnd };
+          case 'last-6':       return { start: firstOfMonth(y, m-5), end: todayEnd };
+          case 'this-quarter': { const q=Math.floor(m/3)*3; return { start:firstOfMonth(y,q), end:todayEnd }; }
+          case 'ytd':          return { start: new Date(y, 0, 1), end: todayEnd };
+          case 'next-month': { const nm=m+1, ny=nm>11?y+1:y, nmm=nm%12; return { start:firstOfMonth(ny,nmm), end:lastOfMonth(ny,nmm) }; }
+          case 'next-90':    { const s=new Date(y,m,now.getDate()); const e=new Date(s); e.setDate(e.getDate()+89); e.setHours(23,59,59,999); return { start:s, end:e }; }
+          case 'all':
+          default:             return { start: null, end: null };
+        }
+      }
+      function withinRange(row, range) {
+        if (range === 'all') return true;
+        const d = parseDateLocal(pick(row, COLS.date));
+        if (!d) return false;
+        const { start, end } = getRangeBounds(range);
+        if (start && d < start) return false;
+        if (end && d > end) return false;
+        return true;
+      }
 
+      /* -------------------- target employee -------------------- */
       async function resolveTargetEmployee(){
         const me = PowerUp.session.get() || {};
         if (!IS_ADMIN) return { id: String(me.employeeId||'').trim(), name: String(me.displayName||'').trim() };
@@ -371,7 +360,6 @@
           return { id: String(me.employeeId||'').trim(), name: String(me.displayName||'').trim() };
         }
       }
-
       function byTarget(row, target) {
         if (!target) return true;
         const id = String(pick(row, COLS.employeeId, '')).trim().toLowerCase();
@@ -381,38 +369,7 @@
         return (tgtId && id === tgtId) || (tgtName && name === tgtName);
       }
 
-      function firstOfMonth(y, m){ return new Date(y, m, 1); }
-      function lastOfMonth(y, m){ return new Date(y, m+1, 0, 23,59,59,999); }
-
-      function getRangeBounds(kind){
-        const now = new Date();
-        const y = now.getFullYear(), m = now.getMonth();
-        const todayEnd = new Date(y, m, now.getDate(), 23,59,59,999);
-
-        switch (kind) {
-          case 'this-month':   return { start: firstOfMonth(y, m), end: todayEnd };
-          case 'last-month': { const lm=m-1, ly=lm<0?y-1:y, lmm=(lm+12)%12; return { start:firstOfMonth(ly,lmm), end:lastOfMonth(ly,lmm) }; }
-          case 'last-3':       return { start: firstOfMonth(y, m-2), end: todayEnd };
-          case 'last-6':       return { start: firstOfMonth(y, m-5), end: todayEnd };
-          case 'this-quarter': { const q=Math.floor(m/3)*3; return { start:firstOfMonth(y,q), end:todayEnd }; }
-          case 'ytd':          return { start: new Date(y, 0, 1), end: todayEnd };
-          case 'next-month': { const nm=m+1, ny=nm>11?y+1:y, nmm=nm%12; return { start:firstOfMonth(ny,nmm), end:lastOfMonth(ny,nmm) }; }
-          case 'next-90':    { const s=new Date(y,m,now.getDate()); const e=new Date(s); e.setDate(e.getDate()+89); e.setHours(23,59,59,999); return { start:s, end:e }; }
-          case 'all':
-          default:             return { start: null, end: null };
-        }
-      }
-
-      function withinRange(row, range) {
-        if (range === 'all') return true;
-        const d = parseDateLocal(pick(row, COLS.date));
-        if (!d) return false;
-        const { start, end } = getRangeBounds(range);
-        if (start && d < start) return false;
-        if (end && d > end) return false;
-        return true;
-      }
-
+      /* -------------------- head + render -------------------- */
       function buildHead(){
         const tr = document.getElementById('ph-head-row');
         const heads = [
@@ -435,17 +392,16 @@
 
         if (totalEl) totalEl.textContent = totalCompleted.toFixed(2);
         if (track) {
-          track.setAttribute('aria-valuenow', String(Math.round(pct*goalMax)));
+          track.setAttribute('aria-valuenow', String(Math.max(0, Math.min(goalMax, totalCompleted))));
           track.setAttribute('aria-valuemax', String(goalMax));
         }
         if (fill)  fill.style.width = `${pct*100}%`;
         if (thumb) thumb.style.left  = `${pct*100}%`;
-
         if (msg) {
-          const remain = Math.max(0, goalMax - totalCompleted);
+          const remain = goalMax - totalCompleted;
           msg.textContent = remain > 0
             ? `${remain.toFixed(1)}h left to hit minimum (${goalMax}h) in the selected range.`
-            : `🔥 Amazing! You've exceeded the goal (${totalCompleted.toFixed(1)} / ${goalMax}h).`;
+            : `🔥 Amazing! You’ve exceeded the goal (${goalMax}h).`;
         }
       }
 
@@ -486,12 +442,10 @@
           }).join('');
         }
 
-        /* metrics (view-scoped) */
+        /* ---------- metrics (view-scoped) ---------- */
         const sessions = state.view.length;
         const completedRows = state.view.filter(r => isTrue(pick(r, COLS.completed)));
         const completedHrs  = completedRows.reduce((a,r)=> a + toNum(pick(r, COLS.completedHours, 0)), 0);
-
-        /* scheduled = Scheduled==true AND Completed==false in current view */
         const scheduledRows = state.view.filter(r => isTrue(pick(r, COLS.scheduled)) && !isTrue(pick(r, COLS.completed)));
         const scheduledHrs  = scheduledRows.reduce((sum, r) => sum + toNum(pick(r, COLS.durationPlanned, 0)), 0);
 
@@ -503,7 +457,15 @@
 
         bindHeaderSort(document.getElementById('ph-head-row'), tb);
         updateProgressFromView();
+
+        // optional dashboard echo
+        PowerUp.renderDashboardPowerHours && PowerUp.renderDashboardPowerHours();
       }
+
+      /* -------------------- range state -------------------- */
+      const RANGE_KEY = 'pu.ph.range';
+      const getSavedRange = () => sessionStorage.getItem(RANGE_KEY) || 'this-month';
+      const saveRange = (v) => { try { sessionStorage.setItem(RANGE_KEY, v); } catch {} };
 
       function applyRange() {
         const sel = document.getElementById('range');
@@ -537,37 +499,46 @@
         }
       }
 
-      /* ---------- Date Range + Log/Schedule placement ---------- */
-      function findAdminFilterSelect() {
-        let sel = document.querySelector('[data-hook="adminFilter"]')
-               || document.querySelector('#adminFilter')
-               || document.querySelector('select[name="adminFilter"]')
-               || document.querySelector('#pu-admin-filter select');
-        if (sel) return sel;
-
-        const labels = Array.from(document.querySelectorAll('label'));
-        const adminLbl = labels.find(l => /admin\s*filter/i.test((l.textContent||'').trim()));
-        if (adminLbl) {
-          if (adminLbl.htmlFor) {
-            const byFor = document.getElementById(adminLbl.htmlFor);
-            if (byFor && byFor.tagName === 'SELECT') return byFor;
-          }
-          const sibSel = adminLbl.parentElement && adminLbl.parentElement.querySelector('select');
-          if (sibSel) return sibSel;
-          const nextSel = adminLbl.nextElementSibling && adminLbl.nextElementSibling.tagName === 'SELECT'
-                        ? adminLbl.nextElementSibling : null;
-          if (nextSel) return nextSel;
-        }
-        return null;
+      /* -------------------- header controls (ALWAYS in header) -------------------- */
+      function getHeaderEl(){
+        return document.getElementById('pu-header')
+            || document.querySelector('.content-head')
+            || document.querySelector('.page-head')
+            || document.querySelector('.header')
+            || document.body;
       }
+      function ensureFiltersRow(){
+        const header = getHeaderEl();
+        const nameNode  = header.querySelector('[data-hook="userName"]');
+        const levelNode = header.querySelector('[data-hook="userLevel"]');
+        const infoRow =
+          (nameNode && (nameNode.closest('.header-info-row, .header__row, .header-row') || nameNode.parentElement)) ||
+          (levelNode && (levelNode.closest('.header-info-row, .header__row, .header-row') || levelNode.parentElement)) ||
+          header.firstElementChild || header;
 
-      function createRangeControl() {
-        let wrap = document.querySelector('.range-inline');
-        if (wrap) return wrap;
-        wrap = document.createElement('span');
-        wrap.className = 'range-inline';
+        let row = header.querySelector('[data-hook="header-filters-row"]');
+        if (!row){
+          row = document.createElement('div');
+          row.className = 'header-filters-row';
+          row.setAttribute('data-hook','header-filters-row');
+          infoRow.insertAdjacentElement('afterend', row);
+        }
+        return row;
+      }
+      function findAdminFilterSelect(){
+        return (
+          document.querySelector('[data-hook="adminFilter"]') ||
+          document.querySelector('#adminFilter') ||
+          document.querySelector('select[name="adminFilter"]') ||
+          document.querySelector('#pu-admin-filter select') ||
+          null
+        );
+      }
+      function makeControls(){
+        const wrap = document.createElement('span');
+        wrap.className = 'ph-controls';
         wrap.innerHTML = `
-          <label for="range">Date Range</label>
+          <span class="label">Date Range</span>
           <select id="range" aria-label="Date Range">
             <option value="this-month">This Month</option>
             <option value="last-month">Last Month</option>
@@ -579,87 +550,55 @@
             <option value="next-90">Next 90 Days</option>
             <option value="all">All</option>
           </select>
-          <button class="btn-cta" id="phOpen" type="button" style="margin-left:8px">
+          <button class="btn-cta" id="phOpen" type="button" style="margin-left:6px">
             <span class="ico"><i class="fa-solid fa-plus"></i></span>
             <span>Log / Schedule</span>
           </button>
         `;
         return wrap;
       }
+      function mountHeaderControls(){
+        // remove old if any
+        document.querySelectorAll('.ph-controls').forEach(n => n.remove());
 
-      function mountRangeInline(savedValue) {
-        const wrap = createRangeControl();
+        const row = ensureFiltersRow();
+        const controls = makeControls();
         const adminSel = findAdminFilterSelect();
 
+        // Order: [Admin filter (if any)] -> [controls]
         if (adminSel && adminSel.parentElement) {
-          // Admin view: place right after Admin filter
-          if (!wrap.isConnected) document.body.appendChild(wrap);
-          wrap.classList.remove('range-inline--standalone');
-          adminSel.insertAdjacentElement('afterend', wrap);
-          wrap.style.display = 'inline-flex';
+          // make sure admin container is in the row (your header already does this)
+          row.appendChild(controls);
+          adminSel.insertAdjacentElement('afterend', controls);
         } else {
-          // User view (no Admin filter): place in header zone above progress card
-          const progressCard = document.querySelector('.power-card.power-mini');
-          const container = progressCard && progressCard.parentElement ? progressCard.parentElement : document.querySelector('.content-inner');
-          if (!wrap.isConnected) container.insertBefore(wrap, progressCard || container.firstChild);
-          wrap.classList.add('range-inline--standalone');
-          wrap.style.display = 'inline-flex';
+          row.appendChild(controls);
         }
 
-        const rng = wrap.querySelector('#range');
-        if (rng) {
-          if (savedValue && [...rng.options].some(o => o.value === savedValue)) rng.value = savedValue;
-          rng.onchange = applyRange;
-        }
-        // modal open
-        const openBtn = wrap.querySelector('#phOpen');
-        if (openBtn) openBtn.onclick = openModal;
-      }
-
-      function observeForAdminFilter(savedValue) {
-        if (!IS_ADMIN) return;
-        const obs = new MutationObserver(() => {
-          const adminSel = findAdminFilterSelect();
-          const wrap = document.querySelector('.range-inline');
-          if (adminSel && wrap && wrap.previousElementSibling !== adminSel) {
-            adminSel.insertAdjacentElement('afterend', wrap);
-            wrap.classList.remove('range-inline--standalone');
-            wrap.style.display = 'inline-flex';
-            obs.disconnect();
-          }
-        });
-        obs.observe(document.body, { childList: true, subtree: true });
-      }
-
-      async function loadTableAndProgress() {
+        // set range from session + wire events
+        const rangeSel = controls.querySelector('#range');
         const saved = getSavedRange();
-
-        // Build Date Range + Button in the right place for current role
-        mountRangeInline(saved);
-        observeForAdminFilter(saved);
-
-        state.target = await resolveTargetEmployee();
-        buildHead();
-        await loadNames();
-        state.all = await loadRowsSafe();
-        applyRange();
+        if (rangeSel) {
+          if ([...rangeSel.options].some(o => o.value === saved)) rangeSel.value = saved;
+          rangeSel.addEventListener('change', applyRange);
+        }
+        const openBtn = controls.querySelector('#phOpen');
+        if (openBtn) openBtn.addEventListener('click', openModal);
       }
-
-      function bindControls() {
-        document.addEventListener('powerup-admin-filter-change', async () => {
+      function bindAdminFilterLive(){
+        if (!IS_ADMIN) return;
+        const adminSel = findAdminFilterSelect();
+        if (!adminSel) return;
+        const onChange = async () => {
+          sessionStorage.setItem('pu.adminEmployeeFilter', String(adminSel.value || '').trim());
           state.target = await resolveTargetEmployee();
           applyRange();
-        });
-        document.addEventListener('pu-admin-filter-change', async () => {
-          state.target = await resolveTargetEmployee();
-          applyRange();
-        });
+        };
+        adminSel.addEventListener('change', onChange);
+        adminSel.addEventListener('input', onChange);
       }
 
-      /* ===== Modal + Save Logic ===== */
-
+      /* -------------------- modal helpers + save -------------------- */
       function pad2(n){ return String(n).padStart(2,'0'); }
-
       function buildHalfHourOptions() {
         const opts = [];
         for (let h=6; h<=21; h++) {
@@ -671,7 +610,6 @@
         }
         return opts;
       }
-
       function fillTimeSelects() {
         const startSel = document.getElementById('phStart');
         const endSel   = document.getElementById('phEnd');
@@ -681,7 +619,6 @@
         startSel.value = '1:00 PM';
         endSel.value   = '2:00 PM';
       }
-
       function setStatusByDate(dISO) {
         const hint = document.getElementById('phStatusHint');
         const now  = new Date(); now.setHours(0,0,0,0);
@@ -697,7 +634,6 @@
           hint.textContent = '';
         }
       }
-
       async function populateSquads(showAll) {
         const sel = document.getElementById('phSquad');
         const me  = PowerUp.session.get() || {};
@@ -721,7 +657,6 @@
         const opts = ['<option value="">None</option>'].concat(list.sort((a,b)=>a.localeCompare(b)).map(n=>`<option value="${n}">${n}</option>`));
         sel.innerHTML = opts.join('');
       }
-
       function openModal() {
         document.getElementById('phError').style.display='none';
         document.getElementById('phOk').style.display='none';
@@ -808,23 +743,34 @@
         }
       }
 
-      /* boot */
+      /* -------------------- boot -------------------- */
+      async function loadTableAndProgress() {
+        state.target = await resolveTargetEmployee();
+        buildHead();
+        await loadNames();
+        state.all = await loadRowsSafe();
+        applyRange();
+      }
+
       document.addEventListener('DOMContentLoaded', async () => {
         PowerUp.session.requireLogin();
         PowerUp.layout.injectLayout();
         PowerUp.layout.setPageTitle('Power Hours');
-
         await PowerUp.session.initHeader();
-        await loadTableAndProgress();
-        bindControls();
 
-        // Modal bindings
+        // ALWAYS mount controls into header row (admins and normal users)
+        mountHeaderControls();
+        bindAdminFilterLive();
+
+        // modal wiring
         document.getElementById('phClose').addEventListener('click', closeModal);
         document.getElementById('phReset').addEventListener('click', openModal);
-        document.getElementById('phSave').addEventListener('click', saveRow);
         document.getElementById('phShowAllSquads').addEventListener('change', (e)=> populateSquads(e.target.checked));
-        document.getElementById('phDate').addEventListener('change', (e)=> setStatusByDate(e.target.value));
+        document.getElementById('phSave').addEventListener('click', saveRow);
         fillTimeSelects();
+        document.getElementById('phDate').addEventListener('change', (e)=> setStatusByDate(e.target.value));
+
+        await loadTableAndProgress();
       });
     })();
   </script>
