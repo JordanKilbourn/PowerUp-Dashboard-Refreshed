@@ -32,7 +32,7 @@
   <link rel="alternate icon" type="image/png" href="assets/favicon.png">
 
   <style>
-    /* ---------- PROGRESS CARD: match dashboard (accent + one-decimal) ---------- */
+    /* ---------- PROGRESS CARD ---------- */
     .power-card.power-mini {
       max-width: 560px; padding: 12px 14px;
       border:1px solid #00ffc6; border-radius: 14px;
@@ -43,9 +43,8 @@
     .power-card.power-mini p { font-size:14px; margin-bottom: 8px; }
     .power-card.power-mini .phbar { height: 12px; }
     .power-card.power-mini .phbar__thumb { width:12px; height:12px; }
-    .power-card.power-mini small[data-hook="ph.message"]{display:block;margin-top:8px;color:#c7e5de;font-size:12px}
 
-    /* ---------- METRICS STRIP (unchanged logic, tidy visuals) ---------- */
+    /* ---------- METRICS STRIP ---------- */
     .stats-rail {
       display:grid; grid-template-columns: repeat(12, minmax(0,1fr));
       gap:8px; margin:10px 0 12px;
@@ -67,48 +66,58 @@
     .stat .label { font-size:12px; color:#9fb0c3 }
     .stat .value { font-weight:700; font-variant-numeric: tabular-nums; }
 
-    /* ---------- SINGLE FILTER ROW UNDER WELCOME/LEVEL ---------- */
-    .ph-filter-row{
-      display:flex; align-items:center; gap:8px;
+    /* ---------- HEADER FILTER ROW (single line, never wraps) ---------- */
+    .header-filters-row {
+      display:flex !important;
+      gap:10px;
+      align-items:center;
+      flex-wrap:nowrap !important;
+      white-space:nowrap;
       margin-top:8px;
-      flex-wrap: nowrap;         /* never wrap */
-      width:100%;
+      overflow:hidden;
     }
-    .ph-select, .ph-compact {
-      height: 32px;
-      padding: 0 10px;
-      border-radius: 8px;
-      background:#0b1328;
-      border:1px solid #293449;
-      color:#e5e7eb;
-      font: 600 13px/32px Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    .header-filters-row > * { flex:0 0 auto !important; } /* prevent growth/wrap */
+
+    .ph-controls { display:inline-flex; align-items:center; gap:10px; white-space:nowrap; flex:0 0 auto; }
+    .ph-controls label { color:#9fb0c3; font-size:13px; }
+    .ph-controls select {
+      padding: 8px 10px; border-radius: 8px;
+      background:#0b1328; border:1px solid #293449; color:#e5e7eb;
+      flex:0 0 auto; width:auto; max-width:260px; min-width:160px;
     }
-    .ph-select { appearance:auto; }
-    .ph-select:focus,
-    .ph-compact:focus{
-      outline:none;
-      border-color: #ffffff;            /* full white ring */
-      box-shadow: 0 0 0 1px #ffffff inset;
+    /* Your admin filter container (confirmed by your screenshot) */
+    #pu-admin-filter {
+      display:inline-flex !important; align-items:center; gap:8px;
+      flex:0 0 auto; width:auto; max-width:420px; white-space:nowrap;
+      margin:0 !important;
+    }
+    #pu-admin-filter select {
+      flex:0 0 auto; width:auto; max-width:420px; min-width:180px;
+      padding:8px 10px; border-radius:8px; background:#0b1328; border:1px solid #293449; color:#e5e7eb;
     }
 
-    /* ---------- CTA button (compact & polished) ---------- */
+    /* ---------- CTA button ---------- */
     .btn-cta {
       --bg1:#10b981; --bg2:#0fb38f; --ring:#0e9f73; --txt:#05271f;
-      display:inline-flex; align-items:center; gap:8px;
-      height:32px; padding:0 12px; border-radius:8px;
-      font-weight:700; cursor:pointer;
+      position:relative; display:inline-flex; align-items:center; gap:8px;
+      padding:9px 12px; border-radius:12px; font-weight:700; cursor:pointer;
       background:linear-gradient(180deg,var(--bg1),var(--bg2));
       border:1px solid var(--ring); color:var(--txt);
-      box-shadow: 0 0 0 2px rgba(14,159,115,.15), inset 0 1px 0 rgba(255,255,255,.15);
+      box-shadow:
+        0 0 0 2px rgba(14,159,115,.15),
+        0 6px 12px rgba(16,185,129,.18),
+        inset 0 1px 0 rgba(255,255,255,.15);
       transition: transform .06s ease, box-shadow .12s ease, filter .12s ease;
       user-select:none;
     }
-    .btn-cta .ico { width:16px; height:16px; display:grid; place-items:center; }
-    .btn-cta:hover { filter:brightness(1.04); }
+    .btn-cta .ico { width:18px; height:18px; display:grid; place-items:center; }
+    .btn-cta:hover { filter:brightness(1.04); box-shadow:
+        0 0 0 3px rgba(14,159,115,.22),
+        0 10px 18px rgba(16,185,129,.22),
+        inset 0 1px 0 rgba(255,255,255,.18); }
     .btn-cta:active { transform: translateY(1px); }
-    .btn-cta:focus{ outline:none; border-color:#fff; box-shadow:0 0 0 2px #fff inset; }
 
-    /* ---------- Modal (unchanged behavior; style only) ---------- */
+    /* ---------- Modal ---------- */
     .modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:9998}
     .modal[aria-hidden="false"]{display:flex}
     .modal-card{background:#0b1020;border:1px solid #294957;border-radius:14px;padding:16px 16px 14px;min-width:320px;max-width:640px;width:94%}
@@ -153,7 +162,7 @@
         <div class="phbar__thumb" data-hook="ph.thumb" title="Current"></div>
       </div>
 
-      <small data-hook="ph.message">8.0h left to hit minimum (8h) in the selected range.</small>
+      <small data-hook="ph.message" style="display:block">8.0h left to hit minimum (8h) in the selected range.</small>
     </div>
 
     <!-- ===== Metrics ===== -->
@@ -240,502 +249,555 @@
   <script src="scripts/progress.js"></script>
 
   <script>
-  (function(){
-    const IS_ADMIN = !!(window.PowerUp?.auth?.isAdmin && PowerUp.auth.isAdmin());
+    (function(){
+      const IS_ADMIN = !!(window.PowerUp?.auth?.isAdmin && PowerUp.auth.isAdmin());
 
-    /* -------------------- column aliases (unchanged) -------------------- */
-    const COLS = {
-      employeeId: ['Employee ID','Position ID'],
-      employeeName: ['Submitted By','Employee Name','Name','Display Name'],
-      date: ['Date','Session Date','Power Hour Date'],
-      start: ['Start Time','Start'],
-      end: ['End Time','End'],
-      completedHours: ['Completed Hours','Hours','Duration (h)','Duration (hrs)'],
-      durationPlanned: ['Duration (hrs)','Duration (h)','Duration','Planned Hours','Scheduled Hours'],
-      scheduled: ['Scheduled','Is Scheduled?','Planned'],
-      completed: ['Completed','Is Completed?','Done'],
-      topic: ['Activity Description','Activity','Topic','Description','Notes'],
-      squad: ['Squad']
-    };
-
-    const pick = (row, list, d='') => { for (const k of list) if (row[k]!=null && row[k]!=='' ) return row[k]; return d; };
-    const isTrue = (v) => v === true || /^(true|yes|y|checked|1)$/i.test(String(v ?? "").trim());
-    const toNum  = (v) => window.PowerUp?.api?.toNumber ? PowerUp.api.toNumber(v) : (Number(String(v).replace(/[^0-9.\-]/g,''))||0);
-    const fmt    = (v) => (v==null || String(v).trim()==='') ? '-' : String(v);
-
-    function parseDateLocal(s){
-      if (s==null || s==='') return null;
-      const t = String(s).trim();
-      let m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
-      if (m) return new Date(+m[1], +m[2]-1, +m[3]);
-      m = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/);
-      if (m){ let y=+m[3]; if (y<100) y+=2000; return new Date(y, +m[1]-1, +m[2]); }
-      const d = new Date(t);
-      return isNaN(d) ? null : d;
-    }
-
-    /* -------------------- sorting -------------------- */
-    function bindHeaderSort(thead, tbody){
-      let state = { col: 0, asc: true };
-      const applyIndicators = () => {
-        thead.querySelectorAll("th").forEach((h,i)=>{
-          h.setAttribute("data-sort","none");
-          h.removeAttribute("aria-sort");
-          if (i===state.col){
-            h.setAttribute("data-sort", state.asc ? "asc":"desc");
-            h.setAttribute("aria-sort", state.asc ? "ascending":"descending");
-          }
-        });
+      /* -------------------- column aliases -------------------- */
+      const COLS = {
+        employeeId: ['Employee ID','Position ID'],
+        employeeName: ['Submitted By','Employee Name','Name','Display Name'],
+        date: ['Date','Session Date','Power Hour Date'],
+        start: ['Start Time','Start'],
+        end: ['End Time','End'],
+        completedHours: ['Completed Hours','Hours','Duration (h)','Duration (hrs)'],
+        durationPlanned: ['Duration (hrs)','Duration (h)','Duration','Planned Hours','Scheduled Hours'],
+        scheduled: ['Scheduled','Is Scheduled?','Planned'],
+        completed: ['Completed','Is Completed?','Done'],
+        topic: ['Activity Description','Activity','Topic','Description','Notes'],
+        squad: ['Squad']
       };
-      thead.querySelectorAll("th").forEach((th, idx)=>{
-        th.style.cursor = "pointer";
-        th.onclick = () => {
-          state.asc = state.col === idx ? !state.asc : true;
-          state.col = idx;
-          const rows = Array.from(tbody.querySelectorAll("tr"));
-          rows.sort((ra, rb)=>{
-            const a = ra.children[idx]?.getAttribute("data-sort") ?? "";
-            const b = rb.children[idx]?.getAttribute("data-sort") ?? "";
-            const na = Number(a), nb = Number(b);
-            const bothNum = !isNaN(na) && !isNaN(nb);
-            const cmp = bothNum ? (na - nb) : a.localeCompare(b);
-            return state.asc ? cmp : -cmp;
+
+      const pick = (row, list, d='') => { for (const k of list) if (row[k]!=null && row[k]!=='' ) return row[k]; return d; };
+      const isTrue = (v) => v === true || /^(true|yes|y|checked|1)$/i.test(String(v ?? "").trim());
+      const toNum  = (v) => window.PowerUp?.api?.toNumber ? PowerUp.api.toNumber(v) : (Number(String(v).replace(/[^0-9.\-]/g,''))||0);
+      const fmt    = (v) => (v==null || String(v).trim()==='') ? '-' : String(v);
+
+      function parseDateLocal(s){
+        if (s==null || s==='') return null;
+        const t = String(s).trim();
+        let m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+        if (m) return new Date(+m[1], +m[2]-1, +m[3]);
+        m = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/);
+        if (m){ let y=+m[3]; if (y<100) y+=2000; return new Date(y, +m[1]-1, +m[2]); }
+        const d = new Date(t);
+        return isNaN(d) ? null : d;
+      }
+
+      /* -------------------- sorting (unchanged) -------------------- */
+      function bindHeaderSort(thead, tbody){
+        let state = { col: 0, asc: true };
+        const applyIndicators = () => {
+          thead.querySelectorAll("th").forEach((h,i)=>{
+            h.setAttribute("data-sort","none");
+            h.removeAttribute("aria-sort");
+            if (i===state.col){
+              h.setAttribute("data-sort", state.asc ? "asc":"desc");
+              h.setAttribute("aria-sort", state.asc ? "ascending":"descending");
+            }
           });
-          rows.forEach(r => tbody.appendChild(r));
-          applyIndicators();
         };
-      });
-      applyIndicators();
-    }
-
-    const state = { all: [], view: [], nameById: new Map(), target: null, sheetCols: [] };
-
-    /* -------------------- range helpers -------------------- */
-    function firstOfMonth(y, m){ return new Date(y, m, 1); }
-    function lastOfMonth(y, m){ return new Date(y, m+1, 0, 23,59,59,999); }
-    function getRangeBounds(kind){
-      const now = new Date();
-      const y = now.getFullYear(), m = now.getMonth();
-      const todayEnd = new Date(y, m, now.getDate(), 23,59,59,999);
-      switch (kind) {
-        case 'this-month':   return { start: firstOfMonth(y, m), end: todayEnd };
-        case 'last-month': { const lm=m-1, ly=lm<0?y-1:y, lmm=(lm+12)%12; return { start:firstOfMonth(ly,lmm), end:lastOfMonth(ly,lmm) }; }
-        case 'last-3':       return { start: firstOfMonth(y, m-2), end: todayEnd };
-        case 'last-6':       return { start: firstOfMonth(y, m-5), end: todayEnd };
-        case 'this-quarter': { const q=Math.floor(m/3)*3; return { start:firstOfMonth(y,q), end:todayEnd }; }
-        case 'ytd':          return { start: new Date(y, 0, 1), end: todayEnd };
-        case 'next-month': { const nm=m+1, ny=nm>11?y+1:y, nmm=nm%12; return { start:firstOfMonth(ny,nmm), end:lastOfMonth(ny,nmm) }; }
-        case 'next-90':    { const s=new Date(y,m,now.getDate()); const e=new Date(s); e.setDate(e.getDate()+89); e.setHours(23,59,59,999); return { start:s, end:e }; }
-        case 'all':
-        default:             return { start: null, end: null };
-      }
-    }
-    function withinRange(row, range) {
-      if (range === 'all') return true;
-      const d = parseDateLocal(pick(row, COLS.date));
-      if (!d) return false;
-      const { start, end } = getRangeBounds(range);
-      if (start && d < start) return false;
-      if (end && d > end) return false;
-      return true;
-    }
-
-    /* -------------------- target employee -------------------- */
-    async function resolveTargetEmployee(){
-      const me = PowerUp.session.get() || {};
-      if (!IS_ADMIN) return { id: String(me.employeeId||'').trim(), name: String(me.displayName||'').trim() };
-
-      const selName = (sessionStorage.getItem('pu.adminEmployeeFilter') || '').trim();
-      if (!selName || selName === '__ALL__') return null;
-
-      try {
-        const em = await PowerUp.api.getRowsByTitle(PowerUp.api.SHEETS.EMPLOYEE_MASTER);
-        const norm = (s) => String(s||'').trim().toLowerCase();
-        const row = em.find(r => norm(r['Display Name']||r['Employee Name']||r['Name']) === norm(selName));
-        const id = row ? String(row['Position ID'] || row['Employee ID'] || '').trim() : '';
-        return { id, name: selName };
-      } catch {
-        return { id: String(me.employeeId||'').trim(), name: String(me.displayName||'').trim() };
-      }
-    }
-    function byTarget(row, target) {
-      if (!target) return true;
-      const id = String(pick(row, COLS.employeeId, '')).trim().toLowerCase();
-      const name = String(pick(row, COLS.employeeName, '')).trim().toLowerCase();
-      const tgtId = String(target.id||'').trim().toLowerCase();
-      const tgtName = String(target.name||'').trim().toLowerCase();
-      return (tgtId && id === tgtId) || (tgtName && name === tgtName);
-    }
-
-    /* -------------------- head + render -------------------- */
-    function buildHead(){
-      const tr = document.getElementById('ph-head-row');
-      const heads = [
-        ...(IS_ADMIN ? ['Employee'] : []),
-        'Date','Start','End','Completed Hours','Scheduled','Completed','Topic'
-      ];
-      tr.innerHTML = heads.map(h => `<th>${h}</th>`).join('');
-    }
-
-    function renderTable() {
-      const tb = document.getElementById('rows');
-      if (!state.view.length) {
-        tb.innerHTML = `<tr><td colspan="${IS_ADMIN?8:7}" class="muted" style="text-align:center;padding:20px;">No rows</td></tr>`;
-      } else {
-        tb.innerHTML = state.view.map(r => {
-          const empId  = String(pick(r, COLS.employeeId, '')).trim();
-          const empNm  = state.nameById.get(empId.toLowerCase()) || pick(r, COLS.employeeName, '') || empId || '-';
-
-          const dStr = String(pick(r, COLS.date) ?? '');
-          const d = parseDateLocal(dStr);
-          const dateSort = d ? String(d.getTime()) : dStr.toLowerCase();
-
-          const st  = String(pick(r, COLS.start) ?? '');
-          const en  = String(pick(r, COLS.end) ?? '');
-          const hrsNum = toNum(pick(r, COLS.completedHours, 0));
-          const isSched = isTrue(pick(r, COLS.scheduled));
-          const isComp  = isTrue(pick(r, COLS.completed));
-          const tp  = String(pick(r, COLS.topic) ?? '');
-
-          return `<tr>
-            ${IS_ADMIN ? `<td data-sort="${empNm.toLowerCase()}">${empNm || '-'}</td>` : ``}
-            <td data-sort="${dateSort}">${d ? `${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}/${d.getFullYear()}` : (dStr||'-')}</td>
-            <td data-sort="${st.toLowerCase()}">${fmt(st)}</td>
-            <td data-sort="${en.toLowerCase()}">${fmt(en)}</td>
-            <td class="t-right mono" data-sort="${hrsNum}">${hrsNum.toFixed(2)}</td>
-            <td class="t-center" data-sort="${isSched ? 1 : 0}">${isSched ? `<span class="pill pill--blue">Scheduled</span>` : '-'}</td>
-            <td class="t-center" data-sort="${isComp ? 1 : 0}">${isComp ? `<span class="pill pill--green">Completed</span>` : '-'}</td>
-            <td class="wrap" data-sort="${tp.toLowerCase()}">${fmt(tp)}</td>
-          </tr>`;
-        }).join('');
-      }
-
-      // metrics
-      const totalHrs = state.view.reduce((a,r)=> a + toNum(pick(r, COLS.completedHours, 0)), 0);
-      const sessions = state.view.length;
-
-      const today = new Date(); today.setHours(0,0,0,0);
-      const upcoming = state.all.filter(r=>{
-        if (!byTarget(r, state.target)) return false;
-        const d = parseDateLocal(pick(r, COLS.date));
-        const scheduled = isTrue(pick(r, COLS.scheduled));
-        const completed = isTrue(pick(r, COLS.completed));
-        return scheduled && !completed && d && d >= today;
-      });
-      const upcomingCount = upcoming.length;
-      const upcomingHours = upcoming.reduce((sum, r) => sum + toNum(pick(r, COLS.durationPlanned, 0)), 0);
-
-      document.getElementById('m-sessions').textContent = sessions;
-      document.getElementById('m-comp').textContent = state.view.filter(r => isTrue(pick(r, COLS.completed))).length;
-      document.getElementById('m-comp-hrs').textContent = totalHrs.toFixed(2);
-      document.getElementById('m-up').textContent = String(upcomingCount);
-      document.getElementById('m-up-hrs').textContent = upcomingHours.toFixed(2);
-
-      // sorting
-      const thead = document.getElementById('ph-head-row');
-      bindHeaderSort(thead, tb);
-
-      // progress number (one-decimal) + smart message + bar fill
-      const phTot = document.querySelector('[data-hook="ph.total"]');
-      if (phTot) phTot.textContent = totalHrs.toFixed(1);
-
-      const goalEl = document.querySelector('[data-hook="ph.goalMax"]');
-      const goal = Number(goalEl?.textContent || 8) || 8;
-
-      // smart message
-      const rngSel = document.getElementById('range');
-      const msg = document.querySelector('[data-hook="ph.message"]');
-      if (msg) {
-        const left = Math.max(0, goal - totalHrs);
-        const lbl = rngSel ? 'in the selected range.' : '';
-        msg.textContent = `${left.toFixed(1)}h left to hit minimum (${goal}h) ${lbl}`;
-      }
-
-      // bar visuals
-      const track = document.querySelector('[data-hook="ph.track"]');
-      const fill  = document.querySelector('[data-hook="ph.fill"]');
-      const thumb = document.querySelector('[data-hook="ph.thumb"]');
-      if (track && fill && thumb) {
-        const pct = Math.max(0, Math.min(100, (totalHrs/goal)*100));
-        fill.style.width = pct + '%';
-        thumb.style.left = pct + '%';
-        track.setAttribute('aria-valuenow', totalHrs.toFixed(1));
-        track.setAttribute('aria-valuemax', String(goal));
-      }
-
-      // (dashboard hook unchanged)
-      PowerUp.renderDashboardPowerHours && PowerUp.renderDashboardPowerHours();
-    }
-
-    function applyRange() {
-      const sel = document.getElementById('range');
-      const range = sel ? sel.value : 'this-month';
-      state.view = state.all.filter(r => byTarget(r, state.target) && withinRange(r, range));
-      renderTable();
-    }
-
-    async function loadNames() {
-      state.nameById.clear();
-      try {
-        const em = await PowerUp.api.getRowsByTitle(PowerUp.api.SHEETS.EMPLOYEE_MASTER);
-        em.forEach(r => {
-          const id = String(r['Position ID'] || r['Employee ID'] || '').trim();
-          const nm = String(r['Display Name'] || r['Employee Name'] || r['Name'] || '').trim();
-          if (id) state.nameById.set(id.toLowerCase(), nm);
+        thead.querySelectorAll("th").forEach((th, idx)=>{
+          th.style.cursor = "pointer";
+          th.onclick = () => {
+            state.asc = state.col === idx ? !state.asc : true;
+            state.col = idx;
+            const rows = Array.from(tbody.querySelectorAll("tr"));
+            rows.sort((ra, rb)=>{
+              const a = ra.children[idx]?.getAttribute("data-sort") ?? "";
+              const b = rb.children[idx]?.getAttribute("data-sort") ?? "";
+              const na = Number(a), nb = Number(b);
+              const bothNum = !isNaN(na) && !isNaN(nb);
+              const cmp = bothNum ? (na - nb) : a.localeCompare(b);
+              return state.asc ? cmp : -cmp;
+            });
+            rows.forEach(r => tbody.appendChild(r));
+            applyIndicators();
+          };
         });
-      } catch {}
-    }
-
-    async function loadRowsSafe() {
-      try {
-        if (PowerUp.api.getRowsByTitle) {
-          return await PowerUp.api.getRowsByTitle(PowerUp.api.SHEETS.POWER_HOURS);
-        }
-        const sheet = await PowerUp.api.fetchSheet(PowerUp.api.SHEETS.POWER_HOURS);
-        return PowerUp.api.rowsByTitle(sheet);
-      } catch {
-        return [];
-      }
-    }
-
-    async function loadTableAndProgress() {
-      state.target = await resolveTargetEmployee();
-      buildHead();
-      await loadNames();
-      state.all = await loadRowsSafe();
-      applyRange();
-    }
-
-    /* -------------------- header controls (layout-only) -------------------- */
-    function ensureControlsOnce() {
-      if (document.querySelector('.ph-filter-row')) return;
-
-      // Build Date Range + Button (compact)
-      const controls = document.createElement('div');
-      controls.className = 'ph-filter-row';
-      controls.innerHTML = `
-        <select id="range" class="ph-select ph-compact" title="Date Range">
-          <option value="this-month">This Month</option>
-          <option value="last-month">Last Month</option>
-          <option value="last-3">Last 3 Months</option>
-          <option value="last-6">Last 6 Months</option>
-          <option value="this-quarter">This Quarter</option>
-          <option value="ytd">Year to Date</option>
-          <option value="next-month">Next Month</option>
-          <option value="next-90">Next 90 Days</option>
-          <option value="all">All</option>
-        </select>
-        <button class="btn-cta" id="phOpen" type="button">
-          <span class="ico"><i class="fa-solid fa-plus"></i></span>
-          <span>Log / Schedule</span>
-        </button>
-      `;
-
-      // Find header + the existing Admin filter container (if any)
-      const headerEl = document.getElementById('pu-header') || document.querySelector('.content-head, .page-head') || document.body;
-      const adminWrap =
-        document.getElementById('pu-admin-filter') ||
-        headerEl.querySelector('[data-hook="adminFilterContainer"]') ||
-        headerEl.querySelector('[data-hook="adminFilter"]')?.closest('div');
-
-      // Create a single row under Welcome/Level
-      let anchorRow = headerEl.querySelector('[data-hook="userName"]')?.closest('.header-info-row, .header-row, .header__row')
-                   || headerEl.firstElementChild;
-      let filterRow = document.createElement('div');
-      filterRow.className = 'ph-filter-row';
-      // We’ll fill it left→right: Admin (if present) → Date Range → Button
-      if (adminWrap) filterRow.appendChild(adminWrap);
-      filterRow.appendChild(controls);
-
-      // Insert row directly after Welcome/Level
-      if (anchorRow && anchorRow.parentElement) {
-        anchorRow.parentElement.insertBefore(filterRow, anchorRow.nextSibling);
-      } else {
-        headerEl.prepend(filterRow);
+        applyIndicators();
       }
 
-      // events
-      const rangeSel = controls.querySelector('#range');
-      rangeSel.addEventListener('change', applyRange);
+      const state = { all: [], view: [], nameById: new Map(), target: null, sheetCols: [] };
 
-      const openBtn = controls.querySelector('#phOpen');
-      openBtn.addEventListener('click', openModal);
-
-      // Also listen for Admin filter change so we re-apply without Refresh
-      const adminSelect = adminWrap ? (adminWrap.querySelector('select') || adminWrap) : null;
-      if (adminSelect && adminSelect.addEventListener) {
-        adminSelect.addEventListener('change', async () => {
-          state.target = await resolveTargetEmployee();
-          applyRange();
-        });
-      }
-    }
-
-    /* -------------------- modal helpers + save -------------------- */
-    function pad2(n){ return String(n).padStart(2,'0'); }
-    function buildHalfHourOptions() {
-      const opts = [];
-      for (let h=6; h<=21; h++) {
-        for (let m=0; m<60; m+=30) {
-          const ampm = h < 12 ? 'AM' : 'PM';
-          const hh = ((h+11)%12)+1;
-          opts.push(`${hh}:${pad2(m)} ${ampm}`);
+      /* -------------------- range helpers -------------------- */
+      function firstOfMonth(y, m){ return new Date(y, m, 1); }
+      function lastOfMonth(y, m){ return new Date(y, m+1, 0, 23,59,59,999); }
+      function getRangeBounds(kind){
+        const now = new Date();
+        const y = now.getFullYear(), m = now.getMonth();
+        const todayEnd = new Date(y, m, now.getDate(), 23,59,59,999);
+        switch (kind) {
+          case 'this-month':   return { start: firstOfMonth(y, m), end: todayEnd };
+          case 'last-month': { const lm=m-1, ly=lm<0?y-1:y, lmm=(lm+12)%12; return { start:firstOfMonth(ly,lmm), end:lastOfMonth(ly,lmm) }; }
+          case 'last-3':       return { start: firstOfMonth(y, m-2), end: todayEnd };
+          case 'last-6':       return { start: firstOfMonth(y, m-5), end: todayEnd };
+          case 'this-quarter': { const q=Math.floor(m/3)*3; return { start:firstOfMonth(y,q), end:todayEnd }; }
+          case 'ytd':          return { start: new Date(y, 0, 1), end: todayEnd };
+          case 'next-month': { const nm=m+1, ny=nm>11?y+1:y, nmm=nm%12; return { start:firstOfMonth(ny,nmm), end:lastOfMonth(ny,nmm) }; }
+          case 'next-90':    { const s=new Date(y,m,now.getDate()); const e=new Date(s); e.setDate(e.getDate()+89); e.setHours(23,59,59,999); return { start:s, end:e }; }
+          case 'all':
+          default:             return { start: null, end: null };
         }
       }
-      return opts;
-    }
-    function fillTimeSelects() {
-      const startSel = document.getElementById('phStart');
-      const endSel   = document.getElementById('phEnd');
-      const base = buildHalfHourOptions();
-      startSel.innerHTML = base.map(v => `<option value="${v}">${v}</option>`).join('');
-      endSel.innerHTML   = base.map(v => `<option value="${v}">${v}</option>`).join('');
-      startSel.value = '1:00 PM';
-      endSel.value   = '2:00 PM';
-    }
-    function setStatusByDate(dISO) {
-      const hint = document.getElementById('phStatusHint');
-      const now  = new Date(); now.setHours(0,0,0,0);
-      const d    = dISO ? new Date(dISO+'T00:00:00') : now;
-      const inFuture = d.getTime() > now.getTime();
-      const scheduled = document.getElementById('phStatusScheduled');
-      const completed = document.getElementById('phStatusCompleted');
-      if (inFuture) {
-        scheduled.checked = true; completed.checked = false;
-        hint.textContent = 'Future dates default to Scheduled.';
-      } else {
-        completed.checked = true; scheduled.checked = false;
-        hint.textContent = '';
+      function withinRange(row, range) {
+        if (range === 'all') return true;
+        const d = parseDateLocal(pick(row, COLS.date));
+        if (!d) return false;
+        const { start, end } = getRangeBounds(range);
+        if (start && d < start) return false;
+        if (end && d > end) return false;
+        return true;
       }
-    }
-    async function populateSquads(showAll) {
-      const sel = document.getElementById('phSquad');
-      const me  = PowerUp.session.get() || {};
-      let all = [];
-      try {
-        const squadsRaw = await PowerUp.api.fetchSheet(PowerUp.api.SHEETS.SQUADS);
-        const squads = PowerUp.api.rowsByTitle(squadsRaw).map(r => String(r['Squad Name'] || r['Name'] || r['Squad'] || '').trim()).filter(Boolean);
-        all = Array.from(new Set(squads));
-      } catch {}
-      let mine = all;
-      try {
-        const membersRaw = await PowerUp.api.fetchSheet(PowerUp.api.SHEETS.SQUAD_MEMBERS);
-        const members = PowerUp.api.rowsByTitle(membersRaw);
-        const mySquads = members.filter(r => {
-          const id = String(r['Position ID'] || r['Employee ID'] || '').trim().toLowerCase();
-          return id && id === String(me.employeeId||'').trim().toLowerCase();
-        }).map(r => String(r['Squad'] || r['Squad Name'] || '').trim()).filter(Boolean);
-        if (mySquads.length) mine = Array.from(new Set(mySquads));
-      } catch {}
-      const list = showAll ? all : mine;
-      const opts = ['<option value="">None</option>'].concat(list.sort((a,b)=>a.localeCompare(b)).map(n=>`<option value="${n}">${n}</option>`));
-      sel.innerHTML = opts.join('');
-    }
-    function openModal() {
-      document.getElementById('phError').style.display='none';
-      document.getElementById('phOk').style.display='none';
-      const today = new Date();
-      const dISO = `${today.getFullYear()}-${pad2(today.getMonth()+1)}-${pad2(today.getDate())}`;
-      document.getElementById('phDate').value = dISO;
-      setStatusByDate(dISO);
-      document.getElementById('phTopic').value = '';
-      document.getElementById('phShowAllSquads').checked = false;
-      populateSquads(false);
-      document.getElementById('phModal').setAttribute('aria-hidden','false');
-      document.getElementById('phModal').style.display='flex';
-    }
-    function closeModal() {
-      document.getElementById('phModal').setAttribute('aria-hidden','true');
-      document.getElementById('phModal').style.display='none';
-    }
 
-    async function saveRow() {
-      const errBox = document.getElementById('phError');
-      const okBox  = document.getElementById('phOk');
-      errBox.style.display = 'none'; okBox.style.display='none';
-
-      const me = PowerUp.session.get() || {};
-      const dateISO = document.getElementById('phDate').value;
-      const start   = document.getElementById('phStart').value;
-      const end     = document.getElementById('phEnd').value;
-      const isSched = document.getElementById('phStatusScheduled').checked;
-      const isComp  = document.getElementById('phStatusCompleted').checked;
-      const topic   = (document.getElementById('phTopic').value || '').trim();
-      const squad   = (document.getElementById('phSquad').value || '').trim();
-
-      if (!dateISO) { errBox.textContent = 'Please choose a date.'; errBox.style.display='block'; return; }
-
-      const raw = await PowerUp.api.fetchSheet(PowerUp.api.SHEETS.POWER_HOURS);
-      state.sheetCols = (raw.columns || []).map(c => c.title);
-      const resolve = (list) => {
-        for (const t of list) if (state.sheetCols.includes(t)) return t;
-        const norm = s => String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
-        const by = new Map(state.sheetCols.map(c => [norm(c), c]));
-        for (const t of list) { const hit = by.get(norm(t)); if (hit) return hit; }
-        return null;
-      };
-
-      const row = {};
-      const tEmployeeId   = resolve(COLS.employeeId);
-      const tEmployeeName = resolve(COLS.employeeName);
-      const tDate         = resolve(COLS.date);
-      const tStart        = resolve(COLS.start);
-      const tEnd          = resolve(COLS.end);
-      const tScheduled    = resolve(COLS.scheduled);
-      const tCompleted    = resolve(COLS.completed);
-      const tTopic        = resolve(COLS.topic);
-      const tSquad        = resolve(COLS.squad);
-
-      if (tEmployeeId)   row[tEmployeeId]   = String(me.employeeId||'');
-      if (tEmployeeName) row[tEmployeeName] = String(me.displayName||'') || String(me.employeeId||'');
-      if (tDate)         row[tDate]         = dateISO;       // DATE
-      if (tStart)        row[tStart]        = start;         // TEXT time
-      if (tEnd)          row[tEnd]          = end;           // TEXT time
-      if (tScheduled)    row[tScheduled]    = !!isSched;     // CHECKBOX
-      if (tCompleted)    row[tCompleted]    = !!isComp;      // CHECKBOX
-      if (tTopic)        row[tTopic]        = topic;
-      if (tSquad)        row[tSquad]        = squad;         // TEXT/NUMBER (not a picklist)
-
-      try {
-        const res = await fetch(`${PowerUp.api.API_BASE}/sheet/${PowerUp.api.SHEETS.POWER_HOURS}/rows`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify([row])
-        });
-        if (!res.ok) {
-          const txt = await res.text().catch(()=> '');
-          throw new Error(`Save failed (${res.status}) ${txt || ''}`);
+      /* -------------------- target employee -------------------- */
+      async function resolveTargetEmployee(){
+        const me = PowerUp.session.get() || {};
+        if (!IS_ADMIN) return { id: String(me.employeeId||'').trim(), name: String(me.displayName||'').trim() };
+        const selName = (sessionStorage.getItem('pu.adminEmployeeFilter') || '').trim();
+        if (!selName || selName === '__ALL__') return null;
+        try {
+          const em = await PowerUp.api.getRowsByTitle(PowerUp.api.SHEETS.EMPLOYEE_MASTER);
+          const norm = (s) => String(s||'').trim().toLowerCase();
+          const row = em.find(r => norm(r['Display Name']||r['Employee Name']||r['Name']) === norm(selName));
+          const id = row ? String(row['Position ID'] || row['Employee ID'] || '').trim() : '';
+          return { id, name: selName };
+        } catch {
+          return { id: String(me.employeeId||'').trim(), name: String(me.displayName||'').trim() };
         }
-        okBox.textContent = 'Saved.';
-        okBox.style.display = 'block';
+      }
+      function byTarget(row, target) {
+        if (!target) return true;
+        const id = String(pick(row, COLS.employeeId, '')).trim().toLowerCase();
+        const name = String(pick(row, COLS.employeeName, '')).trim().toLowerCase();
+        const tgtId = String(target.id||'').trim().toLowerCase();
+        const tgtName = String(target.name||'').trim().toLowerCase();
+        return (tgtId && id === tgtId) || (tgtName && name === tgtName);
+      }
+
+      /* -------------------- head + render -------------------- */
+      function buildHead(){
+        const tr = document.getElementById('ph-head-row');
+        const heads = [
+          ...(IS_ADMIN ? ['Employee'] : []),
+          'Date','Start','End','Completed Hours','Scheduled','Completed','Topic'
+        ];
+        tr.innerHTML = heads.map(h => `<th>${h}</th>`).join('');
+      }
+
+      function renderTable() {
+        const tb = document.getElementById('rows');
+        if (!state.view.length) {
+          tb.innerHTML = `<tr><td colspan="${IS_ADMIN?8:7}" class="muted" style="text-align:center;padding:20px;">No rows</td></tr>`;
+        } else {
+          tb.innerHTML = state.view.map(r => {
+            const empId  = String(pick(r, COLS.employeeId, '')).trim();
+            const empNm  = state.nameById.get(empId.toLowerCase()) || pick(r, COLS.employeeName, '') || empId || '-';
+
+            const dStr = String(pick(r, COLS.date) ?? '');
+            const d = parseDateLocal(dStr);
+            const dateSort = d ? String(d.getTime()) : dStr.toLowerCase();
+            const dOut = d ? `${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}/${d.getFullYear()}` : (dStr||'-');
+
+            const st  = String(pick(r, COLS.start) ?? '');
+            const en  = String(pick(r, COLS.end) ?? '');
+            const hrsNum = toNum(pick(r, COLS.completedHours, 0));
+            const isSched = isTrue(pick(r, COLS.scheduled));
+            const isComp  = isTrue(pick(r, COLS.completed));
+            const tp  = String(pick(r, COLS.topic) ?? '');
+
+            return `<tr>
+              ${IS_ADMIN ? `<td data-sort="${empNm.toLowerCase()}">${empNm || '-'}</td>` : ``}
+              <td data-sort="${dateSort}">${dOut}</td>
+              <td data-sort="${st.toLowerCase()}">${fmt(st)}</td>
+              <td data-sort="${en.toLowerCase()}">${fmt(en)}</td>
+              <td class="t-right mono" data-sort="${hrsNum}">${hrsNum.toFixed(2)}</td>
+              <td class="t-center" data-sort="${isSched ? 1 : 0}">${isSched ? `<span class="pill pill--blue">Scheduled</span>` : '-'}</td>
+              <td class="t-center" data-sort="${isComp ? 1 : 0}">${isComp ? `<span class="pill pill--green">Completed</span>` : '-'}</td>
+              <td class="wrap" data-sort="${tp.toLowerCase()}">${fmt(tp)}</td>
+            </tr>`;
+          }).join('');
+        }
+
+        // metrics
+        const totalHrs = state.view.reduce((a,r)=> a + toNum(pick(r, COLS.completedHours, 0)), 0);
+        const sessions = state.view.length;
+
+        const today = new Date(); today.setHours(0,0,0,0);
+        const upcoming = state.all.filter(r=>{
+          if (!byTarget(r, state.target)) return false;
+          const d = parseDateLocal(pick(r, COLS.date));
+          const scheduled = isTrue(pick(r, COLS.scheduled));
+          const completed = isTrue(pick(r, COLS.completed));
+          return scheduled && !completed && d && d >= today;
+        });
+        const upcomingCount = upcoming.length;
+        const upcomingHours = upcoming.reduce((sum, r) => sum + toNum(pick(r, COLS.durationPlanned, 0)), 0);
+
+        document.getElementById('m-sessions').textContent = sessions;
+        document.getElementById('m-comp').textContent = state.view.filter(r => isTrue(pick(r, COLS.completed))).length;
+        document.getElementById('m-comp-hrs').textContent = totalHrs.toFixed(2);
+        document.getElementById('m-up').textContent = String(upcomingCount);
+        document.getElementById('m-up-hrs').textContent = upcomingHours.toFixed(2);
+
+        // sorting
+        const thead = document.getElementById('ph-head-row');
+        bindHeaderSort(thead, tb);
+
+        /* -------- progress card update (owned by this page) -------- */
+        const totEl  = document.querySelector('[data-hook="ph.total"]');
+        const goalEl = document.querySelector('[data-hook="ph.goalMax"]');
+        const track  = document.querySelector('[data-hook="ph.track"]');
+        const fill   = document.querySelector('[data-hook="ph.fill"]');
+        const thumb  = document.querySelector('[data-hook="ph.thumb"]');
+        const msg    = document.querySelector('[data-hook="ph.message"]');
+        const goal   = Number(goalEl?.textContent || 8) || 8;
+        const pct    = Math.max(0, Math.min(1, totalHrs / goal));
+
+        if (totEl) totEl.textContent = totalHrs.toFixed(1);
+        if (fill)  fill.style.width = `${pct * 100}%`;
+        if (thumb) thumb.style.left  = `${pct * 100}%`;
+        if (track) track.setAttribute('aria-valuenow', String(Math.max(0, Math.min(goal, totalHrs))));
+        if (msg) {
+          const left = Math.max(0, goal - totalHrs);
+          msg.textContent = (left > 0)
+            ? `${left.toFixed(1)}h left to hit minimum (${goal}h) in the selected range.`
+            : `🔥 Amazing! You've exceeded the goal (${totalHrs.toFixed(1)} / ${goal}h).`;
+          msg.style.display = 'block';
+          msg.style.visibility = 'visible';
+        }
+
+        // IMPORTANT: do NOT call any external dashboard renderer here.
+        // It was clobbering this card/message on this page.
+      }
+
+      function currentRangeValue(){
+        const sel = document.getElementById('range');
+        return sel ? sel.value : 'this-month';
+      }
+      function applyRange() {
+        const range = currentRangeValue();
+        state.view = state.all.filter(r => byTarget(r, state.target) && withinRange(r, range));
+        renderTable();
+      }
+
+      async function loadNames() {
+        state.nameById.clear();
+        try {
+          const em = await PowerUp.api.getRowsByTitle(PowerUp.api.SHEETS.EMPLOYEE_MASTER);
+          em.forEach(r => {
+            const id = String(r['Position ID'] || r['Employee ID'] || '').trim();
+            const nm = String(r['Display Name'] || r['Employee Name'] || r['Name'] || '').trim();
+            if (id) state.nameById.set(id.toLowerCase(), nm);
+          });
+        } catch {}
+      }
+
+      async function loadRowsSafe() {
+        try {
+          if (PowerUp.api.getRowsByTitle) {
+            return await PowerUp.api.getRowsByTitle(PowerUp.api.SHEETS.POWER_HOURS);
+          }
+          const sheet = await PowerUp.api.fetchSheet(PowerUp.api.SHEETS.POWER_HOURS);
+          return PowerUp.api.rowsByTitle(sheet);
+        } catch {
+          return [];
+        }
+      }
+
+      async function loadTableAndProgress() {
+        state.target = await resolveTargetEmployee();
+        buildHead();
+        await loadNames();
         state.all = await loadRowsSafe();
         applyRange();
-        setTimeout(closeModal, 500);
-      } catch (e) {
-        errBox.textContent = String(e.message || e);
-        errBox.style.display='block';
       }
-    }
 
-    /* -------------------- boot -------------------- */
-    document.addEventListener('DOMContentLoaded', async () => {
-      PowerUp.session.requireLogin();
-      PowerUp.layout.injectLayout();
-      PowerUp.layout.setPageTitle('Power Hours');
-      await PowerUp.session.initHeader();
+      /* -------------------- header controls injection -------------------- */
+      function makeControls() {
+        const savedRange = sessionStorage.getItem('pu.ph.range') || 'this-month';
+        const wrap = document.createElement('span');
+        wrap.className = 'ph-controls';
+        wrap.innerHTML = `
+          <label for="range">Date Range</label>
+          <select id="range">
+            <option value="this-month">This Month</option>
+            <option value="last-month">Last Month</option>
+            <option value="last-3">Last 3 Months</option>
+            <option value="last-6">Last 6 Months</option>
+            <option value="this-quarter">This Quarter</option>
+            <option value="ytd">Year to Date</option>
+            <option value="next-month">Next Month</option>
+            <option value="next-90">Next 90 Days</option>
+            <option value="all">All</option>
+          </select>
+          <button class="btn-cta" id="phOpen" type="button">
+            <span class="ico"><i class="fa-solid fa-plus"></i></span>
+            <span>Log / Schedule</span>
+          </button>
+        `;
+        wrap.querySelector('#range').value = savedRange;
+        return wrap;
+      }
 
-      ensureControlsOnce();                 // layout-only; keeps one row under Welcome/Level
+      /* Lock to your real admin container */
+      function findAdminContainer(root){
+        return root.querySelector('#pu-admin-filter') || null;
+      }
 
-      document.getElementById('phClose').addEventListener('click', closeModal);
-      document.getElementById('phReset').addEventListener('click', openModal);
-      document.getElementById('phShowAllSquads').addEventListener('change', (e)=> populateSquads(e.target.checked));
-      document.getElementById('phSave').addEventListener('click', saveRow);
-      fillTimeSelects();
-      document.getElementById('phDate').addEventListener('change', (e)=> setStatusByDate(e.target.value));
+      /* Wire Admin filter once; apply immediately */
+      function wireAdminSelectOnce(container){
+        if (!container || container.__ph_wired) return;
+        const sel = container.querySelector('select, input');
+        if (!sel) return;
 
-      await loadTableAndProgress();
-    });
-  })();
+        const saved = sessionStorage.getItem('pu.adminEmployeeFilter') || '';
+        if (saved && sel.value !== saved) { try { sel.value = saved; } catch {} }
+
+        const onChange = async () => {
+          sessionStorage.setItem('pu.adminEmployeeFilter', String(sel.value || '').trim());
+          state.target = await resolveTargetEmployee();
+          applyRange();
+        };
+
+        sel.addEventListener('change', onChange);
+        sel.addEventListener('input', onChange);
+        container.__ph_wired = true;
+        onChange(); // apply immediately so first pick doesn't require Refresh
+      }
+
+      /* Put Admin + Date Range + Log/Schedule on one single no-wrap row */
+      function injectHeaderControls() {
+        document.querySelectorAll('.ph-controls').forEach(n => n.remove());
+        const controls = makeControls();
+
+        const headerEl =
+          document.getElementById('pu-header') ||
+          document.querySelector('.content-head') ||
+          document.querySelector('.page-head') ||
+          document.querySelector('.header') ||
+          document.body;
+
+        const nameNode  = headerEl.querySelector('[data-hook="userName"]');
+        const levelNode = headerEl.querySelector('[data-hook="userLevel"]');
+
+        const infoRow =
+          (nameNode && (nameNode.closest('.header-info-row, .header__row, .header-row') || nameNode.parentElement)) ||
+          (levelNode && (levelNode.closest('.header-info-row, .header__row, .header-row') || levelNode.parentElement)) ||
+          headerEl.firstElementChild;
+
+        let filtersRow = infoRow?.nextElementSibling;
+        const isFiltersRow = el => !!el && (el.matches('[data-hook="header-filters-row"]') || el.classList.contains('header-filters-row'));
+        if (!isFiltersRow(filtersRow)) {
+          filtersRow = document.createElement('div');
+          filtersRow.setAttribute('data-hook', 'header-filters-row');
+          filtersRow.classList.add('header-filters-row');
+          infoRow.insertAdjacentElement('afterend', filtersRow);
+        }
+        Object.assign(filtersRow.style, {
+          display: 'flex',
+          gap: '10px',
+          alignItems: 'center',
+          flexWrap: 'nowrap',
+          whiteSpace: 'nowrap',
+          marginTop: '8px',
+          overflow: 'hidden'
+        });
+
+        const adminContainer = IS_ADMIN ? findAdminContainer(headerEl) : null;
+
+        if (adminContainer) {
+          if (adminContainer.parentElement !== filtersRow) filtersRow.appendChild(adminContainer);
+          const adminSelect = adminContainer.querySelector('select, input');
+          if (adminSelect) Object.assign(adminSelect.style, { width: 'auto', maxWidth: '420px', minWidth: '180px' });
+          adminContainer.insertAdjacentElement('afterend', controls);
+          wireAdminSelectOnce(adminContainer);
+        } else {
+          filtersRow.appendChild(controls);
+        }
+
+        const rangeSel = controls.querySelector('#range');
+        if (rangeSel) {
+          rangeSel.addEventListener('change', () => {
+            sessionStorage.setItem('pu.ph.range', rangeSel.value);
+            applyRange();
+          });
+        }
+        const openBtn = controls.querySelector('#phOpen');
+        if (openBtn) openBtn.addEventListener('click', openModal);
+
+        if (!headerEl.__ph_observing) {
+          const mo = new MutationObserver(() => {
+            injectHeaderControls();  // re-apply if header re-renders
+          });
+          mo.observe(headerEl, { childList: true, subtree: true });
+          headerEl.__ph_observing = true;
+        }
+      }
+
+      /* -------------------- modal helpers + save -------------------- */
+      function pad2(n){ return String(n).padStart(2,'0'); }
+      function buildHalfHourOptions() {
+        const opts = [];
+        for (let h=6; h<=21; h++) {
+          for (let m=0; m<60; m+=30) {
+            const ampm = h < 12 ? 'AM' : 'PM';
+            const hh = ((h+11)%12)+1;
+            opts.push(`${hh}:${pad2(m)} ${ampm}`);
+          }
+        }
+        return opts;
+      }
+      function fillTimeSelects() {
+        const startSel = document.getElementById('phStart');
+        const endSel   = document.getElementById('phEnd');
+        const base = buildHalfHourOptions();
+        startSel.innerHTML = base.map(v => `<option value="${v}">${v}</option>`).join('');
+        endSel.innerHTML   = base.map(v => `<option value="${v}">${v}</option>`).join('');
+        startSel.value = '1:00 PM';
+        endSel.value   = '2:00 PM';
+      }
+      function setStatusByDate(dISO) {
+        const hint = document.getElementById('phStatusHint');
+        const now  = new Date(); now.setHours(0,0,0,0);
+        const d    = dISO ? new Date(dISO+'T00:00:00') : now;
+        const inFuture = d.getTime() > now.getTime();
+        const scheduled = document.getElementById('phStatusScheduled');
+        const completed = document.getElementById('phStatusCompleted');
+        if (inFuture) {
+          scheduled.checked = true; completed.checked = false;
+          hint.textContent = 'Future dates default to Scheduled.';
+        } else {
+          completed.checked = true; scheduled.checked = false;
+          hint.textContent = '';
+        }
+      }
+      async function populateSquads(showAll) {
+        const sel = document.getElementById('phSquad');
+        const me  = PowerUp.session.get() || {};
+        let all = [];
+        try {
+          const squadsRaw = await PowerUp.api.fetchSheet(PowerUp.api.SHEETS.SQUADS);
+          const squads = PowerUp.api.rowsByTitle(squadsRaw).map(r => String(r['Squad Name'] || r['Name'] || r['Squad'] || '').trim()).filter(Boolean);
+          all = Array.from(new Set(squads));
+        } catch {}
+        let mine = all;
+        try {
+          const membersRaw = await PowerUp.api.fetchSheet(PowerUp.api.SHEETS.SQUAD_MEMBERS);
+          const members = PowerUp.api.rowsByTitle(membersRaw);
+          const mySquads = members.filter(r => {
+            const id = String(r['Position ID'] || r['Employee ID'] || '').trim().toLowerCase();
+            return id && id === String(me.employeeId||'').trim().toLowerCase();
+          }).map(r => String(r['Squad'] || r['Squad Name'] || '').trim()).filter(Boolean);
+          if (mySquads.length) mine = Array.from(new Set(mySquads));
+        } catch {}
+        const list = showAll ? all : mine;
+        const opts = ['<option value="">None</option>'].concat(list.sort((a,b)=>a.localeCompare(b)).map(n=>`<option value="${n}">${n}</option>`));
+        sel.innerHTML = opts.join('');
+      }
+      function openModal() {
+        document.getElementById('phError').style.display='none';
+        document.getElementById('phOk').style.display='none';
+        const today = new Date();
+        const dISO = `${today.getFullYear()}-${pad2(today.getMonth()+1)}-${pad2(today.getDate())}`;
+        document.getElementById('phDate').value = dISO;
+        setStatusByDate(dISO);
+        document.getElementById('phTopic').value = '';
+        document.getElementById('phShowAllSquads').checked = false;
+        populateSquads(false);
+        document.getElementById('phModal').setAttribute('aria-hidden','false');
+        document.getElementById('phModal').style.display='flex';
+      }
+      function closeModal() {
+        document.getElementById('phModal').setAttribute('aria-hidden','true');
+        document.getElementById('phModal').style.display='none';
+      }
+
+      async function saveRow() {
+        const errBox = document.getElementById('phError');
+        const okBox  = document.getElementById('phOk');
+        errBox.style.display = 'none'; okBox.style.display='none';
+
+        const me = PowerUp.session.get() || {};
+        const dateISO = document.getElementById('phDate').value;
+        const start   = document.getElementById('phStart').value;
+        const end     = document.getElementById('phEnd').value;
+        const isSched = document.getElementById('phStatusScheduled').checked;
+        const isComp  = document.getElementById('phStatusCompleted').checked;
+        const topic   = (document.getElementById('phTopic').value || '').trim();
+        const squad   = (document.getElementById('phSquad').value || '').trim();
+
+        if (!dateISO) { errBox.textContent = 'Please choose a date.'; errBox.style.display='block'; return; }
+
+        const raw = await PowerUp.api.fetchSheet(PowerUp.api.SHEETS.POWER_HOURS);
+        state.sheetCols = (raw.columns || []).map(c => c.title);
+        const resolve = (list) => {
+          for (const t of list) if (state.sheetCols.includes(t)) return t;
+          const norm = s => String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+          const by = new Map(state.sheetCols.map(c => [norm(c), c]));
+          for (const t of list) { const hit = by.get(norm(t)); if (hit) return hit; }
+          return null;
+        };
+
+        const row = {};
+        const tEmployeeId   = resolve(COLS.employeeId);
+        const tEmployeeName = resolve(COLS.employeeName);
+        const tDate         = resolve(COLS.date);
+        const tStart        = resolve(COLS.start);
+        const tEnd          = resolve(COLS.end);
+        const tScheduled    = resolve(COLS.scheduled);
+        const tCompleted    = resolve(COLS.completed);
+        const tTopic        = resolve(COLS.topic);
+        const tSquad        = resolve(COLS.squad);
+
+        if (tEmployeeId)   row[tEmployeeId]   = String(me.employeeId||'');
+        if (tEmployeeName) row[tEmployeeName] = String(me.displayName||'') || String(me.employeeId||'');
+        if (tDate)         row[tDate]         = dateISO;       // DATE
+        if (tStart)        row[tStart]        = start;         // TEXT time
+        if (tEnd)          row[tEnd]          = end;           // TEXT time
+        if (tScheduled)    row[tScheduled]    = !!isSched;     // CHECKBOX
+        if (tCompleted)    row[tCompleted]    = !!isComp;      // CHECKBOX
+        if (tTopic)        row[tTopic]        = topic;
+        if (tSquad)        row[tSquad]        = squad;         // TEXT/NUMBER (not a picklist)
+
+        try {
+          const res = await fetch(`${PowerUp.api.API_BASE}/sheet/${PowerUp.api.SHEETS.POWER_HOURS}/rows`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify([row])
+          });
+          if (!res.ok) {
+            const txt = await res.text().catch(()=> '');
+            throw new Error(`Save failed (${res.status}) ${txt || ''}`);
+          }
+          okBox.textContent = 'Saved.';
+          okBox.style.display = 'block';
+          state.all = await loadRowsSafe();
+          applyRange();
+          setTimeout(closeModal, 500);
+        } catch (e) {
+          errBox.textContent = String(e.message || e);
+          errBox.style.display='block';
+        }
+      }
+
+      /* -------------------- boot -------------------- */
+      document.addEventListener('DOMContentLoaded', async () => {
+        PowerUp.session.requireLogin();
+        PowerUp.layout.injectLayout();
+        PowerUp.layout.setPageTitle('Power Hours');
+        await PowerUp.session.initHeader();
+
+        injectHeaderControls();                 // place and wire filters
+        document.getElementById('phClose').addEventListener('click', closeModal);
+        document.getElementById('phReset').addEventListener('click', openModal);
+        document.getElementById('phShowAllSquads').addEventListener('change', (e)=> populateSquads(e.target.checked));
+        document.getElementById('phSave').addEventListener('click', saveRow);
+        fillTimeSelects();
+        document.getElementById('phDate').addEventListener('change', (e)=> setStatusByDate(e.target.value));
+
+        await loadTableAndProgress();
+      });
+    })();
   </script>
 </body>
 </html>
