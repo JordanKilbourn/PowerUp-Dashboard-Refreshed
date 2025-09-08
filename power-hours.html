@@ -344,14 +344,14 @@
           return { id: String(me.employeeId||'').trim(), name: String(me.displayName||'').trim() };
         }
       }
-      function byTarget(row, target) {
-        if (!target) return true;
-        const id = String(pick(row, COLS.employeeId, '')).trim().toLowerCase();
-        the name = String(pick(row, COLS.employeeName, '')).trim().toLowerCase();
-        const tgtId = String(target.id||'').trim().toLowerCase();
-        const tgtName = String(target.name||'').trim().toLowerCase();
-        return (tgtId && id === tgtId) || (tgtName && name === tgtName);
-      }
+function byTarget(row, target) {
+  if (!target) return true;
+  const id   = String(pick(row, COLS.employeeId, '')).trim().toLowerCase();
+  const name = String(pick(row, COLS.employeeName, '')).trim().toLowerCase();
+  const tgtId   = String(target.id || '').trim().toLowerCase();
+  const tgtName = String(target.name || '').trim().toLowerCase();
+  return (tgtId && id === tgtId) || (tgtName && name === tgtName);
+}
 
       /* -------------------- head + render -------------------- */
       function buildHead(){
@@ -743,3 +743,4 @@
   </script>
 </body>
 </html>
+
