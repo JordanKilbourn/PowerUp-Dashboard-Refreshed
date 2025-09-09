@@ -59,10 +59,10 @@
   }
 
   // ---- robust fetch with timeout + retry/backoff + overall deadline ----
-  const API_RETRY_LIMIT     = 3;      // a little more generous for first-load
-  const ATTEMPT_TIMEOUT_MS  = 12000;  // per attempt
-  const OVERALL_DEADLINE_MS = 30000;  // hard cap for the whole op
-  const BACKOFF_BASE_MS     = 300;    // jittered backoff
+  const API_RETRY_LIMIT     = 3;
+  const ATTEMPT_TIMEOUT_MS  = 12000;
+  const OVERALL_DEADLINE_MS = 30000;
+  const BACKOFF_BASE_MS     = 300;
 
   function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
 
@@ -92,7 +92,6 @@
       try {
         const remaining = OVERALL_DEADLINE_MS - (Date.now() - start);
         if (remaining <= 0) throw new Error("deadline");
-        // run the attempt
         return await fetchOnce(url, init, controller.signal);
       } catch (err) {
         lastErr = err;
@@ -109,7 +108,35 @@
     throw lastErr || new Error("request failed");
   }
 
-  // ---------- warm proxy (health + tiny call) ----------
+  // ---------- READY GATE (cold-start safe) ----------
+  let _readyPromise = null;
+
+  async function ready({ deadlineMs = 60000 } = {}) {
+    if (_readyPromise) return _readyPromise;
+
+    _readyPromise = (async () => {
+      const start = Date.now();
+
+      // keep pinging /health until ok or deadline
+      while (true) {
+        try {
+          const h = await fetchJSONRetry(`${API_BASE}/health`, { method: "GET" });
+          if (h && (h.ok === true || h.status === "ok" || h === "ok")) break;
+        } catch {}
+        if (Date.now() - start > deadlineMs) throw new Error("service not ready (deadline)");
+        await sleep(600);
+      }
+
+      // one tiny columns call to wake the Smartsheet side
+      try { await fetchJSONRetry(`${API_BASE}/sheet/${SHEETS.EMPLOYEE_MASTER}/columns`, { method: "GET" }); } catch {}
+
+      return true;
+    })();
+
+    return _readyPromise;
+  }
+
+  // ---------- warm proxy (uses ready + stamp) ----------
   const WARM_KEY  = "pu.proxy.warmAt";
   const WARM_TTL  = 5 * 60 * 1000; // 5 minutes
 
@@ -118,12 +145,7 @@
       const last = Number(sessionStorage.getItem(WARM_KEY) || 0);
       if (last && (Date.now() - last) < WARM_TTL) return;
 
-      // 1) health ping
-      try { await fetchJSONRetry(`${API_BASE}/health`, { method: "GET" }); } catch {}
-
-      // 2) very light sheet call (columns only) to wake Smartsheet side too
-      try { await fetchJSONRetry(`${API_BASE}/sheet/${SHEETS.EMPLOYEE_MASTER}/columns`, { method: "GET" }); } catch {}
-
+      await ready(); // guarantees health success at least once
       sessionStorage.setItem(WARM_KEY, String(Date.now()));
     } catch {
       // not fatal
@@ -186,13 +208,13 @@
   function toNumber(x) {
     if (x == null) return 0;
     if (typeof x === "number") return x;
-    const n = parseFloat(String(x).replace(/[^0-9.\-]/g, "")); // strip commas/$/hrs
+    const n = parseFloat(String(x).replace(/[^0-9.\-]/g, ""));
     return Number.isFinite(n) ? n : 0;
   }
 
   // ---------- convenience: prime key sheets before redirect ----------
   async function prefetchEssential() {
-    // Prime the most-used sheets in parallel; tolerate partial failures
+    await ready().catch(() => {}); // ensure service is up at least once
     const keys = [
       'EMPLOYEE_MASTER',
       'POWER_HOURS', 'POWER_HOUR_GOALS',
@@ -214,7 +236,8 @@
     clearCache,
     toNumber,
     prefetchEssential,
-    warmProxy,                 // NEW: used by login flow
+    warmProxy,
+    ready,                      // ✅ NEW: explicit ready gate
   };
   window.PowerUp = P;
 })(window.PowerUp || {});
