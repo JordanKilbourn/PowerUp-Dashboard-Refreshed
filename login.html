@@ -28,7 +28,7 @@
     .error { margin-top:14px; color:#fecaca; background:#450a0a; border:1px solid #7f1d1d; padding:10px 12px; border-radius:10px; display:none;}
     .hint { margin-top:10px; font-size:12px; color:#9ca3af;}
 
-    /* Busy overlay (spinner + helpful text) */
+    /* Busy overlay */
     .busy-overlay{position:fixed;inset:0;display:none;place-items:center;background:rgba(7,10,20,.6);z-index:9999;}
     .busy-card{background:#0b1020;border:1px solid rgba(0,255,198,.4);border-radius:14px;padding:18px 20px;min-width:280px;box-shadow: 0 10px 30px rgba(0,0,0,.35);text-align:center}
     .spinner{width:28px;height:28px;border:3px solid rgba(255,255,255,.2);border-top-color:#00ffc6;border-radius:50%;margin:0 auto 10px;animation:spin .9s linear infinite}
@@ -88,7 +88,6 @@
     <div class="modal-card">
       <h3 id="idLookupTitle">Find your Employee ID</h3>
 
-      <!-- Inline loading indicator while names load -->
       <div id="lookupLoading" class="small" style="display:none;align-items:center;gap:8px">
         <div class="spinner" style="width:18px;height:18px;border-width:2px"></div>
         <span>Loading employees…</span>
@@ -128,9 +127,9 @@
     try { sessionStorage.removeItem('pu.sheetCache.v1'); } catch {}
     try { localStorage.removeItem('powerup_session'); } catch {}
 
-    // 🔹 Non-blocking proxy warm-up + silent prefetch of Employee Master
+    // 🔹 Non-blocking warm-up; awaits service readiness once
     (async function warmup() {
-      try { await PowerUp.api.warmProxy(); } catch {}
+      try { await PowerUp.api.ready(); } catch {}
       try {
         const rows = await PowerUp.api.getRowsByTitle('EMPLOYEE_MASTER');
         try { sessionStorage.setItem('pu.cache.EMPLOYEE_MASTER.rows', JSON.stringify(rows)); } catch {}
@@ -188,7 +187,6 @@
       selName.disabled = !!on;
     }
 
-    // ---- Safe cache helpers for Employee Master ----
     const EMP_CACHE_KEY = 'pu.cache.EMPLOYEE_MASTER.rows';
 
     function getCachedEmployeeRows() {
@@ -199,7 +197,6 @@
         if (!Array.isArray(parsed)) throw new Error('not array');
         return parsed;
       } catch {
-        // cache was corrupt/partial — remove and force a fresh fetch
         try { sessionStorage.removeItem(EMP_CACHE_KEY); } catch {}
         return null;
       }
@@ -209,8 +206,7 @@
       try {
         return await PowerUp.api.getRowsByTitle('EMPLOYEE_MASTER');
       } catch (e) {
-        // one warm retry handles proxy cold-starts
-        try { await PowerUp.api.warmProxy(); } catch {}
+        try { await PowerUp.api.ready(); } catch {}
         return await PowerUp.api.getRowsByTitle('EMPLOYEE_MASTER');
       }
     }
@@ -222,6 +218,7 @@
       try {
         let rows = getCachedEmployeeRows();
         if (!rows) {
+          await PowerUp.api.ready().catch(()=>{});
           rows = await fetchEmployeeRowsFresh();
           try { sessionStorage.setItem(EMP_CACHE_KEY, JSON.stringify(rows)); } catch {}
         }
@@ -230,7 +227,6 @@
           (r['Position ID'] || r['Employee ID'])
         );
 
-        // Build options
         const opts = ['<option value="">Select your name…</option>'].concat(
           EMP_ROWS
             .map(r => ({
@@ -284,12 +280,15 @@
 
       setBusy(true, 'Warming server and validating your ID…');
       try {
+        // ✅ Hard gate: make sure the service is up before first real call
+        await PowerUp.api.ready();
+
         await PowerUp.session.loginWithId(id, { primeBeforeRedirect: true });
         // redirect happens inside loginWithId
       } catch (e) {
-        if (/deadline|timeout|AbortError/i.test(e?.message || '')) {
+        if (/deadline|timeout|AbortError|service not ready/i.test(e?.message || '')) {
           showError('The server is waking up. Please try again in a moment.');
-        } else if (/HTTP 5\d\d/.test(e?.message || '')) {
+        } else if (/HTTP 5\d\d|Proxy error 5/.test(e?.message || '')) {
           showError('Temporary server issue. Please retry.');
         } else if (/not found/i.test(e?.message || '')) {
           showError('ID not found. Double-check your ID or use “Retrieve my Employee ID”.');
@@ -306,11 +305,10 @@
       btnHelp.disabled = true;
       try {
         await ensureEmployeeRows();
-        // If we still have no rows, show inline error instead of alert
         if (!EMP_ROWS.length) {
           showLookupResult(false, 'We couldn’t load the employee list. Please try again in a moment.');
         }
-      } catch (e) {
+      } catch {
         showLookupResult(false, 'We couldn’t load the employee list. Please try again in a moment.');
       } finally {
         btnHelp.disabled = false;
