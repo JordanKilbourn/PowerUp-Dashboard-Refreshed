@@ -32,13 +32,11 @@
   }
 
   async function getEmployeeRowsCachedFirst() {
-    // try shared cache (set by login.html warmup)
     const CK = 'pu.cache.EMPLOYEE_MASTER.rows';
     const cached = sessionStorage.getItem(CK);
     if (cached) {
       try { return JSON.parse(cached); } catch {}
     }
-    // fallback to fetch
     const rows = await P.api.getRowsByTitle(P.api.SHEETS.EMPLOYEE_MASTER)
       .catch(async () => {
         const sheet = await P.api.fetchSheet(P.api.SHEETS.EMPLOYEE_MASTER);
@@ -58,7 +56,6 @@
     }) || null;
   }
 
-  // Robust admin check that does NOT depend on session being set yet
   function isAdminId(rawId) {
     try {
       const id = String(rawId || '').trim().toUpperCase();
@@ -79,7 +76,6 @@
     }
   }
 
-  // Mirror minimal session for legacy guards in localStorage
   function mirrorCanonicalSession() {
     try {
       const s = get();
@@ -89,38 +85,37 @@
     } catch {}
   }
 
-  // ---- login (warm proxy + prefer cached employee list + prime sheets) ----
+  // ---- login (now gated by api.ready) ----
   async function loginWithId(inputId, { primeBeforeRedirect = true } = {}) {
     const id = String(inputId || '').trim();
     if (!id) throw new Error('Please enter your Position ID or Employee ID.');
 
-    // Warm proxy once (reduces first-login timeouts)
+    // ✅ Ensure proxy is fully up before the first data call
+    try { await P.api.ready(); } catch {}
+
+    // Additional warm (cheap, idempotent)
     try { await P.api.warmProxy(); } catch {}
 
     let row;
     try {
       row = await findEmployeeRowById(id);
-    } catch (e) {
-      // try one more time after a warm attempt
-      try { await P.api.warmProxy(); } catch {}
+    } catch {
+      try { await P.api.ready(); } catch {}
       row = await findEmployeeRowById(id);
     }
     if (!row) throw new Error('ID not found. Double-check your Position ID or Employee ID.');
 
-    // Build session
     const displayName = pick(row, ['Display Name', 'Employee Name', 'Name'], id);
     let level = resolveLevel(row);
-    if (isAdminId(id)) level = 'Admin'; // hard override if admin
+    if (isAdminId(id)) level = 'Admin';
 
     set({ employeeId: id, displayName, level, levelText: level });
-    mirrorCanonicalSession(); // keep early guards happy
+    mirrorCanonicalSession();
 
-    // Prime key sheets (cap the wait so UI stays snappy)
     if (primeBeforeRedirect && P.api?.prefetchEssential) {
       try { await P.api.prefetchEssential(); } catch {}
     }
 
-    // Redirect
     const dest = sessionStorage.getItem('pu.postLoginRedirect') || 'Dashboard-Refresh.html';
     sessionStorage.removeItem('pu.postLoginRedirect');
     location.href = dest;
@@ -130,7 +125,6 @@
   async function initHeader() {
     const s = get();
 
-    // Backfill missing name/level from Employee Master if needed
     if (!s.displayName || !s.level) {
       try {
         const rows = await getEmployeeRowsCachedFirst();
@@ -150,7 +144,6 @@
       }
     }
 
-    // ALWAYS enforce Admin label if this session’s ID is an admin
     try {
       if (isAdminId(s.employeeId) && s.level !== 'Admin') {
         s.level = 'Admin';
@@ -159,20 +152,17 @@
       }
     } catch {}
 
-    // Fill header placeholders if present
     const $name = document.querySelector('[data-hook="userName"]');
     const $level = document.querySelector('[data-hook="userLevel"]');
     if ($name) $name.textContent = s.displayName || s.employeeId || 'Unknown User';
     if ($level) $level.textContent = s.level || s.levelText || 'Level Unknown';
 
-    // Wire logout
     const $logout = document.querySelector('[data-hook="logout"]');
     if ($logout && !$logout.dataset.bound) {
       $logout.dataset.bound = '1';
       $logout.addEventListener('click', logout);
     }
 
-    // Signal to pages that auth/session is ready
     try { document.dispatchEvent(new Event('powerup-auth-ready')); } catch {}
 
     mirrorCanonicalSession();
