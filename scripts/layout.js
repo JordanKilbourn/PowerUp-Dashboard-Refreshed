@@ -1,4 +1,3 @@
-
 (function (PowerUp) {
   const P = PowerUp || (PowerUp = {});
 
@@ -43,6 +42,11 @@
             &emsp; Level: <span data-hook="userLevel">Level Unknown</span>
             &emsp; <button id="pu-refresh" class="btn btn-xs" style="margin-left:8px;border:1px solid #2a354b;background:#0b1328;color:#e5e7eb;border-radius:8px;padding:6px 10px;cursor:pointer">Refresh Data</button>
           </p>
+
+          <!-- 🔹 Single, dedicated row for ALL header filters/buttons -->
+          <div class="pu-filters-row" id="pu-filters-row" style="
+            display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:nowrap;
+          "></div>
         </div>
         <div class="content" id="pu-content"></div>
       </div>
@@ -109,14 +113,36 @@
     // Hydrate header name + level
     setUserHeaderFromEmployeeMaster();
 
-    // 🔹 NEW: Install admin employee filter UI when applicable
+    // 🔹 Install Admin filter UI (if available) and force it into #pu-filters-row
+    const filtersRow = document.getElementById('pu-filters-row');
+
+    function moveAdminFilterIntoRow() {
+      const admin =
+        document.getElementById('pu-admin-filter') ||
+        document.querySelector('[data-hook="adminFilterContainer"]') ||
+        (document.querySelector('[data-hook="adminFilter"]') && document.querySelector('[data-hook="adminFilter"]').closest('div')) ||
+        document.querySelector('#adminFilter');
+      if (admin && admin.parentElement !== filtersRow) {
+        filtersRow.prepend(admin); // ensure it's first in the row
+      }
+    }
+
     try {
       if (PowerUp.auth?.installEmployeeFilterUI) {
         PowerUp.auth.installEmployeeFilterUI();
+        moveAdminFilterIntoRow();
       }
     } catch (e) {
       console.debug('[layout] admin filter UI skipped:', e);
     }
+
+    // In case the admin control renders a bit later (async), observe and move it once
+    const obs = new MutationObserver(() => {
+      moveAdminFilterIntoRow();
+    });
+    obs.observe(document.getElementById('pu-header'), { childList: true, subtree: true });
+    // Stop observing after a short grace period to avoid overhead
+    setTimeout(() => obs.disconnect(), 3000);
   }
 
   function setPageTitle(text) {
