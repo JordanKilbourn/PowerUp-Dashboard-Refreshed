@@ -68,14 +68,8 @@
     .stat .label { font-size:12px; color:#9fb0c3 }
     .stat .value { font-weight:700; font-variant-numeric: tabular-nums; }
 
-    /* ---------- SINGLE HEADER FILTERS ROW ---------- */
-    #pu-header .pu-filters-row {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-top: 8px;
-      flex-wrap: nowrap; /* force single row */
-    }
+    /* ---------- SINGLE HEADER FILTERS ROW (layout supplies container) ---------- */
+    #pu-header .pu-filters-row { display:flex; align-items:center; gap:10px; margin-top:8px; flex-wrap:nowrap; }
 
     /* ---------- COMPACT SELECT (Date Range) ---------- */
     .pu-compact-select {
@@ -102,7 +96,7 @@
     }
     .pu-compact-select:focus {
       outline: none;
-      border-color: #e5e7eb;       /* same light ring as Admin select */
+      border-color: #e5e7eb;       /* match admin select focus */
       box-shadow: 0 0 0 1px #e5e7eb;
     }
 
@@ -125,7 +119,7 @@
       box-shadow: 0 0 0 2px rgba(16,185,129,.35);
     }
 
-    /* ---------- Modal tweaks (match your prior look) ---------- */
+    /* ---------- Modal tweaks ---------- */
     .modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:9998}
     .modal[aria-hidden="false"]{display:flex}
     .modal-card{background:#0b1020;border:1px solid #294957;border-radius:14px;padding:16px 16px 14px;min-width:320px;max-width:640px;width:94%}
@@ -478,7 +472,7 @@
       function byTarget(row, target) {
         if (!target) return true;
         const id = String(pick(row, COLS.employeeId, '')).trim().toLowerCase();
-        const name = String(pick(row, COLS.employeeName, '')).trim().toLowerCase();
+               const name = String(pick(row, COLS.employeeName, '')).trim().toLowerCase();
         const tgtId = String(target.id||'').trim().toLowerCase();
         const tgtName = String(target.name||'').trim().toLowerCase();
         return (tgtId && id === tgtId) || (tgtName && name === tgtName);
@@ -507,43 +501,23 @@
         }
       }
 
-      /* -------------------- ONE filters row mounting -------------------- */
-      function getHeaderInfoRow() {
-        const header = document.getElementById('pu-header');
-        if (!header) return null;
-        const rows = header.querySelectorAll(':scope > *');
-        return rows.length >= 2 ? rows[1] : header.firstElementChild;
-      }
-      function ensureSingleFiltersRow() {
-        const infoRow = getHeaderInfoRow();
-        if (!infoRow) return null;
-        let row = infoRow.nextElementSibling;
-        const isFilters = el => el && el.classList && el.classList.contains('pu-filters-row');
-        if (!isFilters(row)) {
-          row = document.createElement('div');
-          row.className = 'pu-filters-row';
-          infoRow.insertAdjacentElement('afterend', row);
-        }
-        return row;
-      }
+      /* -------------------- Header controls: mount into #pu-filters-row -------------------- */
       function mountHeaderControls(savedRangeValue, onRangeChange, onOpenModal) {
-        const filtersRow = ensureSingleFiltersRow();
+        const filtersRow = document.getElementById('pu-filters-row');
         if (!filtersRow) return;
 
-        // Admin filter container (make it first in the row)
+        // Make sure Admin filter (installed by layout.js) is first in the row
         const adminContainer =
           document.getElementById('pu-admin-filter') ||
           document.querySelector('[data-hook="adminFilterContainer"]') ||
           (document.querySelector('[data-hook="adminFilter"]') && document.querySelector('[data-hook="adminFilter"]').closest('div')) ||
           document.querySelector('#adminFilter');
 
-        if (adminContainer) {
-          if (adminContainer.parentElement !== filtersRow) {
-            filtersRow.appendChild(adminContainer);
-          }
-          if (filtersRow.firstElementChild !== adminContainer) {
-            filtersRow.insertBefore(adminContainer, filtersRow.firstElementChild);
-          }
+        if (adminContainer && adminContainer.parentElement !== filtersRow) {
+          filtersRow.appendChild(adminContainer);
+        }
+        if (adminContainer && filtersRow.firstElementChild !== adminContainer) {
+          filtersRow.insertBefore(adminContainer, filtersRow.firstElementChild);
         }
 
         // Date Range select
@@ -591,14 +565,26 @@
 
         filtersRow.style.flexWrap = 'nowrap';
       }
+
       function wireAdminFilterLiveUpdates(applyRangeFn) {
-        document.addEventListener('powerup-admin-filter-change', applyRangeFn);
-        document.addEventListener('pu-admin-filter-change', applyRangeFn);
+        document.addEventListener('powerup-admin-filter-change', async () => {
+          state.target = await resolveTargetEmployee();
+          applyRangeFn();
+        });
+        document.addEventListener('pu-admin-filter-change', async () => {
+          state.target = await resolveTargetEmployee();
+          applyRangeFn();
+        });
+
+        // Direct select change (if needed)
         const sel =
           document.querySelector('[data-hook="adminFilter"] select') ||
           document.querySelector('#adminFilter select') ||
           document.querySelector('select[name="adminFilter"]');
-        if (sel) sel.addEventListener('change', applyRangeFn);
+        if (sel) sel.addEventListener('change', async () => {
+          state.target = await resolveTargetEmployee();
+          applyRangeFn();
+        });
       }
 
       /* -------------------- Modal + Save -------------------- */
@@ -753,7 +739,7 @@
         PowerUp.layout.setPageTitle('Power Hours');
         await PowerUp.session.initHeader();
 
-        // mount controls in a single row under the Welcome/Level row
+        // mount controls into the one shared row
         const saved = getSavedRange();
         mountHeaderControls(
           saved,
@@ -761,11 +747,8 @@
           openModal
         );
 
-        // live updates on admin filter change (custom events + direct select change)
-        wireAdminFilterLiveUpdates(async () => {
-          state.target = await resolveTargetEmployee();
-          applyRange();
-        });
+        // live updates on admin filter change
+        wireAdminFilterLiveUpdates(applyRange);
 
         // modal bindings
         document.getElementById('phClose').addEventListener('click', closeModal);
