@@ -28,14 +28,13 @@
     .error { margin-top:14px; color:#fecaca; background:#450a0a; border:1px solid #7f1d1d; padding:10px 12px; border-radius:10px; display:none;}
     .hint { margin-top:10px; font-size:12px; color:#9ca3af;}
 
-    /* Busy overlay */
+    /* Busy overlay (spinner + dynamic status) */
     .busy-overlay{position:fixed;inset:0;display:none;place-items:center;background:rgba(7,10,20,.6);z-index:9999;}
-    .busy-card{background:#0b1020;border:1px solid rgba(0,255,198,.4);border-radius:14px;padding:18px 20px;min-width:300px;max-width:380px;box-shadow: 0 10px 30px rgba(0,0,0,.35);text-align:center}
+    .busy-card{background:#0b1020;border:1px solid rgba(0,255,198,.4);border-radius:14px;padding:18px 20px;min-width:280px;max-width:420px;box-shadow: 0 10px 30px rgba(0,0,0,.35);text-align:center}
     .spinner{width:28px;height:28px;border:3px solid rgba(255,255,255,.2);border-top-color:#00ffc6;border-radius:50%;margin:0 auto 10px;animation:spin .9s linear infinite}
     @keyframes spin{to{transform:rotate(360deg)}}
     .busy-title{color:#e5e7eb;font-weight:700;margin-bottom:4px}
-    .busy-sub{color:#9ca3af;font-size:12px;margin-bottom:2px}
-    .busy-hint{color:#9ca3af;font-size:12px;opacity:.9}
+    .busy-sub{color:#9ca3af;font-size:12px;min-height:32px;display:flex;align-items:center;justify-content:center;text-align:center;padding:0 6px}
 
     /* ID Lookup modal */
     .modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:9998}
@@ -81,7 +80,6 @@
       <div class="spinner" aria-hidden="true"></div>
       <div class="busy-title">Signing you in…</div>
       <div class="busy-sub" id="busySub">Authorizing and loading your data.</div>
-      <div class="busy-hint" id="busyHint"></div>
     </div>
   </div>
 
@@ -90,6 +88,7 @@
     <div class="modal-card">
       <h3 id="idLookupTitle">Find your Employee ID</h3>
 
+      <!-- Inline loading indicator while names load -->
       <div id="lookupLoading" class="small" style="display:none;align-items:center;gap:8px">
         <div class="spinner" style="width:18px;height:18px;border-width:2px"></div>
         <span>Loading employees…</span>
@@ -124,12 +123,12 @@
   (function () {
     const $ = (s) => document.querySelector(s);
 
-    // ---- Start clean on the login page (belt + suspenders) ----
+    // ---- Start clean on the login page (belt + suspenders)
     try { window.P && P.api && P.api.clearCache && P.api.clearCache(); } catch {}
     try { sessionStorage.removeItem('pu.sheetCache.v1'); } catch {}
     try { localStorage.removeItem('powerup_session'); } catch {}
 
-    // Non-blocking warm-up & cache Employee Master list (nice-to-have)
+    // Non-blocking proxy warm-up + silent prefetch of Employee Master
     (async function warmup() {
       try { await PowerUp.api.warmProxy(); } catch {}
       try {
@@ -145,7 +144,6 @@
 
     const busy          = $('#busy');
     const busySub       = $('#busySub');
-    const busyHint      = $('#busyHint');
 
     const modal         = $('#idLookupModal');
     const selName       = $('#lookupName');
@@ -155,78 +153,94 @@
     const btnClose      = $('#lookupCancel');
     const lookupLoading = document.getElementById('lookupLoading');
 
-    let coldHintTimer = null;
     let EMP_ROWS = [];
 
-    function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+    /* ---------------- Busy overlay helpers + dynamic narration ---------------- */
+    let narratorTimer = null;
+    let narratorStart = 0;
+    let narratorDots  = 0;
+    let narratorData  = { attempt: 1 };
 
-    function setBusy(on, subText, hintText) {
+    function setBusy(on) {
       if (on) {
         busy.style.display = 'grid';
         busy.setAttribute('aria-hidden', 'false');
         btnSignIn.disabled = true;
         empInput.disabled  = true;
         errBox.style.display = 'none';
-        if (subText) busySub.textContent = subText;
-        busyHint.textContent = hintText || '';
-
-        clearTimeout(coldHintTimer);
-        coldHintTimer = setTimeout(() => {
-          busyHint.textContent = 'First load after a while can take longer while the server wakes up.';
-        }, 1500);
       } else {
         busy.style.display = 'none';
         busy.setAttribute('aria-hidden', 'true');
         btnSignIn.disabled = false;
         empInput.disabled  = false;
-        busySub.textContent = 'Authorizing and loading your data.';
-        busyHint.textContent = '';
-        clearTimeout(coldHintTimer);
       }
     }
 
-    function showError(msg) {
-      errBox.textContent = msg;
-      errBox.style.display = 'block';
+    function formatElapsed(ms) {
+      const s = Math.floor(ms / 1000);
+      const m = Math.floor(s / 60);
+      const r = s % 60;
+      return (m ? (m + 'm ') : '') + r + 's';
     }
+
+    function narratorLine() {
+      const now = Date.now();
+      const elapsed = now - narratorStart;
+      const dots = '.'.repeat((narratorDots % 3) + 1);
+      narratorDots++;
+
+      // Milestone hints to keep it feeling "alive"
+      let hint = 'Contacting server';
+      if (elapsed > 10_000)  hint = 'Warming the proxy';
+      if (elapsed > 30_000)  hint = 'Priming data sources';
+      if (elapsed > 60_000)  hint = 'Smartsheet may still be waking';
+      if (elapsed > 90_000)  hint = 'Almost there—still negotiating';
+
+      busySub.textContent =
+        `${hint}${dots} • Attempt ${narratorData.attempt} • ${formatElapsed(elapsed)} elapsed`;
+    }
+
+    function startNarrator(attempt) {
+      narratorData.attempt = attempt || 1;
+      narratorStart = Date.now();
+      narratorDots  = 0;
+      if (narratorTimer) clearInterval(narratorTimer);
+      narratorTimer = setInterval(narratorLine, 420); // ~2 updates/sec with dot animation
+      narratorLine();
+    }
+    function bumpNarratorAttempt(attempt) {
+      narratorData.attempt = attempt;
+      narratorLine();
+    }
+    function stopNarrator() {
+      if (narratorTimer) { clearInterval(narratorTimer); narratorTimer = null; }
+    }
+
+    /* ---------------- ID Lookup small helpers ---------------- */
+    function showError(msg) { errBox.textContent = msg; errBox.style.display = 'block'; }
 
     function showLookupLoading(on) {
       if (lookupLoading) lookupLoading.style.display = on ? 'flex' : 'none';
       selName.disabled = !!on;
     }
-
     const EMP_CACHE_KEY = 'pu.cache.EMPLOYEE_MASTER.rows';
 
     function getCachedEmployeeRows() {
       const raw = sessionStorage.getItem(EMP_CACHE_KEY);
       if (!raw) return null;
-      try {
-        const parsed = JSON.parse(raw);
-        if (!Array.isArray(parsed)) throw new Error('not array');
-        return parsed;
-      } catch {
-        try { sessionStorage.removeItem(EMP_CACHE_KEY); } catch {}
-        return null;
-      }
+      try { const parsed = JSON.parse(raw); return Array.isArray(parsed) ? parsed : null; }
+      catch { try { sessionStorage.removeItem(EMP_CACHE_KEY); } catch {} return null; }
     }
-
     async function fetchEmployeeRowsFresh() {
-      try {
-        return await PowerUp.api.getRowsByTitle('EMPLOYEE_MASTER');
-      } catch (e) {
-        try { await PowerUp.api.warmProxy(); } catch {}
-        return await PowerUp.api.getRowsByTitle('EMPLOYEE_MASTER');
-      }
+      try { return await PowerUp.api.getRowsByTitle('EMPLOYEE_MASTER'); }
+      catch { try { await PowerUp.api.warmProxy(); } catch {} return await PowerUp.api.getRowsByTitle('EMPLOYEE_MASTER'); }
     }
-
     async function ensureEmployeeRows() {
       if (EMP_ROWS.length) return;
-
       showLookupLoading(true);
       try {
         let rows = getCachedEmployeeRows();
         if (!rows) {
-          await PowerUp.api.warmProxy().catch(()=>{});
           rows = await fetchEmployeeRowsFresh();
           try { sessionStorage.setItem(EMP_CACHE_KEY, JSON.stringify(rows)); } catch {}
         }
@@ -234,7 +248,6 @@
           (r['Display Name'] || r['Employee Name'] || r['Name']) &&
           (r['Position ID'] || r['Employee ID'])
         );
-
         const opts = ['<option value="">Select your name…</option>'].concat(
           EMP_ROWS
             .map(r => ({
@@ -253,10 +266,8 @@
     function toISODateOnly(v) {
       if (!v) return '';
       const d = new Date(v);
-      if (isNaN(d)) return '';
-      return d.toISOString().slice(0,10);
+      return isNaN(d) ? '' : d.toISOString().slice(0,10);
     }
-
     function openLookup({ loading = false } = {}) {
       resBox.style.display = 'none';
       resBox.className = 'result';
@@ -269,66 +280,70 @@
       modal.setAttribute('aria-hidden','true');
       modal.style.display = 'none';
     }
-
     function showLookupResult(ok, html) {
       resBox.className = 'result ' + (ok ? 'ok' : 'err');
       resBox.innerHTML = html;
       resBox.style.display = 'block';
     }
-
     function findRowById(id) {
       const idLC = String(id || '').trim().toLowerCase();
       return EMP_ROWS.find(r => String(r['Position ID'] || r['Employee ID']).trim().toLowerCase() === idLC);
     }
 
-    // ---------- Timed login loop (2-minute cap) ----------
-    async function doLoginLoop(id, maxMs = 120000) {
-      const start = Date.now();
+    /* ---------------- Login with resilient loop + dynamic status ---------------- */
+    async function doLoginLoop(id, overallMs) {
+      setBusy(true);
+      startNarrator(1);
+
+      const deadline = Date.now() + (overallMs || 120000); // default 2 minutes
       let attempt = 0;
 
-      setBusy(true, 'Warming server and validating your ID…');
-
-      while ((Date.now() - start) < maxMs) {
+      while (Date.now() < deadline) {
         attempt++;
+        bumpNarratorAttempt(attempt);
+
+        // Try to warm the proxy occasionally in the loop (cheap GETs)
+        if (attempt === 1 || attempt % 3 === 0) {
+          try { await PowerUp.api.warmProxy(); } catch {}
+        }
+
         try {
-          // Wake proxy (health + tiny sheet call) — tolerant of failures
-          await PowerUp.api.warmProxy().catch(()=>{});
-
-          // Try login (will redirect on success)
           await PowerUp.session.loginWithId(id, { primeBeforeRedirect: true });
-          return; // redirect happened
+          // If successful, loginWithId will redirect; just return in case it doesn't
+          stopNarrator();
+          return;
         } catch (e) {
-          // Compute next wait (progressive up to ~8s) but don’t exceed remaining window
-          const backoff = Math.min(2000 + attempt * 800, 8000);
-          const remaining = maxMs - (Date.now() - start);
-          const wait = Math.min(backoff, Math.max(500, remaining));
+          // compute a small backoff with jitter (caps at ~5s)
+          const base = Math.min(5000, 600 * attempt);
+          const jitter = Math.floor(Math.random() * 600);
+          const wait = Math.max(800, base + jitter);
 
-          const waitedSec = Math.floor((Date.now() - start)/1000);
-          const mins = Math.floor(waitedSec/60), secs = waitedSec%60;
-          const waitedLabel = mins ? `${mins}m ${secs}s` : `${secs}s`;
-
-          busySub.textContent = `Waking server (attempt ${attempt}, waited ${waitedLabel})…`;
-          busyHint.textContent = remaining > wait
-            ? `Retrying in ${Math.round(wait/1000)}s`
-            : `Finishing up…`;
-
-          await sleep(wait);
+          // keep the narrator “alive” during wait
+          const until = Math.min(Date.now() + wait, deadline);
+          while (Date.now() < until) {
+            await new Promise(r => setTimeout(r, 350));
+            // narratorLine() is already ticking; we just let it update
+          }
         }
       }
 
-      // Out of time: exit spinner and show friendly error
+      // If we fall through, we hit the cap; show a single friendly message
+      stopNarrator();
+      busySub.textContent = 'The server is still waking up. Please try again in a moment.';
       setBusy(false);
-      showError('The server is still waking up. Please try again in a moment (it can take ~1–2 minutes after periods of inactivity).');
+      showError('The server is still waking up. Please try again in a moment.');
     }
 
     async function doLogin() {
       errBox.style.display = 'none';
       const id = (empInput.value || '').trim();
       if (!id) { showError('Please enter your Employee ID.'); return; }
-      await doLoginLoop(id, 120000); // 2-minute cap
+
+      // Kick off the loop with a 2-minute cap
+      doLoginLoop(id, 120000);
     }
 
-    // ---------- ID Lookup modal ----------
+    /* ---------------- ID Lookup modal wiring ---------------- */
     btnHelp.addEventListener('click', async () => {
       openLookup({ loading: true });
       btnHelp.disabled = true;
@@ -382,7 +397,7 @@
     btnClose.addEventListener('click', (e) => { e.preventDefault(); closeLookup(); });
     modal.addEventListener('click', (e) => { if (e.target === modal) closeLookup(); });
 
-    // ---------- Login wiring ----------
+    /* ---------------- Login wiring ---------------- */
     document.addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
     btnSignIn.addEventListener('click', doLogin);
   }());
