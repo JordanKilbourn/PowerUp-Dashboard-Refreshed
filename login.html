@@ -30,11 +30,12 @@
 
     /* Busy overlay */
     .busy-overlay{position:fixed;inset:0;display:none;place-items:center;background:rgba(7,10,20,.6);z-index:9999;}
-    .busy-card{background:#0b1020;border:1px solid rgba(0,255,198,.4);border-radius:14px;padding:18px 20px;min-width:280px;box-shadow: 0 10px 30px rgba(0,0,0,.35);text-align:center}
+    .busy-card{background:#0b1020;border:1px solid rgba(0,255,198,.4);border-radius:14px;padding:18px 20px;min-width:300px;max-width:380px;box-shadow: 0 10px 30px rgba(0,0,0,.35);text-align:center}
     .spinner{width:28px;height:28px;border:3px solid rgba(255,255,255,.2);border-top-color:#00ffc6;border-radius:50%;margin:0 auto 10px;animation:spin .9s linear infinite}
     @keyframes spin{to{transform:rotate(360deg)}}
     .busy-title{color:#e5e7eb;font-weight:700;margin-bottom:4px}
-    .busy-sub{color:#9ca3af;font-size:12px}
+    .busy-sub{color:#9ca3af;font-size:12px;margin-bottom:2px}
+    .busy-hint{color:#9ca3af;font-size:12px;opacity:.9}
 
     /* ID Lookup modal */
     .modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:9998}
@@ -80,6 +81,7 @@
       <div class="spinner" aria-hidden="true"></div>
       <div class="busy-title">Signing you in…</div>
       <div class="busy-sub" id="busySub">Authorizing and loading your data.</div>
+      <div class="busy-hint" id="busyHint"></div>
     </div>
   </div>
 
@@ -127,9 +129,9 @@
     try { sessionStorage.removeItem('pu.sheetCache.v1'); } catch {}
     try { localStorage.removeItem('powerup_session'); } catch {}
 
-    // 🔹 Non-blocking warm-up; awaits service readiness once
+    // Non-blocking warm-up & cache Employee Master list (nice-to-have)
     (async function warmup() {
-      try { await PowerUp.api.ready(); } catch {}
+      try { await PowerUp.api.warmProxy(); } catch {}
       try {
         const rows = await PowerUp.api.getRowsByTitle('EMPLOYEE_MASTER');
         try { sessionStorage.setItem('pu.cache.EMPLOYEE_MASTER.rows', JSON.stringify(rows)); } catch {}
@@ -143,6 +145,7 @@
 
     const busy          = $('#busy');
     const busySub       = $('#busySub');
+    const busyHint      = $('#busyHint');
 
     const modal         = $('#idLookupModal');
     const selName       = $('#lookupName');
@@ -155,7 +158,9 @@
     let coldHintTimer = null;
     let EMP_ROWS = [];
 
-    function setBusy(on, subText) {
+    function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+
+    function setBusy(on, subText, hintText) {
       if (on) {
         busy.style.display = 'grid';
         busy.setAttribute('aria-hidden', 'false');
@@ -163,16 +168,19 @@
         empInput.disabled  = true;
         errBox.style.display = 'none';
         if (subText) busySub.textContent = subText;
+        busyHint.textContent = hintText || '';
+
         clearTimeout(coldHintTimer);
         coldHintTimer = setTimeout(() => {
-          busySub.textContent = 'First load after a while can take longer while the server wakes up.';
-        }, 1200);
+          busyHint.textContent = 'First load after a while can take longer while the server wakes up.';
+        }, 1500);
       } else {
         busy.style.display = 'none';
         busy.setAttribute('aria-hidden', 'true');
         btnSignIn.disabled = false;
         empInput.disabled  = false;
         busySub.textContent = 'Authorizing and loading your data.';
+        busyHint.textContent = '';
         clearTimeout(coldHintTimer);
       }
     }
@@ -206,7 +214,7 @@
       try {
         return await PowerUp.api.getRowsByTitle('EMPLOYEE_MASTER');
       } catch (e) {
-        try { await PowerUp.api.ready(); } catch {}
+        try { await PowerUp.api.warmProxy(); } catch {}
         return await PowerUp.api.getRowsByTitle('EMPLOYEE_MASTER');
       }
     }
@@ -218,7 +226,7 @@
       try {
         let rows = getCachedEmployeeRows();
         if (!rows) {
-          await PowerUp.api.ready().catch(()=>{});
+          await PowerUp.api.warmProxy().catch(()=>{});
           rows = await fetchEmployeeRowsFresh();
           try { sessionStorage.setItem(EMP_CACHE_KEY, JSON.stringify(rows)); } catch {}
         }
@@ -273,30 +281,51 @@
       return EMP_ROWS.find(r => String(r['Position ID'] || r['Employee ID']).trim().toLowerCase() === idLC);
     }
 
+    // ---------- Timed login loop (2-minute cap) ----------
+    async function doLoginLoop(id, maxMs = 120000) {
+      const start = Date.now();
+      let attempt = 0;
+
+      setBusy(true, 'Warming server and validating your ID…');
+
+      while ((Date.now() - start) < maxMs) {
+        attempt++;
+        try {
+          // Wake proxy (health + tiny sheet call) — tolerant of failures
+          await PowerUp.api.warmProxy().catch(()=>{});
+
+          // Try login (will redirect on success)
+          await PowerUp.session.loginWithId(id, { primeBeforeRedirect: true });
+          return; // redirect happened
+        } catch (e) {
+          // Compute next wait (progressive up to ~8s) but don’t exceed remaining window
+          const backoff = Math.min(2000 + attempt * 800, 8000);
+          const remaining = maxMs - (Date.now() - start);
+          const wait = Math.min(backoff, Math.max(500, remaining));
+
+          const waitedSec = Math.floor((Date.now() - start)/1000);
+          const mins = Math.floor(waitedSec/60), secs = waitedSec%60;
+          const waitedLabel = mins ? `${mins}m ${secs}s` : `${secs}s`;
+
+          busySub.textContent = `Waking server (attempt ${attempt}, waited ${waitedLabel})…`;
+          busyHint.textContent = remaining > wait
+            ? `Retrying in ${Math.round(wait/1000)}s`
+            : `Finishing up…`;
+
+          await sleep(wait);
+        }
+      }
+
+      // Out of time: exit spinner and show friendly error
+      setBusy(false);
+      showError('The server is still waking up. Please try again in a moment (it can take ~1–2 minutes after periods of inactivity).');
+    }
+
     async function doLogin() {
       errBox.style.display = 'none';
       const id = (empInput.value || '').trim();
       if (!id) { showError('Please enter your Employee ID.'); return; }
-
-      setBusy(true, 'Warming server and validating your ID…');
-      try {
-        // ✅ Hard gate: make sure the service is up before first real call
-        await PowerUp.api.ready();
-
-        await PowerUp.session.loginWithId(id, { primeBeforeRedirect: true });
-        // redirect happens inside loginWithId
-      } catch (e) {
-        if (/deadline|timeout|AbortError|service not ready/i.test(e?.message || '')) {
-          showError('The server is waking up. Please try again in a moment.');
-        } else if (/HTTP 5\d\d|Proxy error 5/.test(e?.message || '')) {
-          showError('Temporary server issue. Please retry.');
-        } else if (/not found/i.test(e?.message || '')) {
-          showError('ID not found. Double-check your ID or use “Retrieve my Employee ID”.');
-        } else {
-          showError('Sign-in failed. Please try again.');
-        }
-        setBusy(false);
-      }
+      await doLoginLoop(id, 120000); // 2-minute cap
     }
 
     // ---------- ID Lookup modal ----------
