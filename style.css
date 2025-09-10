@@ -228,20 +228,20 @@ body.notes .note-editor:empty:before { content: attr(data-placeholder); color: v
 @media (min-width: 1100px) {
   /* CI */
   #ci-table th:nth-child(1),  #ci-table td:nth-child(1)  { width: 110px; }   /* Submitted */
-  #ci-table th:nth-child(2),  #ci-table td:nth-child(2)  { width: 90px;  text-align:center; } /* ID */
+  #ci-table th:nth-child(2),  #ci-table td:nth-child(2)  { width: 90px; } /* ID */
   #ci-table th:nth-child(5),  #ci-table td:nth-child(5)  { width: 110px; }  /* Approval */
   #ci-table th:nth-child(6),  #ci-table td:nth-child(6)  { width: 160px; }  /* Assigned */
-  #ci-table th:nth-child(7),  #ci-table td:nth-child(7)  { width: 120px; text-align:center; } /* Status */
+  #ci-table th:nth-child(7),  #ci-table td:nth-child(7)  { width: 120px; } /* Status */
   #ci-table th:nth-child(8),  #ci-table td:nth-child(8)  { width: 120px; }  /* Action Entered */
-  #ci-table th:nth-child(10), #ci-table td:nth-child(10) { width: 100px; text-align:center; } /* Resourced */
+  #ci-table th:nth-child(10), #ci-table td:nth-child(10) { width: 100px; } /* Resourced */
   #ci-table th:nth-child(11), #ci-table td:nth-child(11) { width: 120px; }  /* Resourced On */
   #ci-table th:nth-child(12), #ci-table td:nth-child(12) { width: 80px;  text-align:right; }  /* Tokens */
-  #ci-table th:nth-child(13), #ci-table td:nth-child(13) { width: 70px;  text-align:center; } /* Paid */
+  #ci-table th:nth-child(13), #ci-table td:nth-child(13) { width: 70px; } /* Paid */
 
   /* Safety */
   #safety-table th:nth-child(1), #safety-table td:nth-child(1) { width: 110px; } /* Date */
   #safety-table th:nth-child(2), #safety-table td:nth-child(2) { width: 160px; } /* Dept/Area */
-  #safety-table th:nth-child(10),#safety-table td:nth-child(10){ width: 120px; text-align:center; } /* Status */
+  #safety-table th:nth-child(10),#safety-table td:nth-child(10){ width: 120px; } /* Status */
 
   /* Quality */
   #quality-table th:nth-child(1), #quality-table td:nth-child(1) { width: 80px;  text-align:center; } /* Catch ID */
