@@ -41,7 +41,6 @@
 
   /* Accent & danger tokens (hook to your theme if present) */
   :root {
-    /* If your style.css defines --accent, we’ll use it; else fall back to green */
     --pu-accent: var(--accent, #22c55e);
     --pu-accent-05: rgba(34,197,94,.05);
     --pu-accent-08: rgba(34,197,94,.08);
@@ -61,13 +60,12 @@
     width:min(760px, 92vw); max-height:78vh; overflow:auto;
     background:#0d1228; color:#e5e7eb;
     border:1px solid #1f2940; border-radius:16px;
-    /* Accent rail + soft glow */
     box-shadow: 0 18px 40px rgba(0,0,0,.55), 0 0 0 1px var(--pu-accent-12) inset;
 
-    /* Themed scrollbar + stable gutter (Chromium/Safari + Firefox) */
+    /* Themed scrollbar + stable gutter */
     scrollbar-gutter: stable both-edges;
-    scrollbar-width: thin;                               /* Firefox */
-    scrollbar-color: var(--pu-accent-24) rgba(255,255,255,.04); /* Firefox */
+    scrollbar-width: thin;                                  /* Firefox */
+    scrollbar-color: var(--pu-accent-24) rgba(255,255,255,.04);
   }
   /* 4px accent rail on the left */
   .pu-modal__card::before{
@@ -83,9 +81,7 @@
     border-radius:999px;
   }
   .pu-modal__card::-webkit-scrollbar-thumb{
-    background-clip: padding-box;
-    border:2px solid transparent;
-    border-radius:999px;
+    background-clip: padding-box; border:2px solid transparent; border-radius:999px;
     background: var(--pu-accent-24);
   }
   .pu-modal__card:hover::-webkit-scrollbar-thumb{ background: var(--pu-accent); }
@@ -101,7 +97,7 @@
     .pu-modal__card::-webkit-scrollbar{ width:0; height:0; }  /* Chromium/WebKit */
   }
 
-  /* Header — accent tint + iOS-like handle + title accent dot */
+  /* Header — accent tint + handle + meta row */
   .pu-modal__header {
     position:sticky; top:0; z-index:1;
     display:flex; align-items:center; justify-content:space-between;
@@ -118,6 +114,7 @@
     width:44px; height:4px; border-radius:999px; background:#2a354b;
     box-shadow:0 0 0 1px rgba(255,255,255,.04) inset;
   }
+  .pu-modal__heading{ display:flex; flex-direction:column; gap:6px; }
   .pu-modal__title {
     margin:0; font-size:15px; font-weight:700; letter-spacing:.01em; display:flex; align-items:center; gap:10px;
   }
@@ -125,12 +122,20 @@
     content:""; width:8px; height:8px; border-radius:999px; background:var(--pu-accent);
     box-shadow:0 0 0 4px var(--pu-accent-05);
   }
+  .pu-modal__meta{ display:flex; flex-wrap:wrap; gap:6px 10px; }
+  .chip{
+    display:inline-flex; align-items:center; gap:6px;
+    padding:4px 8px; border-radius:999px; border:1px solid #1f2940;
+    background:rgba(255,255,255,.02); color:#b6c2cf; font-size:12px; line-height:1;
+  }
+  .chip .fa{ opacity:.8; }
+
   .pu-modal__close { background:transparent; border:0; color:#94a3b8; font-size:18px; cursor:pointer; padding:0 6px; }
   .pu-modal__close:hover { color:#e5e7eb; }
 
   .pu-modal__body { padding:12px 16px 10px; }
 
-  /* Definition list grid with accent details */
+  /* Definition list grid */
   .pu-kv {
     display:grid; grid-template-columns: 190px 1fr; gap:0 16px; align-items:start;
   }
@@ -145,13 +150,13 @@
   }
   .pu-kv dd { margin:0; white-space:pre-wrap; word-break:break-word; color:#e7ebf0; font-size:13px; line-height:1.45; }
 
-  /* Pills inside modal—consistent sizing */
+  /* Pills inside modal */
   .pu-kv .pill { font-size:12px; line-height:1; padding:2px 6px; border-radius:999px; }
   .pill--green { background:rgba(34,197,94,.15); color:#86efac; }
   .pill--blue  { background:rgba(59,130,246,.15); color:#93c5fd; }
   .pill--red   { background:rgba(239,68,68,.15); color:#fecaca; }
 
-  /* Footer — accent-tinted action bar with elevated Close CTA */
+  /* Footer — action bar with Prev/Next + Close */
   .pu-modal__footer{
     position:sticky; bottom:0;
     background:
@@ -159,10 +164,17 @@
       #0d1228;
     padding:12px 16px;
     border-top:1px solid #1f2940;
-    display:flex; justify-content:center;
+    display:flex; justify-content:center; gap:12px;
     box-shadow:0 -8px 20px rgba(0,0,0,.35);
     border-bottom-left-radius:16px; border-bottom-right-radius:16px;
   }
+  .pu-modal__navBtn{
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    padding:10px 12px; border-radius:999px;
+    background:#0b1328; color:#e5e7eb; border:1px solid #2a354b; cursor:pointer;
+  }
+  .pu-modal__navBtn:hover{ background:#122046; }
+  .pu-modal__navBtn:disabled{ opacity:.45; cursor:default; }
   .pu-modal__closeBig{
     display:inline-flex; align-items:center; justify-content:center; gap:8px;
     min-width:220px; padding:11px 16px; border-radius:999px;
@@ -320,21 +332,27 @@
   });
   </script>
 
+<!-- Modal (single reusable) -->
 <div id="pu-record-modal" class="pu-modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="pu-record-title">
   <div class="pu-modal__backdrop" data-modal-close></div>
   <div class="pu-modal__card">
     <div class="pu-modal__header">
       <div class="pu-handle" aria-hidden="true"></div>
-      <h3 id="pu-record-title" class="pu-modal__title">Record</h3>
+      <div class="pu-modal__heading">
+        <h3 id="pu-record-title" class="pu-modal__title">Record</h3>
+        <div id="pu-record-meta" class="pu-modal__meta" hidden></div>
+      </div>
       <button class="pu-modal__close" data-modal-close aria-label="Close">&times;</button>
     </div>
     <div class="pu-modal__body">
       <dl id="pu-record-dl" class="pu-kv"></dl>
     </div>
     <div class="pu-modal__footer">
+      <button id="pu-nav-prev" class="pu-modal__navBtn" aria-label="Previous record"><i class="fa fa-chevron-left"></i> Prev</button>
       <button class="pu-modal__closeBig" data-modal-close aria-label="Close">
         <span class="fa-solid fa-xmark"></span> Close
       </button>
+      <button id="pu-nav-next" class="pu-modal__navBtn" aria-label="Next record">Next <i class="fa fa-chevron-right"></i></button>
     </div>
   </div>
 </div>
