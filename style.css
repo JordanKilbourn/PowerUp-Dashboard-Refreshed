@@ -195,14 +195,86 @@ body.notes .note-editor:empty:before { content: attr(data-placeholder); color: v
 .ph-msg { display: block; margin-top: 8px; font-size: 13px; opacity: .97; }
 .ph-msg.ok { color: #a7f3d0; } .ph-msg.warn { color: #ffd166; } .ph-msg.urgent { color: #ff7b7b; } .ph-msg.exceeded { color: #7ee8fa; }
 
-/* === 10) DASHBOARD TABLE READABILITY (CLEAN) ==================== */
-/* Compact type + fixed layout so widths are predictable */
-.table-scroll table.dashboard-table { table-layout: fixed; }
-.dashboard-table { font-size: 13px; line-height: 1.35; }
-.dashboard-table thead th, .dashboard-table td { padding: 10px 12px; vertical-align: top; }
-.dashboard-table thead th { white-space: nowrap; }
+/* === 10) DASHBOARD TABLES — compact, fixed widths, truncation ====== */
+/* Only target the three dashboard tables (no global override) */
+#ci-table, #safety-table, #quality-table {
+  table-layout: fixed;             /* deterministic widths + ellipsis */
+  width: 100%;
+  border-collapse: collapse;
+}
+#ci-table th, #ci-table td,
+#safety-table th, #safety-table td,
+#quality-table th, #quality-table td {
+  padding: 6px 8px;                /* compact */
+  font-size: 12.5px;
+  white-space: nowrap;             /* single line */
+  overflow: hidden;                /* enable ellipsis */
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+/* Row height + separators */
+#ci-table tbody tr, #safety-table tbody tr, #quality-table tbody tr {
+  height: 36px;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
+#ci-table tbody tr:hover, #safety-table tbody tr:hover, #quality-table tbody tr:hover {
+  background: rgba(255,255,255,.035);
+}
+/* Sticky headers already handled by .table-scroll thead; keep look consistent */
+#ci-table thead th, #safety-table thead th, #quality-table thead th {
+  background: #213331;
+  border-bottom: 1px solid #1f2940;
+  color: var(--accent);
+}
 
-/* Zebra + refined hover */
+/* Keep the View column visible when horizontally scrolling */
+#ci-table thead th:first-child,  #ci-table tbody td:first-child,
+#safety-table thead th:first-child, #safety-table tbody td:first-child,
+#quality-table thead th:first-child, #quality-table tbody td:first-child {
+  position: sticky; left: 0; z-index: 3;
+  background: #0b1328;
+  box-shadow: 2px 0 0 rgba(0,0,0,.25);
+  width: 44px; min-width: 44px; text-align: center;
+}
+
+/* ---- Column widths ------------------------------------------------- */
+/* CI order: View, Submitted, ID, Problem, Improvement, Approval, Assigned, Status, Action Entered, Last Action, Resourced, Resourced On, Tokens, Paid */
+#ci-table th:nth-child(2),  #ci-table td:nth-child(2)  { width: 104px; } /* Submitted */
+#ci-table th:nth-child(3),  #ci-table td:nth-child(3)  { width: 76px;  } /* ID */
+#ci-table th:nth-child(4),  #ci-table td:nth-child(4)  { width: 260px; } /* Problem */
+#ci-table th:nth-child(5),  #ci-table td:nth-child(5)  { width: 280px; } /* Improvement */
+#ci-table th:nth-child(6),  #ci-table td:nth-child(6)  { width: 120px; } /* Approval */
+#ci-table th:nth-child(7),  #ci-table td:nth-child(7)  { width: 140px; } /* Assigned */
+#ci-table th:nth-child(8),  #ci-table td:nth-child(8)  { width: 120px; } /* Status */
+#ci-table th:nth-child(9),  #ci-table td:nth-child(9)  { width: 120px; } /* Action Entered */
+#ci-table th:nth-child(10), #ci-table td:nth-child(10) { width: 220px; } /* Last Action */
+#ci-table th:nth-child(11), #ci-table td:nth-child(11) { width: 90px;  } /* Resourced */
+#ci-table th:nth-child(12), #ci-table td:nth-child(12) { width: 120px; } /* Resourced On */
+#ci-table th:nth-child(13), #ci-table td:nth-child(13) { width: 80px;  text-align:right; } /* Tokens */
+#ci-table th:nth-child(14), #ci-table td:nth-child(14) { width: 70px;  } /* Paid */
+
+/* Safety: View, Date, Dept/Area, Safety Concern, Description, Recommendations, Resolution, Escalated To, Leadership Update, Closed/Confirmed, Status */
+#safety-table th:nth-child(2),  #safety-table td:nth-child(2)  { width: 104px; }
+#safety-table th:nth-child(3),  #safety-table td:nth-child(3)  { width: 150px; }
+#safety-table th:nth-child(4),  #safety-table td:nth-child(4)  { width: 220px; }
+#safety-table th:nth-child(5),  #safety-table td:nth-child(5)  { width: 260px; }
+#safety-table th:nth-child(6),  #safety-table td:nth-child(6)  { width: 220px; }
+#safety-table th:nth-child(7),  #safety-table td:nth-child(7)  { width: 220px; }
+#safety-table th:nth-child(8),  #safety-table td:nth-child(8)  { width: 150px; }
+#safety-table th:nth-child(9),  #safety-table td:nth-child(9)  { width: 160px; }
+#safety-table th:nth-child(10), #safety-table td:nth-child(10) { width: 130px; }
+#safety-table th:nth-child(11), #safety-table td:nth-child(11) { width: 110px; }
+
+/* Quality: View, Catch ID, Entry Date, Submitted By, Area, Quality Catch, Part Number, Description */
+#quality-table th:nth-child(2), #quality-table td:nth-child(2) { width: 96px;  }  /* Catch ID */
+#quality-table th:nth-child(3), #quality-table td:nth-child(3) { width: 104px; }  /* Entry Date */
+#quality-table th:nth-child(4), #quality-table td:nth-child(4) { width: 150px; }  /* Submitted By */
+#quality-table th:nth-child(5), #quality-table td:nth-child(5) { width: 140px; }  /* Area */
+#quality-table th:nth-child(6), #quality-table td:nth-child(6) { width: 220px; }  /* Quality Catch */
+#quality-table th:nth-child(7), #quality-table td:nth-child(7) { width: 140px; }  /* Part Number */
+#quality-table th:nth-child(8), #quality-table td:nth-child(8) { width: 260px; }  /* Description */
+
+/* Zebra + refined hover (kept from prior) */
 .table-scroll tbody tr:nth-child(odd) { background: rgba(255,255,255,0.03); }
 .table-scroll tbody tr:hover { background: rgba(0,0,0,0.18); }
 
@@ -212,83 +284,12 @@ body.notes .note-editor:empty:before { content: attr(data-placeholder); color: v
 .t-center { text-align: center; }
 .mono { font-variant-numeric: tabular-nums; }
 
-/* Tooltip-only clamp (NO hover expand, NO sticky) */
-.clamp-2, .clamp-3 {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.clamp-2 { -webkit-line-clamp: 2; max-height: calc(1.35em * 2); }
-.clamp-3 { -webkit-line-clamp: 3; max-height: calc(1.35em * 3); }
-
-.tooltip { position: relative; }
-.tooltip:hover { /* just a subtle hint that there's more text */ text-decoration: underline dotted rgba(255,255,255,.35); }
-
-/* Per-table width hints (no sticky columns) */
-@media (min-width: 1100px) {
-  /* CI */
-  #ci-table th:nth-child(1),  #ci-table td:nth-child(1)  { width: 110px; }   /* Submitted */
-  #ci-table th:nth-child(2),  #ci-table td:nth-child(2)  { width: 90px; } /* ID */
-  #ci-table th:nth-child(5),  #ci-table td:nth-child(5)  { width: 110px; }  /* Approval */
-  #ci-table th:nth-child(6),  #ci-table td:nth-child(6)  { width: 160px; }  /* Assigned */
-  #ci-table th:nth-child(7),  #ci-table td:nth-child(7)  { width: 120px; } /* Status */
-  #ci-table th:nth-child(8),  #ci-table td:nth-child(8)  { width: 120px; }  /* Action Entered */
-  #ci-table th:nth-child(10), #ci-table td:nth-child(10) { width: 100px; } /* Resourced */
-  #ci-table th:nth-child(11), #ci-table td:nth-child(11) { width: 120px; }  /* Resourced On */
-  #ci-table th:nth-child(12), #ci-table td:nth-child(12) { width: 80px;  text-align:right; }  /* Tokens */
-  #ci-table th:nth-child(13), #ci-table td:nth-child(13) { width: 70px; } /* Paid */
-
-  /* Safety */
-  #safety-table th:nth-child(1), #safety-table td:nth-child(1) { width: 110px; } /* Date */
-  #safety-table th:nth-child(2), #safety-table td:nth-child(2) { width: 160px; } /* Dept/Area */
-  #safety-table th:nth-child(10),#safety-table td:nth-child(10){ width: 120px; } /* Status */
-
-  /* Quality */
-  #quality-table th:nth-child(1), #quality-table td:nth-child(1) { width: 80px;  text-align:center; } /* Catch ID */
-  #quality-table th:nth-child(2), #quality-table td:nth-child(2) { width: 110px; } /* Entry Date */
-  #quality-table th:nth-child(6), #quality-table td:nth-child(6) { width: 140px; } /* Part Number */
-}
-/* =============================================================== */
-
-/* ===== TABLE STABILITY + WIDTHS (no sticky, no clip) ================== */
-
-/* Global safety: keep cells from spilling into neighbors */
-.dashboard-table th,
-.dashboard-table td {
-  overflow: hidden;                 /* prevents visual spill */
-  text-overflow: ellipsis;          /* ellipsis on tight/narrow cols */
-  vertical-align: top;
-}
-
-/* Long content columns wrap, break long words/emails gracefully */
-.dashboard-table .wrap,
-#ci-table td:nth-child(3),   /* Problem */
-#ci-table td:nth-child(4),   /* Improvement */
-#ci-table td:nth-child(6),   /* Assigned (emails) */
-#ci-table td:nth-child(9),   /* Last Action */
-#quality-table td:nth-child(5), /* Quality Catch */
-#quality-table td:nth-child(7)  /* Description */
-{
-  white-space: normal;
-  overflow: visible;               /* allow wrapping to show */
-  text-overflow: clip;
-  word-break: break-word;
-  overflow-wrap: anywhere;         /* breaks long emails/URLs safely */
-}
-
-/* Utility: keep tiny columns on one line */
-.dashboard-table .nowrap { white-space: nowrap; }
-
-/* Make the header a touch tighter and single-line */
-.dashboard-table thead th { white-space: nowrap; }
+/* Removed old multi-line clamp/wrap rules so compact mode is consistent */
 
 /* Sort arrows (th[data-sort]) */
 th[data-sort="asc"]::after { content: " ▲"; opacity: .7; }
 th[data-sort="desc"]::after { content: " ▼"; opacity: .7; }
-
-/* Neutral indicator so users know headers are clickable */
 th[data-sort="none"]::after { content: " ⇅"; opacity: .35; }
-
 
 /* ===== SHARED LAYOUT (sidebar + header) — unified, works with layout.js ===== */
 
