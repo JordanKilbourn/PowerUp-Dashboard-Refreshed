@@ -62,12 +62,42 @@
     border:1px solid #1f2940; border-radius:14px;
     /* Accent rail + soft glow */
     box-shadow: 0 18px 40px rgba(0,0,0,.55), 0 0 0 1px var(--pu-accent-12) inset;
+
+    /* NEW: themed scrollbar + stable gutter (Chromium/Safari + Firefox) */
+    scrollbar-gutter: stable both-edges;
+    scrollbar-width: thin;                               /* Firefox */
+    scrollbar-color: var(--pu-accent-24) rgba(255,255,255,.04); /* Firefox */
   }
   /* 4px accent rail on the left */
   .pu-modal__card::before{
     content:""; position:absolute; left:0; top:0; bottom:0; width:4px;
     background: linear-gradient(180deg, var(--pu-accent) 0%, var(--pu-accent-24) 100%);
     border-top-left-radius:14px; border-bottom-left-radius:14px;
+  }
+
+  /* Themed scrollbar (Chromium/WebKit) */
+  .pu-modal__card::-webkit-scrollbar{ width:10px; height:10px; }
+  .pu-modal__card::-webkit-scrollbar-track{
+    background: rgba(255,255,255,.03);
+    border-radius:999px;
+  }
+  .pu-modal__card::-webkit-scrollbar-thumb{
+    background-clip: padding-box;
+    border:2px solid transparent;
+    border-radius:999px;
+    background: var(--pu-accent-24);
+  }
+  .pu-modal__card:hover::-webkit-scrollbar-thumb{ background: var(--pu-accent); }
+  .pu-modal__card::-webkit-scrollbar-thumb:active{
+    background: color-mix(in oklab, var(--pu-accent) 85%, #000 15%);
+  }
+  /* Firefox hover brighten */
+  .pu-modal__card:hover{ scrollbar-color: var(--pu-accent) rgba(255,255,255,.06); }
+
+  /* NEW: auto-switch — hide scrollbars on large screens, keep scrolling */
+  @media (min-width: 1280px){
+    .pu-modal__card{ scrollbar-width: none; }                 /* Firefox */
+    .pu-modal__card::-webkit-scrollbar{ width:0; height:0; }  /* Chromium/WebKit */
   }
 
   .pu-modal__header {
@@ -282,5 +312,3 @@
 
 </body>
 </html>
-
-
