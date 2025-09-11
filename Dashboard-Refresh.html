@@ -4,35 +4,72 @@
   <meta charset="UTF-8" />
 
   <!-- EARLY AUTH GUARD — must be the first thing in <head> -->
-<script>
-!function () {
-  try {
-    // Prefer the real session key; fall back to legacy only if present
-    const s = JSON.parse(sessionStorage.getItem('pu.session') || 'null')
-           || JSON.parse(localStorage.getItem('powerup_session') || 'null');
-    if (!s || !s.employeeId) {
-      // block paint, then bounce to login
+  <script>
+  !function () {
+    try {
+      const s = JSON.parse(sessionStorage.getItem('pu.session') || 'null')
+             || JSON.parse(localStorage.getItem('powerup_session') || 'null');
+      if (!s || !s.employeeId) {
+        document.documentElement.style.visibility = 'hidden';
+        location.replace('login.html');
+      }
+    } catch {
       document.documentElement.style.visibility = 'hidden';
       location.replace('login.html');
     }
-  } catch {
-    document.documentElement.style.visibility = 'hidden';
-    location.replace('login.html');
-  }
-}();
-</script>
+  }();
+  </script>
 
-  
   <title>PowerUp — Dashboard</title>
 
   <!-- Fonts / Icons / Base styles -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
   <link rel="stylesheet" href="style.css" />
-  <!-- Favicon (SVG + PNG fallback) -->
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
   <link rel="alternate icon" type="image/png" href="assets/favicon.png">
 
+  <!-- Minimal, sandboxed styles for the modal + view column -->
+  <style>
+    .view-col, .view-cell { width: 56px; min-width: 56px; text-align: center; }
+    .view-btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      padding: 6px 10px; border-radius: 8px; border: 1px solid #2a354b;
+      background: #0b1328; color: #e5e7eb; font-size: 12px; line-height: 1; cursor: pointer;
+    }
+    .view-btn:hover { background:#122046; }
+
+    /* Modal shell */
+    .pu-modal { position: fixed; inset: 0; display: none; }
+    .pu-modal.is-open { display: block; }
+    .pu-modal__backdrop {
+      position:absolute; inset:0; background:rgba(0,0,0,.45);
+    }
+    .pu-modal__card {
+      position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+      width:min(900px, 92vw); max-height: 82vh; overflow:auto;
+      background:#0d1228; color:#e5e7eb; border:1px solid #2a354b; border-radius:16px;
+      box-shadow: 0 20px 50px rgba(0,0,0,.5);
+    }
+    .pu-modal__header { display:flex; align-items:center; justify-content:space-between;
+      padding:14px 18px; border-bottom:1px solid #1f2940; position: sticky; top:0; background:#0d1228; z-index:1;
+    }
+    .pu-modal__title { margin:0; font-size:16px; font-weight:600; }
+    .pu-modal__close {
+      background:transparent; border:0; color:#94a3b8; font-size:20px; cursor:pointer; padding:4px 8px;
+    }
+    .pu-modal__close:hover { color:#e5e7eb; }
+    .pu-modal__body { padding:16px 18px 20px; }
+    .pu-kv {
+      display:grid; grid-template-columns: 220px 1fr; gap:8px 16px; align-items:start;
+    }
+    .pu-kv dt { color:#94a3b8; font-size:12px; text-transform:uppercase; letter-spacing:.02em; }
+    .pu-kv dd { margin:0; white-space:pre-wrap; word-break:break-word; }
+    @media (max-width: 700px) {
+      .pu-kv { grid-template-columns: 1fr; }
+      .pu-kv dt { margin-top:10px; }
+    }
+  </style>
 </head>
 
 <body class="dashboard">
@@ -40,15 +77,12 @@
 
   <!-- Top cards -->
   <div class="top-cards">
-    <!-- Power Hours -->
     <div class="card power-card">
       <h3>Power Hours Logged</h3>
       <p>
         <span data-hook="ph.total">0.0</span> /
         <span data-hook="ph.goalMax">8</span>
       </p>
-
-      <!-- Simple progress bar (no bubbles/legends) -->
       <div class="phbar"
            data-hook="ph.track"
            role="progressbar"
@@ -58,11 +92,9 @@
         <div class="phbar__fill"  data-hook="ph.fill"></div>
         <div class="phbar__thumb" data-hook="ph.thumb" title="Current"></div>
       </div>
-
       <small data-hook="ph.message">—</small>
     </div>
 
-    <!-- Tokens -->
     <div class="card token-card">
       <h3>Tokens</h3>
       <div class="token-tracker">
@@ -84,36 +116,21 @@
     <div class="table-header-row">
       <h3>Continuous Improvement</h3>
       <div class="table-header-controls">
-        <select id="ci-filter">
-          <!-- Options are repopulated by tables.js -->
-          <option value="All">All Status</option>
-        </select>
+        <select id="ci-filter"><option value="All">All Status</option></select>
         <a class="add-btn" id="ci-add"
-   href="https://app.smartsheet.com/b/form/e60862d9ae0b44358d6f85dcd1c81d2b"
-   target="_blank" rel="noopener">+ Add Submission</a>
+           href="https://app.smartsheet.com/b/form/e60862d9ae0b44358d6f85dcd1c81d2b"
+           target="_blank" rel="noopener">+ Add Submission</a>
         <span id="ci-count" class="row-count">0 submissions</span>
       </div>
     </div>
-
     <div class="table-scroll">
       <table id="ci-table" class="dashboard-table">
-        <thead>
-          <tr>
-            <th>Submitted</th>
-            <th>ID</th>
-            <th>Problem</th>
-            <th>Improvement</th>
-            <th>Approval</th>
-            <th>Assigned</th>
-            <th>Status</th>
-            <th>Action Entered</th>
-            <th>Last Action</th>
-            <th>Resourced</th>
-            <th>Resourced On</th>
-            <th>Tokens</th>
-            <th>Paid</th>
-          </tr>
-        </thead>
+        <thead><tr>
+          <th class="view-col" aria-label="View"></th>
+          <th>Submitted</th><th>ID</th><th>Problem</th><th>Improvement</th><th>Approval</th>
+          <th>Assigned</th><th>Status</th><th>Action Entered</th><th>Last Action</th>
+          <th>Resourced</th><th>Resourced On</th><th>Tokens</th><th>Paid</th>
+        </tr></thead>
         <tbody data-hook="table.ci.tbody"></tbody>
       </table>
     </div>
@@ -124,33 +141,21 @@
     <div class="table-header-row">
       <h3>Safety Concerns</h3>
       <div class="table-header-controls">
-        <select id="safety-filter">
-          <!-- Options are repopulated by tables.js -->
-          <option value="All">All Areas</option>
-        </select>
+        <select id="safety-filter"><option value="All">All Areas</option></select>
         <a class="add-btn" id="safety-add"
-   href="https://app.smartsheet.com/b/form/162129580c03440f88cc5f284627b52f"
-   target="_blank" rel="noopener">+ Add Submission</a>
+           href="https://app.smartsheet.com/b/form/162129580c03440f88cc5f284627b52f"
+           target="_blank" rel="noopener">+ Add Submission</a>
         <span id="safety-count" class="row-count">0 submissions</span>
       </div>
     </div>
-
     <div class="table-scroll">
       <table id="safety-table" class="dashboard-table">
-        <thead>
-          <tr>
-            <th>Date</th>
-            <th>Department/Area</th>
-            <th>Safety Concern</th>
-            <th>Description</th>
-            <th>Recommendations</th>
-            <th>Resolution</th>
-            <th>Escalated To</th>
-            <th>Leadership Update</th>
-            <th>Closed/Confirmed</th>
-            <th>Status</th>
-          </tr>
-        </thead>
+        <thead><tr>
+          <th class="view-col" aria-label="View"></th>
+          <th>Date</th><th>Department/Area</th><th>Safety Concern</th><th>Description</th>
+          <th>Recommendations</th><th>Resolution</th><th>Escalated To</th>
+          <th>Leadership Update</th><th>Closed/Confirmed</th><th>Status</th>
+        </tr></thead>
         <tbody data-hook="table.safety.tbody"></tbody>
       </table>
     </div>
@@ -161,30 +166,20 @@
     <div class="table-header-row">
       <h3>Quality Catches</h3>
       <div class="table-header-controls">
-        <select id="quality-filter">
-          <!-- Options are repopulated by tables.js -->
-          <option value="All">All Types</option>
-        </select>
+        <select id="quality-filter"><option value="All">All Types</option></select>
         <a class="add-btn" id="quality-add"
-   href="https://app.smartsheet.com/b/form/2ba4ff03861d4d068ee5a0bff46308c3"
-   target="_blank" rel="noopener">+ Add Submission</a>
+           href="https://app.smartsheet.com/b/form/2ba4ff03861d4d068ee5a0bff46308c3"
+           target="_blank" rel="noopener">+ Add Submission</a>
         <span id="quality-count" class="row-count">0 submissions</span>
       </div>
     </div>
-
     <div class="table-scroll">
       <table id="quality-table" class="dashboard-table">
-        <thead>
-          <tr>
-            <th>Catch ID</th>
-            <th>Entry Date</th>
-            <th>Submitted By</th>
-            <th>Area</th>
-            <th>Quality Catch</th>
-            <th>Part Number</th>
-            <th>Description</th>
-          </tr>
-        </thead>
+        <thead><tr>
+          <th class="view-col" aria-label="View"></th>
+          <th>Catch ID</th><th>Entry Date</th><th>Submitted By</th>
+          <th>Area</th><th>Quality Catch</th><th>Part Number</th><th>Description</th>
+        </tr></thead>
         <tbody data-hook="table.quality.tbody"></tbody>
       </table>
     </div>
@@ -209,76 +204,55 @@
   <script src="scripts/tokens.js"></script>
   <script src="scripts/tables.js"></script>
 
-
   <!-- Initialize -->
   <script>
     (async function () {
       try {
-        // 1) Ensure user is logged in (redirect away if not)
         PowerUp.session.requireLogin();
-
-        // 2) Inject the shared shell (sidebar + header) once per page
         PowerUp.layout.injectLayout();
-
-        // 3) Force the header H1
         PowerUp.layout.setPageTitle(document.title || 'PowerUp — Dashboard');
-
-        // 4) Now that header elements exist, wire user name & level + logout
         await PowerUp.session.initHeader();
-
-        // 5) Page-specific widgets/data
         await PowerUp.renderDashboardPowerHours();
         await PowerUp.renderTokenCard();
         await PowerUp.tables.hydrateDashboardTables();
-
-        // 6) Let any listeners know data is ready
         document.dispatchEvent(new Event('data-hydrated'));
-      } catch (e) {
-        console.error(e);
-      }
+      } catch (e) { console.error(e); }
     })();
   </script>
 
-<script>
-document.addEventListener('DOMContentLoaded', () => {
-  const session = (window.PowerUp?.session?.get && window.PowerUp.session.get()) || {};
-  const displayName = (session.displayName || session.userName || "").trim();
-  if (!displayName) return; // no change if we can't resolve a name
+  <!-- Pre-fill "Submitted By" on Smartsheet forms -->
+  <script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const session = (window.PowerUp?.session?.get && window.PowerUp.session.get()) || {};
+    const displayName = (session.displayName || session.userName || "").trim();
+    if (!displayName) return;
+    const forms = {
+      "ci-add":      "https://app.smartsheet.com/b/form/e60862d9ae0b44358d6f85dcd1c81d2b",
+      "safety-add":  "https://app.smartsheet.com/b/form/162129580c03440f88cc5f284627b52f",
+      "quality-add": "https://app.smartsheet.com/b/form/2ba4ff03861d4d068ee5a0bff46308c3"
+    };
+    const F = {"ci-add":"Submitted By","safety-add":"Submitted By","quality-add":"Submitted By"};
+    for (const [id, base] of Object.entries(forms)) {
+      const a = document.getElementById(id); if (!a) continue;
+      const param = encodeURIComponent(F[id] || "Submitted By") + "=" + encodeURIComponent(displayName);
+      a.href = base + (base.includes("?") ? "&" : "?") + param;
+    }
+  });
+  </script>
 
-  // Base form URLs
-  const forms = {
-    "ci-add":      "https://app.smartsheet.com/b/form/e60862d9ae0b44358d6f85dcd1c81d2b",
-    "safety-add":  "https://app.smartsheet.com/b/form/162129580c03440f88cc5f284627b52f",
-    "quality-add": "https://app.smartsheet.com/b/form/2ba4ff03861d4d068ee5a0bff46308c3"
-  };
-
-  // If any form uses a different label, override per-id here
-  const FIELD_LABEL_BY_ID = {
-    "ci-add": "Submitted By",
-    "safety-add": "Submitted By",
-    "quality-add": "Submitted By"
-  };
-
-  for (const [id, base] of Object.entries(forms)) {
-    const a = document.getElementById(id);
-    if (!a) continue;
-
-    const fieldLabel = FIELD_LABEL_BY_ID[id] || "Submitted By";
-    const param = encodeURIComponent(fieldLabel) + "=" + encodeURIComponent(displayName);
-    a.href = base + (base.includes("?") ? "&" : "?") + param;
-  }
-});
-</script>
+  <!-- Modal root -->
+  <div id="pu-record-modal" class="pu-modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="pu-record-title">
+    <div class="pu-modal__backdrop" data-modal-close></div>
+    <div class="pu-modal__card">
+      <div class="pu-modal__header">
+        <h3 id="pu-record-title" class="pu-modal__title">Record</h3>
+        <button class="pu-modal__close" data-modal-close aria-label="Close">&times;</button>
+      </div>
+      <div class="pu-modal__body">
+        <dl id="pu-record-dl" class="pu-kv"></dl>
+      </div>
+    </div>
+  </div>
 
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
