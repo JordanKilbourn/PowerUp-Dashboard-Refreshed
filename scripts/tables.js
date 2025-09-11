@@ -1,4 +1,4 @@
-// DROP-IN REPLACEMENT with Meta Chips + Prev/Next navigation
+// DROP-IN REPLACEMENT with labeled Meta Chips + Prev/Next navigation
 window.PowerUp = window.PowerUp || {};
 (function (ns) {
   const { fetchSheet, rowsByTitle, SHEETS } = ns.api;
@@ -110,7 +110,7 @@ window.PowerUp = window.PowerUp || {};
     return blank ? "-" : esc(value);
   }
 
-  // ===== Modal utilities (now supports meta chips) =====
+  // ===== Modal utilities =====
   function openRecordModal(title, entries, metaChips = []) {
     const modal = document.getElementById('pu-record-modal');
     const dl = document.getElementById('pu-record-dl');
@@ -142,13 +142,13 @@ window.PowerUp = window.PowerUp || {};
     document.addEventListener('keydown', close);
   }
 
-  // Build entries/meta from the rendered DOM (no maps)
+  // Build entries from DOM (skip "View" column)
   function buildEntriesFromDOM(tbody, tr) {
     const table = tbody.closest('table');
     const headerCells = Array.from(table.querySelectorAll('thead th'));
     const cells = Array.from(tr.children);
     const entries = [];
-    for (let i = 1; i < headerCells.length && i < cells.length; i++) { // skip "View" col
+    for (let i = 1; i < headerCells.length && i < cells.length; i++) {
       const label = (headerCells[i].textContent || '').trim();
       if (!label) continue;
       let html = cells[i].innerHTML;
@@ -157,41 +157,65 @@ window.PowerUp = window.PowerUp || {};
     }
     return entries;
   }
+
+  // Title: prefer the actual ID cell, tighten hyphens, otherwise fallback to table prefix
   function deriveTitle(tableId, tr) {
-    const tablePrefix =
-      tableId === 'ci-table' ? 'CI' :
-      tableId === 'safety-table' ? 'Safety' :
-      tableId === 'quality-table' ? 'Quality' : 'Record';
     const headerCells = Array.from(tr.closest('table').querySelectorAll('thead th'));
     const cells = Array.from(tr.children);
     const idLabels = ['ID','Submission ID','Catch ID'];
     for (let i = 1; i < headerCells.length && i < cells.length; i++) {
       const label = (headerCells[i].textContent || '').trim();
       if (idLabels.includes(label)) {
-        const idText = (cells[i].textContent || '').trim();
-        if (idText) return `${tablePrefix} — ${idText}`;
+        let idText = (cells[i].textContent || '').trim();
+        // tighten spaced hyphens and normalize en/em dashes
+        idText = idText.replace(/\s*[\-\u2013\u2014]\s*/g, '-');
+        if (idText) return idText;
       }
     }
-    return tablePrefix;
+    // Fallback
+    if (tableId === 'ci-table') return 'CI';
+    if (tableId === 'safety-table') return 'Safety';
+    if (tableId === 'quality-table') return 'Quality';
+    return 'Record';
   }
+
+  // Build labeled meta chips from the DOM (Date • Status • Assigned/Submitter/Area)
   function buildMetaChipsFromDOM(tbody, tr) {
     const table = tbody.closest('table');
     const hs = Array.from(table.querySelectorAll('thead th'));
     const cs = Array.from(tr.children);
-    const want = [
-      { labels: ['submitted','entry date','date'], icon: 'fa-regular fa-calendar' },
-      { labels: ['status'],                        icon: 'fa-regular fa-flag'    },
-      { labels: ['assigned','submitted by','employee','area'], icon: 'fa-regular fa-user' }
+
+    const wants = [
+      { match: ['submitted','entry date','date'], icon: 'fa-regular fa-calendar' },
+      { match: ['status'],                        icon: 'fa-regular fa-flag'    },
+      { match: ['assigned','submitted by','employee','area'], icon: 'fa-regular fa-user' }
     ];
+
+    const canonical = (lblLC) => {
+      switch (lblLC) {
+        case 'submitted': case 'entry date': case 'date': return 'Date';
+        case 'status': return 'Status';
+        case 'assigned': return 'Assigned';
+        case 'submitted by': return 'Submitter';
+        case 'employee': return 'Employee';
+        case 'area': return 'Area';
+        default: return lblLC.replace(/\b\w/g, c => c.toUpperCase());
+      }
+    };
+
     const chips = [];
-    for (const wantItem of want) {
+    for (const want of wants) {
       for (let i = 1; i < hs.length && i < cs.length; i++) {
-        const label = (hs[i].textContent || '').trim().toLowerCase();
-        if (wantItem.labels.includes(label)) {
-          let html = cs[i].innerHTML.trim();
-          if (!html) continue;
-          const content = html.includes('pill') ? html : esc(cs[i].textContent || '');
-          chips.push(`<span class="chip"><i class="${wantItem.icon} fa"></i>${content}</span>`);
+        const lbl = (hs[i].textContent || '').trim();
+        const lblLC = lbl.toLowerCase();
+        if (want.match.includes(lblLC)) {
+          let contentHTML = cs[i].innerHTML.trim();
+          if (!contentHTML) continue;
+          const value = contentHTML.includes('pill') ? contentHTML : esc(cs[i].textContent || '');
+          const labelText = canonical(lblLC);
+          chips.push(
+            `<span class="chip"><i class="${want.icon} fa"></i><span class="chip__label">${labelText}</span><span class="chip__value">${value}</span></span>`
+          );
           break;
         }
       }
@@ -201,7 +225,6 @@ window.PowerUp = window.PowerUp || {};
 
   // ===== Prev/Next navigation state =====
   let _nav = null; // { tbody, index }
-
   function visibleRows(tbody) {
     return Array.from(tbody.querySelectorAll('tr'))
       .filter(tr => tr.style.display !== 'none' && tr.children.length > 1);
@@ -478,12 +501,10 @@ window.PowerUp = window.PowerUp || {};
   ns.tables.applyFilterFor = (kind) => {
     if (FILTER_CONFIG[kind]) {
       applyFilterFor(kind);
-      // if a filter changes while modal open, refresh nav button state
       if (_nav) updateNavButtons();
     }
   };
 
-  // Rehydrate when admin changes employee filter
   document.addEventListener('powerup-admin-filter-change', () => {
     ns.tables.hydrateDashboardTables().catch(console.error);
   });
