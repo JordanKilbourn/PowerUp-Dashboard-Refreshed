@@ -324,6 +324,55 @@
   });
   </script>
 
+  <script>
+/** Apply native title="" tooltips to table cells (all pages) and sidebar icons. */
+(function () {
+  function titleizeTables(root=document) {
+    // Any tables inside .table-scroll (covers dashboard and other pages)
+    root.querySelectorAll('.table-scroll table tbody').forEach(tbody => {
+      Array.from(tbody.rows).forEach(tr => {
+        Array.from(tr.cells).forEach((td, idx) => {
+          // Skip "View" column if it's the first cell with a button
+          if (idx === 0 && td.querySelector('button, a')) return;
+          // Don’t clobber explicit titles
+          if (!td.getAttribute('title')) {
+            const raw = (td.textContent || '').trim();
+            if (raw) td.title = raw;
+          }
+        });
+      });
+    });
+  }
+
+  function titleizeSidebar(root=document) {
+    // Each .sidebar .item shows a tooltip with its visible label
+    root.querySelectorAll('.sidebar .item').forEach(item => {
+      const labelText =
+        (item.querySelector('span')?.textContent || '').trim() ||
+        item.getAttribute('aria-label') || '';
+      if (labelText) {
+        // Set on the whole item and the icon for good measure
+        if (!item.getAttribute('title')) item.title = labelText;
+        const ico = item.querySelector('i');
+        if (ico && !ico.getAttribute('title')) ico.title = labelText;
+      }
+    });
+  }
+
+  // Run when the DOM is ready
+  document.addEventListener('DOMContentLoaded', () => {
+    titleizeSidebar();
+  });
+
+  // Run after data loads / rehydrates tables
+  document.addEventListener('data-hydrated', () => {
+    titleizeTables();
+    titleizeSidebar();
+  });
+})();
+</script>
+
+
 <!-- Modal (single reusable) -->
 <div id="pu-record-modal" class="pu-modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="pu-record-title">
   <div class="pu-modal__backdrop" data-modal-close></div>
@@ -351,3 +400,4 @@
 
 </body>
 </html>
+
