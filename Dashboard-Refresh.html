@@ -30,7 +30,7 @@
   <link rel="alternate icon" type="image/png" href="assets/favicon.png">
 
 <style>
-  /* View column/button (unchanged size, slightly tighter) */
+  /* View column/button */
   .view-col, .view-cell { width: 44px; min-width: 44px; text-align: center; }
   .view-btn {
     display:inline-flex; align-items:center; justify-content:center;
@@ -40,7 +40,7 @@
   .view-btn:hover { background:#122046; }
 
   /* Accent & danger tokens (hook to your theme if present) */
-  :root {
+  :root{
     --pu-accent: var(--accent, #22c55e);
     --pu-accent-05: rgba(34,197,94,.05);
     --pu-accent-08: rgba(34,197,94,.08);
@@ -50,39 +50,34 @@
     --pu-danger-20: rgba(239,68,68,.20);
   }
 
-  /* Modal — compact, polished, always above everything */
+  /* Modal shell */
   .pu-modal { position:fixed; inset:0; display:none; z-index:10050; }
   .pu-modal.is-open { display:block; }
   .pu-modal__backdrop { position:absolute; inset:0; background:rgba(0,0,0,.45); backdrop-filter: blur(3px); }
 
-  .pu-modal__card {
+  .pu-modal__card{
     position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
     width:min(760px, 92vw); max-height:78vh; overflow:auto;
-    background:#0d1228; color:#e5e7eb;
-    border:1px solid #1f2940; border-radius:16px;
+    background:#0d1228; color:#e5e7eb; border:1px solid #1f2940; border-radius:16px;
     box-shadow: 0 18px 40px rgba(0,0,0,.55), 0 0 0 1px var(--pu-accent-12) inset;
 
     /* Themed scrollbar + stable gutter */
     scrollbar-gutter: stable both-edges;
-    scrollbar-width: thin;                                  /* Firefox */
+    scrollbar-width: thin; /* Firefox */
     scrollbar-color: var(--pu-accent-24) rgba(255,255,255,.04);
   }
-  /* 4px accent rail on the left */
+  /* Accent rail */
   .pu-modal__card::before{
     content:""; position:absolute; left:0; top:0; bottom:0; width:4px;
     background: linear-gradient(180deg, var(--pu-accent) 0%, var(--pu-accent-24) 100%);
     border-top-left-radius:16px; border-bottom-left-radius:16px;
   }
 
-  /* Themed scrollbar (Chromium/WebKit) */
+  /* WebKit scrollbar theme */
   .pu-modal__card::-webkit-scrollbar{ width:10px; height:10px; }
-  .pu-modal__card::-webkit-scrollbar-track{
-    background: rgba(255,255,255,.03);
-    border-radius:999px;
-  }
+  .pu-modal__card::-webkit-scrollbar-track{ background: rgba(255,255,255,.03); border-radius:999px; }
   .pu-modal__card::-webkit-scrollbar-thumb{
-    background-clip: padding-box; border:2px solid transparent; border-radius:999px;
-    background: var(--pu-accent-24);
+    background-clip: padding-box; border:2px solid transparent; border-radius:999px; background: var(--pu-accent-24);
   }
   .pu-modal__card:hover::-webkit-scrollbar-thumb{ background: var(--pu-accent); }
   .pu-modal__card::-webkit-scrollbar-thumb:active{
@@ -91,22 +86,19 @@
   /* Firefox hover brighten */
   .pu-modal__card:hover{ scrollbar-color: var(--pu-accent) rgba(255,255,255,.06); }
 
-  /* Auto-switch — hide scrollbars on large screens (still scrollable) */
+  /* Auto-switch — hide scrollbars ≥1280px (still scrollable) */
   @media (min-width: 1280px){
     .pu-modal__card{ scrollbar-width: none; }                 /* Firefox */
     .pu-modal__card::-webkit-scrollbar{ width:0; height:0; }  /* Chromium/WebKit */
   }
 
   /* Header — accent tint + handle + meta row */
-  .pu-modal__header {
+  .pu-modal__header{
     position:sticky; top:0; z-index:1;
     display:flex; align-items:center; justify-content:space-between;
     padding:12px 16px 10px;
-    background:
-      linear-gradient(0deg, var(--pu-accent-08), transparent 60%),
-      #0d1228;
-    border-bottom:1px solid #1f2940;
-    backdrop-filter: saturate(115%);
+    background: linear-gradient(0deg, var(--pu-accent-08), transparent 60%), #0d1228;
+    border-bottom:1px solid #1f2940; backdrop-filter: saturate(115%);
     border-top-left-radius:16px; border-top-right-radius:16px;
   }
   .pu-handle{
@@ -115,32 +107,36 @@
     box-shadow:0 0 0 1px rgba(255,255,255,.04) inset;
   }
   .pu-modal__heading{ display:flex; flex-direction:column; gap:6px; }
-  .pu-modal__title {
+  .pu-modal__title{
     margin:0; font-size:15px; font-weight:700; letter-spacing:.01em; display:flex; align-items:center; gap:10px;
   }
   .pu-modal__title::before{
     content:""; width:8px; height:8px; border-radius:999px; background:var(--pu-accent);
     box-shadow:0 0 0 4px var(--pu-accent-05);
   }
+
+  /* Meta chips */
   .pu-modal__meta{ display:flex; flex-wrap:wrap; gap:6px 10px; }
   .chip{
     display:inline-flex; align-items:center; gap:6px;
     padding:4px 8px; border-radius:999px; border:1px solid #1f2940;
     background:rgba(255,255,255,.02); color:#b6c2cf; font-size:12px; line-height:1;
   }
-  .chip .fa{ opacity:.8; }
+  .chip .fa{ opacity:.85; }
+  .chip__label{ font-size:11px; color:#9fb3c8; }
+  .chip__value{ color:#e6edf5; }
 
   .pu-modal__close { background:transparent; border:0; color:#94a3b8; font-size:18px; cursor:pointer; padding:0 6px; }
   .pu-modal__close:hover { color:#e5e7eb; }
 
   .pu-modal__body { padding:12px 16px 10px; }
 
-  /* Definition list grid */
-  .pu-kv {
+  /* Key/Value grid */
+  .pu-kv{
     display:grid; grid-template-columns: 190px 1fr; gap:0 16px; align-items:start;
   }
   .pu-kv > * { padding:10px 0; border-bottom:1px dashed rgba(255,255,255,.06); }
-  .pu-kv dt {
+  .pu-kv dt{
     color:#9aa6b2; font-size:11px; text-transform:uppercase; letter-spacing:.04em;
     display:flex; align-items:center; gap:8px;
   }
@@ -148,22 +144,18 @@
     content:""; width:6px; height:6px; border-radius:999px; background:var(--pu-accent);
     box-shadow:0 0 0 4px var(--pu-accent-05);
   }
-  .pu-kv dd { margin:0; white-space:pre-wrap; word-break:break-word; color:#e7ebf0; font-size:13px; line-height:1.45; }
+  .pu-kv dd{ margin:0; white-space:pre-wrap; word-break:break-word; color:#e7ebf0; font-size:13px; line-height:1.45; }
 
-  /* Pills inside modal */
-  .pu-kv .pill { font-size:12px; line-height:1; padding:2px 6px; border-radius:999px; }
-  .pill--green { background:rgba(34,197,94,.15); color:#86efac; }
-  .pill--blue  { background:rgba(59,130,246,.15); color:#93c5fd; }
-  .pill--red   { background:rgba(239,68,68,.15); color:#fecaca; }
+  .pu-kv .pill{ font-size:12px; line-height:1; padding:2px 6px; border-radius:999px; }
+  .pill--green{ background:rgba(34,197,94,.15); color:#86efac; }
+  .pill--blue{  background:rgba(59,130,246,.15); color:#93c5fd; }
+  .pill--red{   background:rgba(239,68,68,.15); color:#fecaca; }
 
   /* Footer — action bar with Prev/Next + Close */
   .pu-modal__footer{
     position:sticky; bottom:0;
-    background:
-      linear-gradient(180deg, var(--pu-accent-08), transparent 70%),
-      #0d1228;
-    padding:12px 16px;
-    border-top:1px solid #1f2940;
+    background: linear-gradient(180deg, var(--pu-accent-08), transparent 70%), #0d1228;
+    padding:12px 16px; border-top:1px solid #1f2940;
     display:flex; justify-content:center; gap:12px;
     box-shadow:0 -8px 20px rgba(0,0,0,.35);
     border-bottom-left-radius:16px; border-bottom-right-radius:16px;
@@ -185,9 +177,9 @@
   .pu-modal__closeBig:hover{ filter:brightness(1.05); }
   .pu-modal__closeBig:active{ transform:translateY(1px); }
 
-  @media (max-width: 700px) {
-    .pu-kv { grid-template-columns: 1fr; }
-    .pu-kv dt { margin-top:6px; }
+  @media (max-width: 700px){
+    .pu-kv{ grid-template-columns: 1fr; }
+    .pu-kv dt{ margin-top:6px; }
   }
 </style>
 
