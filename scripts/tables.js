@@ -1,9 +1,9 @@
-// DROP-IN REPLACEMENT
+// DROP-IN REPLACEMENT with Meta Chips + Prev/Next navigation
 window.PowerUp = window.PowerUp || {};
 (function (ns) {
   const { fetchSheet, rowsByTitle, SHEETS } = ns.api;
 
-  // === Column dictionaries (still used for the table itself) ===
+  // === Column dictionaries (for table rendering only) ===
   const COL_MAP = {
     ci: {
       "Submission Date": "Submitted",
@@ -93,7 +93,7 @@ window.PowerUp = window.PowerUp || {};
     if (v == null || String(v).trim() === "") return "-";
     const t = String(v).toLowerCase();
     if (/approved|accepted|closed|complete/.test(t)) return `<span class="pill pill--green">${esc(v)}</span>`;
-    if (/pending|progress|open|new/.test(t))        return `<span class="pill pill--blue">${esc(v)}</span>`;
+    if (/pending|progress|open|new|not\s*started/.test(t)) return `<span class="pill pill--blue">${esc(v)}</span>`;
     if (/denied|rejected|cancel/.test(t))           return `<span class="pill pill--red">${esc(v)}</span>`;
     return esc(v);
   };
@@ -110,16 +110,24 @@ window.PowerUp = window.PowerUp || {};
     return blank ? "-" : esc(value);
   }
 
-  // ===== Modal utilities (compact + reusable) =====
-  function openRecordModal(title, entries) {
+  // ===== Modal utilities (now supports meta chips) =====
+  function openRecordModal(title, entries, metaChips = []) {
     const modal = document.getElementById('pu-record-modal');
     const dl = document.getElementById('pu-record-dl');
     const ttl = document.getElementById('pu-record-title');
-    if (!modal || !dl || !ttl) return;
+    const meta = document.getElementById('pu-record-meta');
+    if (!modal || !dl || !ttl || !meta) return;
 
     ttl.textContent = title || 'Record';
-    // entries is [[label, htmlValue], ...]
     dl.innerHTML = entries.map(([k,v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join("");
+
+    if (metaChips.length) {
+      meta.innerHTML = metaChips.join("");
+      meta.hidden = false;
+    } else {
+      meta.innerHTML = "";
+      meta.hidden = true;
+    }
 
     modal.classList.add('is-open');
     modal.setAttribute('aria-hidden', 'false');
@@ -134,63 +142,26 @@ window.PowerUp = window.PowerUp || {};
     document.addEventListener('keydown', close);
   }
 
-  // === Admin target utilities (unchanged) ===
-  async function getAdminTarget() {
-    try {
-      const sel = (sessionStorage.getItem('pu.adminEmployeeFilter') || '').trim();
-      if (!sel || sel === '__ALL__') return null;
-      const em = await ns.api.getRowsByTitle(ns.api.SHEETS.EMPLOYEE_MASTER);
-      const norm = (s) => String(s||'').trim().toLowerCase();
-      const row = em.find(r => norm(r['Display Name']||r['Employee Name']||r['Name']) === norm(sel));
-      if (!row) return { id: '', name: sel };
-      const id = String(row['Position ID'] || row['Employee ID'] || '').trim();
-      return { id, name: sel };
-    } catch { return null; }
-  }
-  function matchesEmployee(row, target) {
-    if (!target || (!target.id && !target.name)) return true;
-    const norm = (s) => String(s||'').trim().toLowerCase();
-    const rid  = norm(row['Employee ID']);
-    const rpid = norm(row['Position ID']);
-    const rname= norm(row['Submitted By'] || row['Employee Name'] || row['Name']);
-    const idLC = norm(target.id);
-    const nameLC = norm(target.name);
-    return (idLC && (rid === idLC || rpid === idLC)) || (nameLC && rname === nameLC);
-  }
-  async function resolveTargetEmployee() {
-    const me = ns.session.get() || {};
-    const isAdmin = !!(ns.auth && ns.auth.isAdmin && ns.auth.isAdmin());
-    if (!isAdmin) return { id: String(me.employeeId||'').trim(), name: String(me.displayName||'').trim() };
-    const picked = await getAdminTarget();
-    return picked || null;
-  }
-
-  // ===== Dynamic modal content builder (no column maps) =====
+  // Build entries/meta from the rendered DOM (no maps)
   function buildEntriesFromDOM(tbody, tr) {
     const table = tbody.closest('table');
     const headerCells = Array.from(table.querySelectorAll('thead th'));
     const cells = Array.from(tr.children);
-
     const entries = [];
-    // start at 1 to skip the "View" column
-    for (let i = 1; i < headerCells.length && i < cells.length; i++) {
+    for (let i = 1; i < headerCells.length && i < cells.length; i++) { // skip "View" col
       const label = (headerCells[i].textContent || '').trim();
       if (!label) continue;
-      // Keep existing cell formatting (pills, etc.) but ensure something is shown
       let html = cells[i].innerHTML;
       if (!html || html.trim() === "") html = "-";
       entries.push([label, html]);
     }
     return entries;
   }
-
   function deriveTitle(tableId, tr) {
     const tablePrefix =
       tableId === 'ci-table' ? 'CI' :
       tableId === 'safety-table' ? 'Safety' :
       tableId === 'quality-table' ? 'Quality' : 'Record';
-
-    // Prefer an ID-like column if present
     const headerCells = Array.from(tr.closest('table').querySelectorAll('thead th'));
     const cells = Array.from(tr.children);
     const idLabels = ['ID','Submission ID','Catch ID'];
@@ -202,6 +173,79 @@ window.PowerUp = window.PowerUp || {};
       }
     }
     return tablePrefix;
+  }
+  function buildMetaChipsFromDOM(tbody, tr) {
+    const table = tbody.closest('table');
+    const hs = Array.from(table.querySelectorAll('thead th'));
+    const cs = Array.from(tr.children);
+    const want = [
+      { labels: ['submitted','entry date','date'], icon: 'fa-regular fa-calendar' },
+      { labels: ['status'],                        icon: 'fa-regular fa-flag'    },
+      { labels: ['assigned','submitted by','employee','area'], icon: 'fa-regular fa-user' }
+    ];
+    const chips = [];
+    for (const wantItem of want) {
+      for (let i = 1; i < hs.length && i < cs.length; i++) {
+        const label = (hs[i].textContent || '').trim().toLowerCase();
+        if (wantItem.labels.includes(label)) {
+          let html = cs[i].innerHTML.trim();
+          if (!html) continue;
+          const content = html.includes('pill') ? html : esc(cs[i].textContent || '');
+          chips.push(`<span class="chip"><i class="${wantItem.icon} fa"></i>${content}</span>`);
+          break;
+        }
+      }
+    }
+    return chips;
+  }
+
+  // ===== Prev/Next navigation state =====
+  let _nav = null; // { tbody, index }
+
+  function visibleRows(tbody) {
+    return Array.from(tbody.querySelectorAll('tr'))
+      .filter(tr => tr.style.display !== 'none' && tr.children.length > 1);
+  }
+  function updateNavButtons() {
+    const prev = document.getElementById('pu-nav-prev');
+    const next = document.getElementById('pu-nav-next');
+    if (!_nav) { if (prev) prev.disabled = true; if (next) next.disabled = true; return; }
+    const rows = visibleRows(_nav.tbody);
+    const len = rows.length;
+    const i = Math.min(Math.max(_nav.index, 0), len - 1);
+    if (prev) prev.disabled = (i <= 0);
+    if (next) next.disabled = (i >= len - 1);
+  }
+  function renderModalFromIndex() {
+    if (!_nav) return;
+    const rows = visibleRows(_nav.tbody);
+    if (!rows.length) return;
+    _nav.index = Math.min(Math.max(_nav.index, 0), rows.length - 1);
+    const tr = rows[_nav.index];
+    const tableId = _nav.tbody.closest('table')?.id || '';
+    const entries = buildEntriesFromDOM(_nav.tbody, tr);
+    const title = deriveTitle(tableId, tr);
+    const metaChips = buildMetaChipsFromDOM(_nav.tbody, tr);
+    openRecordModal(title, entries, metaChips);
+    updateNavButtons();
+  }
+  function wireNavButtonsOnce() {
+    const prev = document.getElementById('pu-nav-prev');
+    const next = document.getElementById('pu-nav-next');
+    if (prev && !prev.dataset.bound) {
+      prev.dataset.bound = "1";
+      prev.addEventListener('click', () => { if (!_nav) return; _nav.index--; renderModalFromIndex(); });
+    }
+    if (next && !next.dataset.bound) {
+      next.dataset.bound = "1";
+      next.addEventListener('click', () => { if (!_nav) return; _nav.index++; renderModalFromIndex(); });
+    }
+  }
+  function startNavFromRow(tbody, tr) {
+    const rows = visibleRows(tbody);
+    _nav = { tbody, index: rows.indexOf(tr) };
+    wireNavButtonsOnce();
+    renderModalFromIndex();
   }
 
   // ===== Render + sort =====
@@ -246,15 +290,13 @@ window.PowerUp = window.PowerUp || {};
       bindHeaderSort(thead, tbody);
     }
 
-    // Delegate clicks (bind once per tbody)
+    // Delegate clicks to open modal with nav
     if (!tbody.dataset.viewBound) {
       tbody.addEventListener('click', (e) => {
         const btn = e.target.closest('[data-action="view"]');
         if (!btn) return;
         const tr = btn.closest('tr');
-        const entries = buildEntriesFromDOM(tbody, tr);
-        const title = deriveTitle((tbody._data||{}).tableId, tr);
-        openRecordModal(title, entries);
+        startNavFromRow(tbody, tr);
       });
       tbody.dataset.viewBound = "1";
     }
@@ -328,10 +370,11 @@ window.PowerUp = window.PowerUp || {};
     const colIdx = findHeaderIndexByText(tableEl, cfg.friendlyHeader);
     const tbody = tableEl.querySelector('tbody');
     if (colIdx < 0 || !tbody) return;
+    const selected = selectEl.value || "";
     Array.from(tbody.rows).forEach(tr => {
       if (tr.children.length <= colIdx) { tr.style.display = ""; return; }
       const cellText = (tr.children[colIdx]?.textContent || "");
-      tr.style.display = cfg.match(cellText, selectEl.value || "") ? "" : "none";
+      tr.style.display = cfg.match(cellText, selected) ? "" : "none";
     });
     updateCount(cfg.countId, tableEl);
   }
@@ -349,10 +392,24 @@ window.PowerUp = window.PowerUp || {};
     });
   }
 
-  // === Main hydrate (unchanged except for dynamic modal behavior) ===
+  // === Main hydrate ===
   ns.tables = ns.tables || {};
   ns.tables.hydrateDashboardTables = async function () {
-    const target = await resolveTargetEmployee();
+    const target = await (async () => {
+      const me = ns.session.get() || {};
+      const isAdmin = !!(ns.auth && ns.auth.isAdmin && ns.auth.isAdmin());
+      if (!isAdmin) return { id: String(me.employeeId||'').trim(), name: String(me.displayName||'').trim() };
+      try {
+        const sel = (sessionStorage.getItem('pu.adminEmployeeFilter') || '').trim();
+        if (!sel || sel === '__ALL__') return null;
+        const em = await ns.api.getRowsByTitle(ns.api.SHEETS.EMPLOYEE_MASTER);
+        const norm = (s) => String(s||'').trim().toLowerCase();
+        const row = em.find(r => norm(r['Display Name']||r['Employee Name']||r['Name']) === norm(sel));
+        if (!row) return { id: '', name: sel };
+        const id = String(row['Position ID'] || row['Employee ID'] || '').trim();
+        return { id, name: sel };
+      } catch { return null; }
+    })();
     const isAdmin = !!(ns.auth && ns.auth.isAdmin && ns.auth.isAdmin());
 
     const [ciSheet, safetySheet, qualitySheet] = await Promise.all([
@@ -363,6 +420,17 @@ window.PowerUp = window.PowerUp || {};
     const ciRowsAll      = rowsByTitle(ciSheet);
     const safetyRowsAll  = rowsByTitle(safetySheet);
     const qualityRowsAll = rowsByTitle(qualitySheet);
+
+    const matchesEmployee = (row, targetEmp) => {
+      if (!targetEmp || (!targetEmp.id && !targetEmp.name)) return true;
+      const norm = (s) => String(s||'').trim().toLowerCase();
+      const rid  = norm(row['Employee ID']);
+      const rpid = norm(row['Position ID']);
+      const rname= norm(row['Submitted By'] || row['Employee Name'] || row['Name']);
+      const idLC = norm(targetEmp.id);
+      const nameLC = norm(targetEmp.name);
+      return (idLC && (rid === idLC || rpid === idLC)) || (nameLC && rname === nameLC);
+    };
 
     const ciRows      = ciRowsAll.filter(r => matchesEmployee(r, target));
     const safetyRows  = safetyRowsAll.filter(r => matchesEmployee(r, target));
@@ -408,10 +476,16 @@ window.PowerUp = window.PowerUp || {};
   };
 
   ns.tables.applyFilterFor = (kind) => {
-    if (FILTER_CONFIG[kind]) applyFilterFor(kind);
+    if (FILTER_CONFIG[kind]) {
+      applyFilterFor(kind);
+      // if a filter changes while modal open, refresh nav button state
+      if (_nav) updateNavButtons();
+    }
   };
 
+  // Rehydrate when admin changes employee filter
   document.addEventListener('powerup-admin-filter-change', () => {
     ns.tables.hydrateDashboardTables().catch(console.error);
   });
+
 })(window.PowerUp);
