@@ -29,8 +29,8 @@
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
   <link rel="alternate icon" type="image/png" href="assets/favicon.png">
 
-  <!-- Compact, sandboxed styles for the modal + view column -->
 <style>
+  /* View column/button (unchanged size, slightly tighter) */
   .view-col, .view-cell { width: 44px; min-width: 44px; text-align: center; }
   .view-btn {
     display:inline-flex; align-items:center; justify-content:center;
@@ -39,7 +39,18 @@
   }
   .view-btn:hover { background:#122046; }
 
-  /* Modal — compact, professional, above everything */
+  /* Accent & danger tokens (hook to your theme if present) */
+  :root {
+    /* If your style.css defines --accent, we’ll use it; else fall back to green */
+    --pu-accent: var(--accent, #22c55e);
+    --pu-accent-05: rgba(34,197,94,.05);
+    --pu-accent-12: rgba(34,197,94,.12);
+    --pu-accent-24: rgba(34,197,94,.24);
+    --pu-danger: #ef4444;
+    --pu-danger-20: rgba(239,68,68,.20);
+  }
+
+  /* Modal — compact, polished, always above everything */
   .pu-modal { position:fixed; inset:0; display:none; z-index:10050; }
   .pu-modal.is-open { display:block; }
   .pu-modal__backdrop { position:absolute; inset:0; background:rgba(0,0,0,.45); }
@@ -47,9 +58,18 @@
   .pu-modal__card {
     position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
     width:min(720px, 92vw); max-height:78vh; overflow:auto;
-    background:#0d1228; color:#e5e7eb; border:1px solid #1f2940; border-radius:14px;
-    box-shadow:0 18px 40px rgba(0,0,0,.55); font-size:13px; line-height:1.45;
+    background:#0d1228; color:#e5e7eb;
+    border:1px solid #1f2940; border-radius:14px;
+    /* Accent rail + soft glow */
+    box-shadow: 0 18px 40px rgba(0,0,0,.55), 0 0 0 1px var(--pu-accent-12) inset;
   }
+  /* 4px accent rail on the left */
+  .pu-modal__card::before{
+    content:""; position:absolute; left:0; top:0; bottom:0; width:4px;
+    background: linear-gradient(180deg, var(--pu-accent) 0%, var(--pu-accent-24) 100%);
+    border-top-left-radius:14px; border-bottom-left-radius:14px;
+  }
+
   .pu-modal__header {
     display:flex; align-items:center; justify-content:space-between;
     padding:10px 14px; border-bottom:1px solid #1f2940; position:sticky; top:0; background:#0d1228; z-index:1;
@@ -57,27 +77,50 @@
   .pu-modal__title { margin:0; font-size:14px; font-weight:600; letter-spacing:.01em; }
   .pu-modal__close { background:transparent; border:0; color:#94a3b8; font-size:18px; cursor:pointer; padding:0 6px; }
   .pu-modal__close:hover { color:#e5e7eb; }
-  .pu-modal__body { padding:12px 14px 14px; }
 
-  /* Definition list grid */
+  .pu-modal__body { padding:12px 14px 6px; }
+
+  /* Definition list grid with accent details */
   .pu-kv {
     display:grid; grid-template-columns: 180px 1fr; gap:0 14px; align-items:start;
   }
-  .pu-kv > * { padding:6px 0; border-bottom:1px dashed rgba(255,255,255,.06); }
-  .pu-kv dt { color:#9aa6b2; font-size:11px; text-transform:uppercase; letter-spacing:.04em; }
-  .pu-kv dd { margin:0; white-space:pre-wrap; word-break:break-word; color:#e7ebf0; }
+  .pu-kv > * { padding:8px 0; border-bottom:1px dashed rgba(255,255,255,.06); }
+  .pu-kv dt {
+    color:#9aa6b2; font-size:11px; text-transform:uppercase; letter-spacing:.04em;
+    display:flex; align-items:center; gap:8px;
+  }
+  .pu-kv dt::before{
+    content:""; flex:0 0 auto; width:6px; height:6px; border-radius:999px; background:var(--pu-accent);
+    box-shadow:0 0 0 4px var(--pu-accent-05);
+  }
+  .pu-kv dd { margin:0; white-space:pre-wrap; word-break:break-word; color:#e7ebf0; font-size:13px; line-height:1.45; }
 
-  /* Make pills/text inside modal read well */
+  /* Pills inside modal—consistent sizing */
   .pu-kv .pill { font-size:12px; line-height:1; padding:2px 6px; border-radius:999px; }
   .pill--green { background:rgba(34,197,94,.15); color:#86efac; }
   .pill--blue  { background:rgba(59,130,246,.15); color:#93c5fd; }
   .pill--red   { background:rgba(239,68,68,.15); color:#fecaca; }
+
+  /* Footer with big red Close button */
+  .pu-modal__footer{
+    position:sticky; bottom:0; background:#0d1228; padding:12px 14px; border-top:1px solid #1f2940;
+    display:flex; justify-content:center;
+  }
+  .pu-modal__closeBig{
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    min-width:200px; padding:10px 14px; border-radius:999px;
+    background:var(--pu-danger); color:#fff; font-weight:600; border:1px solid var(--pu-danger-20);
+    cursor:pointer;
+  }
+  .pu-modal__closeBig:hover{ filter:brightness(1.05); }
+  .pu-modal__closeBig:active{ transform:translateY(1px); }
 
   @media (max-width: 700px) {
     .pu-kv { grid-template-columns: 1fr; }
     .pu-kv dt { margin-top:6px; }
   }
 </style>
+
 </head>
 
 <body class="dashboard">
@@ -219,19 +262,25 @@
   });
   </script>
 
-  <!-- Modal root -->
-  <div id="pu-record-modal" class="pu-modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="pu-record-title">
-    <div class="pu-modal__backdrop" data-modal-close></div>
-    <div class="pu-modal__card">
-      <div class="pu-modal__header">
-        <h3 id="pu-record-title" class="pu-modal__title">Record</h3>
-        <button class="pu-modal__close" data-modal-close aria-label="Close">&times;</button>
-      </div>
-      <div class="pu-modal__body">
-        <dl id="pu-record-dl" class="pu-kv"></dl>
-      </div>
+<div id="pu-record-modal" class="pu-modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="pu-record-title">
+  <div class="pu-modal__backdrop" data-modal-close></div>
+  <div class="pu-modal__card">
+    <div class="pu-modal__header">
+      <h3 id="pu-record-title" class="pu-modal__title">Record</h3>
+      <button class="pu-modal__close" data-modal-close aria-label="Close">&times;</button>
+    </div>
+    <div class="pu-modal__body">
+      <dl id="pu-record-dl" class="pu-kv"></dl>
+    </div>
+    <div class="pu-modal__footer">
+      <button class="pu-modal__closeBig" data-modal-close aria-label="Close">
+        <span class="fa-solid fa-xmark"></span> Close
+      </button>
     </div>
   </div>
+</div>
+
 </body>
 </html>
+
 
