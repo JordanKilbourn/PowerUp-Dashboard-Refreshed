@@ -3,7 +3,7 @@ window.PowerUp = window.PowerUp || {};
 (function (ns) {
   const { fetchSheet, rowsByTitle, SHEETS } = ns.api;
 
-  // === Column dictionaries ===
+  // === Column dictionaries (still used for the table itself) ===
   const COL_MAP = {
     ci: {
       "Submission Date": "Submitted",
@@ -43,12 +43,10 @@ window.PowerUp = window.PowerUp || {};
     }
   };
 
-  // === Filter dropdowns (unchanged) ===
+  // === Filter config (unchanged) ===
   const FILTER_CONFIG = {
     ci: {
-      selectId: "ci-filter",
-      countId: "ci-count",
-      friendlyHeader: "Status",
+      selectId: "ci-filter", countId: "ci-count", friendlyHeader: "Status",
       options: ["All","Not Started","Open","Needs Researched","Completed","Denied/Cancelled"],
       match(cellText, selected) {
         const t = (cellText || "").toLowerCase();
@@ -60,9 +58,7 @@ window.PowerUp = window.PowerUp || {};
       }
     },
     safety: {
-      selectId: "safety-filter",
-      countId: "safety-count",
-      friendlyHeader: "Safety Concern",
+      selectId: "safety-filter", countId: "safety-count", friendlyHeader: "Safety Concern",
       options: ["All","Hand tool in disrepair","Machine in disrepair","Electrical hazard","Ergonomic","Guarding missing","Guarding in disrepair","PPE missing","PPE suggested improvement","Missing GHS label","Missing SDS"],
       match(cellText, selected) {
         if ((selected || "").toLowerCase() === "all") return true;
@@ -70,9 +66,7 @@ window.PowerUp = window.PowerUp || {};
       }
     },
     quality: {
-      selectId: "quality-filter",
-      countId: "quality-count",
-      friendlyHeader: "Area",
+      selectId: "quality-filter", countId: "quality-count", friendlyHeader: "Area",
       options: ["All","Assembly","Customs","Dip Line","Fab","Office","Powder Coat","Router","Roto Mold","SMF","Welding"],
       match(cellText, selected) {
         if ((selected || "").toLowerCase() === "all") return true;
@@ -116,7 +110,7 @@ window.PowerUp = window.PowerUp || {};
     return blank ? "-" : esc(value);
   }
 
-  // Modal utilities (compact + reusable)
+  // ===== Modal utilities (compact + reusable) =====
   function openRecordModal(title, entries) {
     const modal = document.getElementById('pu-record-modal');
     const dl = document.getElementById('pu-record-dl');
@@ -124,6 +118,7 @@ window.PowerUp = window.PowerUp || {};
     if (!modal || !dl || !ttl) return;
 
     ttl.textContent = title || 'Record';
+    // entries is [[label, htmlValue], ...]
     dl.innerHTML = entries.map(([k,v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join("");
 
     modal.classList.add('is-open');
@@ -139,7 +134,7 @@ window.PowerUp = window.PowerUp || {};
     document.addEventListener('keydown', close);
   }
 
-  // --- Admin target resolution ---
+  // === Admin target utilities (unchanged) ===
   async function getAdminTarget() {
     try {
       const sel = (sessionStorage.getItem('pu.adminEmployeeFilter') || '').trim();
@@ -152,7 +147,6 @@ window.PowerUp = window.PowerUp || {};
       return { id, name: sel };
     } catch { return null; }
   }
-
   function matchesEmployee(row, target) {
     if (!target || (!target.id && !target.name)) return true;
     const norm = (s) => String(s||'').trim().toLowerCase();
@@ -163,7 +157,6 @@ window.PowerUp = window.PowerUp || {};
     const nameLC = norm(target.name);
     return (idLC && (rid === idLC || rpid === idLC)) || (nameLC && rname === nameLC);
   }
-
   async function resolveTargetEmployee() {
     const me = ns.session.get() || {};
     const isAdmin = !!(ns.auth && ns.auth.isAdmin && ns.auth.isAdmin());
@@ -172,7 +165,46 @@ window.PowerUp = window.PowerUp || {};
     return picked || null;
   }
 
-  // === Render + sort ===
+  // ===== Dynamic modal content builder (no column maps) =====
+  function buildEntriesFromDOM(tbody, tr) {
+    const table = tbody.closest('table');
+    const headerCells = Array.from(table.querySelectorAll('thead th'));
+    const cells = Array.from(tr.children);
+
+    const entries = [];
+    // start at 1 to skip the "View" column
+    for (let i = 1; i < headerCells.length && i < cells.length; i++) {
+      const label = (headerCells[i].textContent || '').trim();
+      if (!label) continue;
+      // Keep existing cell formatting (pills, etc.) but ensure something is shown
+      let html = cells[i].innerHTML;
+      if (!html || html.trim() === "") html = "-";
+      entries.push([label, html]);
+    }
+    return entries;
+  }
+
+  function deriveTitle(tableId, tr) {
+    const tablePrefix =
+      tableId === 'ci-table' ? 'CI' :
+      tableId === 'safety-table' ? 'Safety' :
+      tableId === 'quality-table' ? 'Quality' : 'Record';
+
+    // Prefer an ID-like column if present
+    const headerCells = Array.from(tr.closest('table').querySelectorAll('thead th'));
+    const cells = Array.from(tr.children);
+    const idLabels = ['ID','Submission ID','Catch ID'];
+    for (let i = 1; i < headerCells.length && i < cells.length; i++) {
+      const label = (headerCells[i].textContent || '').trim();
+      if (idLabels.includes(label)) {
+        const idText = (cells[i].textContent || '').trim();
+        if (idText) return `${tablePrefix} — ${idText}`;
+      }
+    }
+    return tablePrefix;
+  }
+
+  // ===== Render + sort =====
   function renderTable(tbody, rows, colMap, tableId, empNameById) {
     if (!tbody) return;
     tbody._data = { rows, colMap, tableId, empNameById };
@@ -182,11 +214,7 @@ window.PowerUp = window.PowerUp || {};
 
     const html = rows.map((r, i) => {
       const cells = [];
-
-      // 0) View button
       cells.push(`<td class="view-cell"><button class="view-btn" data-action="view" data-idx="${i}" aria-label="View record">View</button></td>`);
-
-      // 1..N) Data cells (mapped only)
       cols.forEach(c => {
         if (c === "__EMP_NAME__") {
           const idRaw = String(r["Employee ID"] || r["Position ID"] || "").trim();
@@ -207,43 +235,25 @@ window.PowerUp = window.PowerUp || {};
         }
         cells.push(`<td data-sort="${sortVal}">${val}</td>`);
       });
-
       return `<tr data-idx="${i}">${cells.join("")}</tr>`;
     }).join("");
 
     tbody.innerHTML = html || `<tr><td colspan="${cols.length + 1}" style="text-align:center;opacity:.7;">No rows</td></tr>`;
 
-    // Header with leading empty "View" column (unsortable)
     const thead = tbody.closest("table")?.querySelector("thead tr");
     if (thead) {
       thead.innerHTML = `<th class="view-col" aria-label="View"></th>` + friendly.map(label => `<th>${label}</th>`).join("");
       bindHeaderSort(thead, tbody);
     }
 
-    // Delegate clicks to open modal — bind once per tbody (no {once:true})
+    // Delegate clicks (bind once per tbody)
     if (!tbody.dataset.viewBound) {
       tbody.addEventListener('click', (e) => {
         const btn = e.target.closest('[data-action="view"]');
         if (!btn) return;
         const tr = btn.closest('tr');
-        const idx = Number(tr?.dataset.idx || btn.dataset.idx || -1);
-        const data = tbody._data || {};
-        const r = (data.rows || [])[idx];
-        if (!r) return;
-
-        // Build entries ONLY from the mapped columns in display order
-        const entries = [];
-        Object.entries(data.colMap || {}).forEach(([rawCol, label]) => {
-          const val = format(rawCol, r[rawCol]);
-          entries.push([label, val]);
-        });
-
-        // Compact title with a stable key if present
-        let title = 'Record';
-        if (data.tableId === 'ci-table' && r['Submission ID']) title = `CI — ${r['Submission ID']}`;
-        else if (data.tableId === 'quality-table' && r['Catch ID']) title = `Quality — ${r['Catch ID']}`;
-        else if (data.tableId === 'safety-table' && r['Date']) title = `Safety — ${fmtDate(r['Date'])}`;
-
+        const entries = buildEntriesFromDOM(tbody, tr);
+        const title = deriveTitle((tbody._data||{}).tableId, tr);
         openRecordModal(title, entries);
       });
       tbody.dataset.viewBound = "1";
@@ -251,7 +261,7 @@ window.PowerUp = window.PowerUp || {};
   }
 
   function bindHeaderSort(thead, tbody) {
-    let state = { col: 1, asc: true }; // skip view column at index 0
+    let state = { col: 1, asc: true }; // skip view column
     const applyIndicators = () => {
       thead.querySelectorAll("th").forEach((h, i) => {
         h.setAttribute("data-sort", "none");
@@ -339,7 +349,7 @@ window.PowerUp = window.PowerUp || {};
     });
   }
 
-  // === Main hydrate ===
+  // === Main hydrate (unchanged except for dynamic modal behavior) ===
   ns.tables = ns.tables || {};
   ns.tables.hydrateDashboardTables = async function () {
     const target = await resolveTargetEmployee();
@@ -358,7 +368,6 @@ window.PowerUp = window.PowerUp || {};
     const safetyRows  = safetyRowsAll.filter(r => matchesEmployee(r, target));
     const qualityRows = qualityRowsAll.filter(r => matchesEmployee(r, target));
 
-    // id -> display name map (admin)
     let empNameById;
     if (isAdmin) {
       empNameById = new Map();
@@ -402,9 +411,7 @@ window.PowerUp = window.PowerUp || {};
     if (FILTER_CONFIG[kind]) applyFilterFor(kind);
   };
 
-  // Live rehydrate when admin changes employee filter
   document.addEventListener('powerup-admin-filter-change', () => {
     ns.tables.hydrateDashboardTables().catch(console.error);
   });
-
 })(window.PowerUp);
