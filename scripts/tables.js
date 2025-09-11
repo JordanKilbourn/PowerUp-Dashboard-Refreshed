@@ -116,7 +116,7 @@ window.PowerUp = window.PowerUp || {};
     return blank ? "-" : esc(value);
   }
 
-  // Modal utilities (non-invasive)
+  // Modal utilities (compact + reusable)
   function openRecordModal(title, entries) {
     const modal = document.getElementById('pu-record-modal');
     const dl = document.getElementById('pu-record-dl');
@@ -175,7 +175,7 @@ window.PowerUp = window.PowerUp || {};
   // === Render + sort ===
   function renderTable(tbody, rows, colMap, tableId, empNameById) {
     if (!tbody) return;
-    tbody._data = { rows, colMap, tableId, empNameById }; // attach for modal lookups
+    tbody._data = { rows, colMap, tableId, empNameById };
 
     const cols = Object.keys(colMap);
     const friendly = Object.values(colMap);
@@ -183,10 +183,10 @@ window.PowerUp = window.PowerUp || {};
     const html = rows.map((r, i) => {
       const cells = [];
 
-      // 0) View button cell (index-stable via data-idx)
+      // 0) View button
       cells.push(`<td class="view-cell"><button class="view-btn" data-action="view" data-idx="${i}" aria-label="View record">View</button></td>`);
 
-      // 1..N) Data cells
+      // 1..N) Data cells (mapped only)
       cols.forEach(c => {
         if (c === "__EMP_NAME__") {
           const idRaw = String(r["Employee ID"] || r["Position ID"] || "").trim();
@@ -213,49 +213,45 @@ window.PowerUp = window.PowerUp || {};
 
     tbody.innerHTML = html || `<tr><td colspan="${cols.length + 1}" style="text-align:center;opacity:.7;">No rows</td></tr>`;
 
-    // Rebuild header with leading empty "View" th (unsortable)
+    // Header with leading empty "View" column (unsortable)
     const thead = tbody.closest("table")?.querySelector("thead tr");
     if (thead) {
       thead.innerHTML = `<th class="view-col" aria-label="View"></th>` + friendly.map(label => `<th>${label}</th>`).join("");
       bindHeaderSort(thead, tbody);
     }
 
-    // Delegate click -> open modal
-    tbody.addEventListener('click', (e) => {
-      const btn = e.target.closest('[data-action="view"]');
-      if (!btn) return;
-      const tr = btn.closest('tr');
-      const idx = Number(tr?.dataset.idx || btn.dataset.idx || -1);
-      const data = tbody._data || {};
-      const r = (data.rows || [])[idx];
-      if (!r) return;
+    // Delegate clicks to open modal — bind once per tbody (no {once:true})
+    if (!tbody.dataset.viewBound) {
+      tbody.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-action="view"]');
+        if (!btn) return;
+        const tr = btn.closest('tr');
+        const idx = Number(tr?.dataset.idx || btn.dataset.idx || -1);
+        const data = tbody._data || {};
+        const r = (data.rows || [])[idx];
+        if (!r) return;
 
-      // Build a friendly KV list: known columns first (colMap order), then extras (alphabetical)
-      const shown = new Set();
-      const entries = [];
+        // Build entries ONLY from the mapped columns in display order
+        const entries = [];
+        Object.entries(data.colMap || {}).forEach(([rawCol, label]) => {
+          const val = format(rawCol, r[rawCol]);
+          entries.push([label, val]);
+        });
 
-      Object.entries(data.colMap || {}).forEach(([rawCol, label]) => {
-        const val = format(rawCol, r[rawCol]);
-        entries.push([label, val]);
-        shown.add(rawCol);
+        // Compact title with a stable key if present
+        let title = 'Record';
+        if (data.tableId === 'ci-table' && r['Submission ID']) title = `CI — ${r['Submission ID']}`;
+        else if (data.tableId === 'quality-table' && r['Catch ID']) title = `Quality — ${r['Catch ID']}`;
+        else if (data.tableId === 'safety-table' && r['Date']) title = `Safety — ${fmtDate(r['Date'])}`;
+
+        openRecordModal(title, entries);
       });
-
-      // Any extra fields from the row (not in mapping)
-      const extras = Object.keys(r).filter(k => !shown.has(k)).sort((a,b)=>a.localeCompare(b));
-      extras.forEach(k => entries.push([k, format(k, r[k])]));
-
-      // Title: table name + key id if present
-      let title = 'Record';
-      if (data.tableId === 'ci-table' && r['Submission ID']) title = `CI — ${r['Submission ID']}`;
-      else if (data.tableId === 'quality-table' && r['Catch ID']) title = `Quality — ${r['Catch ID']}`;
-      else if (data.tableId === 'safety-table' && r['Date']) title = `Safety — ${fmtDate(r['Date'])}`;
-
-      openRecordModal(title, entries);
-    }, { once: true }); // bind once per render cycle
+      tbody.dataset.viewBound = "1";
+    }
   }
 
   function bindHeaderSort(thead, tbody) {
-    let state = { col: 1, asc: true }; // start from first data column (skip view col at idx 0)
+    let state = { col: 1, asc: true }; // skip view column at index 0
     const applyIndicators = () => {
       thead.querySelectorAll("th").forEach((h, i) => {
         h.setAttribute("data-sort", "none");
@@ -269,7 +265,7 @@ window.PowerUp = window.PowerUp || {};
     thead.querySelectorAll("th").forEach((th, idx) => {
       th.style.cursor = (idx === 0) ? "default" : "pointer";
       th.onclick = () => {
-        if (idx === 0) return; // view col unsortable
+        if (idx === 0) return;
         state.asc = state.col === idx ? !state.asc : true;
         state.col = idx;
         const rows = Array.from(tbody.querySelectorAll("tr"));
@@ -288,14 +284,14 @@ window.PowerUp = window.PowerUp || {};
     applyIndicators();
   }
 
-  // === Filters ===
+  // === Filters (unchanged) ===
   function findHeaderIndexByText(tableEl, friendlyHeader) {
     const ths = tableEl?.querySelectorAll('thead th');
     if (!ths) return -1;
     const needle = String(friendlyHeader || "").toLowerCase().trim();
     for (let i = 0; i < ths.length; i++) {
       const txt = (ths[i].textContent || "").toLowerCase().trim();
-      if (txt === needle) return i; // still works with leading view col
+      if (txt === needle) return i;
     }
     return -1;
   }
