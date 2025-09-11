@@ -116,11 +116,34 @@ window.PowerUp = window.PowerUp || {};
     return blank ? "-" : esc(value);
   }
 
+  // Modal utilities (non-invasive)
+  function openRecordModal(title, entries) {
+    const modal = document.getElementById('pu-record-modal');
+    const dl = document.getElementById('pu-record-dl');
+    const ttl = document.getElementById('pu-record-title');
+    if (!modal || !dl || !ttl) return;
+
+    ttl.textContent = title || 'Record';
+    dl.innerHTML = entries.map(([k,v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join("");
+
+    modal.classList.add('is-open');
+    modal.setAttribute('aria-hidden', 'false');
+
+    const close = (evt) => {
+      if (evt && evt.type === 'keydown' && evt.key !== 'Escape') return;
+      modal.classList.remove('is-open');
+      modal.setAttribute('aria-hidden', 'true');
+      document.removeEventListener('keydown', close);
+    };
+    modal.querySelectorAll('[data-modal-close]').forEach(el => el.onclick = close);
+    document.addEventListener('keydown', close);
+  }
+
   // --- Admin target resolution ---
   async function getAdminTarget() {
     try {
       const sel = (sessionStorage.getItem('pu.adminEmployeeFilter') || '').trim();
-      if (!sel || sel === '__ALL__') return null; // << All Employees = no target
+      if (!sel || sel === '__ALL__') return null;
       const em = await ns.api.getRowsByTitle(ns.api.SHEETS.EMPLOYEE_MASTER);
       const norm = (s) => String(s||'').trim().toLowerCase();
       const row = em.find(r => norm(r['Display Name']||r['Employee Name']||r['Name']) === norm(sel));
@@ -131,7 +154,6 @@ window.PowerUp = window.PowerUp || {};
   }
 
   function matchesEmployee(row, target) {
-    // If no target => ALL employees (no filtering)
     if (!target || (!target.id && !target.name)) return true;
     const norm = (s) => String(s||'').trim().toLowerCase();
     const rid  = norm(row['Employee ID']);
@@ -146,23 +168,32 @@ window.PowerUp = window.PowerUp || {};
     const me = ns.session.get() || {};
     const isAdmin = !!(ns.auth && ns.auth.isAdmin && ns.auth.isAdmin());
     if (!isAdmin) return { id: String(me.employeeId||'').trim(), name: String(me.displayName||'').trim() };
-    const picked = await getAdminTarget(); // may be null (ALL)
-    return picked || null; // null means ALL employees
+    const picked = await getAdminTarget();
+    return picked || null;
   }
 
   // === Render + sort ===
   function renderTable(tbody, rows, colMap, tableId, empNameById) {
     if (!tbody) return;
+    tbody._data = { rows, colMap, tableId, empNameById }; // attach for modal lookups
+
     const cols = Object.keys(colMap);
     const friendly = Object.values(colMap);
 
-    const html = rows.map(r => {
-      const tds = cols.map(c => {
+    const html = rows.map((r, i) => {
+      const cells = [];
+
+      // 0) View button cell (index-stable via data-idx)
+      cells.push(`<td class="view-cell"><button class="view-btn" data-action="view" data-idx="${i}" aria-label="View record">View</button></td>`);
+
+      // 1..N) Data cells
+      cols.forEach(c => {
         if (c === "__EMP_NAME__") {
           const idRaw = String(r["Employee ID"] || r["Position ID"] || "").trim();
           const by = String(r["Submitted By"] || r["Employee Name"] || r["Name"] || "").trim();
           const name = (idRaw && empNameById && empNameById.get(idRaw.toLowerCase())) || by || (idRaw || "-");
-          return `<td data-sort="${(name||'').toString().toLowerCase()}">${esc(name)}</td>`;
+          cells.push(`<td data-sort="${(name||'').toString().toLowerCase()}">${esc(name)}</td>`);
+          return;
         }
         const raw = r[c];
         const val = format(c, raw);
@@ -174,22 +205,57 @@ window.PowerUp = window.PowerUp || {};
           const n = Number(String(raw).replace(/[^0-9.\-]/g, ""));
           sortVal = Number.isFinite(n) ? String(n) : "";
         }
-        return `<td data-sort="${sortVal}">${val}</td>`;
-      }).join("");
-      return `<tr>${tds}</tr>`;
+        cells.push(`<td data-sort="${sortVal}">${val}</td>`);
+      });
+
+      return `<tr data-idx="${i}">${cells.join("")}</tr>`;
     }).join("");
 
-    tbody.innerHTML = html || `<tr><td colspan="${cols.length}" style="text-align:center;opacity:.7;">No rows</td></tr>`;
+    tbody.innerHTML = html || `<tr><td colspan="${cols.length + 1}" style="text-align:center;opacity:.7;">No rows</td></tr>`;
 
+    // Rebuild header with leading empty "View" th (unsortable)
     const thead = tbody.closest("table")?.querySelector("thead tr");
     if (thead) {
-      thead.innerHTML = friendly.map(label => `<th>${label}</th>`).join("");
+      thead.innerHTML = `<th class="view-col" aria-label="View"></th>` + friendly.map(label => `<th>${label}</th>`).join("");
       bindHeaderSort(thead, tbody);
     }
+
+    // Delegate click -> open modal
+    tbody.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-action="view"]');
+      if (!btn) return;
+      const tr = btn.closest('tr');
+      const idx = Number(tr?.dataset.idx || btn.dataset.idx || -1);
+      const data = tbody._data || {};
+      const r = (data.rows || [])[idx];
+      if (!r) return;
+
+      // Build a friendly KV list: known columns first (colMap order), then extras (alphabetical)
+      const shown = new Set();
+      const entries = [];
+
+      Object.entries(data.colMap || {}).forEach(([rawCol, label]) => {
+        const val = format(rawCol, r[rawCol]);
+        entries.push([label, val]);
+        shown.add(rawCol);
+      });
+
+      // Any extra fields from the row (not in mapping)
+      const extras = Object.keys(r).filter(k => !shown.has(k)).sort((a,b)=>a.localeCompare(b));
+      extras.forEach(k => entries.push([k, format(k, r[k])]));
+
+      // Title: table name + key id if present
+      let title = 'Record';
+      if (data.tableId === 'ci-table' && r['Submission ID']) title = `CI — ${r['Submission ID']}`;
+      else if (data.tableId === 'quality-table' && r['Catch ID']) title = `Quality — ${r['Catch ID']}`;
+      else if (data.tableId === 'safety-table' && r['Date']) title = `Safety — ${fmtDate(r['Date'])}`;
+
+      openRecordModal(title, entries);
+    }, { once: true }); // bind once per render cycle
   }
 
   function bindHeaderSort(thead, tbody) {
-    let state = { col: 0, asc: true };
+    let state = { col: 1, asc: true }; // start from first data column (skip view col at idx 0)
     const applyIndicators = () => {
       thead.querySelectorAll("th").forEach((h, i) => {
         h.setAttribute("data-sort", "none");
@@ -201,8 +267,9 @@ window.PowerUp = window.PowerUp || {};
       });
     };
     thead.querySelectorAll("th").forEach((th, idx) => {
-      th.style.cursor = "pointer";
+      th.style.cursor = (idx === 0) ? "default" : "pointer";
       th.onclick = () => {
+        if (idx === 0) return; // view col unsortable
         state.asc = state.col === idx ? !state.asc : true;
         state.col = idx;
         const rows = Array.from(tbody.querySelectorAll("tr"));
@@ -228,7 +295,7 @@ window.PowerUp = window.PowerUp || {};
     const needle = String(friendlyHeader || "").toLowerCase().trim();
     for (let i = 0; i < ths.length; i++) {
       const txt = (ths[i].textContent || "").toLowerCase().trim();
-      if (txt === needle) return i;
+      if (txt === needle) return i; // still works with leading view col
     }
     return -1;
   }
@@ -255,11 +322,10 @@ window.PowerUp = window.PowerUp || {};
     const colIdx = findHeaderIndexByText(tableEl, cfg.friendlyHeader);
     const tbody = tableEl.querySelector('tbody');
     if (colIdx < 0 || !tbody) return;
-    const selected = selectEl.value || "";
     Array.from(tbody.rows).forEach(tr => {
       if (tr.children.length <= colIdx) { tr.style.display = ""; return; }
       const cellText = (tr.children[colIdx]?.textContent || "");
-      tr.style.display = cfg.match(cellText, selected) ? "" : "none";
+      tr.style.display = cfg.match(cellText, selectEl.value || "") ? "" : "none";
     });
     updateCount(cfg.countId, tableEl);
   }
@@ -280,7 +346,7 @@ window.PowerUp = window.PowerUp || {};
   // === Main hydrate ===
   ns.tables = ns.tables || {};
   ns.tables.hydrateDashboardTables = async function () {
-    const target = await resolveTargetEmployee(); // {id,name} or null for ALL
+    const target = await resolveTargetEmployee();
     const isAdmin = !!(ns.auth && ns.auth.isAdmin && ns.auth.isAdmin());
 
     const [ciSheet, safetySheet, qualitySheet] = await Promise.all([
@@ -296,7 +362,7 @@ window.PowerUp = window.PowerUp || {};
     const safetyRows  = safetyRowsAll.filter(r => matchesEmployee(r, target));
     const qualityRows = qualityRowsAll.filter(r => matchesEmployee(r, target));
 
-    // id -> display name map (for admin synthetic column)
+    // id -> display name map (admin)
     let empNameById;
     if (isAdmin) {
       empNameById = new Map();
