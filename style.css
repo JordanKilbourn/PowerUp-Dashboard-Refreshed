@@ -36,7 +36,6 @@ html, body {
 }
 
 /* === 5) Top cards row === */
-/* Not sticky — sits in normal flow so we can compute table height cleanly */
 body.dashboard .top-cards {
   display: flex;
   gap: 20px;
@@ -56,7 +55,6 @@ body.dashboard .power-card h3 { font-size: 16px; margin-bottom: 5px; color: var(
 .token-tracker i { font-size: 28px; color: #facc15; }
 
 /* === 6) Tabs === */
-/* Not sticky — keeps layout height predictable */
 .tab-buttons {
   display: flex;
   gap: 2px;
@@ -71,8 +69,7 @@ body.dashboard .power-card h3 { font-size: 16px; margin-bottom: 5px; color: var(
 }
 .tab-button:hover { background: var(--card-bg-hover); color: var(--accent); transform: translateY(-1px); }
 .tab-button.active { background: var(--bg); color: var(--accent); border-color: var(--accent) var(--accent) transparent var(--accent); font-weight: 700; position: relative; top: 2px; z-index: 9; }
-.tab-panel { display: none; padding: 20px; }
-.tab-panel.active { display: block; }
+.tab-panel { display: block; padding: 20px; } /* visibility handled by JS */
 
 /* === 7) Tables & controls (base) === */
 .table-header-row { display: flex; align-items: center; gap: 20px; margin-bottom: 10px; flex-wrap: wrap; }
@@ -83,24 +80,18 @@ body.dashboard .power-card h3 { font-size: 16px; margin-bottom: 5px; color: var(
 .add-btn:hover { background: #ffa364; transform: scale(1.05); }
 .row-count { font-size: 14px; color: var(--accent); }
 
-/* The table “block” owns the only scrollbar on the page */
 .table-scroll {
-  /* JS sets --table-max so the full frame is visible; this is a safe fallback */
   --table-max: 520px;
-
   height: var(--table-max);
   max-height: var(--table-max);
-  overflow-y: auto;
-
+  overflow-y: auto;          /* vertical scroll only */
+  overflow-x: hidden;        /* never side-scroll */
   border: 1px solid #2d3f3f;
   border-radius: 6px;
 }
 .table-scroll table { width: 100%; border-collapse: collapse; }
 .table-scroll th, .table-scroll td { padding: 10px; text-align: left; border-bottom: 1px solid #3a4e4e; }
 .table-scroll thead th { position: sticky; top: 0; background: #213331; z-index: 2; color: var(--accent); cursor: pointer; }
-.table-scroll th.sortable::after { content: ' ⇅'; font-size: 12px; color: #999; }
-.table-scroll th.sorted-asc::after { content: ' ↑'; color: var(--accent); }
-.table-scroll th.sorted-desc::after { content: ' ↓'; color: var(--accent); }
 .table-scroll tbody tr:hover { background-color: rgba(255,255,255,.05); }
 
 /* Hide scrollbars (cosmetic) */
@@ -179,7 +170,7 @@ body.notes .note-editor:empty:before { content: attr(data-placeholder); color: v
 .delete-icon { background: none; border: none; color: #e74c3c; font-size: 14px; cursor: pointer; padding: 4px; opacity: .8; transition: .2s; }
 .delete-icon:hover { opacity: 1; }
 
-/* === 9) SIMPLE PROGRESS BAR (no bubbles/legends) === */
+/* === 9) SIMPLE PROGRESS BAR === */
 .phbar {
   position: relative; height: 16px; border-radius: 999px;
   background: linear-gradient(var(--ph-track),var(--ph-track)) padding-box,
@@ -189,102 +180,129 @@ body.notes .note-editor:empty:before { content: attr(data-placeholder); color: v
   overflow: hidden;
 }
 .phbar__fill { position: absolute; top: 0; left: 0; height: 100%; width: 0%; background: var(--ph-fill); transition: width .35s ease; }
-.phbar__fill.below { background: var(--ph-fill); }
 .phbar__thumb { position: absolute; top: 50%; width: 14px; height: 14px; background: #fff; border: 2px solid rgba(0,0,0,.15); border-radius: 50%; transform: translate(-50%,-50%); box-shadow: 0 1px 4px rgba(0,0,0,.35); pointer-events: none; transition: left .35s ease; }
 .power-card p { margin-bottom: 10px; font-size: 15px; font-weight: 500; }
 .ph-msg { display: block; margin-top: 8px; font-size: 13px; opacity: .97; }
 .ph-msg.ok { color: #a7f3d0; } .ph-msg.warn { color: #ffd166; } .ph-msg.urgent { color: #ff7b7b; } .ph-msg.exceeded { color: #7ee8fa; }
 
-/* === 10) DASHBOARD TABLES — compact, fixed widths, truncation ====== */
-/* Only target the three dashboard tables (no global override) */
+/* === 10) DASHBOARD TABLES — compact & no side-scroll ============== */
+/* Make only the 3 dashboard tables compact. */
 #ci-table, #safety-table, #quality-table {
-  table-layout: fixed;             /* deterministic widths + ellipsis */
+  table-layout: fixed;
   width: 100%;
   border-collapse: collapse;
 }
 #ci-table th, #ci-table td,
 #safety-table th, #safety-table td,
 #quality-table th, #quality-table td {
-  padding: 6px 8px;                /* compact */
+  padding: 6px 8px;
   font-size: 12.5px;
-  white-space: nowrap;             /* single line */
-  overflow: hidden;                /* enable ellipsis */
+  white-space: nowrap;
+  overflow: hidden;
   text-overflow: ellipsis;
   vertical-align: middle;
 }
-/* Row height + separators */
 #ci-table tbody tr, #safety-table tbody tr, #quality-table tbody tr {
   height: 36px;
   border-bottom: 1px solid rgba(255,255,255,.06);
 }
-
-/* Headers: keep your existing sticky header look from .table-scroll; just color-align here */
 #ci-table thead th, #safety-table thead th, #quality-table thead th {
   background: #213331;
   border-bottom: 1px solid #1f2940;
   color: var(--accent);
 }
 
-/* ---- Column widths ------------------------------------------------- */
-/* CI order: View, Submitted, ID, Problem, Improvement, Approval, Assigned, Status, Action Entered, Last Action, Resourced, Resourced On, Tokens, Paid */
-#ci-table th:nth-child(2),  #ci-table td:nth-child(2)  { width: 104px; } /* Submitted */
-#ci-table th:nth-child(3),  #ci-table td:nth-child(3)  { width: 76px;  } /* ID */
-#ci-table th:nth-child(4),  #ci-table td:nth-child(4)  { width: 260px; } /* Problem */
-#ci-table th:nth-child(5),  #ci-table td:nth-child(5)  { width: 280px; } /* Improvement */
-#ci-table th:nth-child(6),  #ci-table td:nth-child(6)  { width: 120px; } /* Approval */
-#ci-table th:nth-child(7),  #ci-table td:nth-child(7)  { width: 140px; } /* Assigned */
-#ci-table th:nth-child(8),  #ci-table td:nth-child(8)  { width: 120px; } /* Status */
-#ci-table th:nth-child(9),  #ci-table td:nth-child(9)  { width: 120px; } /* Action Entered */
-#ci-table th:nth-child(10), #ci-table td:nth-child(10) { width: 220px; } /* Last Action */
-#ci-table th:nth-child(11), #ci-table td:nth-child(11) { width: 90px;  } /* Resourced */
-#ci-table th:nth-child(12), #ci-table td:nth-child(12) { width: 120px; } /* Resourced On */
-#ci-table th:nth-child(13), #ci-table td:nth-child(13) { width: 80px;  text-align:right; } /* Tokens */
-#ci-table th:nth-child(14), #ci-table td:nth-child(14) { width: 70px;  } /* Paid */
+/* View column + button */
+.view-col, .view-cell { width: 56px; min-width: 56px; text-align: center; }
+.view-btn{
+  display:inline-flex; align-items:center; justify-content:center;
+  padding:4px 10px; border-radius:8px;
+  border:1.5px solid var(--accent); color:var(--accent); background:transparent;
+  font-size:12px; line-height:1; cursor:pointer; transition: all .15s ease;
+}
+.view-btn:hover{ background:var(--accent); color:#06201a; box-shadow:0 0 0 3px rgba(0,255,198,.12); }
 
-/* Safety: View, Date, Dept/Area, Safety Concern, Description, Recommendations, Resolution, Escalated To, Leadership Update, Closed/Confirmed, Status */
-#safety-table th:nth-child(2),  #safety-table td:nth-child(2)  { width: 104px; }
-#safety-table th:nth-child(3),  #safety-table td:nth-child(3)  { width: 150px; }
-#safety-table th:nth-child(4),  #safety-table td:nth-child(4)  { width: 220px; }
-#safety-table th:nth-child(5),  #safety-table td:nth-child(5)  { width: 260px; }
-#safety-table th:nth-child(6),  #safety-table td:nth-child(6)  { width: 220px; }
-#safety-table th:nth-child(7),  #safety-table td:nth-child(7)  { width: 220px; }
-#safety-table th:nth-child(8),  #safety-table td:nth-child(8)  { width: 150px; }
-#safety-table th:nth-child(9),  #safety-table td:nth-child(9)  { width: 160px; }
-#safety-table th:nth-child(10), #safety-table td:nth-child(10) { width: 130px; }
-#safety-table th:nth-child(11), #safety-table td:nth-child(11) { width: 110px; }
+/* ---------- Widths that work in BOTH admin & non-admin states ------- */
+/* CI
+   Non-admin order: [View] 2 Submitted, 3 ID, 4 Problem, 5 Improvement, 6 Approval, 7 Assigned, 8 Status,
+                     9 Action Entered, 10 Last Action, 11 Resourced, 12 Resourced On, 13 Tokens, 14 Paid
+   Admin adds "Employee" after View, shifting everything by +1.
+*/
 
-/* Quality: View, Catch ID, Entry Date, Submitted By, Area, Quality Catch, Part Number, Description */
-#quality-table th:nth-child(2), #quality-table td:nth-child(2) { width: 96px;  }  /* Catch ID */
-#quality-table th:nth-child(3), #quality-table td:nth-child(3) { width: 104px; }  /* Entry Date */
-#quality-table th:nth-child(4), #quality-table td:nth-child(4) { width: 150px; }  /* Submitted By */
-#quality-table th:nth-child(5), #quality-table td:nth-child(5) { width: 140px; }  /* Area */
-#quality-table th:nth-child(6), #quality-table td:nth-child(6) { width: 220px; }  /* Quality Catch */
-#quality-table th:nth-child(7), #quality-table td:nth-child(7) { width: 140px; }  /* Part Number */
-#quality-table th:nth-child(8), #quality-table td:nth-child(8) { width: 260px; }  /* Description */
+/* Submitted: 2 (no admin) or 3 (admin) */
+#ci-table th:nth-child(2),  #ci-table td:nth-child(2),
+#ci-table th:nth-child(3),  #ci-table td:nth-child(3)  { width: 96px; }
 
-/* Zebra kept; hover kept above in .table-scroll */
+/* ID: 3 (no admin) or 4 (admin) — override Submitted width where overlap */
+#ci-table th:nth-child(3),  #ci-table td:nth-child(3),
+#ci-table th:nth-child(4),  #ci-table td:nth-child(4)  { width: 72px; }
 
-/* Utilities */
-.nowrap { white-space: nowrap; }
-.t-right { text-align: right; }
-.t-center { text-align: center; }
-.mono { font-variant-numeric: tabular-nums; }
+/* Approval: 6 / 7 */
+#ci-table th:nth-child(6),  #ci-table td:nth-child(6),
+#ci-table th:nth-child(7),  #ci-table td:nth-child(7)  { width: 110px; }
 
-/* Sort arrows (th[data-sort]) */
+/* Status: 8 / 9 */
+#ci-table th:nth-child(8),  #ci-table td:nth-child(8),
+#ci-table th:nth-child(9),  #ci-table td:nth-child(9)  { width: 120px; }
+
+/* Action Entered: 9 / 10 */
+#ci-table th:nth-child(9),  #ci-table td:nth-child(9),
+#ci-table th:nth-child(10), #ci-table td:nth-child(10) { width: 110px; }
+
+/* Resourced: 11 / 12 */
+#ci-table th:nth-child(11), #ci-table td:nth-child(11),
+#ci-table th:nth-child(12), #ci-table td:nth-child(12) { width: 70px; }
+
+/* Resourced On: 12 / 13 */
+#ci-table th:nth-child(12), #ci-table td:nth-child(12),
+#ci-table th:nth-child(13), #ci-table td:nth-child(13) { width: 110px; }
+
+/* Tokens: 13 / 14 */
+#ci-table th:nth-child(13), #ci-table td:nth-child(13),
+#ci-table th:nth-child(14), #ci-table td:nth-child(14) { width: 70px; text-align:right; }
+
+/* Paid: 14 / 15 */
+#ci-table th:nth-child(14), #ci-table td:nth-child(14),
+#ci-table th:nth-child(15), #ci-table td:nth-child(15) { width: 70px; }
+
+/* Leave Problem, Improvement, Assigned, Last Action FLEX so they share remaining space and keep the table within 100% width */
+
+/* Safety (Employee column may also exist)
+   Date is 2/3, Dept is 3/4, Status is last: 11 (no admin) or 12 (admin)
+*/
+#safety-table th:nth-child(2), #safety-table td:nth-child(2),
+#safety-table th:nth-child(3), #safety-table td:nth-child(3) { width: 104px; } /* Date */
+
+#safety-table th:nth-child(3), #safety-table td:nth-child(3),
+#safety-table th:nth-child(4), #safety-table td:nth-child(4) { width: 150px; } /* Dept/Area */
+
+#safety-table thead th:last-child,
+#safety-table tbody td:last-child { width: 120px; } /* Status (robust to admin shift) */
+
+/* Quality (Employee column may also exist)
+   Catch ID is 2/3, Entry Date 3/4, Part Number 7/8
+*/
+#quality-table th:nth-child(2), #quality-table td:nth-child(2),
+#quality-table th:nth-child(3), #quality-table td:nth-child(3) { width: 96px; }  /* Catch ID */
+
+#quality-table th:nth-child(3), #quality-table td:nth-child(3),
+#quality-table th:nth-child(4), #quality-table td:nth-child(4) { width: 104px; } /* Entry Date */
+
+#quality-table th:nth-child(7), #quality-table td:nth-child(7),
+#quality-table th:nth-child(8), #quality-table td:nth-child(8) { width: 120px; } /* Part Number */
+
+/* Sort indicators */
 th[data-sort="asc"]::after { content: " ▲"; opacity: .7; }
 th[data-sort="desc"]::after { content: " ▼"; opacity: .7; }
 th[data-sort="none"]::after { content: " ⇅"; opacity: .35; }
 
-/* ===== SHARED LAYOUT (sidebar + header) — unified, works with layout.js ===== */
-
-/* Keep the page spanning full height */
+/* ===== SHARED LAYOUT (sidebar + header) ===== */
 .container { display: flex; min-height: 100vh; }
 
-/* Sidebar (fixed left) — also supports .sidebar.expanded for legacy toggle */
 .sidebar {
   position: fixed; left: 0; top: 0; bottom: 0;
   width: 72px;
-  display: flex;              /* support bottom-anchored logout */
+  display: flex;
   flex-direction: column;
   background: #0b1020; border-right: 1px solid #1f2937;
   padding: 12px; transition: width .2s ease;
@@ -312,7 +330,6 @@ body.sidebar-expanded .sidebar .item span { display: inline; }
 .sidebar .item.active { background: var(--card-bg-hover); font-weight: 700; }
 .sidebar .item.active i { color: var(--accent); }
 
-/* Spacer + logout pinned to bottom */
 .sidebar-spacer { flex: 1; }
 .sidebar .item.logout {
   margin-top: auto;
@@ -323,7 +340,6 @@ body.sidebar-expanded .sidebar .item span { display: inline; }
   color: #ff6b6b;
 }
 
-/* Header: sticky, shifts with sidebar width */
 .header {
   position: sticky; top: 0; z-index: 10;
   display:flex; flex-direction: column; gap: 6px;
@@ -332,7 +348,7 @@ body.sidebar-expanded .sidebar .item span { display: inline; }
   backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
   border-bottom: 1px solid rgba(0,255,198,.1);
   box-shadow: 0 4px 12px rgba(0,255,198,.08);
-  margin-left: 72px;                 /* collapsed width */
+  margin-left: 72px;
   transition: margin-left .2s ease;
 }
 body.sidebar-expanded .header,
@@ -342,24 +358,18 @@ body.sidebar-expanded .header,
 .header p  { font-size: 14px; color: var(--info); }
 .header p span { color: var(--accent); font-weight: 600; }
 
-/* Main region wraps header + page content */
 .main { flex: 1; display: flex; flex-direction: column; width: 100%; overflow: hidden; }
 
-/* Content fills the viewport below the sticky header; it does not scroll */
 .content {
-  margin-left: 72px;                 /* keep in sync with header/sidebar */
+  margin-left: 72px;
   transition: margin-left .2s ease;
-
-  /* height of viewport minus actual header height (JS keeps --header-h updated) */
   height: calc(100vh - var(--header-h, 64px));
-
   padding: 10px 10px 10px 10px;
-  overflow: hidden; /* the page doesn’t scroll; inner blocks manage their own scroll */
+  overflow: hidden;
 }
 body.sidebar-expanded .content,
 .sidebar.expanded ~ .main .content { margin-left: 220px; }
 
-/* Keep your small button style */
 .btn.small { padding:6px 10px; border:1px solid #2a354b; background:#111a2f; border-radius:8px; color:#e5e7eb; }
 
 /* ---------- Chips used in dashboard tables ---------- */
@@ -380,27 +390,25 @@ body.sidebar-expanded .content,
 
 /* === Squads: category colors & card borders (includes Training) === */
 :root {
-  --sq-ci:       #56ccf2;  /* CI (blue) */
-  --sq-safety:   #ffd166;  /* Safety (amber) */
-  --sq-quality:  #a78bfa;  /* Quality (purple) */
-  --sq-training: #10b981;  /* Training (emerald) */
-  --sq-other:    #6b7280;  /* Other (slate) */
+  --sq-ci:       #56ccf2;
+  --sq-safety:   #ffd166;
+  --sq-quality:  #a78bfa;
+  --sq-training: #10b981;
+  --sq-other:    #6b7280;
 }
-
 .squad-card { border: 2px solid rgba(255,255,255,0.08); }
 .squad-card.cat-ci       { border-color: var(--sq-ci); }
 .squad-card.cat-safety   { border-color: var(--sq-safety); }
 .squad-card.cat-quality  { border-color: var(--sq-quality); }
 .squad-card.cat-training { border-color: var(--sq-training); }
 .squad-card.cat-other    { border-color: var(--sq-other); }
-
 .squad-card.cat-ci:hover       { box-shadow: 0 0 0 2px rgba(86,204,242,.25); }
 .squad-card.cat-safety:hover   { box-shadow: 0 0 0 2px rgba(255,209,102,.25); }
 .squad-card.cat-quality:hover  { box-shadow: 0 0 0 2px rgba(167,139,250,.25); }
 .squad-card.cat-training:hover { box-shadow: 0 0 0 2px rgba(16,185,129,.25); }
 .squad-card.cat-other:hover    { box-shadow: 0 0 0 2px rgba(107,114,128,.25); }
 
-/* === Category filter pills (legend-look buttons) === */
+/* === Category filter pills === */
 .cat-pills { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
 .pill-cat {
   --cat: var(--accent);
