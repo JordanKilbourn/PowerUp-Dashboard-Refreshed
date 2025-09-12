@@ -43,7 +43,7 @@ async function installEmployeeFilterUI() {
       .sort((a,b) => a.localeCompare(b));
   } catch { /* keep empty, UI still renders */ }
 
-  // Mount point: header (layout.js will move this box into #pu-filters-row)
+  // Mount point (layout.js moves it into #pu-filters-row)
   const header = document.getElementById('pu-header');
   if (!header) return;
 
@@ -76,7 +76,7 @@ async function installEmployeeFilterUI() {
   const prev = sessionStorage.getItem(ADMIN_FILTER_KEY);
   if (prev) sel.value = prev;
 
-  // “× Clear” chip — brighter when active (filter applied)
+  // “× Clear” chip — **blue** accent when active
   const clearBtn = document.createElement('button');
   clearBtn.type = 'button';
   clearBtn.id = 'pu-admin-filter-clear';
@@ -84,7 +84,7 @@ async function installEmployeeFilterUI() {
   clearBtn.setAttribute('aria-label', 'Clear employee filter');
   clearBtn.textContent = '× Clear';
   clearBtn.style.cssText = [
-    'padding:4px 8px',
+    'padding:4px 10px',
     'border-radius:999px',
     'border:1px dashed #2a354b',
     'background:#0b1328',
@@ -95,6 +95,13 @@ async function installEmployeeFilterUI() {
     'transition:border-color .15s ease, box-shadow .15s ease, color .15s ease, background-color .15s ease, opacity .15s ease'
   ].join(';');
 
+  // Optional: override the blue with a CSS var if you want (set on :root or body)
+  // e.g. :root { --pu-clear-accent: #f87171; }  // soft red
+  function getClearAccent() {
+    const fromCss = getComputedStyle(document.documentElement).getPropertyValue('--pu-clear-accent').trim();
+    return fromCss || '#60a5fa'; // default: sky-400
+  }
+
   function dispatchChange(value){
     sessionStorage.setItem(ADMIN_FILTER_KEY, value);
     document.dispatchEvent(new CustomEvent('powerup-admin-filter-change', { detail:{ value } }));
@@ -102,7 +109,10 @@ async function installEmployeeFilterUI() {
 
   function updateClearState(){
     const atAll = (sel.value === '__ALL__');
-    const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent')?.trim() || '#00ffc6';
+    const c = getClearAccent();                 // solid border/text
+    const bg = 'rgba(96,165,250,.10)';          // soft blue background
+    const glow = '0 0 0 3px rgba(96,165,250,.12)';
+
     if (atAll) {
       clearBtn.disabled = true;
       clearBtn.style.opacity = '.55';
@@ -115,11 +125,10 @@ async function installEmployeeFilterUI() {
       clearBtn.disabled = false;
       clearBtn.style.opacity = '1';
       clearBtn.style.cursor  = 'pointer';
-      clearBtn.style.border  = `1.5px solid ${accent}`;
-      clearBtn.style.color   = 'var(--accent)';
-      // use your theme’s accent fade if available; otherwise this still looks good
-      clearBtn.style.background = 'var(--accent-fade, rgba(0,255,198,.08))';
-      clearBtn.style.boxShadow  = '0 0 0 3px rgba(0,255,198,.10)';
+      clearBtn.style.border  = `1.5px solid ${c}`;
+      clearBtn.style.color   = c;
+      clearBtn.style.background = bg;
+      clearBtn.style.boxShadow  = glow;
     }
   }
 
@@ -144,7 +153,6 @@ async function installEmployeeFilterUI() {
   box.appendChild(sel);
   box.appendChild(clearBtn);
 }
-
 
   // Admin-only: apply employee filter to a rows[] array.
   // `cols` is an array of possible title keys for that dataset.
