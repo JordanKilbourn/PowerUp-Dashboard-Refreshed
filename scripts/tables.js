@@ -498,7 +498,7 @@ function doClose() {
 
     const ciRows      = ciRowsAll.filter(r => matchesEmployee(r, target));
     const safetyRows  = safetyRowsAll.filter(r => matchesEmployee(r, target));
-    const qualityRows = qualityRowsAll.filter(r => matchesEmployee(r, target));
+    const qualityRows = qualityRowsAll;
 
     let empNameById;
     if (isAdmin) {
