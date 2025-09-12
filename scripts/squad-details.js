@@ -1,4 +1,3 @@
-<!-- save as scripts/squad-details.js -->
 <script>
 (function (PowerUp) {
   const P = PowerUp || (window.PowerUp = {});
