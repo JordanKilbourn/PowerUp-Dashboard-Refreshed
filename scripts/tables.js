@@ -150,27 +150,27 @@ function openRecordModal(title, entries, metaChips = []) {
   }
 
 function doClose() {
-  // Prefer the original opener; fall back to body if opener is gone/hidden
-  let target = opener && document.contains(opener) ? opener : document.body;
+  // 1) Immediately prevent any more focus inside the modal
+  modal.inert = true;
 
-  // Try to move focus out first
-  try { target.focus(); } catch {}
+  // 2) Move focus OUTSIDE the modal (prefer the original opener)
+  const fallback = document.body;
+  const target = (opener && document.contains(opener) && typeof opener.focus === 'function')
+    ? opener : fallback;
+  try { target.focus({ preventScroll: true }); } catch {}
 
-  // If focus is still trapped inside the modal, force it to <body>
+  // If focus somehow remains inside, force it to <body>
   if (modal.contains(document.activeElement)) {
-    document.body.setAttribute('tabindex', '-1');
-    document.body.focus({ preventScroll: true });
-    document.body.removeAttribute('tabindex');
+    fallback.setAttribute('tabindex', '-1');
+    fallback.focus({ preventScroll: true });
+    fallback.removeAttribute('tabindex');
   }
 
-  // Now it's safe to hide the modal on the next frame
-  requestAnimationFrame(() => {
-    modal.classList.remove('is-open');
-    modal.inert = true;
-    modal.setAttribute('aria-hidden', 'true');
-  });
+  // 3) Now hide the modal
+  modal.classList.remove('is-open');
+  modal.setAttribute('aria-hidden', 'true');
 
-  // Cleanup listeners
+  // 4) Cleanup listeners
   modal.querySelectorAll('[data-modal-close]').forEach(el => el.removeEventListener('click', onCloseClick));
   document.removeEventListener('keydown', onKeyDown);
 }
