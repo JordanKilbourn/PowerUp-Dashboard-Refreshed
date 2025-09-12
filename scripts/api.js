@@ -14,6 +14,10 @@
     LEVEL_TRACKER: "8346763116105604",
     SQUADS: "2480892254572420",
     SQUAD_MEMBERS: "2615493107076996",
+    
+    // 🆕 Squad Activities (IDs you created)
+    SQUAD_ACTIVITIES: "1315116675977092",
+    SQUAD_ACTIVITY_PARTICIPANTS: "4817175027076996"
   };
 
   // ---------- caches ----------
@@ -225,6 +229,76 @@
     await Promise.allSettled(keys.map(k => getRowsByTitle(k)));
   }
 
+
+// ---- Activities convenience (read-only for Phase 1) ----
+function _norm(s){ return String(s||'').trim().toLowerCase(); }
+function _fmtDate(v){
+  if (!v) return '';
+  const d = new Date(v);
+  if (isNaN(d)) return '';
+  return `${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}/${d.getFullYear()}`;
+}
+async function _rows(idKey){ return getRowsByTitle(SHEETS[idKey]).catch(()=>[]); }
+
+const activities = {
+  // List activities for a squad by ID or Name. Supports either "Squad ID" or "Squad" column on the sheet.
+  async listBySquad({ squadId = '', squadName = '' } = {}) {
+    const rows = await _rows('SQUAD_ACTIVITIES');
+    const idLC = _norm(squadId), nameLC = _norm(squadName);
+    return rows
+      .map(r => ({
+        raw: r,
+        id:                r['Activity ID'] || r['ID'] || '',
+        squadId:           r['Squad ID'] || r['Squad'] || '',
+        squadName:         r['Squad'] || '',
+        title:             r['Activity Title'] || r['Title'] || '',
+        type:              r['Type'] || '',
+        status:            r['Status'] || '',
+        startDate:         _fmtDate(r['Start Date'] || r['Start']),
+        endDate:           _fmtDate(r['End Date'] || r['Due Date'] || r['End']),
+        ownerName:         r['Owner (Display Name)'] || r['Owner'] || '',
+        description:       r['Description'] || r['Notes'] || ''
+      }))
+      .filter(a => {
+        if (idLC)   return _norm(a.squadId)   === idLC;
+        if (nameLC) return _norm(a.squadName) === nameLC;
+        return true;
+      });
+  },
+
+  // Map ActivityID -> Set(employeeId)
+  async participantsByActivity() {
+    const rows = await _rows('SQUAD_ACTIVITY_PARTICIPANTS');
+    const map = new Map();
+    rows.forEach(r => {
+      const aid = String(r['Activity ID'] || r['Activity'] || '').trim();
+      if (!aid) return;
+      const id = String(r['Employee ID'] || r['Position ID'] || '').trim();
+      if (!map.has(aid)) map.set(aid, new Set());
+      if (id) map.get(aid).add(id);
+    });
+    return map;
+  },
+
+  // Map ActivityID -> total completed Power Hours
+  async hoursByActivity() {
+    const ph = await _rows('POWER_HOURS');
+    const map = new Map();
+    ph.forEach(r => {
+      const aid = String(r['Activity ID'] || '').trim();
+      if (!aid) return;
+      const completed = String(r['Completed'] || r['Is Complete'] || '').toLowerCase();
+      const isDone = completed === 'true' || completed === 'yes' || completed === 'y' || completed === '1';
+      if (!isDone) return;
+      const hrsRaw = r['Completed Hours'] ?? r['Hours'] ?? r['PH'] ?? 0;
+      const hrs = parseFloat(String(hrsRaw).replace(/[^0-9.\-]/g,''));
+      if (!Number.isFinite(hrs)) return;
+      map.set(aid, (map.get(aid) || 0) + hrs);
+    });
+    return map;
+  }
+};
+
   // ---------- export ----------
   P.api = {
     API_BASE,
@@ -237,7 +311,8 @@
     toNumber,
     prefetchEssential,
     warmProxy,
-    ready,                      // ✅ NEW: explicit ready gate
+    ready,
+    activities
   };
   window.PowerUp = P;
 })(window.PowerUp || {});
