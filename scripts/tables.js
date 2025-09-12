@@ -1,4 +1,4 @@
-// DROP-IN REPLACEMENT with labeled Meta Chips + Prev/Next navigation
+// DROP-IN REPLACEMENT with labeled Meta Chips + Prev/Next navigation + dual filters w/ Clear
 window.PowerUp = window.PowerUp || {};
 (function (ns) {
   const { fetchSheet, rowsByTitle, SHEETS } = ns.api;
@@ -43,13 +43,6 @@ window.PowerUp = window.PowerUp || {};
     }
   };
 
-  // === NEW Filter config (two dependent selects) ===
-  const FILTER_CONFIG = {
-    ci:      { countId: "ci-count",      colSelectId: "ci-col",      colValueId: "ci-colval" },
-    safety:  { countId: "safety-count",  colSelectId: "safety-col",  colValueId: "safety-colval" },
-    quality: { countId: "quality-count", colSelectId: "quality-col", colValueId: "quality-colval" }
-  };
-
   // === Helpers ===
   const esc = (s) => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
   const fmtDate = (v) => {
@@ -85,79 +78,65 @@ window.PowerUp = window.PowerUp || {};
     return blank ? "-" : esc(value);
   }
 
+  // ===== Modal utilities =====
+  function openRecordModal(title, entries, metaChips = []) {
+    const modal = document.getElementById('pu-record-modal');
+    const card  = modal?.querySelector('.pu-modal__card');
+    const dl    = document.getElementById('pu-record-dl');
+    const ttl   = document.getElementById('pu-record-title');
+    const meta  = document.getElementById('pu-record-meta');
+    if (!modal || !card || !dl || !ttl || !meta) return;
 
-// ===== Modal utilities =====
-function openRecordModal(title, entries, metaChips = []) {
-  const modal = document.getElementById('pu-record-modal');
-  const card  = modal?.querySelector('.pu-modal__card');
-  const dl    = document.getElementById('pu-record-dl');
-  const ttl   = document.getElementById('pu-record-title');
-  const meta  = document.getElementById('pu-record-meta');
-  if (!modal || !card || !dl || !ttl || !meta) return;
+    // Fill content
+    ttl.textContent = title || 'Record';
+    dl.innerHTML = entries.map(([k,v]) => `<dt>${String(k)}</dt><dd>${v}</dd>`).join('');
+    if (metaChips.length) { meta.innerHTML = metaChips.join(''); meta.hidden = false; }
+    else { meta.innerHTML = ''; meta.hidden = true; }
 
-  // Fill content
-  ttl.textContent = title || 'Record';
-  dl.innerHTML = entries.map(([k,v]) => `<dt>${String(k)}</dt><dd>${v}</dd>`).join('');
-  if (metaChips.length) { meta.innerHTML = metaChips.join(''); meta.hidden = false; }
-  else { meta.innerHTML = ''; meta.hidden = true; }
+    // Remember opener to restore focus on close
+    const opener = document.activeElement;
 
-  // Remember opener to restore focus on close
-  const opener = document.activeElement;
+    // Show dialog + focus the card
+    modal.classList.add('is-open');
+    modal.inert = false;
+    modal.setAttribute('aria-hidden', 'false');
+    if (!card.hasAttribute('tabindex')) card.setAttribute('tabindex','-1');
+    card.focus({ preventScroll: true });
 
-  // Show dialog + focus the card
-  modal.classList.add('is-open');
-  modal.inert = false;
-  modal.setAttribute('aria-hidden', 'false');
-  if (!card.hasAttribute('tabindex')) card.setAttribute('tabindex','-1');
-  card.focus({ preventScroll: true });
+    function onKeyDown(e) {
+      if (e.key === 'Escape') { doClose(); return; }
+      if (e.key !== 'Tab') return;
+      const focusables = card.querySelectorAll(
+        'button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])'
+      );
+      if (!focusables.length) return;
+      const first = focusables[0], last = focusables[focusables.length - 1];
+      if (e.shiftKey && document.activeElement === first) { last.focus(); e.preventDefault(); }
+      else if (!e.shiftKey && document.activeElement === last) { first.focus(); e.preventDefault(); }
+    }
 
-  // Focus trap + Escape
-  function onKeyDown(e) {
-    if (e.key === 'Escape') { doClose(); return; }
-    if (e.key !== 'Tab') return;
-    const focusables = card.querySelectorAll(
-      'button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])'
-    );
-    if (!focusables.length) return;
-    const first = focusables[0], last = focusables[focusables.length - 1];
-    if (e.shiftKey && document.activeElement === first) { last.focus(); e.preventDefault(); }
-    else if (!e.shiftKey && document.activeElement === last) { first.focus(); e.preventDefault(); }
+    function doClose() {
+      modal.inert = true;
+      const fallback = document.body;
+      const target = (opener && document.contains(opener) && typeof opener.focus === 'function')
+        ? opener : fallback;
+      try { target.focus({ preventScroll: true }); } catch {}
+      if (modal.contains(document.activeElement)) {
+        fallback.setAttribute('tabindex', '-1');
+        fallback.focus({ preventScroll: true });
+        fallback.removeAttribute('tabindex');
+      }
+      modal.classList.remove('is-open');
+      modal.setAttribute('aria-hidden', 'true');
+      modal.querySelectorAll('[data-modal-close]').forEach(el => el.removeEventListener('click', onCloseClick));
+      document.removeEventListener('keydown', onKeyDown);
+    }
+    function onCloseClick(e){ e.preventDefault(); doClose(); }
+
+    modal.querySelectorAll('[data-modal-close]').forEach(el => el.addEventListener('click', onCloseClick));
+    document.addEventListener('keydown', onKeyDown);
   }
 
-function doClose() {
-  // 1) Immediately prevent any more focus inside the modal
-  modal.inert = true;
-
-  // 2) Move focus OUTSIDE the modal (prefer the original opener)
-  const fallback = document.body;
-  const target = (opener && document.contains(opener) && typeof opener.focus === 'function')
-    ? opener : fallback;
-  try { target.focus({ preventScroll: true }); } catch {}
-
-  // If focus somehow remains inside, force it to <body>
-  if (modal.contains(document.activeElement)) {
-    fallback.setAttribute('tabindex', '-1');
-    fallback.focus({ preventScroll: true });
-    fallback.removeAttribute('tabindex');
-  }
-
-  // 3) Now hide the modal
-  modal.classList.remove('is-open');
-  modal.setAttribute('aria-hidden', 'true');
-
-  // 4) Cleanup listeners
-  modal.querySelectorAll('[data-modal-close]').forEach(el => el.removeEventListener('click', onCloseClick));
-  document.removeEventListener('keydown', onKeyDown);
-}
-
-
-  function onCloseClick(e){ e.preventDefault(); doClose(); }
-
-  modal.querySelectorAll('[data-modal-close]').forEach(el => el.addEventListener('click', onCloseClick));
-  document.addEventListener('keydown', onKeyDown);
-}
-
-  
   // Build entries from DOM (skip "View" column)
   function buildEntriesFromDOM(tbody, tr) {
     const table = tbody.closest('table');
@@ -183,12 +162,10 @@ function doClose() {
       const label = (headerCells[i].textContent || '').trim();
       if (idLabels.includes(label)) {
         let idText = (cells[i].textContent || '').trim();
-        // tighten spaced hyphens and normalize en/em dashes
         idText = idText.replace(/\s*[\-\u2013\u2014]\s*/g, '-');
         if (idText) return idText;
       }
     }
-    // Fallback
     if (tableId === 'ci-table') return 'CI';
     if (tableId === 'safety-table') return 'Safety';
     if (tableId === 'quality-table') return 'Quality';
@@ -290,10 +267,9 @@ function doClose() {
   // ===== Render + sort =====
   function renderTable(tbody, rows, colMap, tableId, empNameById) {
     if (!tbody) return;
-    tbody._data = { rows, colMap, tableId, empNameById };
-
     const cols = Object.keys(colMap);
     const friendly = Object.values(colMap);
+    tbody._data = { rows, colMap, cols, friendly, tableId, empNameById };
 
     const html = rows.map((r, i) => {
       const cells = [];
@@ -375,7 +351,207 @@ function doClose() {
     applyIndicators();
   }
 
-  // === Filters (new two-select flow) ===
+  // === Filter UI (dual selects + Clear chip) ==========================
+  const UI = {
+    ci:      { container: '#tab-ci  .table-header-controls', oldSelectId: 'ci-filter',      countId: 'ci-count',      tableId: 'ci-table',      store: 'pu.f.ci'      },
+    safety:  { container: '#tab-safety .table-header-controls', oldSelectId: 'safety-filter',  countId: 'safety-count',  tableId: 'safety-table',  store: 'pu.f.safety'  },
+    quality: { container: '#tab-quality .table-header-controls', oldSelectId: 'quality-filter', countId: 'quality-count', tableId: 'quality-table', store: 'pu.f.quality' }
+  };
+
+  function getAccent() {
+    const v = getComputedStyle(document.documentElement).getPropertyValue('--pu-clear-accent').trim();
+    return v || '#60a5fa'; // sky-400 default
+  }
+
+  function installDualFilters(kind) {
+    const cfg = UI[kind];
+    const box = document.querySelector(cfg.container);
+    if (!box) return;
+
+    // Where to insert? Replace the legacy single-select if present; otherwise prepend.
+    const legacy = document.getElementById(cfg.oldSelectId);
+
+    // Build controls
+    const colSel = document.createElement('select');
+    colSel.id = `${kind}-filter-col`;
+    colSel.style.cssText = 'padding:6px 10px;background:#213331;color:#e5e7eb;border:1px solid #2a354b;border-radius:8px;';
+    colSel.innerHTML = `<option value="__ALL__">Filter by…</option>`;
+
+    const valSel = document.createElement('select');
+    valSel.id = `${kind}-filter-val`;
+    valSel.style.cssText = 'padding:6px 10px;background:#213331;color:#e5e7eb;border:1px solid #2a354b;border-radius:8px;';
+    valSel.disabled = true;
+    valSel.innerHTML = `<option value="__ALL__">All</option>`;
+
+    const clearBtn = document.createElement('button');
+    clearBtn.type = 'button';
+    clearBtn.id = `${kind}-filter-clear`;
+    clearBtn.textContent = '× Clear';
+    clearBtn.title = 'Clear filters';
+    clearBtn.setAttribute('aria-label', 'Clear filters');
+    // muted by default; will brighten when active
+    clearBtn.style.cssText = [
+      'padding:4px 10px','border-radius:999px','border:1px dashed #2a354b',
+      'background:#0b1328','color:#9ca3af','font-size:12px','cursor:default',
+      'opacity:.55','transition:all .15s ease'
+    ].join(';');
+
+    function setClearActive(active) {
+      if (active) {
+        const c = getAccent();
+        clearBtn.disabled = false;
+        clearBtn.style.opacity = '1';
+        clearBtn.style.cursor  = 'pointer';
+        clearBtn.style.border  = `1.5px solid ${c}`;
+        clearBtn.style.color   = c;
+        clearBtn.style.background = 'rgba(96,165,250,.10)';
+        clearBtn.style.boxShadow  = '0 0 0 3px rgba(96,165,250,.12)';
+      } else {
+        clearBtn.disabled = true;
+        clearBtn.style.opacity = '.55';
+        clearBtn.style.cursor  = 'default';
+        clearBtn.style.border  = '1px dashed #2a354b';
+        clearBtn.style.color   = '#9ca3af';
+        clearBtn.style.background = '#0b1328';
+        clearBtn.style.boxShadow  = 'none';
+      }
+    }
+
+    // Insert
+    if (legacy) {
+      legacy.replaceWith(colSel);
+      colSel.after(valSel, clearBtn);
+    } else {
+      box.prepend(clearBtn);
+      box.prepend(valSel);
+      box.prepend(colSel);
+    }
+
+    // Populate column list from the table header
+    const tableEl = document.getElementById(cfg.tableId);
+    const headers = Array.from(tableEl?.querySelectorAll('thead th') || []).map(th => (th.textContent || '').trim()).filter(Boolean);
+    // Remove "View" column label
+    const friendly = headers.slice(1);
+    friendly.forEach(lbl => {
+      const opt = document.createElement('option');
+      opt.value = lbl; opt.textContent = `Filter by ${lbl}`;
+      colSel.appendChild(opt);
+    });
+
+    // Restore persisted state
+    const SKEY = `${cfg.store}`;
+    let saved = {};
+    try { saved = JSON.parse(sessionStorage.getItem(SKEY) || '{}'); } catch {}
+    if (saved.col && friendly.includes(saved.col)) {
+      colSel.value = saved.col;
+      valSel.disabled = false;
+      populateValOptions(kind, colSel.value, valSel, tableEl, /*fromAllRows*/true);
+      if (saved.val && Array.from(valSel.options).some(o => o.value === saved.val)) {
+        valSel.value = saved.val;
+      }
+    }
+
+    // Apply initial (restored) filter
+    applyDualFilter(kind, colSel, valSel, tableEl, cfg.countId);
+    setClearActive(colSel.value !== '__ALL__' && valSel.value !== '__ALL__');
+
+    // Events
+    colSel.addEventListener('change', () => {
+      // reset value select
+      if (colSel.value === '__ALL__') {
+        valSel.innerHTML = `<option value="__ALL__">All</option>`;
+        valSel.disabled = true;
+      } else {
+        populateValOptions(kind, colSel.value, valSel, tableEl, /*fromAllRows*/true);
+        valSel.disabled = false;
+      }
+      persist();
+      applyDualFilter(kind, colSel, valSel, tableEl, cfg.countId);
+      setClearActive(colSel.value !== '__ALL__' && valSel.value !== '__ALL__');
+    });
+
+    valSel.addEventListener('change', () => {
+      persist();
+      applyDualFilter(kind, colSel, valSel, tableEl, cfg.countId);
+      setClearActive(colSel.value !== '__ALL__' && valSel.value !== '__ALL__');
+    });
+
+    clearBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      if (clearBtn.disabled) return;
+      colSel.value = '__ALL__';
+      valSel.innerHTML = `<option value="__ALL__">All</option>`;
+      valSel.disabled = true;
+      persist();
+      applyDualFilter(kind, colSel, valSel, tableEl, cfg.countId);
+      setClearActive(false);
+    });
+
+    function persist(){
+      const obj = { col: colSel.value, val: valSel.value };
+      try { sessionStorage.setItem(SKEY, JSON.stringify(obj)); } catch {}
+    }
+  }
+
+  // Fill the "value" select with unique values for a chosen column.
+  // We build from ALL rows (not just currently visible) so the list is stable.
+  function populateValOptions(kind, friendlyLabel, valSel, tableEl, fromAllRows=true) {
+    const idx = findHeaderIndexByText(tableEl, friendlyLabel); // absolute index incl. View col
+    const tbody = tableEl.querySelector('tbody');
+    const set = new Map(); // norm -> display
+    const add = (s) => {
+      const disp = (s == null || String(s).trim()==='') ? '-' : String(s).trim();
+      const norm = disp.toLowerCase();
+      if (!set.has(norm)) set.set(norm, disp);
+    };
+
+    if (fromAllRows && tbody && tbody._data && Array.isArray(tbody._data.rows)) {
+      // Use original data + formatter for stability
+      const colIdx = (tbody._data.friendly || []).indexOf(friendlyLabel); // 0-based in friendly (excludes View)
+      if (colIdx >= 0) {
+        const key = tbody._data.cols[colIdx];
+        tbody._data.rows.forEach(r => add( stripTags(format(key, r[key])) ));
+      }
+    } else {
+      // Fallback: read from DOM (may reflect current filters)
+      Array.from(tbody?.rows || []).forEach(tr => {
+        const td = tr.children[idx];
+        if (!td) return;
+        add(td.textContent || '');
+      });
+    }
+
+    const items = Array.from(set.values()).sort((a,b) => a.localeCompare(b));
+    valSel.innerHTML = `<option value="__ALL__">All</option>` + items.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
+  }
+
+  function stripTags(html){
+    const d = document.createElement('div');
+    d.innerHTML = String(html || '');
+    return d.textContent || d.innerText || '';
+  }
+
+  // Apply the filter to rows
+  function applyDualFilter(kind, colSel, valSel, tableEl, countId) {
+    const tbody = tableEl.querySelector('tbody');
+    if (!tbody) return;
+    const colLabel = colSel.value;
+    const val = (valSel.value || '__ALL__');
+    const idx = (colLabel && colLabel !== '__ALL__') ? findHeaderIndexByText(tableEl, colLabel) : -1;
+
+    Array.from(tbody.rows).forEach(tr => {
+      let ok = true;
+      if (idx > 0 && val !== '__ALL__') {
+        const cellTxt = (tr.children[idx]?.textContent || '').trim().toLowerCase();
+        ok = (cellTxt === String(val).trim().toLowerCase());
+      }
+      tr.style.display = ok ? '' : 'none';
+    });
+
+    updateCount(countId, tableEl);
+  }
+
+  // === Utilities shared by filters ===
   function findHeaderIndexByText(tableEl, friendlyHeader) {
     const ths = tableEl?.querySelectorAll('thead th');
     if (!ths) return -1;
@@ -393,111 +569,6 @@ function doClose() {
       .filter(tr => tr.style.display !== 'none' && tr.children.length > 1).length;
     const el = document.getElementById(countId);
     if (el) el.textContent = `${visible} submission${visible === 1 ? "" : "s"}`;
-  }
-  // (kept for compatibility, no longer used)
-  function repopulateSelect(selectEl, options) {
-    if (!selectEl) return;
-    const current = selectEl.value;
-    selectEl.innerHTML = options.map(o => `<option value="${o}">${o}</option>`).join("");
-    selectEl.value = options.includes(current) ? current : options[0];
-  }
-
-  // Populate the "Column" dropdown from the table header
-  function populateColumnSelect(kind) {
-    const cfg = FILTER_CONFIG[kind];
-    const tableEl = document.getElementById(`${kind}-table`);
-    const colSel = document.getElementById(cfg.colSelectId);
-    if (!tableEl || !colSel) return;
-
-    const labels = Array.from(tableEl.querySelectorAll('thead th'))
-      .slice(1) // skip "View"
-      .map(th => (th.textContent || '').trim())
-      .filter(Boolean);
-
-    const keep = colSel.value;
-    colSel.innerHTML = ['<option value="">Filter by…</option>']
-      .concat(labels.map(l => `<option value="${esc(l)}">${esc(l)}</option>`))
-      .join('');
-    if (labels.includes(keep)) colSel.value = keep;
-  }
-
-  // Populate the "Value" dropdown from unique values in the chosen column
-  function populateValueSelect(kind) {
-    const cfg = FILTER_CONFIG[kind];
-    const tableEl = document.getElementById(`${kind}-table`);
-    const colSel = document.getElementById(cfg.colSelectId);
-    const valSel = document.getElementById(cfg.colValueId);
-    if (!tableEl || !colSel || !valSel) return;
-
-    const label = (colSel.value || '').trim();
-    if (!label) {
-      valSel.innerHTML = '<option value="">All</option>';
-      valSel.disabled = true;
-      return;
-    }
-
-    const colIdx = findHeaderIndexByText(tableEl, label);
-    const values = new Set();
-    Array.from(tableEl.querySelectorAll('tbody tr')).forEach(tr => {
-      const txt = (tr.children[colIdx]?.textContent || '').trim() || '-';
-      values.add(txt);
-    });
-
-    const sorted = Array.from(values).sort((a,b) => a.localeCompare(b, undefined, { numeric:true, sensitivity:'base' }));
-    const keep = valSel.value;
-    valSel.innerHTML = ['<option value="">All</option>']
-      .concat(sorted.map(v => `<option value="${esc(v)}">${esc(v)}</option>`))
-      .join('');
-    valSel.disabled = false;
-    if (sorted.includes(keep)) valSel.value = keep;
-  }
-
-  function applyFilterFor(kind) {
-    const cfg = FILTER_CONFIG[kind];
-    const tableEl = document.getElementById(`${kind}-table`);
-    if (!cfg || !tableEl) return;
-
-    const tbody = tableEl.querySelector('tbody');
-    const colSel = document.getElementById(cfg.colSelectId);
-    const valSel = document.getElementById(cfg.colValueId);
-    if (!tbody || !colSel || !valSel) return;
-
-    const colLabel = (colSel.value || '').trim();
-    const valChoice = (valSel.value || '').trim();
-    const colIdx = colLabel ? findHeaderIndexByText(tableEl, colLabel) : -1;
-
-    Array.from(tbody.rows).forEach(tr => {
-      let ok = true;
-      if (colIdx > 0 && valChoice) {
-        const text = (tr.children[colIdx]?.textContent || '').trim();
-        ok = (text === valChoice);
-      }
-      tr.style.display = ok ? "" : "none";
-    });
-
-    updateCount(cfg.countId, tableEl);
-  }
-
-  function wireFilters() {
-    Object.keys(FILTER_CONFIG).forEach(kind => {
-      populateColumnSelect(kind);
-      populateValueSelect(kind);
-
-      const cfg = FILTER_CONFIG[kind];
-      const colSel = document.getElementById(cfg.colSelectId);
-      const valSel = document.getElementById(cfg.colValueId);
-
-      if (colSel && !colSel.dataset.bound) {
-        colSel.dataset.bound = "1";
-        colSel.addEventListener('change', () => { populateValueSelect(kind); applyFilterFor(kind); });
-      }
-      if (valSel && !valSel.dataset.bound) {
-        valSel.dataset.bound = "1";
-        valSel.addEventListener('change', () => applyFilterFor(kind));
-      }
-
-      applyFilterFor(kind);
-    });
   }
 
   // === Main hydrate ===
@@ -542,7 +613,7 @@ function doClose() {
 
     const ciRows      = ciRowsAll.filter(r => matchesEmployee(r, target));
     const safetyRows  = safetyRowsAll.filter(r => matchesEmployee(r, target));
-    const qualityRows = qualityRowsAll; // everyone sees all quality rows
+    const qualityRows = qualityRowsAll; // ✅ all users see all quality catches
 
     let empNameById;
     if (isAdmin) {
@@ -567,9 +638,9 @@ function doClose() {
     const safetyMapWithEmp = withAdminEmployeeCol(Object.assign({}, COL_MAP.safety));
     const qualityMap       = Object.assign({}, COL_MAP.quality);
 
-    renderTable(document.querySelector('[data-hook="table.ci.tbody"]'), ciRows, ciMapWithEmp, "ci-table", empNameById);
+    renderTable(document.querySelector('[data-hook="table.ci.tbody"]'), ciRows,     ciMapWithEmp,     "ci-table",     empNameById);
     renderTable(document.querySelector('[data-hook="table.safety.tbody"]'), safetyRows, safetyMapWithEmp, "safety-table", empNameById);
-    renderTable(document.querySelector('[data-hook="table.quality.tbody"]'), qualityRows, qualityMap, "quality-table", empNameById);
+    renderTable(document.querySelector('[data-hook="table.quality.tbody"]'), qualityRows, qualityMap,       "quality-table", empNameById);
 
     const setCount = (id, n) => {
       const el = document.getElementById(id);
@@ -579,16 +650,16 @@ function doClose() {
     setCount("safety-count", safetyRows.length);
     setCount("quality-count", qualityRows.length);
 
-    wireFilters();
+    // Install dual filters + clear chip for each table
+    installDualFilters('ci');
+    installDualFilters('safety');
+    installDualFilters('quality');
+
     document.dispatchEvent(new Event('data-hydrated'));
   };
 
-  ns.tables.applyFilterFor = (kind) => {
-    if (FILTER_CONFIG[kind]) {
-      applyFilterFor(kind);
-      if (_nav) updateNavButtons();
-    }
-  };
+  // Back-compat (no-op): callers may still invoke this symbol
+  ns.tables.applyFilterFor = () => {};
 
   document.addEventListener('powerup-admin-filter-change', () => {
     ns.tables.hydrateDashboardTables().catch(console.error);
