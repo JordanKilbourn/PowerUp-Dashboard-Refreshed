@@ -110,15 +110,15 @@ window.PowerUp = window.PowerUp || {};
     return blank ? "-" : esc(value);
   }
 
-  // ===== Modal utilities =====
-function openRecordModal(title, entries, metaChips = [], triggerEl = document.activeElement) {
+
+// ===== Modal utilities =====
+function openRecordModal(title, entries, metaChips = []) {
   const modal = document.getElementById('pu-record-modal');
+  const card  = modal?.querySelector('.pu-modal__card');
   const dl    = document.getElementById('pu-record-dl');
   const ttl   = document.getElementById('pu-record-title');
   const meta  = document.getElementById('pu-record-meta');
-  const card  = modal?.querySelector('.pu-modal__card');
-
-  if (!modal || !dl || !ttl || !meta) return;
+  if (!modal || !card || !dl || !ttl || !meta) return;
 
   // Fill content
   ttl.textContent = title || 'Record';
@@ -126,12 +126,17 @@ function openRecordModal(title, entries, metaChips = [], triggerEl = document.ac
   if (metaChips.length) { meta.innerHTML = metaChips.join(''); meta.hidden = false; }
   else { meta.innerHTML = ''; meta.hidden = true; }
 
-  // Open + focus the card
-  modal.classList.add('is-open');
-  modal.setAttribute('aria-hidden', 'false');
-  setTimeout(() => card && card.focus(), 0);
+  // Remember opener to restore focus on close
+  const opener = document.activeElement;
 
-  // Optional: simple focus trap inside modal
+  // Show dialog + focus the card
+  modal.classList.add('is-open');
+  modal.inert = false;
+  modal.setAttribute('aria-hidden', 'false');
+  if (!card.hasAttribute('tabindex')) card.setAttribute('tabindex','-1');
+  card.focus({ preventScroll: true });
+
+  // Focus trap + Escape
   function onKeyDown(e) {
     if (e.key === 'Escape') { doClose(); return; }
     if (e.key !== 'Tab') return;
@@ -145,19 +150,28 @@ function openRecordModal(title, entries, metaChips = [], triggerEl = document.ac
   }
 
   function doClose() {
-    // 1) Move focus OUTSIDE the modal first (back to the trigger or body)
-    const target = (triggerEl && typeof triggerEl.focus === 'function') ? triggerEl : document.body;
-    if (modal.contains(document.activeElement)) target.focus();
+    // 1) Move focus OUT first (prevents the aria-hidden warning)
+    try { opener && opener.focus && opener.focus(); } catch {}
 
-    // 2) Now it's safe to hide the modal
-    modal.classList.remove('is-open');
-    modal.setAttribute('aria-hidden', 'true');
+    // 2) Then hide the dialog on the next frame
+    requestAnimationFrame(() => {
+      modal.classList.remove('is-open');
+      modal.inert = true;
+      modal.setAttribute('aria-hidden', 'true');
+    });
+
+    // 3) Cleanup listeners
+    modal.querySelectorAll('[data-modal-close]').forEach(el => el.removeEventListener('click', onCloseClick));
     document.removeEventListener('keydown', onKeyDown);
   }
 
-  modal.querySelectorAll('[data-modal-close]').forEach(el => el.onclick = doClose);
+  function onCloseClick(e){ e.preventDefault(); doClose(); }
+
+  modal.querySelectorAll('[data-modal-close]').forEach(el => el.addEventListener('click', onCloseClick));
   document.addEventListener('keydown', onKeyDown);
 }
+
+  
   // Build entries from DOM (skip "View" column)
   function buildEntriesFromDOM(tbody, tr) {
     const table = tbody.closest('table');
