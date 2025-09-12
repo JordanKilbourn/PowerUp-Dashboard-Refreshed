@@ -495,3 +495,32 @@ body.sidebar-expanded .content,
 }
 #myOnly:checked::after, #activeOnly:checked::after{ opacity:1; }
 
+/* ---- Squad details grid ---- */
+.sq-grid{
+  display:grid;
+  grid-template-columns: 360px 1fr;
+  gap:14px;
+  margin: 6px 14px 16px;
+}
+.sq-col-left,.sq-col-right{ min-width:0; }
+.sq-h{ margin:4px 2px 8px; color:var(--accent,#7fffd4); font-weight:700; }
+.table-wrap{ background:var(--card-bg,#0f1b1b); border:1px solid #2d3f3f; border-radius:8px; overflow:hidden; }
+.pu-table{ width:100%; border-collapse:collapse; }
+.pu-table thead th{ font-weight:600; text-align:left; padding:10px 12px; background:#122; border-bottom:1px solid #2d3f3f; }
+.pu-table tbody td{ padding:9px 12px; border-top:1px solid rgba(255,255,255,.04); }
+.pill{ display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; font-weight:700; }
+.pill--green{ background:#22c55e; color:#041; }
+.pill--blue{ background:#3b82f6; color:#031; }
+.pill--amber{ background:#f59e0b; color:#220; }
+
+.chip-row{ display:flex; flex-wrap:wrap; gap:8px; }
+.chip{ display:inline-flex; gap:8px; align-items:center; padding:6px 10px; border-radius:999px; border:1px solid #2d3f3f; background:#0b1328; color:#e5e7eb; }
+.chip__label{ opacity:.7; }
+.chip__value{ font-weight:700; }
+
+@media (max-width: 1000px){
+  .sq-grid{ grid-template-columns: 1fr; }
+}
+
+
+
