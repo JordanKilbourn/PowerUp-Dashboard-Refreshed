@@ -221,12 +221,15 @@
     <div class="table-header-row">
       <h3>Continuous Improvement</h3>
       <div class="table-header-controls">
-        <select id="ci-filter"><option value="All">All Status</option></select>
-        <a class="add-btn" id="ci-add"
-           href="https://app.smartsheet.com/b/form/e60862d9ae0b44358d6f85dcd1c81d2b"
-           target="_blank" rel="noopener">+ Add Submission</a>
-        <span id="ci-count" class="row-count">0 submissions</span>
-      </div>
+  <select id="ci-col"    title="Pick a column to filter"></select>
+  <select id="ci-colval" title="Pick a value" disabled></select>
+
+  <a class="add-btn" id="ci-add"
+     href="https://app.smartsheet.com/b/form/e60862d9ae0b44358d6f85dcd1c81d2b"
+     target="_blank" rel="noopener">+ Add Submission</a>
+  <span id="ci-count" class="row-count">0 submissions</span>
+</div>
+
     </div>
     <div class="table-scroll">
       <table id="ci-table" class="dashboard-table">
@@ -246,12 +249,15 @@
     <div class="table-header-row">
       <h3>Safety Concerns</h3>
       <div class="table-header-controls">
-        <select id="safety-filter"><option value="All">All Areas</option></select>
-        <a class="add-btn" id="safety-add"
-           href="https://app.smartsheet.com/b/form/162129580c03440f88cc5f284627b52f"
-           target="_blank" rel="noopener">+ Add Submission</a>
-        <span id="safety-count" class="row-count">0 submissions</span>
-      </div>
+  <select id="safety-col"    title="Pick a column to filter"></select>
+  <select id="safety-colval" title="Pick a value" disabled></select>
+
+  <a class="add-btn" id="safety-add"
+     href="https://app.smartsheet.com/b/form/162129580c03440f88cc5f284627b52f"
+     target="_blank" rel="noopener">+ Add Submission</a>
+  <span id="safety-count" class="row-count">0 submissions</span>
+</div>
+
     </div>
     <div class="table-scroll">
       <table id="safety-table" class="dashboard-table">
@@ -270,13 +276,16 @@
   <div class="tab-panel" id="tab-quality">
     <div class="table-header-row">
       <h3>Quality Catches</h3>
-      <div class="table-header-controls">
-        <select id="quality-filter"><option value="All">All Types</option></select>
-        <a class="add-btn" id="quality-add"
-           href="https://app.smartsheet.com/b/form/2ba4ff03861d4d068ee5a0bff46308c3"
-           target="_blank" rel="noopener">+ Add Submission</a>
-        <span id="quality-count" class="row-count">0 submissions</span>
-      </div>
+     <div class="table-header-controls">
+  <select id="quality-col"    title="Pick a column to filter"></select>
+  <select id="quality-colval" title="Pick a value" disabled></select>
+
+  <a class="add-btn" id="quality-add"
+     href="https://app.smartsheet.com/b/form/2ba4ff03861d4d068ee5a0bff46308c3"
+     target="_blank" rel="noopener">+ Add Submission</a>
+  <span id="quality-count" class="row-count">0 submissions</span>
+</div>
+
     </div>
     <div class="table-scroll">
       <table id="quality-table" class="dashboard-table">
@@ -402,6 +411,7 @@
 
 </body>
 </html>
+
 
 
 
