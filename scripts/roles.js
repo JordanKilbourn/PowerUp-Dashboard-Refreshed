@@ -1,4 +1,4 @@
-// scripts/roles.js  (v2025-09-03-a)  — allowlist-based admin + small helpers
+// scripts/roles.js  (v2025-09-03-b)  — allowlist-based admin + helpers + Clear chip
 (function (PowerUp) {
   const P = PowerUp || (window.PowerUp = {});
 
@@ -40,7 +40,7 @@
         .sort((a,b) => a.localeCompare(b));
     } catch { /* keep empty, UI still renders */ }
 
-    // Mount point: right side of your header line
+    // Mount point: header (layout.js will move this box into #pu-filters-row)
     const header = document.getElementById('pu-header');
     if (!header) return;
 
@@ -55,28 +55,76 @@
       box.innerHTML = '';
     }
 
+    // Label
     const label = document.createElement('span');
     label.style.cssText = 'font-size:12px; color:#9ca3af;';
     label.textContent = 'Admin filter:';
 
+    // Select (give it a stable id for future reference)
     const sel = document.createElement('select');
+    sel.id = 'pu-admin-employee-select';
     sel.style.cssText = 'padding:6px 8px;border-radius:8px;background:#0b1328;border:1px solid #2a354b;color:#e5e7eb;';
     sel.innerHTML = ['<option value="__ALL__">All Employees</option>']
       .concat(names.map(n => `<option value="${n}">${n}</option>`))
       .join('');
 
-    // restore previous selection
+    // Restore previous selection
     const prev = sessionStorage.getItem(ADMIN_FILTER_KEY);
     if (prev) sel.value = prev;
 
+    // “× Clear” chip — small, subtle, and inline
+    const clearBtn = document.createElement('button');
+    clearBtn.type = 'button';
+    clearBtn.id = 'pu-admin-filter-clear';
+    clearBtn.title = 'Clear employee filter';
+    clearBtn.setAttribute('aria-label', 'Clear employee filter');
+    clearBtn.textContent = '× Clear';
+    clearBtn.style.cssText = [
+      'padding:4px 8px',
+      'border-radius:999px',
+      'border:1px dashed #2a354b',
+      'background:#0b1328',
+      'color:#9ca3af',
+      'font-size:12px',
+      'cursor:pointer',
+      'opacity:.85'
+    ].join(';');
+    clearBtn.onmouseover = () => (clearBtn.style.opacity = '1');
+    clearBtn.onmouseout  = () => (clearBtn.style.opacity = '.85');
+
+    function dispatchChange(value){
+      sessionStorage.setItem(ADMIN_FILTER_KEY, value);
+      document.dispatchEvent(new CustomEvent('powerup-admin-filter-change', { detail:{ value } }));
+    }
+
+    function updateClearState(){
+      // Keep the button subtle: disable it when we're already at All
+      const atAll = (sel.value === '__ALL__');
+      clearBtn.disabled = atAll;
+      clearBtn.style.opacity = atAll ? '.5' : '.85';
+      clearBtn.style.cursor  = atAll ? 'default' : 'pointer';
+    }
+
     sel.addEventListener('change', () => {
-      sessionStorage.setItem(ADMIN_FILTER_KEY, sel.value);
-      // Fire a small event so pages can re-render if they want
-      document.dispatchEvent(new CustomEvent('powerup-admin-filter-change', { detail:{ value: sel.value }}));
+      dispatchChange(sel.value);
+      updateClearState();
     });
 
+    clearBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      if (sel.value === '__ALL__') return;
+      sel.value = '__ALL__';
+      dispatchChange('__ALL__');
+      updateClearState();
+    });
+
+    // Initial state
+    updateClearState();
+
+    // Assemble
     box.appendChild(label);
     box.appendChild(sel);
+    box.appendChild(clearBtn);
   }
 
   // Admin-only: apply employee filter to a rows[] array.
@@ -96,7 +144,6 @@
     if (isAdmin()) return true;
 
     // Non-admin: keep your existing behavior (leaders-only etc.)
-    // If your current page already has that check, you can ignore this.
     try {
       const me = P.session?.get?.();
       const myId = norm((me.employeeId || '').toString().toUpperCase());
