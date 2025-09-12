@@ -149,21 +149,32 @@ function openRecordModal(title, entries, metaChips = []) {
     else if (!e.shiftKey && document.activeElement === last) { first.focus(); e.preventDefault(); }
   }
 
-  function doClose() {
-    // 1) Move focus OUT first (prevents the aria-hidden warning)
-    try { opener && opener.focus && opener.focus(); } catch {}
+function doClose() {
+  // Prefer the original opener; fall back to body if opener is gone/hidden
+  let target = opener && document.contains(opener) ? opener : document.body;
 
-    // 2) Then hide the dialog on the next frame
-    requestAnimationFrame(() => {
-      modal.classList.remove('is-open');
-      modal.inert = true;
-      modal.setAttribute('aria-hidden', 'true');
-    });
+  // Try to move focus out first
+  try { target.focus(); } catch {}
 
-    // 3) Cleanup listeners
-    modal.querySelectorAll('[data-modal-close]').forEach(el => el.removeEventListener('click', onCloseClick));
-    document.removeEventListener('keydown', onKeyDown);
+  // If focus is still trapped inside the modal, force it to <body>
+  if (modal.contains(document.activeElement)) {
+    document.body.setAttribute('tabindex', '-1');
+    document.body.focus({ preventScroll: true });
+    document.body.removeAttribute('tabindex');
   }
+
+  // Now it's safe to hide the modal on the next frame
+  requestAnimationFrame(() => {
+    modal.classList.remove('is-open');
+    modal.inert = true;
+    modal.setAttribute('aria-hidden', 'true');
+  });
+
+  // Cleanup listeners
+  modal.querySelectorAll('[data-modal-close]').forEach(el => el.removeEventListener('click', onCloseClick));
+  document.removeEventListener('keydown', onKeyDown);
+}
+
 
   function onCloseClick(e){ e.preventDefault(); doClose(); }
 
