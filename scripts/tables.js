@@ -111,37 +111,53 @@ window.PowerUp = window.PowerUp || {};
   }
 
   // ===== Modal utilities =====
-  function openRecordModal(title, entries, metaChips = []) {
-    const modal = document.getElementById('pu-record-modal');
-    const dl = document.getElementById('pu-record-dl');
-    const ttl = document.getElementById('pu-record-title');
-    const meta = document.getElementById('pu-record-meta');
-    if (!modal || !dl || !ttl || !meta) return;
+function openRecordModal(title, entries, metaChips = [], triggerEl = document.activeElement) {
+  const modal = document.getElementById('pu-record-modal');
+  const dl    = document.getElementById('pu-record-dl');
+  const ttl   = document.getElementById('pu-record-title');
+  const meta  = document.getElementById('pu-record-meta');
+  const card  = modal?.querySelector('.pu-modal__card');
 
-    ttl.textContent = title || 'Record';
-    dl.innerHTML = entries.map(([k,v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join("");
+  if (!modal || !dl || !ttl || !meta) return;
 
-    if (metaChips.length) {
-      meta.innerHTML = metaChips.join("");
-      meta.hidden = false;
-    } else {
-      meta.innerHTML = "";
-      meta.hidden = true;
-    }
+  // Fill content
+  ttl.textContent = title || 'Record';
+  dl.innerHTML = entries.map(([k,v]) => `<dt>${String(k)}</dt><dd>${v}</dd>`).join('');
+  if (metaChips.length) { meta.innerHTML = metaChips.join(''); meta.hidden = false; }
+  else { meta.innerHTML = ''; meta.hidden = true; }
 
-    modal.classList.add('is-open');
-    modal.setAttribute('aria-hidden', 'false');
+  // Open + focus the card
+  modal.classList.add('is-open');
+  modal.setAttribute('aria-hidden', 'false');
+  setTimeout(() => card && card.focus(), 0);
 
-    const close = (evt) => {
-      if (evt && evt.type === 'keydown' && evt.key !== 'Escape') return;
-      modal.classList.remove('is-open');
-      modal.setAttribute('aria-hidden', 'true');
-      document.removeEventListener('keydown', close);
-    };
-    modal.querySelectorAll('[data-modal-close]').forEach(el => el.onclick = close);
-    document.addEventListener('keydown', close);
+  // Optional: simple focus trap inside modal
+  function onKeyDown(e) {
+    if (e.key === 'Escape') { doClose(); return; }
+    if (e.key !== 'Tab') return;
+    const focusables = card.querySelectorAll(
+      'button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])'
+    );
+    if (!focusables.length) return;
+    const first = focusables[0], last = focusables[focusables.length - 1];
+    if (e.shiftKey && document.activeElement === first) { last.focus(); e.preventDefault(); }
+    else if (!e.shiftKey && document.activeElement === last) { first.focus(); e.preventDefault(); }
   }
 
+  function doClose() {
+    // 1) Move focus OUTSIDE the modal first (back to the trigger or body)
+    const target = (triggerEl && typeof triggerEl.focus === 'function') ? triggerEl : document.body;
+    if (modal.contains(document.activeElement)) target.focus();
+
+    // 2) Now it's safe to hide the modal
+    modal.classList.remove('is-open');
+    modal.setAttribute('aria-hidden', 'true');
+    document.removeEventListener('keydown', onKeyDown);
+  }
+
+  modal.querySelectorAll('[data-modal-close]').forEach(el => el.onclick = doClose);
+  document.addEventListener('keydown', onKeyDown);
+}
   // Build entries from DOM (skip "View" column)
   function buildEntriesFromDOM(tbody, tr) {
     const table = tbody.closest('table');
