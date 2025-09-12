@@ -1,4 +1,3 @@
-<script>
 (function (PowerUp) {
   const P = PowerUp || (window.PowerUp = {});
   const { SHEETS, getRowsByTitle, activities } = P.api;
@@ -255,4 +254,3 @@
   }
 
 })(window.PowerUp || {});
-</script>
