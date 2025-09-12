@@ -116,6 +116,24 @@ body::-webkit-scrollbar, .main::-webkit-scrollbar { width: 0; height: 0; }
 .pending  { background: var(--warning); color: #000; }
 .completed{ background: var(--success); color: #000; }
 
+/* Tiny "clear" chip for filters (subtle, space-saving) */
+.filter-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px; height: 24px;
+  margin-left: 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.18);
+  background: transparent;
+  color: #9ccfd8;
+  cursor: pointer;
+  transition: border-color .15s ease, color .15s ease, background-color .15s ease, transform .05s ease;
+}
+.filter-clear i { font-size: 12px; line-height: 1; }
+.filter-clear:hover { border-color: var(--accent); color: var(--accent); background: rgba(0,255,198,.06); }
+.filter-clear:active { transform: translateY(1px); }
+
 /* === 8) Notes page (unchanged) === */
 body.notes .notes-controls { padding: 20px; background: var(--card-bg); border-bottom: 2px solid var(--accent); }
 body.notes #note-input { width: 100%; padding: 12px 14px; font-size: 16px; border: none; border-radius: 6px; background: #213331; color: var(--text); }
@@ -476,3 +494,4 @@ body.sidebar-expanded .content,
   content:""; position:absolute; inset:2px; border-radius:2px; opacity:0; background: var(--accent);
 }
 #myOnly:checked::after, #activeOnly:checked::after{ opacity:1; }
+
