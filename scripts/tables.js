@@ -1,3 +1,4 @@
+// scripts/tables.js
 // DROP-IN REPLACEMENT with labeled Meta Chips + Prev/Next navigation + dual filters w/ Clear
 window.PowerUp = window.PowerUp || {};
 (function (ns) {
@@ -264,6 +265,19 @@ window.PowerUp = window.PowerUp || {};
     renderModalFromIndex();
   }
 
+  // --- widths for compact columns (headers + cells)
+  function widthFor(label){
+    const t = String(label||'').toLowerCase();
+    if (label === 'ID' || label === 'Catch ID') return 90;
+    if (t.includes('date')) return 110;
+    if (t.includes('token')) return 90;
+    if (t === 'paid' || t === 'resourced') return 84;
+    if (t.includes('status') || t.includes('approval')) return 120;
+    if (t.includes('assigned') || t.includes('submitted by') || t === 'employee' || t === 'area' || t.includes('dept')) return 150;
+    if (t === 'part number') return 130;
+    return 0; // long text columns expand naturally
+  }
+
   // ===== Render + sort =====
   function renderTable(tbody, rows, colMap, tableId, empNameById) {
     if (!tbody) return;
@@ -271,15 +285,19 @@ window.PowerUp = window.PowerUp || {};
     const friendly = Object.values(colMap);
     tbody._data = { rows, colMap, cols, friendly, tableId, empNameById };
 
+    const widths = friendly.map(widthFor);
+
     const html = rows.map((r, i) => {
       const cells = [];
       cells.push(`<td class="view-cell"><button class="view-btn" data-action="view" data-idx="${i}" aria-label="View record">View</button></td>`);
-      cols.forEach(c => {
+      cols.forEach((c, ci) => {
+        const w = widths[ci];
+        const style = w ? ` style="width:${w}px;max-width:${w+20}px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"` : '';
         if (c === "__EMP_NAME__") {
           const idRaw = String(r["Employee ID"] || r["Position ID"] || "").trim();
           const by = String(r["Submitted By"] || r["Employee Name"] || r["Name"] || "").trim();
           const name = (idRaw && empNameById && empNameById.get(idRaw.toLowerCase())) || by || (idRaw || "-");
-          cells.push(`<td data-sort="${(name||'').toString().toLowerCase()}">${esc(name)}</td>`);
+          cells.push(`<td data-sort="${(name||'').toString().toLowerCase()}"${style}>${esc(name)}</td>`);
           return;
         }
         const raw = r[c];
@@ -292,7 +310,7 @@ window.PowerUp = window.PowerUp || {};
           const n = Number(String(raw).replace(/[^0-9.\-]/g, ""));
           sortVal = Number.isFinite(n) ? String(n) : "";
         }
-        cells.push(`<td data-sort="${sortVal}">${val}</td>`);
+        cells.push(`<td data-sort="${sortVal}"${style}>${val}</td>`);
       });
       return `<tr data-idx="${i}">${cells.join("")}</tr>`;
     }).join("");
@@ -301,7 +319,13 @@ window.PowerUp = window.PowerUp || {};
 
     const thead = tbody.closest("table")?.querySelector("thead tr");
     if (thead) {
-      thead.innerHTML = `<th class="view-col" aria-label="View"></th>` + friendly.map(label => `<th>${label}</th>`).join("");
+      const ths = [`<th class="view-col" aria-label="View" style="width:56px"></th>`]
+        .concat(friendly.map((label, i) => {
+          const w = widths[i];
+          const style = w ? ` style="width:${w}px"` : '';
+          return `<th${style}>${label}</th>`;
+        }));
+      thead.innerHTML = ths.join("");
       bindHeaderSort(thead, tbody);
     }
 
@@ -358,44 +382,15 @@ window.PowerUp = window.PowerUp || {};
     quality: { container: '#tab-quality .table-header-controls',   oldSelectId: 'quality-filter', countId: 'quality-count', tableId: 'quality-table', store: 'pu.f.quality' }
   };
 
-  // Single accent helper (deduped)
   function getAccent() {
     const v = getComputedStyle(document.documentElement).getPropertyValue('--pu-clear-accent').trim();
     return v || '#60a5fa'; // sky-400 default
   }
 
-  // Shorten labels but keep full value in <option title="">
-  function truncateLabel(s, max = 60) {
+  // helper: short label (full shown in title)
+  function truncateLabel(s, max = 80) {
     const t = String(s || '').trim().replace(/\s+/g, ' ');
     return t.length > max ? (t.slice(0, max - 1) + '…') : t;
-  }
-
-  // Remove any legacy/duplicate selects from the tab scope, preserving our IDs
-  function purgeLegacyFilters(kind, box, cfg) {
-    const scope = document.querySelector(`#tab-${kind}`) || document;
-    const keep = new Set([`${kind}-filter-col`, `${kind}-filter-val`, `${kind}-filter-clear`]);
-
-    // 1) old single-select by id
-    const old = scope.querySelector(`#${cfg.oldSelectId}`);
-    if (old) old.remove();
-
-    // 2) any other select/button in the same header box that isn't ours
-    if (box) {
-      box.querySelectorAll('select,button').forEach(el => {
-        if (!keep.has(el.id)) {
-          // Don't remove unrelated actions like "+ Add Submission" (those are usually <a> or a .btn outside this box)
-          if (el.tagName === 'SELECT' || (el.id && el.id.endsWith('-filter-clear'))) el.remove();
-        }
-      });
-    }
-
-    // 3) if another .table-header-controls exists in the same tab (legacy markup), strip its selects entirely
-    const allBoxes = scope.querySelectorAll('.table-header-controls');
-    allBoxes.forEach(b => {
-      if (b !== box) {
-        b.querySelectorAll('select,button[id$="-filter-clear"]').forEach(el => el.remove());
-      }
-    });
   }
 
   function installDualFilters(kind) {
@@ -403,18 +398,64 @@ window.PowerUp = window.PowerUp || {};
     const box = document.querySelector(cfg.container);
     if (!box) return;
 
-    // Ensure idempotence: purge anything not ours inside this header area
-    purgeLegacyFilters(kind, box, cfg);
+    // Clean any prior instances (prevents duplicates)
+    box.querySelectorAll('.pu-filter-wrap').forEach(el => el.remove());
 
-    // If our controls already exist (after a rehydrate), just refresh value options and re-apply
-    let colSel = document.getElementById(`${kind}-filter-col`);
-    let valSel = document.getElementById(`${kind}-filter-val`);
-    let clearBtn = document.getElementById(`${kind}-filter-clear`);
+    // Legacy <select> present? remove it.
+    const legacy = document.getElementById(cfg.oldSelectId);
+    if (legacy) legacy.remove();
 
-    const tableEl = document.getElementById(cfg.tableId);
+    // Group wrapper with accented frame
+    const wrap = document.createElement('div');
+    wrap.className = 'pu-filter-wrap';
+    wrap.style.cssText = [
+      'display:flex','gap:8px','align-items:center',
+      'border:1px solid rgba(16,185,129,.35)','border-radius:10px',
+      'padding:6px 8px','background:rgba(16,185,129,.04)'
+    ].join(';');
 
-    const ensureClearVisual = (active) => {
-      if (!clearBtn) return;
+    // Column select
+    const colSel = document.createElement('select');
+    colSel.id = `${kind}-filter-col`;
+    colSel.style.cssText = [
+      'padding:6px 10px','background:#213331','color:#e5e7eb',
+      'border:1px solid #2a354b','border-radius:8px',
+      'min-width:150px','max-width:240px'
+    ].join(';');
+    colSel.innerHTML = `<option value="__ALL__">Filter by…</option>`;
+
+    // Value select (clamped width + ellipsis)
+    const valSel = document.createElement('select');
+    valSel.id = `${kind}-filter-val`;
+    valSel.style.cssText = [
+      'padding:6px 10px','background:#213331','color:#e5e7eb',
+      'border:1px solid #2a354b','border-radius:8px',
+      'min-width:180px','width:clamp(220px, 35vw, 520px)','max-width:520px',
+      'white-space:nowrap','overflow:hidden','text-overflow:ellipsis'
+    ].join(';');
+    valSel.disabled = true;
+    valSel.innerHTML = `<option value="__ALL__">All</option>`;
+
+    // Clear chip
+    const clearBtn = document.createElement('button');
+    clearBtn.type = 'button';
+    clearBtn.id = `${kind}-filter-clear`;
+    clearBtn.textContent = '× Clear';
+    clearBtn.title = 'Clear filters';
+    clearBtn.setAttribute('aria-label', 'Clear filters');
+    clearBtn.style.cssText = [
+      'padding:4px 10px','border-radius:999px','border:1px dashed #2a354b',
+      'background:#0b1328','color:#9ca3af','font-size:12px','cursor:default',
+      'opacity:.55','transition:all .15s ease'
+    ].join(';');
+
+    function setWrapActive(active){
+      wrap.style.border = active
+        ? `1.5px solid ${getAccent()}`
+        : '1px solid rgba(16,185,129,.35)';
+      wrap.style.boxShadow = active ? '0 0 0 3px rgba(16,185,129,.12)' : 'none';
+    }
+    function setClearActive(active) {
       if (active) {
         const c = getAccent();
         clearBtn.disabled = false;
@@ -433,63 +474,20 @@ window.PowerUp = window.PowerUp || {};
         clearBtn.style.background = '#0b1328';
         clearBtn.style.boxShadow  = 'none';
       }
-    };
+    }
 
-    if (!colSel) {
-      colSel = document.createElement('select');
-      colSel.id = `${kind}-filter-col`;
-      colSel.style.cssText = [
-        'padding:6px 10px','background:#213331','color:#e5e7eb',
-        'border:1px solid #2a354b','border-radius:8px',
-        'min-width:150px','max-width:240px'
-      ].join(';');
-      colSel.innerHTML = `<option value="__ALL__">Filter by…</option>`;
-      box.prepend(colSel);
-    }
-    if (!valSel) {
-      valSel = document.createElement('select');
-      valSel.id = `${kind}-filter-val`;
-      valSel.style.cssText = [
-        'padding:6px 10px','background:#213331','color:#e5e7eb',
-        'border:1px solid #2a354b','border-radius:8px',
-        // cap width to keep layout stable even for long values
-        'min-width:180px','width:clamp(220px, 35vw, 520px)','max-width:520px',
-        'white-space:nowrap','overflow:hidden','text-overflow:ellipsis'
-      ].join(';');
-      valSel.disabled = true;
-      valSel.innerHTML = `<option value="__ALL__">All</option>`;
-      colSel.after(valSel);
-    }
-    if (!clearBtn) {
-      clearBtn = document.createElement('button');
-      clearBtn.type = 'button';
-      clearBtn.id = `${kind}-filter-clear`;
-      clearBtn.textContent = '× Clear';
-      clearBtn.title = 'Clear filters';
-      clearBtn.setAttribute('aria-label', 'Clear filters');
-      clearBtn.style.cssText = [
-        'padding:4px 10px','border-radius:999px','border:1px dashed #2a354b',
-        'background:#0b1328','color:#9ca3af','font-size:12px','cursor:default',
-        'opacity:.55','transition:all .15s ease'
-      ].join(';');
-      valSel.after(clearBtn);
-    }
+    wrap.append(colSel, valSel, clearBtn);
+    box.prepend(wrap);
 
     // populate columns from table header (skip "View")
-    const headers = Array.from(document.querySelectorAll(`#${cfg.tableId} thead th`) || [])
+    const tableEl = document.getElementById(cfg.tableId);
+    const headers = Array.from(tableEl?.querySelectorAll('thead th') || [])
       .map(th => (th.textContent || '').trim()).filter(Boolean).slice(1);
-
-    // Build column list fresh every time
-    (() => {
-      const current = colSel.value;
-      colSel.innerHTML = `<option value="__ALL__">Filter by…</option>`;
-      headers.forEach(lbl => {
-        const opt = document.createElement('option');
-        opt.value = lbl; opt.textContent = `Filter by ${lbl}`;
-        colSel.appendChild(opt);
-      });
-      if (headers.includes(current)) colSel.value = current;
-    })();
+    headers.forEach(lbl => {
+      const opt = document.createElement('option');
+      opt.value = lbl; opt.textContent = `Filter by ${lbl}`;
+      colSel.appendChild(opt);
+    });
 
     // restore persisted state
     const SKEY = `${cfg.store}`;
@@ -504,17 +502,21 @@ window.PowerUp = window.PowerUp || {};
       }
     }
 
-    // initial apply + tooltip for long value
+    // initial apply
     applyDualFilter(kind, colSel, valSel, tableEl, cfg.countId);
     valSel.title = valSel.value === '__ALL__' ? '' : (valSel.selectedOptions[0]?.title || valSel.value);
-    ensureClearVisual(colSel.value !== '__ALL__' && valSel.value !== '__ALL__');
+    const active = (colSel.value !== '__ALL__' && valSel.value !== '__ALL__');
+    setWrapActive(active);
+    setClearActive(active);
 
     // events
     function persist(){
-      try { sessionStorage.setItem(SKEY, JSON.stringify({ col: colSel.value, val: valSel.value })); } catch {}
+      try {
+        sessionStorage.setItem(SKEY, JSON.stringify({ col: colSel.value, val: valSel.value }));
+      } catch {}
     }
 
-    colSel.onchange = () => {
+    colSel.addEventListener('change', () => {
       if (colSel.value === '__ALL__') {
         valSel.innerHTML = `<option value="__ALL__">All</option>`;
         valSel.disabled = true;
@@ -525,17 +527,19 @@ window.PowerUp = window.PowerUp || {};
       persist();
       applyDualFilter(kind, colSel, valSel, tableEl, cfg.countId);
       valSel.title = valSel.value === '__ALL__' ? '' : (valSel.selectedOptions[0]?.title || valSel.value);
-      ensureClearVisual(colSel.value !== '__ALL__' && valSel.value !== '__ALL__');
-    };
+      const on = (colSel.value !== '__ALL__' && valSel.value !== '__ALL__');
+      setWrapActive(on); setClearActive(on);
+    });
 
-    valSel.onchange = () => {
+    valSel.addEventListener('change', () => {
       persist();
       applyDualFilter(kind, colSel, valSel, tableEl, cfg.countId);
       valSel.title = valSel.value === '__ALL__' ? '' : (valSel.selectedOptions[0]?.title || valSel.value);
-      ensureClearVisual(colSel.value !== '__ALL__' && valSel.value !== '__ALL__');
-    };
+      const on = (colSel.value !== '__ALL__' && valSel.value !== '__ALL__');
+      setWrapActive(on); setClearActive(on);
+    });
 
-    clearBtn.onclick = (e) => {
+    clearBtn.addEventListener('click', (e) => {
       e.preventDefault();
       if (clearBtn.disabled) return;
       colSel.value = '__ALL__';
@@ -544,8 +548,8 @@ window.PowerUp = window.PowerUp || {};
       persist();
       applyDualFilter(kind, colSel, valSel, tableEl, cfg.countId);
       valSel.title = '';
-      ensureClearVisual(false);
-    };
+      setWrapActive(false); setClearActive(false);
+    });
   }
 
   function populateValOptions(kind, friendlyLabel, valSel, tableEl, fromAllRows = true) {
@@ -574,7 +578,7 @@ window.PowerUp = window.PowerUp || {};
 
     const items = Array.from(set.values()).sort((a,b) => a.localeCompare(b));
 
-    // Build options programmatically: keep full value, truncate label
+    // Build options programmatically so we can keep full value but truncate label
     valSel.innerHTML = '';
     const optAll = document.createElement('option');
     optAll.value = '__ALL__'; optAll.text = 'All';
@@ -582,8 +586,8 @@ window.PowerUp = window.PowerUp || {};
 
     items.forEach(v => {
       const opt = document.createElement('option');
-      opt.value = v;                 // full string (exact-match compare)
-      opt.text  = truncateLabel(v);  // short label for UI width
+      opt.value = v;                 // full string (used for exact match)
+      opt.text  = truncateLabel(v);  // short label
       opt.title = v;                 // tooltip shows full text
       valSel.appendChild(opt);
     });
@@ -677,7 +681,10 @@ window.PowerUp = window.PowerUp || {};
 
     const ciRows      = ciRowsAll.filter(r => matchesEmployee(r, target));
     const safetyRows  = safetyRowsAll.filter(r => matchesEmployee(r, target));
-    const qualityRows = qualityRowsAll; // ✅ all users see all quality catches
+    // Everyone can see all Quality; Admin employee filter applies when selected
+    const qualityRows = (isAdmin && target)
+      ? qualityRowsAll.filter(r => matchesEmployee(r, target))
+      : qualityRowsAll;
 
     let empNameById;
     if (isAdmin) {
@@ -702,9 +709,9 @@ window.PowerUp = window.PowerUp || {};
     const safetyMapWithEmp = withAdminEmployeeCol(Object.assign({}, COL_MAP.safety));
     const qualityMap       = Object.assign({}, COL_MAP.quality);
 
-    renderTable(document.querySelector('[data-hook="table.ci.tbody"]'),      ciRows,     ciMapWithEmp,     "ci-table",     empNameById);
-    renderTable(document.querySelector('[data-hook="table.safety.tbody"]'),  safetyRows, safetyMapWithEmp, "safety-table", empNameById);
-    renderTable(document.querySelector('[data-hook="table.quality.tbody"]'), qualityRows, qualityMap,       "quality-table", empNameById);
+    renderTable(document.querySelector('[data-hook="table.ci.tbody"]'),      ciRows,      ciMapWithEmp,     "ci-table",     empNameById);
+    renderTable(document.querySelector('[data-hook="table.safety.tbody"]'),  safetyRows,  safetyMapWithEmp, "safety-table", empNameById);
+    renderTable(document.querySelector('[data-hook="table.quality.tbody"]'), qualityRows, qualityMap,       "quality-table",empNameById);
 
     const setCount = (id, n) => {
       const el = document.getElementById(id);
@@ -714,7 +721,7 @@ window.PowerUp = window.PowerUp || {};
     setCount("safety-count", safetyRows.length);
     setCount("quality-count", qualityRows.length);
 
-    // Install dual filters + clear chip for each table (will also purge any legacy widgets)
+    // Install dual filters + clear chip for each table
     installDualFilters('ci');
     installDualFilters('safety');
     installDualFilters('quality');
