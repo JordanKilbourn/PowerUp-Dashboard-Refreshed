@@ -43,36 +43,11 @@ window.PowerUp = window.PowerUp || {};
     }
   };
 
-  // === Filter config (unchanged) ===
+  // === NEW Filter config (two dependent selects) ===
   const FILTER_CONFIG = {
-    ci: {
-      selectId: "ci-filter", countId: "ci-count", friendlyHeader: "Status",
-      options: ["All","Not Started","Open","Needs Researched","Completed","Denied/Cancelled"],
-      match(cellText, selected) {
-        const t = (cellText || "").toLowerCase();
-        const s = (selected || "").toLowerCase();
-        if (s === "all") return true;
-        if (s === "denied/cancelled") return /(denied|reject|cancel)/.test(t);
-        if (s === "needs researched") return /needs\s*research/.test(t);
-        return t.includes(s);
-      }
-    },
-    safety: {
-      selectId: "safety-filter", countId: "safety-count", friendlyHeader: "Safety Concern",
-      options: ["All","Hand tool in disrepair","Machine in disrepair","Electrical hazard","Ergonomic","Guarding missing","Guarding in disrepair","PPE missing","PPE suggested improvement","Missing GHS label","Missing SDS"],
-      match(cellText, selected) {
-        if ((selected || "").toLowerCase() === "all") return true;
-        return (cellText || "").toLowerCase().trim() === (selected || "").toLowerCase().trim();
-      }
-    },
-    quality: {
-      selectId: "quality-filter", countId: "quality-count", friendlyHeader: "Area",
-      options: ["All","Assembly","Customs","Dip Line","Fab","Office","Powder Coat","Router","Roto Mold","SMF","Welding"],
-      match(cellText, selected) {
-        if ((selected || "").toLowerCase() === "all") return true;
-        return (cellText || "").toLowerCase().trim() === (selected || "").toLowerCase().trim();
-      }
-    }
+    ci:      { countId: "ci-count",      colSelectId: "ci-col",      colValueId: "ci-colval" },
+    safety:  { countId: "safety-count",  colSelectId: "safety-col",  colValueId: "safety-colval" },
+    quality: { countId: "quality-count", colSelectId: "quality-col", colValueId: "quality-colval" }
   };
 
   // === Helpers ===
@@ -400,7 +375,7 @@ function doClose() {
     applyIndicators();
   }
 
-  // === Filters (unchanged) ===
+  // === Filters (new two-select flow) ===
   function findHeaderIndexByText(tableEl, friendlyHeader) {
     const ths = tableEl?.querySelectorAll('thead th');
     if (!ths) return -1;
@@ -419,39 +394,108 @@ function doClose() {
     const el = document.getElementById(countId);
     if (el) el.textContent = `${visible} submission${visible === 1 ? "" : "s"}`;
   }
+  // (kept for compatibility, no longer used)
   function repopulateSelect(selectEl, options) {
     if (!selectEl) return;
     const current = selectEl.value;
     selectEl.innerHTML = options.map(o => `<option value="${o}">${o}</option>`).join("");
     selectEl.value = options.includes(current) ? current : options[0];
   }
+
+  // Populate the "Column" dropdown from the table header
+  function populateColumnSelect(kind) {
+    const cfg = FILTER_CONFIG[kind];
+    const tableEl = document.getElementById(`${kind}-table`);
+    const colSel = document.getElementById(cfg.colSelectId);
+    if (!tableEl || !colSel) return;
+
+    const labels = Array.from(tableEl.querySelectorAll('thead th'))
+      .slice(1) // skip "View"
+      .map(th => (th.textContent || '').trim())
+      .filter(Boolean);
+
+    const keep = colSel.value;
+    colSel.innerHTML = ['<option value="">Filter by…</option>']
+      .concat(labels.map(l => `<option value="${esc(l)}">${esc(l)}</option>`))
+      .join('');
+    if (labels.includes(keep)) colSel.value = keep;
+  }
+
+  // Populate the "Value" dropdown from unique values in the chosen column
+  function populateValueSelect(kind) {
+    const cfg = FILTER_CONFIG[kind];
+    const tableEl = document.getElementById(`${kind}-table`);
+    const colSel = document.getElementById(cfg.colSelectId);
+    const valSel = document.getElementById(cfg.colValueId);
+    if (!tableEl || !colSel || !valSel) return;
+
+    const label = (colSel.value || '').trim();
+    if (!label) {
+      valSel.innerHTML = '<option value="">All</option>';
+      valSel.disabled = true;
+      return;
+    }
+
+    const colIdx = findHeaderIndexByText(tableEl, label);
+    const values = new Set();
+    Array.from(tableEl.querySelectorAll('tbody tr')).forEach(tr => {
+      const txt = (tr.children[colIdx]?.textContent || '').trim() || '-';
+      values.add(txt);
+    });
+
+    const sorted = Array.from(values).sort((a,b) => a.localeCompare(b, undefined, { numeric:true, sensitivity:'base' }));
+    const keep = valSel.value;
+    valSel.innerHTML = ['<option value="">All</option>']
+      .concat(sorted.map(v => `<option value="${esc(v)}">${esc(v)}</option>`))
+      .join('');
+    valSel.disabled = false;
+    if (sorted.includes(keep)) valSel.value = keep;
+  }
+
   function applyFilterFor(kind) {
     const cfg = FILTER_CONFIG[kind];
-    if (!cfg) return;
     const tableEl = document.getElementById(`${kind}-table`);
-    const selectEl = document.getElementById(cfg.selectId);
-    if (!tableEl || !selectEl) return;
-    const colIdx = findHeaderIndexByText(tableEl, cfg.friendlyHeader);
+    if (!cfg || !tableEl) return;
+
     const tbody = tableEl.querySelector('tbody');
-    if (colIdx < 0 || !tbody) return;
-    const selected = selectEl.value || "";
+    const colSel = document.getElementById(cfg.colSelectId);
+    const valSel = document.getElementById(cfg.colValueId);
+    if (!tbody || !colSel || !valSel) return;
+
+    const colLabel = (colSel.value || '').trim();
+    const valChoice = (valSel.value || '').trim();
+    const colIdx = colLabel ? findHeaderIndexByText(tableEl, colLabel) : -1;
+
     Array.from(tbody.rows).forEach(tr => {
-      if (tr.children.length <= colIdx) { tr.style.display = ""; return; }
-      const cellText = (tr.children[colIdx]?.textContent || "");
-      tr.style.display = cfg.match(cellText, selected) ? "" : "none";
+      let ok = true;
+      if (colIdx > 0 && valChoice) {
+        const text = (tr.children[colIdx]?.textContent || '').trim();
+        ok = (text === valChoice);
+      }
+      tr.style.display = ok ? "" : "none";
     });
+
     updateCount(cfg.countId, tableEl);
   }
+
   function wireFilters() {
-    Object.entries(FILTER_CONFIG).forEach(([kind, cfg]) => {
-      const selectEl = document.getElementById(cfg.selectId);
-      if (selectEl) {
-        repopulateSelect(selectEl, cfg.options);
-        if (!selectEl.dataset.bound) {
-          selectEl.dataset.bound = "1";
-          selectEl.addEventListener("change", () => applyFilterFor(kind));
-        }
+    Object.keys(FILTER_CONFIG).forEach(kind => {
+      populateColumnSelect(kind);
+      populateValueSelect(kind);
+
+      const cfg = FILTER_CONFIG[kind];
+      const colSel = document.getElementById(cfg.colSelectId);
+      const valSel = document.getElementById(cfg.colValueId);
+
+      if (colSel && !colSel.dataset.bound) {
+        colSel.dataset.bound = "1";
+        colSel.addEventListener('change', () => { populateValueSelect(kind); applyFilterFor(kind); });
       }
+      if (valSel && !valSel.dataset.bound) {
+        valSel.dataset.bound = "1";
+        valSel.addEventListener('change', () => applyFilterFor(kind));
+      }
+
       applyFilterFor(kind);
     });
   }
@@ -498,7 +542,7 @@ function doClose() {
 
     const ciRows      = ciRowsAll.filter(r => matchesEmployee(r, target));
     const safetyRows  = safetyRowsAll.filter(r => matchesEmployee(r, target));
-    const qualityRows = qualityRowsAll;
+    const qualityRows = qualityRowsAll; // everyone sees all quality rows
 
     let empNameById;
     if (isAdmin) {
