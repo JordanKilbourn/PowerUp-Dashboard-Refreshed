@@ -1,6 +1,6 @@
 // scripts/squad-details.js
 // Squad Details page: summary cards + members (left) + activities (right)
-// Restores top-right Back / Add Member actions without affecting header controls
+// Includes compact Members table styles + Back / Add Member actions
 
 (function (PowerUp) {
   const P = PowerUp || (window.PowerUp = {});
@@ -39,6 +39,33 @@
   };
 
   const EM_COL = { id: ['Position ID','Employee ID'], name: ['Display Name','Employee Name','Name'] };
+
+  // ---------- page-scoped CSS (compact members list) ----------
+  function injectLocalStyles() {
+    if (document.getElementById('sqd-local-css')) return;
+    const css = `
+      /* Smaller font & tighter rows just for the Members table */
+      #sq-members .table { font-size: 12.5px; line-height: 1.25; }
+      #sq-members .table th, #sq-members .table td { padding: 6px 8px; }
+
+      /* Make the members pane scroll independently so rows never get cut off */
+      #sq-members .table-wrap { max-height: 58vh; overflow: auto; }
+
+      /* Keep activities visually balanced too (optional, subtle) */
+      #sq-activities .table { font-size: 13px; }
+      #sq-activities .table th, #sq-activities .table td { padding: 7px 9px; }
+
+      /* Ensure columns align to top, not stretch */
+      .grid-2 { align-items: start; }
+      @media (max-width: 1100px){
+        #sq-members .table { font-size: 12px; }
+      }
+    `;
+    const s = document.createElement('style');
+    s.id = 'sqd-local-css';
+    s.textContent = css;
+    document.head.appendChild(s);
+  }
 
   // ---------- layout helpers ----------
   function topActionsHTML(canManage) {
@@ -205,6 +232,9 @@
     await P.session.initHeader();
     P.layout.setPageTitle('Squad Details');
 
+    // add local styles to shrink/contain the members list
+    injectLocalStyles();
+
     const content = document.getElementById('pu-content');
     if (!content) return;
 
@@ -228,7 +258,7 @@
     const squad = shapeSquad(raw);
     const leaderName = idToName.get(squad.leaderId) || '';
 
-    // Permissions (admin or leader). Prefer roles.canManageSquad if present.
+    // Permissions
     const isAdmin = !!(P.auth && P.auth.isAdmin && P.auth.isAdmin());
     const me = P.session.get() || {};
     let canManage = isAdmin || (lc(squad.leaderId) === lc(me.employeeId));
