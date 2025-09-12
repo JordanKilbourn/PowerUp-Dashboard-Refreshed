@@ -393,17 +393,41 @@ window.PowerUp = window.PowerUp || {};
     return t.length > max ? (t.slice(0, max - 1) + '…') : t;
   }
 
+  // 🔧 NEW: scrub any legacy/ghost controls from the header controls area
+  function scrubHeaderControls(box) {
+    // 1) Always remove our previous wrapper(s) to avoid duplicates
+    box.querySelectorAll('.pu-filter-wrap').forEach(el => el.remove());
+
+    // 2) Remove any stray <select> that legacy markup inserted
+    box.querySelectorAll('select').forEach(el => el.remove());
+
+    // 3) Remove ghost/empty buttons (keep visible actions like "+ Add Submission")
+    box.querySelectorAll(':scope > button, :scope > .btn').forEach(btn => {
+      const label = (btn.getAttribute('aria-label') || '').toLowerCase().trim();
+      const text  = (btn.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
+      const id    = (btn.id || '').toLowerCase();
+
+      const isAddSubmission =
+        text.includes('add submission') || id.includes('add') || label.includes('add submission');
+
+      if (isAddSubmission) return;      // keep action button
+      if (text === '' && !label) btn.remove(); // nuke empty/ghost buttons
+    });
+
+    // 4) Remove legacy selects by known ids if they still exist anywhere
+    ['ci-filter','safety-filter','quality-filter'].forEach(legacyId => {
+      const el = document.getElementById(legacyId);
+      if (el && box.contains(el)) el.remove();
+    });
+  }
+
   function installDualFilters(kind) {
     const cfg = UI[kind];
     const box = document.querySelector(cfg.container);
     if (!box) return;
 
-    // Clean any prior instances (prevents duplicates)
-    box.querySelectorAll('.pu-filter-wrap').forEach(el => el.remove());
-
-    // Legacy <select> present? remove it.
-    const legacy = document.getElementById(cfg.oldSelectId);
-    if (legacy) legacy.remove();
+    // 🔧 clean any legacy UI first (prevents duplicates/ghosts)
+    scrubHeaderControls(box);
 
     // Group wrapper with accented frame
     const wrap = document.createElement('div');
