@@ -1,256 +1,290 @@
+// scripts/squad-details.js
+// Squad Details page: summary cards + members (left) + activities (right)
+// Restores top-right Back / Add Member actions without affecting header controls
+
 (function (PowerUp) {
   const P = PowerUp || (window.PowerUp = {});
-  const { SHEETS, getRowsByTitle, activities } = P.api;
+  const { SHEETS, getRowsByTitle } = P.api;
 
-  const pick = (row, names, d='') => {
-    for (const k of names) if (row && row[k] != null && String(row[k]).trim() !== '') return row[k];
+  // ---------- tiny utils ----------
+  const norm = (s) => String(s || "").trim();
+  const lc = (s) => norm(s).toLowerCase();
+  const dash = (v) => (v == null || norm(v) === "" ? "-" : String(v));
+  const isTrue = (v) => v === true || /^(true|yes|y|1|active)$/i.test(String(v ?? "").trim());
+
+  function pick(row, candidates, d = "") {
+    for (const k of candidates) if (row && row[k] != null && String(row[k]).trim() !== "") return row[k];
     return d;
-  };
-  const fmt = (v) => {
-    if (!v) return '-';
-    const d = new Date(v);
-    if (isNaN(d)) return String(v);
-    return `${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}/${d.getFullYear()}`;
-  };
-  const norm = s => String(s||'').trim().toLowerCase();
-  const yes = v => v===true || /^(true|yes|y|1|active)$/i.test(String(v||'').trim());
-
-  // ---- page boot ----
-  document.addEventListener('DOMContentLoaded', async () => {
-    P.session.requireLogin();
-    P.layout.injectLayout();
-    await P.session.initHeader();
-
-    const qp = new URLSearchParams(location.search);
-    const sqId = qp.get('id') || '';
-    const sqName = qp.get('name') || '';
-
-    // Load core data
-    const [squads, members, emRows] = await Promise.all([
-      getRowsByTitle(SHEETS.SQUADS),
-      getRowsByTitle(SHEETS.SQUAD_MEMBERS),
-      getRowsByTitle(SHEETS.EMPLOYEE_MASTER)
-    ]);
-
-    // Build name lookup
-    const idToName = new Map();
-    emRows.forEach(r => {
-      const id = String(r['Position ID'] || r['Employee ID'] || '').trim();
-      const nm = String(r['Display Name'] || r['Employee Name'] || r['Name'] || '').trim();
-      if (id) idToName.set(id, nm || id);
-    });
-
-    // Find our squad
-    const squad = (() => {
-      if (sqId) return squads.find(r => norm(r['Squad ID'] || r['ID']) === norm(sqId));
-      if (sqName) return squads.find(r => norm(r['Squad Name'] || r['Squad'] || r['Name']) === norm(sqName));
-      return null;
-    })();
-    if (!squad) {
-      renderFatal(`Squad not found.`);
-      return;
-    }
-
-    const squadId   = String(squad['Squad ID'] || squad['ID'] || '').trim();
-    const squadName = String(squad['Squad Name'] || squad['Squad'] || squad['Name'] || '').trim();
-    const leaderId  = String(squad['Squad Leader'] || squad['Leader Employee ID'] || squad['Leader Position ID'] || '').trim();
-
-    // Members for this squad
-    const SMCOL = {
-      squad:  ['Squad ID','Squad','SquadID'],
-      empId:  ['Employee ID','Position ID'],
-      empNm:  ['Employee Name','Name','Display Name'],
-      role:   ['Role','Member Role'],
-      start:  ['Start Date','Start','Joined'],
-      active: ['Active','Is Active?']
-    };
-    const memberRows = members
-      .filter(r => {
-        const sid = pick(r, SMCOL.squad, '');
-        return norm(sid) === norm(squadId) || (!squadId && norm(sid) === norm(squadName));
-      })
-      .map(r => {
-        const id = pick(r, SMCOL.empId, '');
-        return {
-          id,
-          name: pick(r, SMCOL.empNm, idToName.get(id) || id),
-          role: pick(r, SMCOL.role, 'Member'),
-          start: fmt(pick(r, SMCOL.start, '')),
-          active: yes(pick(r, SMCOL.active, 'true'))
-        };
-      });
-
-    // Activities + joins
-    const acts = await activities.listBySquad({ squadId, squadName });
-    const [partsMap, hoursMap] = await Promise.all([
-      activities.participantsByActivity().catch(()=>new Map()),
-      activities.hoursByActivity().catch(()=>new Map())
-    ]);
-
-    // Metrics
-    const byStatus = new Map();
-    acts.forEach(a => {
-      const k = (a.status || 'Unknown').trim();
-      byStatus.set(k, (byStatus.get(k) || 0) + 1);
-    });
-    let totalHrs = 0;
-    acts.forEach(a => totalHrs += (hoursMap.get(String(a.id)) || 0));
-
-    // Render page
-    renderPage({
-      squad: { id: squadId, name: squadName, leaderId, leaderName: idToName.get(leaderId) || leaderId,
-               category: squad['Category'] || squad['Squad Category'] || 'Other',
-               objective: squad['Objective'] || squad['Focus'] || '',
-               notes: squad['Notes'] || '' ,
-               created: fmt(squad['Created Date'] || squad['Start Date'])
-      },
-      members: memberRows,
-      activities: acts.map(a => ({
-        ...a,
-        participants: Array.from(partsMap.get(String(a.id)) || []),
-        hours: hoursMap.get(String(a.id)) || 0
-      })),
-      idToName,
-      metrics: { byStatus, totalHrs }
-    });
-  });
-
-  // ---- rendering ----
-  function renderFatal(msg){
-    const c = ensureContent();
-    c.innerHTML = `<div class="card" style="padding:14px;border:1px solid #3b4a4a;color:#ffb4b4;">${msg}</div>`;
   }
 
-  function ensureContent(){
-    let wrap = document.getElementById('pu-content');
-    if (!wrap) { wrap = document.createElement('div'); document.body.appendChild(wrap); }
-    return wrap;
+  // Column hints (be tolerant of sheet titles)
+  const SQ_COL = {
+    id:      ['Squad ID','ID'],
+    name:    ['Squad Name','Squad','Name','Team'],
+    leader:  ['Squad Leader','Leader Employee ID','Leader Position ID','Leader'],
+    cat:     ['Category','Squad Category'],
+    obj:     ['Objective','Focus','Purpose'],
+    active:  ['Active','Is Active?'],
+    created: ['Created Date','Start Date','Started'],
+    notes:   ['Notes','Description']
+  };
+
+  const SM_COL = {
+    squadId:  ['Squad ID','SquadID','Squad'],
+    empId:    ['Employee ID','EmployeeID','Position ID'],
+    empName:  ['Employee Name','Name','Display Name'],
+    role:     ['Role','Member Role'],
+    active:   ['Active','Is Active?'],
+    start:    ['Start Date','Joined','Start']
+  };
+
+  const EM_COL = { id: ['Position ID','Employee ID'], name: ['Display Name','Employee Name','Name'] };
+
+  // ---------- layout helpers ----------
+  function topActionsHTML(canManage) {
+    return `
+      <div class="sq-actions" style="display:flex;gap:8px;justify-content:flex-end;margin:0 0 8px 0;">
+        <button id="btnBack" class="btn btn-xs"
+          style="padding:6px 10px;border:1px solid #2a354b;background:#0b1328;color:#e5e7eb;border-radius:8px;">
+          <i class="fa fa-arrow-left"></i> Back
+        </button>
+        ${canManage ? `
+        <button id="btnAddMember" class="btn btn-xs"
+          style="padding:6px 10px;border:1px solid #2a354b;background:#0b1328;color:#e5e7eb;border-radius:8px;">
+          <i class="fa fa-user-plus"></i> Add Member
+        </button>` : ``}
+      </div>
+    `;
   }
 
-  function renderPage({ squad, members, activities, idToName, metrics }){
-    const root = ensureContent();
-    root.innerHTML = `
-      <div class="top-cards" style="display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:12px;margin:8px 14px;">
-        ${cardSquadInfo(squad)}
-        ${cardObjective(squad.objective)}
-        ${cardNotes(squad.notes)}
-      </div>
+  function summaryCardsHTML(sq, leaderName) {
+    return `
+      <div class="cards-row" style="display:grid;grid-template-columns:1.2fr 1fr 0.9fr;gap:10px;margin-bottom:8px;">
+        <div class="card" style="padding:12px 14px;">
+          <div class="card-title" style="color:#9ffbe6;font-weight:700;">Squad</div>
+          <div><b>Name:</b> ${dash(sq.name)}</div>
+          <div><b>Leader:</b> ${dash(leaderName || sq.leaderId)}</div>
+          <div><b>Status:</b> ${isTrue(sq.active)
+            ? '<span class="pill pill--green">Active</span>'
+            : '<span class="pill pill--red">Inactive</span>'}</div>
+          <div><b>Category:</b> ${dash(sq.cat)}</div>
+          <div><b>Created:</b> ${dash(sq.created)}</div>
+        </div>
 
-      <div class="sq-metrics" style="margin:6px 14px 10px;">
-        ${metricsChips(metrics)}
-      </div>
+        <div class="card" style="padding:12px 14px;">
+          <div class="card-title" style="color:#9ffbe6;font-weight:700;">Objective</div>
+          <div>${dash(sq.obj)}</div>
+        </div>
 
-      <div class="sq-grid">
-        <section class="sq-col-left">
-          <h3 class="sq-h">Members</h3>
-          ${membersTable(members)}
-        </section>
-        <section class="sq-col-right">
-          <div class="sq-right-head">
-            <h3 class="sq-h">Squad Activities</h3>
+        <div class="card" style="padding:12px 14px;">
+          <div class="card-title" style="color:#9ffbe6;font-weight:700;">Notes</div>
+          <div>${dash(sq.notes)}</div>
+        </div>
+      </div>
+    `;
+  }
+
+  function chipsRowHTML({ completedHours = 0 } = {}) {
+    return `
+      <div style="display:flex;gap:8px;margin:0 0 10px 0;">
+        <span class="chip" title="Sum of completed Power Hours linked to this squad"
+          style="display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;border:1px solid #2a354b;background:#0b1328;color:#e5e7eb;">
+          <i class="fa fa-bolt"></i>
+          <span>Completed PH Hours</span>
+          <b style="background:#192542;padding:2px 8px;border-radius:999px;">${completedHours}</b>
+        </span>
+      </div>
+    `;
+  }
+
+  function twoColShellHTML() {
+    return `
+      <div class="grid-2" style="display:grid;grid-template-columns:360px 1fr;gap:12px;">
+        <section id="sq-members" class="card" style="padding:10px;">
+          <h3 style="margin:0 0 8px 0;">Members</h3>
+          <div class="table-wrap">
+            <table class="table" style="width:100%;">
+              <thead><tr>
+                <th>Name</th><th>Role</th><th>Status</th><th>Start</th>
+              </tr></thead>
+              <tbody id="sq-members-body"><tr><td colspan="4" style="opacity:.7;text-align:center;">Loading…</td></tr></tbody>
+            </table>
           </div>
-          ${activitiesTable(activities, idToName)}
+        </section>
+
+        <section id="sq-activities" class="card" style="padding:10px;">
+          <h3 style="margin:0 0 8px 0;">Squad Activities</h3>
+          <div class="table-wrap">
+            <table class="table" style="width:100%;">
+              <thead><tr>
+                <th>Title</th><th>Type</th><th>Status</th><th>Dates</th><th>Owner</th><th>Participants</th><th>Completed PH</th>
+              </tr></thead>
+              <tbody id="sq-acts-body"><tr><td colspan="7" style="opacity:.7;text-align:center;">No activities yet</td></tr></tbody>
+            </table>
+          </div>
         </section>
       </div>
     `;
   }
 
-  function cardSquadInfo(sq){
-    const activePill = `<span class="pill pill--${'green'}">Active</span>`;
-    return `
-      <div class="card" style="padding:12px;">
-        <div style="font-weight:700;color:#9ffbe6;margin-bottom:6px;">Squad</div>
-        <div><b>Name:</b> ${esc(sq.name)}</div>
-        <div><b>Leader:</b> ${esc(sq.leaderName || sq.leaderId || '-')}</div>
-        <div><b>Status:</b> ${activePill}</div>
-        <div><b>Category:</b> ${esc(sq.category || '-')}</div>
-        <div><b>Created:</b> ${esc(sq.created || '-')}</div>
-      </div>`;
-  }
-  function cardObjective(text){
-    return `
-      <div class="card" style="padding:12px;">
-        <div style="font-weight:700;color:#9ffbe6;margin-bottom:6px;">Objective</div>
-        <div>${esc(text || '-')}</div>
-      </div>`;
-  }
-  function cardNotes(text){
-    return `
-      <div class="card" style="padding:12px;">
-        <div style="font-weight:700;color:#9ffbe6;margin-bottom:6px;">Notes</div>
-        <div>${esc(text || '-')}</div>
-      </div>`;
+  // ---------- data helpers ----------
+  async function loadLookupMaps() {
+    const em = await getRowsByTitle(SHEETS.EMPLOYEE_MASTER);
+    const idToName = new Map();
+    em.forEach(r => {
+      const id = norm(pick(r, EM_COL.id, ""));
+      const nm = norm(pick(r, EM_COL.name, ""));
+      if (id) idToName.set(id, nm);
+    });
+    return { idToName };
   }
 
-  function metricsChips({ byStatus, totalHrs }){
-    const items = Array.from(byStatus.entries())
-      .sort((a,b)=>a[0].localeCompare(b[0]))
-      .map(([k,v]) => chip(`${k}`, `${v}`))
-      .join('');
-    return `
-      <div class="chip-row">
-        ${items}
-        ${chip('Completed PH Hours', String(totalHrs))}
-      </div>`;
-  }
-  function chip(label, value){
-    return `<span class="chip"><span class="chip__label">${esc(label)}</span><span class="chip__value">${esc(value)}</span></span>`;
+  function findSquad(rows, { id, name }) {
+    const idLC = lc(id);
+    const nameLC = lc(name);
+    return rows.find(r => lc(pick(r, SQ_COL.id)) === idLC) ||
+           rows.find(r => lc(pick(r, SQ_COL.name)) === nameLC) ||
+           null;
   }
 
-  function membersTable(rows){
-    const body = rows.map(r => `
-      <tr>
-        <td>${esc(r.name)}</td>
-        <td>${esc(r.role)}</td>
-        <td>${r.active ? '<span class="pill pill--green">Active</span>' : '<span class="pill pill--red">Inactive</span>'}</td>
-        <td>${esc(r.start)}</td>
-      </tr>
-    `).join('');
-    return `
-      <div class="table-wrap">
-        <table class="pu-table">
-          <thead><tr><th>Name</th><th>Role</th><th>Status</th><th>Start</th></tr></thead>
-          <tbody>${body || `<tr><td colspan="4" style="opacity:.7;text-align:center;">No members</td></tr>`}</tbody>
-        </table>
-      </div>`;
+  function shapeSquad(row) {
+    return {
+      id:      norm(pick(row, SQ_COL.id, "")),
+      name:    norm(pick(row, SQ_COL.name, "")),
+      leaderId:norm(pick(row, SQ_COL.leader, "")),
+      cat:     norm(pick(row, SQ_COL.cat, "")),
+      obj:     norm(pick(row, SQ_COL.obj, "")),
+      active:  pick(row, SQ_COL.active, ""),
+      created: norm(pick(row, SQ_COL.created, "")),
+      notes:   norm(pick(row, SQ_COL.notes, ""))
+    };
   }
 
-  function activitiesTable(rows, idToName){
-    const body = rows.map(a => {
-      const count = a.participants.length;
-      const owners = esc(a.ownerName || '-');
-      return `
-        <tr>
-          <td>${esc(a.title || '-')}</td>
-          <td>${esc(a.type || '-')}</td>
-          <td>${statusPill(a.status)}</td>
-          <td>${esc(a.startDate || '-')} – ${esc(a.endDate || '-')}</td>
-          <td>${owners}</td>
-          <td>${count ? String(count) : '-'}</td>
-          <td>${a.hours ? String(a.hours) : '-'}</td>
-        </tr>
-      `;
+  async function computeCompletedHoursForSquad(squadName) {
+    try {
+      const ph = await getRowsByTitle(SHEETS.POWER_HOURS);
+      let sum = 0;
+      ph.forEach(r => {
+        const completed = isTrue(r['Completed'] || r['Complete']);
+        const hours = parseFloat(String(r['Completed Hours'] || r['Hours'] || "0").replace(/[^0-9.]/g, "")) || 0;
+        const squad = String(r['Squad'] || r['Team'] || '').trim().toLowerCase();
+        if (completed && squad && squad === squadName.toLowerCase()) sum += hours;
+      });
+      return Math.round(sum * 10) / 10;
+    } catch { return 0; }
+  }
+
+  // ---------- renderers ----------
+  function renderMembers(tbody, members, idToName) {
+    if (!tbody) return;
+    if (!members.length) {
+      tbody.innerHTML = `<tr><td colspan="4" style="opacity:.7;text-align:center;">No members</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = members.map(m => {
+      const nm = norm(m.name || idToName.get(m.id) || m.id || "-");
+      const role = dash(m.role);
+      const st = isTrue(m.active) ? '<span class="pill pill--green">Active</span>' : '<span class="pill pill--red">Inactive</span>';
+      const start = dash(m.start);
+      return `<tr><td>${nm}</td><td>${role}</td><td>${st}</td><td>${start}</td></tr>`;
     }).join('');
-    return `
-      <div class="table-wrap">
-        <table class="pu-table">
-          <thead>
-            <tr>
-              <th>Title</th><th>Type</th><th>Status</th><th>Dates</th><th>Owner</th><th>Participants</th><th>Completed PH</th>
-            </tr>
-          </thead>
-          <tbody>${body || `<tr><td colspan="7" style="opacity:.7;text-align:center;">No activities yet</td></tr>`}</tbody>
-        </table>
-      </div>`;
   }
 
-  function esc(s){ return String(s ?? '').replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m])); }
-  function statusPill(v){
-    const t = String(v||'').toLowerCase();
-    if (/complete|closed|done/.test(t)) return `<span class="pill pill--green">${esc(v)}</span>`;
-    if (/open|new|not\s*started|todo/.test(t)) return `<span class="pill pill--blue">${esc(v)}</span>`;
-    if (/progress|doing|wip/.test(t)) return `<span class="pill pill--amber">${esc(v)}</span>`;
-    return esc(v||'-');
+  // Placeholder (read-only for now)
+  function renderActivitiesPlaceholder() {
+    const tb = document.getElementById('sq-acts-body');
+    if (!tb) return;
+    tb.innerHTML = `<tr><td colspan="7" style="opacity:.7;text-align:center;">No activities yet</td></tr>`;
   }
 
+  // ---------- main ----------
+  document.addEventListener('DOMContentLoaded', async () => {
+    // guards + shell
+    P.session.requireLogin();
+    P.layout.injectLayout();
+    await P.session.initHeader();
+    P.layout.setPageTitle('Squad Details');
+
+    const content = document.getElementById('pu-content');
+    if (!content) return;
+
+    // Which squad?
+    const url = new URL(location.href);
+    const qId   = url.searchParams.get('id') || '';
+    const qName = url.searchParams.get('name') || '';
+
+    // Load data
+    const [sqRows, smRows, { idToName }] = await Promise.all([
+      getRowsByTitle(SHEETS.SQUADS),
+      getRowsByTitle(SHEETS.SQUAD_MEMBERS),
+      loadLookupMaps()
+    ]);
+
+    const raw = findSquad(sqRows, { id: qId, name: qName });
+    if (!raw) {
+      content.innerHTML = `<div class="card" style="padding:14px;">Squad not found.</div>`;
+      return;
+    }
+    const squad = shapeSquad(raw);
+    const leaderName = idToName.get(squad.leaderId) || '';
+
+    // Permissions (admin or leader). Prefer roles.canManageSquad if present.
+    const isAdmin = !!(P.auth && P.auth.isAdmin && P.auth.isAdmin());
+    const me = P.session.get() || {};
+    let canManage = isAdmin || (lc(squad.leaderId) === lc(me.employeeId));
+    try {
+      if (P.auth?.canManageSquad) canManage = await P.auth.canManageSquad(String(squad.id || ''));
+    } catch {}
+
+    // Members for this squad
+    const members = smRows
+      .filter(r => lc(pick(r, SM_COL.squadId)) === lc(squad.id) || lc(pick(r, SM_COL.squadId)) === lc(squad.name))
+      .map(r => ({
+        id:    norm(pick(r, SM_COL.empId, "")),
+        name:  norm(pick(r, SM_COL.empName, "")),
+        role:  norm(pick(r, SM_COL.role, "Member")),
+        active: pick(r, SM_COL.active, "true"),
+        start: norm(pick(r, SM_COL.start, ""))
+      }))
+      .sort((a,b) => (a.role === b.role ? (a.name || '').localeCompare(b.name || '') : a.role.localeCompare(b.role)));
+
+    // Completed PH hours chip
+    const completedPH = await computeCompletedHoursForSquad(squad.name);
+
+    // Render
+    content.innerHTML = `
+      ${topActionsHTML(canManage)}
+      ${summaryCardsHTML(squad, leaderName)}
+      ${chipsRowHTML({ completedHours: completedPH })}
+      ${twoColShellHTML()}
+    `;
+
+    // Wire actions
+    (function wireTopActions(){
+      const back = document.getElementById('btnBack');
+      if (back && !back.dataset.bound) {
+        back.dataset.bound = '1';
+        back.addEventListener('click', () => {
+          if (document.referrer && /squads\.html/i.test(document.referrer)) history.back();
+          else location.href = 'squads.html';
+        });
+      }
+
+      const add = document.getElementById('btnAddMember');
+      if (add && !add.dataset.bound) {
+        add.dataset.bound = '1';
+        add.addEventListener('click', () => {
+          if (typeof window.openAddMemberModal === 'function') return window.openAddMemberModal(squad);
+          if (window.PowerUp?.squads?.openAddMemberModal)    return window.PowerUp.squads.openAddMemberModal(squad);
+          document.dispatchEvent(new CustomEvent('squad-add-member-request', { detail: { squad } }));
+        });
+      }
+    })();
+
+    // Fill members + activities
+    renderMembers(document.getElementById('sq-members-body'), members, idToName);
+    renderActivitiesPlaceholder();
+  });
+
+  window.PowerUp = P;
 })(window.PowerUp || {});
