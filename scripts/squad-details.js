@@ -1,164 +1,259 @@
-// DROP-IN REPLACEMENT
-(function (P) {
-  const { api, session, roles, layout } = P;
+<!-- save as scripts/squad-details.js -->
+<script>
+(function (PowerUp) {
+  const P = PowerUp || (window.PowerUp = {});
+  const { SHEETS, getRowsByTitle, activities } = P.api;
 
-  const qs = (k) => new URLSearchParams(location.search).get(k) || "";
-  const esc = (s) => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-  function fmtDate(v) { if (!v) return "-"; const d=new Date(v); return isNaN(d)?esc(v):`${String(d.getMonth()+1).padStart(2,"0")}/${String(d.getDate()).padStart(2,"0")}/${d.getFullYear()}`; }
-  function norm(s){return String(s||"").trim().toLowerCase();}
+  const pick = (row, names, d='') => {
+    for (const k of names) if (row && row[k] != null && String(row[k]).trim() !== '') return row[k];
+    return d;
+  };
+  const fmt = (v) => {
+    if (!v) return '-';
+    const d = new Date(v);
+    if (isNaN(d)) return String(v);
+    return `${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}/${d.getFullYear()}`;
+  };
+  const norm = s => String(s||'').trim().toLowerCase();
+  const yes = v => v===true || /^(true|yes|y|1|active)$/i.test(String(v||'').trim());
 
-  async function loadEmployeeMap() {
-    const rows = await api.getRowsByTitle('EMPLOYEE_MASTER');
-    const map = {};
-    rows.forEach(r => {
-      const id = r["Position ID"] || r["Employee ID"] || r["EmployeeID"] || r["ID"];
-      const name = r["Display Name"] || r["Employee Name"] || r["Name"];
-      if (id) map[String(id).trim()] = name || id;
-    });
-    return map;
-  }
+  // ---- page boot ----
+  document.addEventListener('DOMContentLoaded', async () => {
+    P.session.requireLogin();
+    P.layout.injectLayout();
+    await P.session.initHeader();
 
-  function renderMembers(allRows, empMap, squadId, showEmpId) {
-    const rows = allRows.filter(r => norm(r["Squad ID"]) === norm(squadId));
-    const thead = document.querySelector("#members-table thead tr");
-    const tbody = document.querySelector("#members-table tbody");
-    thead.innerHTML = showEmpId
-      ? "<th>Member</th><th>Employee ID</th><th>Role</th><th>Status</th><th>Start</th>"
-      : "<th>Member</th><th>Role</th><th>Status</th><th>Start</th>";
-    tbody.innerHTML = rows.map(r => {
-      const eid = String(r["Employee ID"] || "").trim();
-      const name = empMap[eid] || eid || "-";
-      const role = r["Role"] || "-";
-      const active = (String(r["Active"]||"").toLowerCase() === "true");
-      const start = r["Start Date"] || r["Start"];
-      const cells = [
-        `<td>${esc(name)}</td>`,
-        ...(showEmpId ? [`<td class="mono">${esc(eid || "-")}</td>`] : []),
-        `<td>${esc(role)}</td>`,
-        `<td>${active ? '<span class="status-pill status-on">Active</span>' : '<span class="status-pill status-off">Inactive</span>'}</td>`,
-        `<td>${fmtDate(start)}</td>`
-      ];
-      return `<tr>${cells.join("")}</tr>`;
-    }).join("") || `<tr><td colspan="${showEmpId ? 5 : 4}" style="opacity:.7;text-align:center;">No members yet</td></tr>`;
-  }
+    const qp = new URLSearchParams(location.search);
+    const sqId = qp.get('id') || '';
+    const sqName = qp.get('name') || '';
 
-  async function main() {
-    layout.injectLayout?.();
-    await session.initHeader?.();
-
-    const urlId = qs("id") || qs("squadId") || qs("squad");
-    if (!urlId) {
-      layout.setPageTitle?.("Squad: (unknown)");
-      const el = document.querySelector("#card-core .kv");
-      if (el) el.textContent = "Not found (missing ?id param).";
-      return;
-    }
-
-    // Robust admin detection: support either P.auth or roles namespace
-    const isAdmin =
-      (!!(P.auth && P.auth.isAdmin && P.auth.isAdmin())) ||
-      (!!(roles && roles.isAdmin && roles.isAdmin()));
-
-    const me = session.get?.() || {};
-    const userId = (me.employeeId || "").trim();
-
-    const [squads, members, empMap] = await Promise.all([
-      api.getRowsByTitle('SQUADS', { force: true }),
-      api.getRowsByTitle('SQUAD_MEMBERS', { force: true }),
-      loadEmployeeMap()
+    // Load core data
+    const [squads, members, emRows] = await Promise.all([
+      getRowsByTitle(SHEETS.SQUADS),
+      getRowsByTitle(SHEETS.SQUAD_MEMBERS),
+      getRowsByTitle(SHEETS.EMPLOYEE_MASTER)
     ]);
 
-    const sidLC = norm(urlId);
-    let squad = squads.find(r => norm(r["Squad ID"]) === sidLC) || squads.find(r => norm(r["Squad Name"]) === sidLC);
+    // Build name lookup
+    const idToName = new Map();
+    emRows.forEach(r => {
+      const id = String(r['Position ID'] || r['Employee ID'] || '').trim();
+      const nm = String(r['Display Name'] || r['Employee Name'] || r['Name'] || '').trim();
+      if (id) idToName.set(id, nm || id);
+    });
+
+    // Find our squad
+    const squad = (() => {
+      if (sqId) return squads.find(r => norm(r['Squad ID'] || r['ID']) === norm(sqId));
+      if (sqName) return squads.find(r => norm(r['Squad Name'] || r['Squad'] || r['Name']) === norm(sqName));
+      return null;
+    })();
     if (!squad) {
-      layout.setPageTitle?.("Squad: Not Found");
-      const el = document.querySelector("#card-core .kv");
-      if (el) el.textContent = "Not found.";
+      renderFatal(`Squad not found.`);
       return;
     }
 
-    const squadId   = squad["Squad ID"] || urlId;
-    const squadName = squad["Squad Name"] || squadId;
-    layout.setPageTitle?.(`Squad: ${squadName}`);
+    const squadId   = String(squad['Squad ID'] || squad['ID'] || '').trim();
+    const squadName = String(squad['Squad Name'] || squad['Squad'] || squad['Name'] || '').trim();
+    const leaderId  = String(squad['Squad Leader'] || squad['Leader Employee ID'] || squad['Leader Position ID'] || '').trim();
 
-    const active = (String(squad["Active"]||"").toLowerCase() === "true") ? "Active" : "Inactive";
-    const category = squad["Category"] || "-";
-    const created  = squad["Created Date"] || squad["Created"] || "";
-
-    // Leaders from Squad Members (source of truth)
-    const leaders = members
-      .filter(r => norm(r["Squad ID"]) === norm(squadId) && norm(r["Role"]) === "leader" && norm(r["Active"]) === "true")
-      .map(r => String(r["Employee ID"] || "").trim())
-      .filter(Boolean);
-
-    const leaderNames = leaders.map(eid => (empMap[eid] || eid)).filter(Boolean);
-
-    const core = document.querySelector("#card-core .kv");
-    if (core) {
-      const leaderText = leaderNames.length
-        ? (leaderNames.length === 1 ? leaderNames[0]
-           : leaderNames.length === 2 ? `${leaderNames[0]}, ${leaderNames[1]}`
-           : `${leaderNames[0]}, ${leaderNames[1]} +${leaderNames.length - 2} more`)
-        : "-";
-      core.innerHTML = `
-        <div><b>Name:</b> ${esc(squadName)}</div>
-        <div><b>${leaderNames.length > 1 ? 'Leaders' : 'Leader'}:</b> ${esc(leaderText)}</div>
-        <div><b>Status:</b> ${active === "Active"
-          ? '<span class="status-pill status-on">Active</span>'
-          : '<span class="status-pill status-off">Inactive</span>'}</div>
-        <div><b>Category:</b> ${esc(category)}</div>
-        <div><b>Created:</b> ${esc(created || "-")}</div>
-      `;
-    }
-
-    const obj = document.querySelector("#card-objective .kv");
-    if (obj) obj.textContent = squad["Objective"] || "-";
-    const notes = document.querySelector("#card-notes .kv");
-    if (notes) notes.textContent = squad["Notes"] || "-";
-
-    const addBtn = document.getElementById("btn-addmember");
-    if (addBtn) {
-      // Admins may always add; otherwise, only active leaders of this squad
-      let canAdd = isAdmin;
-      if (!canAdd) {
-        const leaderRows = members.filter(r =>
-          norm(r["Squad ID"]) === norm(squadId) &&
-          norm(r["Role"]) === "leader" &&
-          norm(r["Active"]) === "true"
-        );
-        canAdd = leaderRows.some(r => norm(r["Employee ID"]) === norm(userId));
-      }
-      if (canAdd) {
-        addBtn.style.display = "inline-flex";
-        addBtn.disabled = false;
-        addBtn.onclick = (e) => {
-          e.preventDefault();
-          if (!P.squadForm?.open) {
-            alert("Member form not found. Is scripts/squad-member-form.js included?");
-            return;
-          }
-          P.squadForm.open({ squadId, squadName });
+    // Members for this squad
+    const SMCOL = {
+      squad:  ['Squad ID','Squad','SquadID'],
+      empId:  ['Employee ID','Position ID'],
+      empNm:  ['Employee Name','Name','Display Name'],
+      role:   ['Role','Member Role'],
+      start:  ['Start Date','Start','Joined'],
+      active: ['Active','Is Active?']
+    };
+    const memberRows = members
+      .filter(r => {
+        const sid = pick(r, SMCOL.squad, '');
+        return norm(sid) === norm(squadId) || (!squadId && norm(sid) === norm(squadName));
+      })
+      .map(r => {
+        const id = pick(r, SMCOL.empId, '');
+        return {
+          id,
+          name: pick(r, SMCOL.empNm, idToName.get(id) || id),
+          role: pick(r, SMCOL.role, 'Member'),
+          start: fmt(pick(r, SMCOL.start, '')),
+          active: yes(pick(r, SMCOL.active, 'true'))
         };
-      } else {
-        addBtn.style.display = "none";
-        addBtn.disabled = true;
-      }
-    }
+      });
 
-    const showEmpId = isAdmin;
-    renderMembers(members, empMap, squadId, showEmpId);
+    // Activities + joins
+    const acts = await activities.listBySquad({ squadId, squadName });
+    const [partsMap, hoursMap] = await Promise.all([
+      activities.participantsByActivity().catch(()=>new Map()),
+      activities.hoursByActivity().catch(()=>new Map())
+    ]);
 
-    document.addEventListener("squad-member-added", async () => {
-      const latest = await api.getRowsByTitle('SQUAD_MEMBERS', { force: true });
-      renderMembers(latest, empMap, squadId, showEmpId);
+    // Metrics
+    const byStatus = new Map();
+    acts.forEach(a => {
+      const k = (a.status || 'Unknown').trim();
+      byStatus.set(k, (byStatus.get(k) || 0) + 1);
     });
+    let totalHrs = 0;
+    acts.forEach(a => totalHrs += (hoursMap.get(String(a.id)) || 0));
 
-    document.getElementById("btn-back")?.addEventListener("click", (e) => {
-      e.preventDefault();
-      if (history.length > 1) history.back();
-      else location.href = "squads.html";
+    // Render page
+    renderPage({
+      squad: { id: squadId, name: squadName, leaderId, leaderName: idToName.get(leaderId) || leaderId,
+               category: squad['Category'] || squad['Squad Category'] || 'Other',
+               objective: squad['Objective'] || squad['Focus'] || '',
+               notes: squad['Notes'] || '' ,
+               created: fmt(squad['Created Date'] || squad['Start Date'])
+      },
+      members: memberRows,
+      activities: acts.map(a => ({
+        ...a,
+        participants: Array.from(partsMap.get(String(a.id)) || []),
+        hours: hoursMap.get(String(a.id)) || 0
+      })),
+      idToName,
+      metrics: { byStatus, totalHrs }
     });
+  });
+
+  // ---- rendering ----
+  function renderFatal(msg){
+    const c = ensureContent();
+    c.innerHTML = `<div class="card" style="padding:14px;border:1px solid #3b4a4a;color:#ffb4b4;">${msg}</div>`;
   }
 
-  document.addEventListener("DOMContentLoaded", main);
-})(window.PowerUp || (window.PowerUp = {}));
+  function ensureContent(){
+    let wrap = document.getElementById('pu-content');
+    if (!wrap) { wrap = document.createElement('div'); document.body.appendChild(wrap); }
+    return wrap;
+  }
+
+  function renderPage({ squad, members, activities, idToName, metrics }){
+    const root = ensureContent();
+    root.innerHTML = `
+      <div class="top-cards" style="display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:12px;margin:8px 14px;">
+        ${cardSquadInfo(squad)}
+        ${cardObjective(squad.objective)}
+        ${cardNotes(squad.notes)}
+      </div>
+
+      <div class="sq-metrics" style="margin:6px 14px 10px;">
+        ${metricsChips(metrics)}
+      </div>
+
+      <div class="sq-grid">
+        <section class="sq-col-left">
+          <h3 class="sq-h">Members</h3>
+          ${membersTable(members)}
+        </section>
+        <section class="sq-col-right">
+          <div class="sq-right-head">
+            <h3 class="sq-h">Squad Activities</h3>
+          </div>
+          ${activitiesTable(activities, idToName)}
+        </section>
+      </div>
+    `;
+  }
+
+  function cardSquadInfo(sq){
+    const activePill = `<span class="pill pill--${'green'}">Active</span>`;
+    return `
+      <div class="card" style="padding:12px;">
+        <div style="font-weight:700;color:#9ffbe6;margin-bottom:6px;">Squad</div>
+        <div><b>Name:</b> ${esc(sq.name)}</div>
+        <div><b>Leader:</b> ${esc(sq.leaderName || sq.leaderId || '-')}</div>
+        <div><b>Status:</b> ${activePill}</div>
+        <div><b>Category:</b> ${esc(sq.category || '-')}</div>
+        <div><b>Created:</b> ${esc(sq.created || '-')}</div>
+      </div>`;
+  }
+  function cardObjective(text){
+    return `
+      <div class="card" style="padding:12px;">
+        <div style="font-weight:700;color:#9ffbe6;margin-bottom:6px;">Objective</div>
+        <div>${esc(text || '-')}</div>
+      </div>`;
+  }
+  function cardNotes(text){
+    return `
+      <div class="card" style="padding:12px;">
+        <div style="font-weight:700;color:#9ffbe6;margin-bottom:6px;">Notes</div>
+        <div>${esc(text || '-')}</div>
+      </div>`;
+  }
+
+  function metricsChips({ byStatus, totalHrs }){
+    const items = Array.from(byStatus.entries())
+      .sort((a,b)=>a[0].localeCompare(b[0]))
+      .map(([k,v]) => chip(`${k}`, `${v}`))
+      .join('');
+    return `
+      <div class="chip-row">
+        ${items}
+        ${chip('Completed PH Hours', String(totalHrs))}
+      </div>`;
+  }
+  function chip(label, value){
+    return `<span class="chip"><span class="chip__label">${esc(label)}</span><span class="chip__value">${esc(value)}</span></span>`;
+  }
+
+  function membersTable(rows){
+    const body = rows.map(r => `
+      <tr>
+        <td>${esc(r.name)}</td>
+        <td>${esc(r.role)}</td>
+        <td>${r.active ? '<span class="pill pill--green">Active</span>' : '<span class="pill pill--red">Inactive</span>'}</td>
+        <td>${esc(r.start)}</td>
+      </tr>
+    `).join('');
+    return `
+      <div class="table-wrap">
+        <table class="pu-table">
+          <thead><tr><th>Name</th><th>Role</th><th>Status</th><th>Start</th></tr></thead>
+          <tbody>${body || `<tr><td colspan="4" style="opacity:.7;text-align:center;">No members</td></tr>`}</tbody>
+        </table>
+      </div>`;
+  }
+
+  function activitiesTable(rows, idToName){
+    const body = rows.map(a => {
+      const count = a.participants.length;
+      const owners = esc(a.ownerName || '-');
+      return `
+        <tr>
+          <td>${esc(a.title || '-')}</td>
+          <td>${esc(a.type || '-')}</td>
+          <td>${statusPill(a.status)}</td>
+          <td>${esc(a.startDate || '-')} – ${esc(a.endDate || '-')}</td>
+          <td>${owners}</td>
+          <td>${count ? String(count) : '-'}</td>
+          <td>${a.hours ? String(a.hours) : '-'}</td>
+        </tr>
+      `;
+    }).join('');
+    return `
+      <div class="table-wrap">
+        <table class="pu-table">
+          <thead>
+            <tr>
+              <th>Title</th><th>Type</th><th>Status</th><th>Dates</th><th>Owner</th><th>Participants</th><th>Completed PH</th>
+            </tr>
+          </thead>
+          <tbody>${body || `<tr><td colspan="7" style="opacity:.7;text-align:center;">No activities yet</td></tr>`}</tbody>
+        </table>
+      </div>`;
+  }
+
+  function esc(s){ return String(s ?? '').replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m])); }
+  function statusPill(v){
+    const t = String(v||'').toLowerCase();
+    if (/complete|closed|done/.test(t)) return `<span class="pill pill--green">${esc(v)}</span>`;
+    if (/open|new|not\s*started|todo/.test(t)) return `<span class="pill pill--blue">${esc(v)}</span>`;
+    if (/progress|doing|wip/.test(t)) return `<span class="pill pill--amber">${esc(v)}</span>`;
+    return esc(v||'-');
+  }
+
+})(window.PowerUp || {});
+</script>
