@@ -3,7 +3,7 @@
   const P = PowerUp || (PowerUp = {});
   const API_BASE = "https://powerup-proxy.onrender.com";
 
-  // ✅ Smartsheet IDs (unchanged)
+  // ✅ Smartsheet IDs
   const SHEETS = {
     EMPLOYEE_MASTER: "2195459817820036",
     POWER_HOUR_GOALS: "3542697273937796",
@@ -14,16 +14,16 @@
     LEVEL_TRACKER: "8346763116105604",
     SQUADS: "2480892254572420",
     SQUAD_MEMBERS: "2615493107076996",
-    
-    // 🆕 Squad Activities (IDs you created)
+
+    // If you have these, leave them; if not, harmless.
     SQUAD_ACTIVITIES: "1315116675977092",
-    SQUAD_ACTIVITY_PARTICIPANTS: "4817175027076996"
+    SQUAD_ACTIVITY_PARTICIPANTS: "4817175027076996",
   };
 
   // ---------- caches ----------
-  const _rawCache  = new Map();  // id -> raw sheet json (in-memory)
-  const _inflight  = new Map();  // id -> Promise (dedupe concurrent)
-  const _rowsCache = new Map();  // id -> [{title:value,...}] (in-memory)
+  const _rawCache  = new Map();
+  const _inflight  = new Map();
+  const _rowsCache = new Map();
 
   // ---- persistent (session) cache with TTL ----
   const STORE_KEY    = "pu.sheetCache.v1";
@@ -112,16 +112,12 @@
     throw lastErr || new Error("request failed");
   }
 
-  // ---------- READY GATE (cold-start safe) ----------
+  // ---------- READY GATE ----------
   let _readyPromise = null;
-
   async function ready({ deadlineMs = 60000 } = {}) {
     if (_readyPromise) return _readyPromise;
-
     _readyPromise = (async () => {
       const start = Date.now();
-
-      // keep pinging /health until ok or deadline
       while (true) {
         try {
           const h = await fetchJSONRetry(`${API_BASE}/health`, { method: "GET" });
@@ -130,30 +126,22 @@
         if (Date.now() - start > deadlineMs) throw new Error("service not ready (deadline)");
         await sleep(600);
       }
-
-      // one tiny columns call to wake the Smartsheet side
       try { await fetchJSONRetry(`${API_BASE}/sheet/${SHEETS.EMPLOYEE_MASTER}/columns`, { method: "GET" }); } catch {}
-
       return true;
     })();
-
     return _readyPromise;
   }
 
-  // ---------- warm proxy (uses ready + stamp) ----------
-  const WARM_KEY  = "pu.proxy.warmAt";
-  const WARM_TTL  = 5 * 60 * 1000; // 5 minutes
-
+  // ---------- warm proxy ----------
+  const WARM_KEY = "pu.proxy.warmAt";
+  const WARM_TTL = 5 * 60 * 1000;
   async function warmProxy() {
     try {
       const last = Number(sessionStorage.getItem(WARM_KEY) || 0);
       if (last && (Date.now() - last) < WARM_TTL) return;
-
-      await ready(); // guarantees health success at least once
+      await ready().catch(() => {});
       sessionStorage.setItem(WARM_KEY, String(Date.now()));
-    } catch {
-      // not fatal
-    }
+    } catch {}
   }
 
   // ---------- core fetchers ----------
@@ -216,9 +204,9 @@
     return Number.isFinite(n) ? n : 0;
   }
 
-  // ---------- convenience: prime key sheets before redirect ----------
+  // ---------- prefetch ----------
   async function prefetchEssential() {
-    await ready().catch(() => {}); // ensure service is up at least once
+    await ready().catch(() => {});
     const keys = [
       'EMPLOYEE_MASTER',
       'POWER_HOURS', 'POWER_HOUR_GOALS',
@@ -229,75 +217,152 @@
     await Promise.allSettled(keys.map(k => getRowsByTitle(k)));
   }
 
-
-// ---- Activities convenience (read-only for Phase 1) ----
-function _norm(s){ return String(s||'').trim().toLowerCase(); }
-function _fmtDate(v){
-  if (!v) return '';
-  const d = new Date(v);
-  if (isNaN(d)) return '';
-  return `${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}/${d.getFullYear()}`;
-}
-async function _rows(idKey){ return getRowsByTitle(SHEETS[idKey]).catch(()=>[]); }
-
-const activities = {
-  // List activities for a squad by ID or Name. Supports either "Squad ID" or "Squad" column on the sheet.
-  async listBySquad({ squadId = '', squadName = '' } = {}) {
-    const rows = await _rows('SQUAD_ACTIVITIES');
-    const idLC = _norm(squadId), nameLC = _norm(squadName);
-    return rows
-      .map(r => ({
-        raw: r,
-        id:                r['Activity ID'] || r['ID'] || '',
-        squadId:           r['Squad ID'] || r['Squad'] || '',
-        squadName:         r['Squad'] || '',
-        title:             r['Activity Title'] || r['Title'] || '',
-        type:              r['Type'] || '',
-        status:            r['Status'] || '',
-        startDate:         _fmtDate(r['Start Date'] || r['Start']),
-        endDate:           _fmtDate(r['End Date'] || r['Due Date'] || r['End']),
-        ownerName:         r['Owner (Display Name)'] || r['Owner'] || '',
-        description:       r['Description'] || r['Notes'] || ''
-      }))
-      .filter(a => {
-        if (idLC)   return _norm(a.squadId)   === idLC;
-        if (nameLC) return _norm(a.squadName) === nameLC;
-        return true;
-      });
-  },
-
-  // Map ActivityID -> Set(employeeId)
-  async participantsByActivity() {
-    const rows = await _rows('SQUAD_ACTIVITY_PARTICIPANTS');
-    const map = new Map();
-    rows.forEach(r => {
-      const aid = String(r['Activity ID'] || r['Activity'] || '').trim();
-      if (!aid) return;
-      const id = String(r['Employee ID'] || r['Position ID'] || '').trim();
-      if (!map.has(aid)) map.set(aid, new Set());
-      if (id) map.get(aid).add(id);
-    });
-    return map;
-  },
-
-  // Map ActivityID -> total completed Power Hours
-  async hoursByActivity() {
-    const ph = await _rows('POWER_HOURS');
-    const map = new Map();
-    ph.forEach(r => {
-      const aid = String(r['Activity ID'] || '').trim();
-      if (!aid) return;
-      const completed = String(r['Completed'] || r['Is Complete'] || '').toLowerCase();
-      const isDone = completed === 'true' || completed === 'yes' || completed === 'y' || completed === '1';
-      if (!isDone) return;
-      const hrsRaw = r['Completed Hours'] ?? r['Hours'] ?? r['PH'] ?? 0;
-      const hrs = parseFloat(String(hrsRaw).replace(/[^0-9.\-]/g,''));
-      if (!Number.isFinite(hrs)) return;
-      map.set(aid, (map.get(aid) || 0) + hrs);
-    });
-    return map;
+  // ---------- READ helpers for activities (if you use them) ----------
+  function _norm(s){ return String(s||'').trim().toLowerCase(); }
+  function _fmtDate(v){
+    if (!v) return '';
+    const d = new Date(v);
+    if (isNaN(d)) return '';
+    return `${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}/${d.getFullYear()}`;
   }
-};
+  async function _rows(idKey){ return getRowsByTitle(SHEETS[idKey]).catch(()=>[]); }
+
+  const activities = {
+    async listBySquad({ squadId = '', squadName = '' } = {}) {
+      const rows = await _rows('SQUAD_ACTIVITIES');
+      const idLC = _norm(squadId), nameLC = _norm(squadName);
+      return rows
+        .map(r => ({
+          raw: r,
+          id:        r['Activity ID'] || r['ID'] || '',
+          squadId:   r['Squad ID'] || r['Squad'] || '',
+          squadName: r['Squad'] || '',
+          title:     r['Activity Title'] || r['Title'] || '',
+          type:      r['Type'] || '',
+          status:    r['Status'] || '',
+          startDate: _fmtDate(r['Start Date'] || r['Start']),
+          endDate:   _fmtDate(r['End Date'] || r['Due Date'] || r['End']),
+          ownerName: r['Owner (Display Name)'] || r['Owner'] || '',
+          description: r['Description'] || r['Notes'] || ''
+        }))
+        .filter(a => {
+          if (idLC)   return _norm(a.squadId)   === idLC;
+          if (nameLC) return _norm(a.squadName) === nameLC;
+          return true;
+        });
+    },
+    async participantsByActivity() {
+      const rows = await _rows('SQUAD_ACTIVITY_PARTICIPANTS');
+      const map = new Map();
+      rows.forEach(r => {
+        const aid = String(r['Activity ID'] || r['Activity'] || '').trim();
+        if (!aid) return;
+        const id = String(r['Employee ID'] || r['Position ID'] || '').trim();
+        if (!map.has(aid)) map.set(aid, new Set());
+        if (id) map.get(aid).add(id);
+      });
+      return map;
+    },
+    async hoursByActivity() {
+      const ph = await _rows('POWER_HOURS');
+      const map = new Map();
+      ph.forEach(r => {
+        const aid = String(r['Activity ID'] || '').trim();
+        if (!aid) return;
+        const completed = String(r['Completed'] || r['Is Complete'] || '').toLowerCase();
+        const isDone = completed === 'true' || completed === 'yes' || completed === 'y' || completed === '1';
+        if (!isDone) return;
+        const hrsRaw = r['Completed Hours'] ?? r['Hours'] ?? r['PH'] ?? 0;
+        const hrs = parseFloat(String(hrsRaw).replace(/[^0-9.\-]/g,''));
+        if (!Number.isFinite(hrs)) return;
+        map.set(aid, (map.get(aid) || 0) + hrs);
+      });
+      return map;
+    }
+  };
+
+  // ---------- WRITE: add rows (maps titles → columnId, posts to /rows) ----------
+  /**
+   * addRows('SHEET_KEY_OR_ID', [
+   *   { "Squad ID": "SQ-001", "Employee ID": "IX7992604", "Role": "Member", "Active": true, "Start Date": "2025-08-28" }
+   * ], { toTop: true })
+   */
+  async function addRows(sheetIdOrKey, titleRows, { toTop = true } = {}) {
+    const id = resolveSheetId(sheetIdOrKey);
+    assertValidId(id, `addRows(${String(sheetIdOrKey)})`);
+    if (!Array.isArray(titleRows) || !titleRows.length) throw new Error("addRows: 'titleRows' must be a non-empty array");
+
+    // Get columns (try fast endpoint, fall back to full sheet)
+    let columns;
+    try {
+      columns = await fetchJSONRetry(`${API_BASE}/sheet/${id}/columns`, { method: "GET" });
+      if (!Array.isArray(columns)) columns = columns?.data || columns?.columns;
+    } catch {
+      const sheet = await fetchSheet(id, { force: true });
+      columns = sheet.columns || [];
+    }
+
+    const titleToCol = {};
+    (columns || []).forEach(c => {
+      const k = String(c.title).replace(/\s+/g, " ").trim().toLowerCase();
+      titleToCol[k] = c; // keep full column (id, type, formula, systemColumnType, etc.)
+    });
+
+    const isFormulaCol = (col) => !!(col && (col.formula || col.systemColumnType));
+
+    function coerceValue(title, value, col) {
+      const t = String(title).toLowerCase();
+      let v = value;
+
+      // date columns → YYYY-MM-DD
+      if (t.includes("date") || (col && String(col.type).toUpperCase() === "DATE")) {
+        if (v instanceof Date) v = v.toISOString().slice(0, 10);
+        else if (typeof v === "string" && !/^\d{4}-\d{2}-\d{2}$/.test(v)) {
+          const d = new Date(v);
+          if (!isNaN(d)) v = d.toISOString().slice(0, 10);
+        }
+      }
+
+      // checkbox → boolean
+      if (typeof v === "string" && (t.includes("active") || t.includes("checkbox") || (col && String(col.type).toUpperCase() === "CHECKBOX"))) {
+        const s = v.trim().toLowerCase();
+        if (["true","yes","1","y","on"].includes(s)) v = true;
+        else if (["false","no","0","n","off",""].includes(s)) v = false;
+      }
+      return v;
+    }
+
+    const rows = titleRows.map(obj => {
+      const cells = [];
+      Object.entries(obj || {}).forEach(([title, value]) => {
+        const key  = String(title).replace(/\s+/g, " ").trim().toLowerCase();
+        const col  = titleToCol[key];
+        if (!col) { console.warn(`[addRows] Unknown column title in sheet ${id}:`, title); return; }
+        if (isFormulaCol(col)) { console.warn(`[addRows] Skipping column with formula/system type:`, col.title); return; }
+        cells.push({ columnId: col.id, value: coerceValue(title, value, col) });
+      });
+      return { toTop, cells };
+    });
+
+    const nonEmpty = rows.filter(r => r.cells && r.cells.length > 0);
+    if (!nonEmpty.length) {
+      console.error("[addRows] No valid cells matched any writable columns.", { attempted: titleRows, columns });
+      throw new Error("addRows: rows did not contain any writable columns.");
+    }
+
+    const payload = { rows: nonEmpty };
+
+    // This is the same path your older code used:
+    const res = await fetchJSONRetry(`${API_BASE}/sheet/${id}/rows`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    // Invalidate caches so fresh data shows after write
+    clearCache(id);
+    return res;
+  }
 
   // ---------- export ----------
   P.api = {
@@ -312,7 +377,8 @@ const activities = {
     prefetchEssential,
     warmProxy,
     ready,
-    activities
+    activities,
+    addRows, // 👈 restored
   };
   window.PowerUp = P;
 })(window.PowerUp || {});
