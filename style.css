@@ -522,5 +522,77 @@ body.sidebar-expanded .content,
   .sq-grid{ grid-template-columns: 1fr; }
 }
 
+/* === Squad Details polish === */
+
+/* Make the meta area two rows:
+   Row 1: full-width summary
+   Row 2: Objective + Notes (half each) */
+.meta-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;       /* two columns for row 2 */
+  gap: 12px;
+}
+@media (max-width: 1100px) {
+  .meta-grid { grid-template-columns: 1fr; }
+}
+
+/* Turn the first card into a full-width summary band */
+#card-core {
+  grid-column: 1 / -1;                  /* span all columns */
+  background: var(--panel, #0f151a);
+  border: 1px solid rgba(255,255,255,.06);
+  padding: 10px 12px;
+}
+#card-core h3 { display: none; }        /* remove extra title chrome */
+#card-core .kv {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 6px 14px;
+  font-size: 14px;
+}
+
+/* Objective & Notes get lighter chrome */
+#card-objective,
+#card-notes {
+  background: var(--card-bg);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 10px;
+  padding: 12px;
+}
+#card-objective h3,
+#card-notes h3 {
+  margin: 0 0 6px;
+  font-size: 14px;
+  color: var(--info);
+}
+
+/* Pill tune */
+.pill { padding: 2px 8px; font-size: 11px; border-radius: 999px; }
+.pill--on  { background: var(--success); color: #062; }
+.pill--off { background: #3a4e4e; color: #fff; }
+
+/* Card header micro spacing */
+.card-h { margin: 0 0 8px; }
+
+/* Make the members & activities panes just a bit shorter */
+.members-scroll,
+.acts-scroll {
+  /* was ~340px worth of deduction; shave ~40px */
+  max-height: calc(100vh - var(--header-h, 72px) - 300px);
+}
+
+/* Empty state in activities: center + soften */
+#activities-table tbody:empty::after,
+#activities-tbody:empty::after {
+  content: "No activities found for this squad.";
+  display: block;
+  padding: 16px;
+  opacity: .7;
+}
+
+/* Tiny: align the KPI strip better on narrow screens */
+.kpi-strip { margin-top: 2px; }
+.kpi .k { opacity: .85; }
+
 
 
