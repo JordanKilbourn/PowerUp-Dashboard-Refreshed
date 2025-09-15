@@ -14,6 +14,16 @@
     return `${m}/${day}/${String(y).padStart(2,"0")}`;
   };
 
+  // Viewport-aware panel height
+  function setScrollHeights() {
+    const grid = document.querySelector('.sqd-grid');
+    if (!grid) return;
+    const top = grid.getBoundingClientRect().top;
+    const avail = Math.max(240, Math.floor(window.innerHeight - top - 24)); // 24px pad
+    document.documentElement.style.setProperty('--sqd-avail', `${avail}px`);
+  }
+  window.addEventListener('resize', setScrollHeights);
+
   async function loadEmployeeMap() {
     const rows = await api.getRowsByTitle("EMPLOYEE_MASTER");
     const map = new Map();
@@ -183,6 +193,9 @@
     layout.injectLayout?.();
     await session.initHeader?.();
 
+    // set initial dynamic heights now that header is placed
+    setScrollHeights();
+
     const urlId = qs("id") || qs("squadId") || qs("squad");
     if (!urlId) { layout.setPageTitle?.("Squad: (unknown)"); return; }
 
@@ -221,27 +234,37 @@
     document.addEventListener("squad-member-added", refreshMembers);
     document.addEventListener("squad:member:added", refreshMembers);
 
-    // back + add member
+    // back button
     document.getElementById("btn-back")?.addEventListener("click", (e) => {
       e.preventDefault();
       if (history.length > 1) history.back(); else location.href = "squads.html";
     });
 
+    // who can add?
     const me = session.get?.() || {};
     const userId = String(me.employeeId || "").toLowerCase();
     const canAdd = isAdmin || leaderIds.some(id => id.toLowerCase() === userId);
+
+    // visible Add Member button wiring (with legacy bridge)
     const addBtn = document.getElementById("btn-addmember");
+    const legacyBtn = document.getElementById("btnAddMember"); // hidden bridge
     if (addBtn) {
       if (canAdd) {
         addBtn.style.display = "inline-flex";
         addBtn.disabled = false;
         addBtn.addEventListener("click", (e) => {
           e.preventDefault();
+          // Try modern API first
           if (P.squadForm && typeof P.squadForm.open === "function") {
             P.squadForm.open({ squadId, squadName });
-          } else {
-            alert("Member form not found. Include scripts/squad-member-form.js");
+            return;
           }
+          // Fall back to legacy listener which may be bound to #btnAddMember
+          if (legacyBtn) {
+            legacyBtn.click();
+            return;
+          }
+          alert("Member form not found. Include scripts/squad-member-form.js");
         });
       } else {
         addBtn.style.display = "none";
@@ -249,7 +272,7 @@
       }
     }
 
-    // right: core summary + activities/metrics
+    // right: summary + activities/metrics
     renderCoreSummary({ ...squadRow, id: squadId }, leaderNames);
 
     const { items: acts, configured, hoursByAct } = await loadActivitiesForSquad(squadId, squadName);
@@ -272,23 +295,5 @@
     };
     statusSel?.addEventListener("change", applyActFilters);
     typeSel?.addEventListener("change", applyActFilters);
-
-    // Add Activity (stub to your future module)
-    const addActBtn = document.getElementById("btn-add-activity");
-    if (addActBtn) {
-      if (canAdd) {
-        addActBtn.disabled = false;
-        addActBtn.addEventListener("click", (e) => {
-          e.preventDefault();
-          if (P.activities && typeof P.activities.openCreate === "function") {
-            P.activities.openCreate({ squadId, squadName });
-          } else {
-            alert("Activity form not wired yet. Expose P.activities.openCreate({ squadId, squadName }).");
-          }
-        });
-      } else {
-        addActBtn.disabled = true;
-      }
-    }
   });
 })(window.PowerUp || (window.PowerUp = {}));
