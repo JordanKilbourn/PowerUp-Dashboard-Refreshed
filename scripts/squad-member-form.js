@@ -12,6 +12,23 @@
     btnSave:    document.getElementById("am-save"),
   };
 
+  // --- COMPAT: pick the right "add rows" function your api.js actually exposes
+  async function addRowsCompat(sheetKeyOrTitle, rows) {
+    // Prefer exact methods if present
+    if (typeof api.addRows === "function")          return api.addRows(sheetKeyOrTitle, rows);
+    if (typeof api.appendRows === "function")       return api.appendRows(sheetKeyOrTitle, rows);
+    if (typeof api.addRowsByTitle === "function")   return api.addRowsByTitle(sheetKeyOrTitle, rows);
+    if (typeof api.insertRows === "function")       return api.insertRows(sheetKeyOrTitle, rows);
+    if (typeof api.writeRows === "function")        return api.writeRows(sheetKeyOrTitle, rows);
+    if (typeof api.add === "function")              return api.add(sheetKeyOrTitle, rows);
+
+    // Last-resort: some projects expose a generic "save" call
+    if (typeof api.saveRows === "function")         return api.saveRows(sheetKeyOrTitle, rows);
+
+    console.error("[squad-member-form] No add/append function found on P.api:", Object.keys(api || {}));
+    throw new Error("No row-append function available on P.api");
+  }
+
   // local state
   let STATE = {
     squadId: "",
@@ -67,10 +84,10 @@
         : ["Member","Leader"]; // fallback
       if (el.role) {
         el.role.innerHTML = options.map(o => `<option value="${o}">${o}</option>`).join("");
-        const defaultVal = options.find(o => norm(o) === "member") || options[0];
-        el.role.value = defaultVal || "";
+        const def = options.find(o => norm(o) === "member") || options[0];
+        el.role.value = def || "";
       }
-    } catch (e) {
+    } catch {
       if (el.role) {
         el.role.innerHTML = `<option value="Member">Member</option><option value="Leader">Leader</option>`;
         el.role.value = "Member";
@@ -165,6 +182,7 @@
     ensureRoleOptions();
 
     if (el.modal) {
+      el.modal.classList.add("show");     // works with your modal CSS skin
       el.modal.style.display = "flex";
       el.modal.setAttribute("aria-hidden", "false");
     }
@@ -172,6 +190,7 @@
 
   function close() {
     if (el.modal) {
+      el.modal.classList.remove("show");
       el.modal.style.display = "none";
       el.modal.setAttribute("aria-hidden", "true");
     }
@@ -203,7 +222,7 @@
       const empName  = STATE.empIndex[employeeId] || "";
       const addedBy  = (P.session?.get?.()?.displayName) || (P.session?.get?.()?.employeeId) || "";
 
-      await api.addRows(api.SHEETS.SQUAD_MEMBERS, [{
+      await addRowsCompat(api.SHEETS.SQUAD_MEMBERS, [{
         "Squad ID": STATE.squadId,
         "Squad Name": STATE.squadName,
         "Employee ID": employeeId,
@@ -233,6 +252,13 @@
   if (el.btnCancel) el.btnCancel.onclick = (e) => { e.preventDefault(); close(); };
   if (el.btnSave)   el.btnSave.onclick   = (e) => { e.preventDefault(); save(); };
   if (el.member)    el.member.addEventListener("change", updateDuplicateWarning);
+
+  // Close when clicking the dim backdrop
+  if (el.modal) {
+    el.modal.addEventListener("click", (e) => {
+      if (e.target === el.modal) close();
+    });
+  }
 
   P.squadForm = { open, close };
 })(window.PowerUp || (window.PowerUp = {}));
