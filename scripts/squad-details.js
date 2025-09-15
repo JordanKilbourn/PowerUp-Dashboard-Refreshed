@@ -63,7 +63,7 @@
     let grid = document.querySelector(".sq-grid");
     if (grid) return grid;
 
-    // Try to mount inside your page content area
+    // Mount inside the page content area
     const host = document.getElementById("pu-content") || document.querySelector(".content") || document.body;
     grid = document.createElement("div");
     grid.className = "sq-grid";
@@ -71,10 +71,6 @@
       <section class="sq-card" id="card-left">
         <h3 class="sq-h"><i class="fa fa-users"></i> Members</h3>
         <div class="sq-members-wrap">
-          <div>
-            <button id="btn-back" class="btn btn-xs" style="margin-right:8px;border:1px solid #2a354b;background:#0b1328;color:#e5e7eb;border-radius:8px;padding:6px 10px;cursor:pointer">← Back</button>
-            <button id="btn-addmember" class="btn btn-xs" style="border:1px solid #2a354b;background:#0b1328;color:#e5e7eb;border-radius:8px;padding:6px 10px;cursor:pointer;display:none">+ Add Member</button>
-          </div>
           <div class="sq-members-scroller">
             <table class="sq-members-table" id="members-table">
               <thead><tr><th>Member</th><th>Role</th><th>Status</th><th>Start</th></tr></thead>
@@ -121,6 +117,35 @@
     `;
     host.appendChild(grid);
     return grid;
+  }
+
+  // ---------- remove legacy full-width Members table (one-time DOM cleanup) ----------
+  function killLegacyMembersBlock() {
+    // find any table that looks like the old "Members / Role / Status / Start" but is not our new one
+    const tables = Array.from(document.querySelectorAll('table'));
+    let legacy = null;
+
+    for (const t of tables) {
+      if (t.id === 'members-table') continue;                 // our compact table
+      if (t.closest('.sq-card')) continue;                    // anything inside compact card
+      const headers = Array.from(t.querySelectorAll('thead th')).map(th => (th.textContent||'').trim().toLowerCase());
+      const looksLikeMembers = headers.length >= 4 &&
+        headers.includes('member') && headers.includes('role') &&
+        headers.includes('status') && headers.includes('start');
+      if (looksLikeMembers) { legacy = t; break; }
+    }
+    if (!legacy) return;
+
+    // remove a directly preceding "Members" heading (if any)
+    const preceding = legacy.previousElementSibling;
+    if (preceding && !preceding.closest('.sq-card')) {
+      const txt = (preceding.textContent || '').trim().toLowerCase();
+      if (txt === 'members') try { preceding.remove(); } catch {}
+    }
+
+    // remove the legacy table (prefer an outer wrapper if present)
+    const wrapper = legacy.closest('.card, .panel, .table-wrapper, section') || legacy;
+    try { wrapper.remove(); } catch { legacy.remove(); }
   }
 
   // ---------- data helpers ----------
@@ -170,7 +195,6 @@
 
   // ---------- activities (right) ----------
   async function loadActivitiesForSquad(squadId, squadName) {
-    // If the key isn't configured yet, gracefully return empty with a flag.
     const hasKey = !!(api.SHEETS && api.SHEETS.SQUAD_ACTIVITIES);
     if (!hasKey) return { items: [], configured: false, hoursByAct: new Map() };
 
@@ -187,7 +211,6 @@
         const owner   = (r["Owner (Display Name)"] || r["Owner"] || "").toString().trim();
         if (!title) return null;
 
-        // Match either by exact Squad ID or by Squad Name (both tolerated)
         const match = (norm(squad) === norm(squadId)) || (squadName && norm(squad) === norm(squadName));
         if (!match) return null;
 
@@ -195,7 +218,6 @@
       })
       .filter(Boolean);
 
-    // Completed PH hours rollup (optional)
     const hoursByAct = new Map();
     try {
       const ph = await api.getRowsByTitle(api.SHEETS.POWER_HOURS);
@@ -266,7 +288,6 @@
       `;
     }).join("");
 
-    // wire "Log Hour" action – call existing modal if present, else fallback
     tb.querySelectorAll('[data-action="log-ph"]').forEach(a => {
       a.addEventListener('click', (e) => {
         e.preventDefault();
@@ -275,7 +296,6 @@
           P.PowerHours.open({ activityId: actId });
           return;
         }
-        // fallback: go to PH page with prefill (if your page supports it)
         location.href = `power-hours.html?activityId=${encodeURIComponent(actId)}`;
       });
     });
@@ -352,7 +372,11 @@
       return;
     }
 
-    const grid = ensureLayoutShell();
+    ensureLayoutShell();
+
+    // Remove the legacy full-width table (a few retries in case it renders late)
+    const doCleanup = () => killLegacyMembersBlock();
+    doCleanup(); setTimeout(doCleanup, 50); setTimeout(doCleanup, 250);
 
     // Admin check (your roles.js sets P.auth.isAdmin)
     const isAdmin = !!(P.auth && typeof P.auth.isAdmin === "function" && P.auth.isAdmin());
@@ -386,7 +410,7 @@
       .map(r => (r["Employee ID"] || "").toString().trim())
       .filter(Boolean);
 
-    const leaderNames = leaderIds.map(id => empMap.get(id) || id).filter(Boolean);
+    const leaderNames = leaderIds.map(id => (empMap.get(id) || id)).filter(Boolean);
 
     // left: members
     renderMembers(members, empMap, squadId, isAdmin);
@@ -396,7 +420,6 @@
       const latest = await api.getRowsByTitle("SQUAD_MEMBERS", { force: true });
       renderMembers(latest, empMap, squadId, isAdmin);
     });
-    // (compat alias some projects use)
     document.addEventListener("squad:member:added", async () => {
       const latest = await api.getRowsByTitle("SQUAD_MEMBERS", { force: true });
       renderMembers(latest, empMap, squadId, isAdmin);
