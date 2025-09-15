@@ -1,319 +1,288 @@
 // scripts/squad-details.js
-// Squad Details: left = compact members, right = activities (read-only placeholder).
-// Keeps your existing Add Member modal & back logic intact.
+// Combined: restores legacy Back/Add Member behavior + new layout (members left + activities)
+// Compact members list, styled scrollbar, short dates, and safe fallbacks for legacy selectors.
 
-(function (PowerUp) {
-  const P = PowerUp || (window.PowerUp = {});
-  const { SHEETS, getRowsByTitle } = P.api;
+(function (P) {
+  const { api, session, layout } = P;
 
-  // ---- utils ---------------------------------------------------
-  const norm = (s) => String(s || "").trim();
-  const lc = (s) => norm(s).toLowerCase();
-  const dash = (v) => (v == null || norm(v) === "" ? "-" : String(v));
-  const isTrue = (v) => v === true || /^(true|yes|y|1|active)$/i.test(String(v ?? "").trim());
+  // ---------- small utils ----------
+  const qs = (k) => new URLSearchParams(location.search).get(k) || "";
+  const esc = (s) => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  const norm = (s) => String(s || "").trim().toLowerCase();
 
-  function pick(row, keys, d = "") {
-    for (const k of keys) if (row && row[k] != null && String(row[k]).trim() !== "") return row[k];
-    return d;
-  }
-
-  function fmtShortDate(v) {
+  // Short date like "8/29/25"
+  function fmtDateShort(v) {
     if (!v) return "-";
     const d = new Date(v);
-    if (Number.isNaN(d.getTime())) return dash(v);
+    if (isNaN(d)) return esc(v);
+    const m = d.getMonth() + 1;
+    const day = d.getDate();
     const yy = String(d.getFullYear()).slice(-2);
-    return `${d.getMonth() + 1}/${d.getDate()}/${yy}`;
+    return `${m}/${day}/${yy}`;
   }
 
-  // Column hints
-  const SQ_COL = {
-    id:      ['Squad ID','ID'],
-    name:    ['Squad Name','Squad','Name','Team'],
-    leader:  ['Squad Leader','Leader Employee ID','Leader Position ID','Leader'],
-    cat:     ['Category','Squad Category'],
-    obj:     ['Objective','Focus','Purpose'],
-    active:  ['Active','Is Active?'],
-    created: ['Created Date','Start Date','Started'],
-    notes:   ['Notes','Description']
-  };
-  const SM_COL = {
-    squadId: ['Squad ID','SquadID','Squad'],
-    empId:   ['Employee ID','EmployeeID','Position ID'],
-    empName: ['Employee Name','Name','Display Name'],
-    role:    ['Role','Member Role'],
-    active:  ['Active','Is Active?'],
-    start:   ['Start Date','Joined','Start']
-  };
-  const EM_COL = { id: ['Position ID','Employee ID'], name: ['Display Name','Employee Name','Name'] };
-
-  // ---- local CSS (only layout/compactness/scrollbar) ----------
-  function injectLocalStyles() {
-    if (document.getElementById('sqd-local-css')) return;
-    const css = `
-      .grid-2 { display:grid; grid-template-columns:360px 1fr; gap:12px; align-items:start; min-height:0; }
-
-      /* Members: compact & scroll inside the card */
-      #sq-members .table { font-size:12.5px; line-height:1.25; }
-      #sq-members .table th, #sq-members .table td { padding:6px 8px; }
-      #sq-members .table-wrap {
-        max-height: calc(100vh - var(--header-h, 96px) - 320px);
-        overflow:auto; border-radius:8px;
-        scrollbar-color:#2a3f3f #0f1a1a; scrollbar-width:thin;
-      }
-      #sq-members .pill { padding:2px 8px; font-size:11px; }
-
-      /* WebKit scrollbar theme */
-      #sq-members .table-wrap::-webkit-scrollbar { width:10px; }
-      #sq-members .table-wrap::-webkit-scrollbar-track { background:#0f1a1a; border-radius:8px; }
-      #sq-members .table-wrap::-webkit-scrollbar-thumb { background:#1f2f2f; border-radius:8px; border:1px solid #2a3a3a; }
-      #sq-members .table-wrap:hover::-webkit-scrollbar-thumb { background:#2a3f3f; }
-
-      /* Activities just slightly compact */
-      #sq-activities .table { font-size:13px; }
-      #sq-activities .table th, #sq-activities .table td { padding:7px 9px; }
-    `;
-    const s = document.createElement('style');
-    s.id = 'sqd-local-css';
-    s.textContent = css;
-    document.head.appendChild(s);
-  }
-
-  // ---- view fragments -----------------------------------------
-  function topActionsHTML(canManage) {
-    // IDs + data-action kept so your existing listeners/modal keep working.
-    return `
-      <div style="display:flex;gap:8px;justify-content:flex-end;margin:0 0 8px 0;">
-        <button id="btnBack" data-action="back"
-          class="btn btn-xs"
-          style="padding:6px 10px;border:1px solid #2a354b;background:#0b1328;color:#e5e7eb;border-radius:8px;">
-          <i class="fa fa-arrow-left"></i> Back
-        </button>
-        ${canManage ? `
-        <button id="btnAddMember" data-action="add-member"
-          class="btn btn-xs"
-          style="padding:6px 10px;border:1px solid #2a354b;background:#0b1328;color:#e5e7eb;border-radius:8px;">
-          <i class="fa fa-user-plus"></i> Add Member
-        </button>` : ``}
-      </div>
-    `;
-  }
-
-  function summaryCardsHTML(sq, leaderName) {
-    return `
-      <div style="display:grid;grid-template-columns:1.2fr 1fr 0.9fr;gap:10px;margin-bottom:8px;">
-        <div class="card" style="padding:12px 14px;">
-          <div class="card-title" style="color:#9ffbe6;font-weight:700;">Squad</div>
-          <div><b>Name:</b> ${dash(sq.name)}</div>
-          <div><b>Leader:</b> ${dash(leaderName || sq.leaderId)}</div>
-          <div><b>Status:</b> ${isTrue(sq.active) ? '<span class="pill pill--green">Active</span>' : '<span class="pill pill--red">Inactive</span>'}</div>
-          <div><b>Category:</b> ${dash(sq.cat)}</div>
-          <div><b>Created:</b> ${dash(sq.created)}</div>
-        </div>
-        <div class="card" style="padding:12px 14px;">
-          <div class="card-title" style="color:#9ffbe6;font-weight:700;">Objective</div>
-          <div>${dash(sq.obj)}</div>
-        </div>
-        <div class="card" style="padding:12px 14px;">
-          <div class="card-title" style="color:#9ffbe6;font-weight:700;">Notes</div>
-          <div>${dash(sq.notes)}</div>
-        </div>
-      </div>
-    `;
-  }
-
-  function chipsRowHTML({ hours = 0 } = {}) {
-    return `
-      <div style="display:flex;gap:8px;margin:0 0 10px 0;">
-        <span class="chip" title="Sum of completed Power Hours linked to this squad"
-          style="display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;border:1px solid #2a354b;background:#0b1328;color:#e5e7eb;">
-          <i class="fa fa-bolt"></i>
-          <span>Completed PH Hours</span>
-          <b style="background:#192542;padding:2px 8px;border-radius:999px;">${hours}</b>
-        </span>
-      </div>
-    `;
-  }
-
-  function twoColShellHTML() {
-    return `
-      <div class="grid-2">
-        <section id="sq-members" class="card" style="padding:10px;">
-          <h3 style="margin:0 0 8px 0;">Members</h3>
-          <div class="table-wrap">
-            <table class="table" style="width:100%;">
-              <thead>
-                <tr><th>Name</th><th>Role</th><th>Status</th><th>Start</th></tr>
-              </thead>
-              <tbody id="sq-members-body">
-                <tr><td colspan="4" style="opacity:.7;text-align:center;">Loading…</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <section id="sq-activities" class="card" style="padding:10px;">
-          <h3 style="margin:0 0 8px 0;">Squad Activities</h3>
-          <div class="table-wrap">
-            <table class="table" style="width:100%;">
-              <thead>
-                <tr><th>Title</th><th>Type</th><th>Status</th><th>Dates</th><th>Owner</th><th>Participants</th><th>Completed PH</th></tr>
-              </thead>
-              <tbody id="sq-acts-body">
-                <tr><td colspan="7" style="opacity:.7;text-align:center;">No activities yet</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
-      </div>
-    `;
-  }
-
-  // ---- data helpers -------------------------------------------
-  async function loadLookup() {
-    const em = await getRowsByTitle(SHEETS.EMPLOYEE_MASTER);
-    const idToName = new Map();
-    em.forEach(r => {
-      const id = norm(pick(r, EM_COL.id, ""));
-      const nm = norm(pick(r, EM_COL.name, ""));
-      if (id) idToName.set(id, nm);
+  async function loadEmployeeMap() {
+    const rows = await api.getRowsByTitle('EMPLOYEE_MASTER');
+    const map = new Map();
+    rows.forEach(r => {
+      const id = String(r["Position ID"] || r["Employee ID"] || r["EmployeeID"] || r["ID"] || "").trim();
+      const nm = String(r["Display Name"] || r["Employee Name"] || r["Name"] || id || "").trim();
+      if (id) map.set(id, nm || id);
     });
-    return { idToName };
+    return map;
   }
 
-  function findSquad(rows, q) {
-    const idLC = lc(q.id || "");
-    const nameLC = lc(q.name || "");
-    return rows.find(r => lc(pick(r, SQ_COL.id)) === idLC) ||
-           rows.find(r => lc(pick(r, SQ_COL.name)) === nameLC) ||
-           null;
+  // ---------- UI helpers ----------
+  // We inject a few tiny CSS rules so you don't need to touch your HTML/CSS files.
+  function injectOnceStyles() {
+    if (document.getElementById('sq-details-inline-css')) return;
+    const css = document.createElement('style');
+    css.id = 'sq-details-inline-css';
+    css.textContent = `
+      /* compact members table */
+      #members-panel { display:flex; flex-direction:column; }
+      #members-panel .table-wrap {
+        overflow:auto; border:1px solid #2d3f3f; border-radius:8px; background:#0f1b1b;
+      }
+      #members-table { font-size: 12px; }
+      #members-table th { font-size: 12px; }
+      #members-table td { padding: 6px 8px; }
+
+      /* smaller status pills */
+      .status-pill { padding:2px 7px; border-radius:999px; font-size:11px; font-weight:700; }
+      .status-on  { background: var(--success,#6ee7b7); color:#062; }
+      .status-off { background: #3a4e4e; color:#fff; }
+
+      /* themed scrollbar inside members list */
+      #members-panel .table-wrap::-webkit-scrollbar { width: 8px; }
+      #members-panel .table-wrap::-webkit-scrollbar-thumb {
+        background: #263737; border-radius: 8px; border: 2px solid #0f1b1b;
+      }
+      #members-panel .table-wrap::-webkit-scrollbar-track { background: transparent; }
+
+      /* keep the activities table consistent height with members panel */
+      #activities-panel .table-wrap {
+        overflow: hidden; border:1px solid #2d3f3f; border-radius:8px; background:#0f1b1b;
+      }
+    `;
+    document.head.appendChild(css);
   }
 
-  function shapeSquad(row) {
-    return {
-      id:      norm(pick(row, SQ_COL.id, "")),
-      name:    norm(pick(row, SQ_COL.name, "")),
-      leaderId:norm(pick(row, SQ_COL.leader, "")),
-      cat:     norm(pick(row, SQ_COL.cat, "")),
-      obj:     norm(pick(row, SQ_COL.obj, "")),
-      active:  pick(row, SQ_COL.active, ""),
-      created: norm(pick(row, SQ_COL.created, "")),
-      notes:   norm(pick(row, SQ_COL.notes, ""))
-    };
+  // Fit the members panel to viewport so it never runs below the page
+  function sizeMembersPanel() {
+    const header = document.getElementById('pu-header');
+    const panel  = document.querySelector('#members-panel .table-wrap');
+    if (!panel) return;
+    const headerH = header ? header.offsetHeight : 64;
+    const top = panel.getBoundingClientRect().top + window.scrollY;
+    const vh = window.innerHeight;
+    const gutter = 28; // a bit of breathing room above the footer/edge
+    const maxH = Math.max(220, vh - (top - window.scrollY) - gutter);
+    panel.style.maxHeight = `${maxH}px`;
+
+    // mirror the same height on the activities panel wrap to keep rows aligned visually
+    const actWrap = document.querySelector('#activities-panel .table-wrap');
+    if (actWrap) actWrap.style.minHeight = `${Math.min(520, maxH)}px`;
   }
 
-  async function computeCompletedHoursForSquad(squadName) {
-    try {
-      const ph = await getRowsByTitle(SHEETS.POWER_HOURS);
-      let sum = 0;
-      const key = String(squadName || "").toLowerCase();
-      ph.forEach(r => {
-        const completed = isTrue(r['Completed'] || r['Complete']);
-        const hours = parseFloat(String(r['Completed Hours'] || r['Hours'] || "0").replace(/[^0-9.]/g, "")) || 0;
-        const squad = String(r['Squad'] || r['Team'] || '').trim().toLowerCase();
-        if (completed && squad && squad === key) sum += hours;
-      });
-      return Math.round(sum * 10) / 10;
-    } catch { return 0; }
+  // ---------- Rendering ----------
+  function renderMembers(allRows, empMap, squadId, showEmpId) {
+    const rows = allRows.filter(r => norm(r["Squad ID"]) === norm(squadId));
+
+    const thead = document.querySelector("#members-table thead tr");
+    const tbody = document.querySelector("#members-table tbody");
+    if (!thead || !tbody) return;
+
+    thead.innerHTML = showEmpId
+      ? "<th>Name</th><th>Emp ID</th><th>Role</th><th>Status</th><th>Start</th>"
+      : "<th>Name</th><th>Role</th><th>Status</th><th>Start</th>";
+
+    const html = rows.map(r => {
+      const eid   = String(r["Employee ID"] || "").trim();
+      const name  = empMap.get(eid) || eid || "-";
+      const role  = r["Role"] || "-";
+      const active= /^true$/i.test(String(r["Active"]||"").trim());
+      const start = r["Start Date"] || r["Start"];
+      const cells = [
+        `<td>${esc(name)}</td>`,
+        ...(showEmpId ? [`<td class="mono">${esc(eid || "-")}</td>`] : []),
+        `<td>${esc(role)}</td>`,
+        `<td>${active ? '<span class="status-pill status-on">Active</span>' : '<span class="status-pill status-off">Inactive</span>'}</td>`,
+        `<td>${fmtDateShort(start)}</td>`
+      ];
+      return `<tr>${cells.join("")}</tr>`;
+    }).join("");
+
+    tbody.innerHTML = html || `<tr><td colspan="${showEmpId ? 5 : 4}" style="opacity:.7;text-align:center;">No members yet</td></tr>`;
+    sizeMembersPanel();
   }
 
-  // ---- renderers ----------------------------------------------
-  function renderMembers(tbody, members) {
-    if (!tbody) return;
-    if (!members.length) {
-      tbody.innerHTML = `<tr><td colspan="4" style="opacity:.7;text-align:center;">No members</td></tr>`;
+  // Minimal placeholder for activities (read-only until sheets are wired)
+  function renderActivitiesPlaceholder() {
+    const thead = document.querySelector("#activities-table thead tr");
+    const tbody = document.querySelector("#activities-table tbody");
+    if (!thead || !tbody) return;
+    thead.innerHTML = `
+      <th>Title</th><th>Type</th><th>Status</th><th>Dates</th><th>Owner</th><th>Participants</th><th>Completed PH</th>
+    `;
+    tbody.innerHTML = `<tr><td colspan="7" style="opacity:.7;text-align:center;">No activities yet</td></tr>`;
+  }
+
+  // ---------- Buttons: Back + Add Member (legacy-compatible) ----------
+  function wireBackButton() {
+    // support both ids: #btn-back (old) and #btnBack (new)
+    const btn = document.getElementById('btn-back') || document.getElementById('btnBack');
+    if (!btn) return;
+    if (btn.dataset.bound) return;
+    btn.dataset.bound = "1";
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      if (history.length > 1) history.back();
+      else location.href = 'squads.html';
+    });
+    btn.style.display = 'inline-flex';
+  }
+
+  function wireAddMemberButton({ squadId, squadName, canAdd }) {
+    // support both ids: #btn-addmember (old) and #btnAddMember (new)
+    const btn = document.getElementById('btn-addmember') || document.getElementById('btnAddMember');
+    if (!btn) return;
+
+    if (canAdd) {
+      btn.style.display = 'inline-flex';
+      btn.disabled = false;
+      if (!btn.dataset.bound) {
+        btn.dataset.bound = "1";
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          // Your original modal API:
+          if (P.squadForm && typeof P.squadForm.open === 'function') {
+            P.squadForm.open({ squadId, squadName });
+            return;
+          }
+          // Back-compat fallbacks if the modal lived elsewhere (won't run if above works)
+          const legacyBtn = document.querySelector(
+            '[data-action="addMember"], [data-action="add-member"], #addMemberBtn, .js-add-member'
+          );
+          if (legacyBtn) { legacyBtn.click(); return; }
+          document.dispatchEvent(new CustomEvent('pu:add-member', { detail: { squadId, squadName } }));
+        });
+      }
+    } else {
+      btn.style.display = 'none';
+      btn.disabled = true;
+    }
+  }
+
+  // ---------- Main ----------
+  async function main() {
+    layout.injectLayout?.();
+    await session.initHeader?.();
+    injectOnceStyles();
+
+    // Route params
+    const urlId = qs("id") || qs("squadId") || qs("squad");
+    if (!urlId) {
+      layout.setPageTitle?.("Squad Details");
+      renderActivitiesPlaceholder();
       return;
     }
-    tbody.innerHTML = members.map(m => {
-      const st = m.active ? '<span class="pill pill--green">Active</span>' : '<span class="pill pill--red">Inactive</span>';
-      return `<tr>
-        <td>${m.name || m.id || "-"}</td>
-        <td>${dash(m.role)}</td>
-        <td>${st}</td>
-        <td>${fmtShortDate(m.start)}</td>
-      </tr>`;
-    }).join('');
-  }
 
-  function renderActivitiesPlaceholder() {
-    const tb = document.getElementById('sq-acts-body');
-    if (tb) tb.innerHTML = `<tr><td colspan="7" style="opacity:.7;text-align:center;">No activities yet</td></tr>`;
-  }
-
-  // ---- main ----------------------------------------------------
-  document.addEventListener('DOMContentLoaded', async () => {
-    P.session.requireLogin();
-    P.layout.injectLayout();
-    await P.session.initHeader();
-    P.layout.setPageTitle('Squad Details');
-
-    injectLocalStyles();
-
-    const content = document.getElementById('pu-content');
-    if (!content) return;
-
-    const url = new URL(location.href);
-    const qId   = url.searchParams.get('id') || '';
-    const qName = url.searchParams.get('name') || '';
+    // Admin detection via roles.js (P.auth.isAdmin)
+    const isAdmin = !!(P.auth && typeof P.auth.isAdmin === 'function' && P.auth.isAdmin());
 
     // Load data
-    const [sqRows, smRows, lookup] = await Promise.all([
-      getRowsByTitle(SHEETS.SQUADS),
-      getRowsByTitle(SHEETS.SQUAD_MEMBERS),
-      loadLookup()
+    const [squads, members, empMap] = await Promise.all([
+      api.getRowsByTitle('SQUADS',        { force: true }),
+      api.getRowsByTitle('SQUAD_MEMBERS', { force: true }),
+      loadEmployeeMap()
     ]);
-    const { idToName } = lookup;
 
-    const raw = findSquad(sqRows, { id: qId, name: qName });
-    if (!raw) { content.innerHTML = `<div class="card" style="padding:14px;">Squad not found.</div>`; return; }
-    const squad = shapeSquad(raw);
-
-    // Permissions (keep your original semantics)
-    const isAdmin = !!(P.auth && P.auth.isAdmin && P.auth.isAdmin());
-    const me = P.session.get() || {};
-    let canManage = isAdmin || (lc(squad.leaderId) === lc(me.employeeId));
-    try { if (P.auth?.canManageSquad) canManage = await P.auth.canManageSquad(String(squad.id || '')); } catch {}
-
-    // Members
-    let members = smRows
-      .filter(r => lc(pick(r, SM_COL.squadId)) === lc(squad.id) || lc(pick(r, SM_COL.squadId)) === lc(squad.name))
-      .map(r => ({
-        id:    norm(pick(r, SM_COL.empId, "")),
-        name:  norm(pick(r, SM_COL.empName, "")),
-        role:  norm(pick(r, SM_COL.role, "Member")),
-        active:isTrue(pick(r, SM_COL.active, "true")),
-        start: norm(pick(r, SM_COL.start, ""))
-      }))
-      .sort((a,b) => (a.role === b.role ? (a.name || '').localeCompare(b.name || '') : a.role.localeCompare(b.role)));
-
-    const leaderName = idToName.get(squad.leaderId) || '';
-    const completedPH = await computeCompletedHoursForSquad(squad.name);
-
-    // Render layout
-    content.innerHTML = `
-      ${topActionsHTML(canManage)}
-      ${summaryCardsHTML(squad, leaderName)}
-      ${chipsRowHTML({ hours: completedPH })}
-      ${twoColShellHTML()}
-    `;
-
-    // Do NOT attach any new click handler to Add Member; your existing modal/listeners will pick up the button.
-    // Provide a safe fallback for Back ONLY if nobody else handles it.
-    const back = document.getElementById('btnBack');
-    if (back && !back.dataset.bound) {
-      // Only attach if no one else has (keeps your old wiring intact if present)
-      back.addEventListener('click', (e) => {
-        // If your existing handler is present, it will run too; otherwise this is a safe fallback.
-        if (!e.defaultPrevented) {
-          if (document.referrer && /squads\.html/i.test(document.referrer)) history.back();
-          else location.href = 'squads.html';
-        }
-      }, { once: true });
+    const sidLC = norm(urlId);
+    const squad = squads.find(r => norm(r["Squad ID"]) === sidLC) ||
+                  squads.find(r => norm(r["Squad Name"]) === sidLC);
+    if (!squad) {
+      layout.setPageTitle?.("Squad: Not Found");
+      renderActivitiesPlaceholder();
+      return;
     }
 
-    // Fill members + activities
-    renderMembers(document.getElementById('sq-members-body'), members);
-    renderActivitiesPlaceholder();
-  });
+    const squadId   = String(squad["Squad ID"]   || urlId).trim();
+    const squadName = String(squad["Squad Name"] || squadId).trim();
+    layout.setPageTitle?.(`Squad Details`);
 
-  window.PowerUp = P;
-})(window.PowerUp || {});
+    // Leaders list (active leaders in SQUAD_MEMBERS)
+    const leaderRows = members.filter(r =>
+      norm(r["Squad ID"]) === norm(squadId) &&
+      norm(r["Role"]) === "leader" &&
+      /^true$/i.test(String(r["Active"]||"").trim())
+    );
+    const leaderIds = leaderRows.map(r => String(r["Employee ID"] || "").trim()).filter(Boolean);
+    const leaderNames = leaderIds
+      .map(id => empMap.get(id) || id)
+      .filter(Boolean);
+
+    // Top summary cards
+    const core = document.querySelector("#card-core .kv");
+    if (core) {
+      const leaderText =
+        leaderNames.length === 0 ? "-"
+        : leaderNames.length === 1 ? leaderNames[0]
+        : leaderNames.length === 2 ? `${leaderNames[0]}, ${leaderNames[1]}`
+        : `${leaderNames[0]}, ${leaderNames[1]} +${leaderNames.length - 2} more`;
+
+      const active = /^true$/i.test(String(squad["Active"]||"").trim());
+      const category = squad["Category"] || "-";
+      const created  = squad["Created Date"] || squad["Created"] || "";
+
+      core.innerHTML = `
+        <div><b>Name:</b> ${esc(squadName)}</div>
+        <div><b>${leaderNames.length > 1 ? 'Leaders' : 'Leader'}:</b> ${esc(leaderText)}</div>
+        <div><b>Status:</b> ${active ? '<span class="status-pill status-on">Active</span>' : '<span class="status-pill status-off">Inactive</span>'}</div>
+        <div><b>Category:</b> ${esc(category)}</div>
+        <div><b>Created:</b> ${created ? esc(created) : '-'}</div>
+      `;
+    }
+    const obj = document.querySelector("#card-objective .kv");
+    if (obj) obj.textContent = squad["Objective"] || "-";
+    const notes = document.querySelector("#card-notes .kv");
+    if (notes) notes.textContent = squad["Notes"] || "-";
+
+    // Buttons (Back + Add Member) using your original logic/permissions
+    wireBackButton();
+
+    const me = session.get?.() || {};
+    const myId = String(me.employeeId || "").trim();
+    let canAdd = isAdmin;
+    if (!canAdd) {
+      canAdd = leaderRows.some(r => norm(r["Employee ID"]) === norm(myId));
+    }
+    wireAddMemberButton({ squadId, squadName, canAdd });
+
+    // Members (compact)
+    const showEmpId = isAdmin; // only admins see Emp ID col
+    renderMembers(members, empMap, squadId, showEmpId);
+
+    // Re-render after a member is added (your original event name)
+    document.addEventListener("squad-member-added", async () => {
+      const latest = await api.getRowsByTitle('SQUAD_MEMBERS', { force: true });
+      renderMembers(latest, empMap, squadId, showEmpId);
+    });
+    // optional extra alias
+    document.addEventListener("pu:squad-member-added", async () => {
+      const latest = await api.getRowsByTitle('SQUAD_MEMBERS', { force: true });
+      renderMembers(latest, empMap, squadId, showEmpId);
+    });
+
+    // Activities placeholder (non-breaking until sheet is wired)
+    renderActivitiesPlaceholder();
+
+    // Resize on load + window resize
+    sizeMembersPanel();
+    window.addEventListener('resize', sizeMembersPanel);
+    // If fonts render after a tick, size again
+    setTimeout(sizeMembersPanel, 150);
+  }
+
+  document.addEventListener("DOMContentLoaded", main);
+})(window.PowerUp || (window.PowerUp = {}));
