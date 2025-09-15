@@ -83,6 +83,11 @@
       max-height: calc(100vh - var(--header-h) - 320px);
       overflow:auto; border:1px solid #263636; border-radius:8px;
     }
+
+    /* put this with the other styles already in squad-details.html */
+    .members-scroll, .acts-scroll { 
+      max-height: var(--sqd-avail, calc(100vh - var(--header-h) - 280px)); }
+
     .members-table {
       width:100%; border-collapse:collapse; font-size:13px;
     }
@@ -129,6 +134,8 @@
     .acts-scroll::-webkit-scrollbar-thumb { background:#223035; border-radius:8px; border:2px solid #0b1328; }
     .members-scroll::-webkit-scrollbar-track,
     .acts-scroll::-webkit-scrollbar-track { background:#0b1328; }
+
+    
   </style>
 </head>
 <body>
@@ -221,3 +228,4 @@
   <script src="scripts/squad-details.js"></script>
 </body>
 </html>
+
