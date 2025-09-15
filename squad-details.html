@@ -3,33 +3,30 @@
 <head>
   <meta charset="UTF-8" />
 
-<!-- EARLY AUTH GUARD — must be the first thing in <head> -->
-<script>
-!function () {
-  try {
-    // Prefer the real session key; fall back to legacy only if present
-    const s = JSON.parse(sessionStorage.getItem('pu.session') || 'null')
-           || JSON.parse(localStorage.getItem('powerup_session') || 'null');
-    if (!s || !s.employeeId) {
-      // block paint, then bounce to login
+  <!-- EARLY AUTH GUARD — must be the first thing in <head> -->
+  <script>
+  !function () {
+    try {
+      const s = JSON.parse(sessionStorage.getItem('pu.session') || 'null')
+             || JSON.parse(localStorage.getItem('powerup_session') || 'null');
+      if (!s || !s.employeeId) {
+        document.documentElement.style.visibility = 'hidden';
+        location.replace('login.html');
+      }
+    } catch {
       document.documentElement.style.visibility = 'hidden';
       location.replace('login.html');
     }
-  } catch {
-    document.documentElement.style.visibility = 'hidden';
-    location.replace('login.html');
-  }
-}();
-</script>
+  }();
+  </script>
 
   <title>PowerUp — Squad Details</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link href="style.css" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
-<!-- Favicon (SVG + PNG fallback) -->
-<link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+  <!-- Favicon (SVG + PNG fallback) -->
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
 
-  
   <style>
     .details-wrap { padding: 10px 14px 16px; display: grid; gap: 14px; }
     .top-actions { display:flex; gap:10px; justify-content:flex-end; }
@@ -47,19 +44,6 @@
     .status-on  { background: var(--success); color:#000; }
     .status-off { background: #3a4e4e; color:#fff; }
 
-    .section-h { font-size:18px; font-weight:700; color:var(--accent); margin: 4px 0 2px; }
-    .table-scroll table.dashboard-table { table-layout: fixed; }
-
-    /* minimal modal skin if not already in style.css */
-    .modal { position: fixed; inset:0; display:none; align-items:center; justify-content:center; background: rgba(0,0,0,.5); z-index: 50; }
-    .modal.show { display:flex; }
-    .modal .panel { width:min(680px, 92vw); background: var(--card-bg); border:1px solid var(--accent); border-radius:10px; padding:16px; box-shadow: 0 10px 30px rgba(0,0,0,.45); }
-    .modal .row { display:flex; gap:12px; margin:10px 0; align-items:flex-start; }
-    .modal label { font-size:12px; color:var(--info); display:block; margin-bottom:4px; }
-    .modal input[type="date"], .modal select { width:100%; padding:8px 10px; border:1px solid #2d3f3f; border-radius:6px; background:#132121; color:var(--text); }
-    .modal .actions { display:flex; justify-content:flex-end; gap:10px; margin-top:12px; }
-    .chk { display:flex; align-items:center; gap:8px; font-size:14px; color:var(--text); }
-
     /* prevent flash of unauthorized Add button before JS hides it */
     #btn-addmember { display:none; }
   </style>
@@ -72,22 +56,18 @@
       <button class="btn" id="btn-addmember"><i class="fa fa-user-plus"></i> Add Member</button>
     </div>
 
+    <!-- Top meta cards (populated by JS) -->
     <div class="meta-grid">
-      <div class="meta-card" id="card-core"><h3>Squad</h3><div class="kv">Loading…</div></div>
+      <div class="meta-card" id="card-squad"><h3>Squad</h3><div class="kv">Loading…</div></div>
       <div class="meta-card" id="card-objective"><h3>Objective</h3><div class="kv">Loading…</div></div>
       <div class="meta-card" id="card-notes"><h3>Notes</h3><div class="kv">Loading…</div></div>
     </div>
 
-    <h2 class="section-h">Members</h2>
-    <div class="table-scroll">
-      <table class="dashboard-table" id="members-table">
-        <thead><tr><th>Member</th><th>Employee ID</th><th>Role</th><th>Status</th><th>Start</th></tr></thead>
-        <tbody></tbody>
-      </table>
-    </div>
+    <!-- 🔹 The ONLY mount point the JS needs. Old full-width members table removed. -->
+    <div id="sq-panels"></div>
   </div>
 
-  <!-- Add Member Modal -->
+  <!-- Add Member Modal (kept exactly as you had it so your existing form JS continues to work) -->
   <div id="addMemberModal" class="modal" aria-hidden="true">
     <div class="panel">
       <h3 style="margin-bottom:8px;color:var(--accent)">Add Squad Member</h3>
@@ -123,21 +103,13 @@
     </div>
   </div>
 
-<script src="scripts/api.js"></script>
-<script src="scripts/session.js"></script>
-<script src="scripts/roles.js"></script>
-<script src="scripts/layout.js"></script>
+  <script src="scripts/api.js"></script>
+  <script src="scripts/session.js"></script>
+  <script src="scripts/roles.js"></script>
+  <script src="scripts/layout.js"></script>
 
-<!-- load the form first, then the page controller -->
-<script src="scripts/squad-member-form.js"></script>
-<script src="scripts/squad-details.js"></script>
-
+  <!-- load the form first, then the page controller -->
+  <script src="scripts/squad-member-form.js"></script>
+  <script src="scripts/squad-details.js"></script>
 </body>
 </html>
-
-
-
-
-
-
-
