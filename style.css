@@ -594,5 +594,14 @@ body.sidebar-expanded .content,
 .kpi-strip { margin-top: 2px; }
 .kpi .k { opacity: .85; }
 
+/* ---- Squad Details: fill the whole content area (no centered clamp) ---- */
+#pu-content.content,
+.content#pu-content,
+.page-wrap {
+  max-width: none !important;  /* remove width cap */
+  width: 100% !important;      /* stretch to container */
+  margin: 0 !important;        /* no auto-centering */
+}
+
 
 
