@@ -111,6 +111,7 @@ body.dashboard .power-card h3 { font-size: 16px; margin-bottom: 5px; color: var(
   border: 1px solid #2d3f3f;
   border-radius: 6px;
   padding-bottom: 4px;           /* tiny buffer so the bar never hugs the edge */
+  position: relative;
 
   /* Themed, visible scrollbars */
   scrollbar-width: thin;                                  /* Firefox */
@@ -573,3 +574,4 @@ body.sidebar-expanded #pu-content.content {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
 }
+
