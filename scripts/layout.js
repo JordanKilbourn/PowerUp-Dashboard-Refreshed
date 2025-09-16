@@ -24,10 +24,8 @@
           <i class="fas fa-users"></i><span>Squads</span>
         </div>
 
-        <!-- Spacer pushes logout to bottom -->
         <div class="sidebar-spacer"></div>
 
-        <!-- Logout button -->
         <div class="item logout" id="pu-logout">
           <i class="fas fa-sign-out-alt"></i><span>Logout</span>
         </div>
@@ -40,10 +38,9 @@
           <p>
             Welcome: <span data-hook="userName">—</span>
             &emsp; Level: <span data-hook="userLevel">Level Unknown</span>
-            
           </p>
 
-          <!-- 🔹 Single, dedicated row for ALL header filters/buttons -->
+          <!-- Single, dedicated row for ALL header filters/buttons -->
           <div class="pu-filters-row" id="pu-filters-row" style="
             display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:nowrap;
           "></div>
@@ -103,7 +100,7 @@
     // Hydrate header name + level
     setUserHeaderFromEmployeeMaster();
 
-    // 🔹 Install Admin filter UI (if available) and force it into #pu-filters-row
+    // Admin filter UI -> header row
     const filtersRow = document.getElementById('pu-filters-row');
 
     function moveAdminFilterIntoRow() {
@@ -113,7 +110,7 @@
         (document.querySelector('[data-hook="adminFilter"]') && document.querySelector('[data-hook="adminFilter"]').closest('div')) ||
         document.querySelector('#adminFilter');
       if (admin && admin.parentElement !== filtersRow) {
-        filtersRow.prepend(admin); // ensure it's first in the row
+        filtersRow.prepend(admin);
       }
     }
 
@@ -126,12 +123,8 @@
       console.debug('[layout] admin filter UI skipped:', e);
     }
 
-    // In case the admin control renders a bit later (async), observe and move it once
-    const obs = new MutationObserver(() => {
-      moveAdminFilterIntoRow();
-    });
+    const obs = new MutationObserver(() => { moveAdminFilterIntoRow(); });
     obs.observe(document.getElementById('pu-header'), { childList: true, subtree: true });
-    // Stop observing after a short grace period to avoid overhead
     setTimeout(() => obs.disconnect(), 3000);
   }
 
@@ -141,7 +134,7 @@
   }
 
   function fitDashboardBlocks() {
-    const root = document.documentElement;
+    const root   = document.documentElement;
     const header = document.getElementById('pu-header');
     const cards  = document.querySelector('.top-cards');
     const tabs   = document.querySelector('.tab-buttons');
@@ -156,6 +149,9 @@
 
     root.style.setProperty('--header-h', `${headerH}px`);
     root.style.setProperty('--table-max', `${tableMax}px`);
+
+    /* 👇 IMPORTANT: also re-measure dashboard table scrollers */
+    try { window.PU && window.PU.sizeDashboardTables && window.PU.sizeDashboardTables(); } catch {}
   }
   window.addEventListener('resize', fitDashboardBlocks);
 
@@ -217,13 +213,13 @@
   });
 })();
 
-/* Viewport-aware height for ONLY the 3 dashboard tab tables */
+/* Viewport-aware height + horizontal wheel for ONLY the 3 dashboard tab tables */
 (function () {
   function onDashboard() {
     return document.body.classList.contains('dashboard');
   }
 
-  const BOTTOM_PAD = 24; // slightly larger breathing room
+  const BOTTOM_PAD = 24; // small breathing room
   const TABLE_IDS = ['ci-table', 'safety-table', 'quality-table'];
 
   function sizeFor(el) {
@@ -266,14 +262,13 @@
     new ResizeObserver(sizeSoon).observe(content);
   }
 
-    // Turn vertical wheel into horizontal scroll for the dashboard tables
+  // Turn vertical wheel into horizontal scroll for the dashboard tables
   function installWheel(scroller) {
     if (!scroller || scroller._hscrollWired) return;
     scroller.addEventListener('wheel', (e) => {
-      // Only hijack when there's horizontal overflow and no vertical scrolling happening
       const canHX = scroller.scrollWidth > scroller.clientWidth;
       const canVY = scroller.scrollHeight > scroller.clientHeight;
-      if (!canHX) return;                       // nothing to do
+      if (!canHX) return;
       if (!canVY || Math.abs(e.deltaX) < Math.abs(e.deltaY)) {
         scroller.scrollLeft += e.deltaY;
         e.preventDefault();
@@ -291,24 +286,9 @@
     });
   }
 
-  // call alongside sizing hooks
   window.addEventListener('load', wireWheelForTables, { once:true });
   window.addEventListener('resize', wireWheelForTables);
   document.addEventListener('click', e => {
     if (e.target.closest('.tab-button')) setTimeout(wireWheelForTables, 0);
   });
-
-
-  // If layout.js recomputes header height, also nudge tables
-  const oldFit = window.fitDashboardBlocks;
-  // (If you kept fitDashboardBlocks scoped, just call sizeSoon() at the end of it instead)
-  if (typeof oldFit === 'function') {
-    window.fitDashboardBlocks = function () {
-      oldFit();
-      sizeSoon();
-    };
-  }
 })();
-
-
-
