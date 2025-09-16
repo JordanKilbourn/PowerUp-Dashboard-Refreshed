@@ -137,6 +137,17 @@ body.dashboard .power-card h3 { font-size: 16px; margin-bottom: 5px; color: var(
   background: linear-gradient(180deg, rgba(0,255,198,.8), rgba(0,255,198,.5));
 }
 
+/* === Generic table base inside .table-scroll (restores styling for ALL pages) === */
+.table-scroll table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.table-scroll th, .table-scroll td {
+  padding: 6px 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+
+
 /* keep page/outer columns clean (no page scrollbar) */
 body::-webkit-scrollbar, .main::-webkit-scrollbar { width: 0; height: 0; }
 
@@ -246,6 +257,23 @@ body.notes .note-editor:empty:before { content: attr(data-placeholder); color: v
 }
 #ci-table tbody tr, #safety-table tbody tr, #quality-table tbody tr { height: 36px; border-bottom: 1px solid rgba(255,255,255,.06); }
 #ci-table thead th, #safety-table thead th, #quality-table thead th { background: #213331; border-bottom: 1px solid #1f2940; color: var(--accent); }
+
+/* Keep headers pinned at the top of the .table-scroll while rows scroll */
+.table-scroll thead th {
+  position: sticky;
+  top: 0;
+  z-index: 4;              /* above tbody rows */
+  background: #213331;     /* ensure not transparent while sticky */
+}
+
+/* Optional: slight divider under the header while scrolling */
+.table-scroll thead {
+  position: sticky;        /* helps some browsers keep the row as a group */
+  top: 0;
+  z-index: 3;
+  background: #213331;
+  box-shadow: 0 1px 0 #1f2940;
+}
 
 /* View column + button */
 .view-col, .view-cell { width: 68px; min-width: 68px; text-align: center; }
@@ -574,4 +602,5 @@ body.sidebar-expanded #pu-content.content {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
 }
+
 
