@@ -559,3 +559,150 @@ body.sidebar-expanded #pu-content.content {
 .table-header-controls .add-btn:active { transform: translateY(0); }
 .table-header-controls .add-btn i { font-size:14px; opacity:.9; }
 
+
+
+
+
+
+
+/* === UI polish: consistent radii, lines, spacing =========================== */
+:root{
+  --radius: 10px;
+  --line-weak: rgba(255,255,255,.06);
+  --line: rgba(255,255,255,.10);
+  --gutter-v: 12px;      /* vertical rhythm between blocks */
+}
+
+/* Cards + “chrome” get the same rounding & a softer border */
+.card,
+.token-card,
+body.dashboard .power-card,
+.table-scroll {
+  border-radius: var(--radius);
+  border-color: var(--line-weak);
+}
+
+/* Top cards → responsive grid, equal heights */
+body.dashboard .top-cards{
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+  align-items: stretch;
+  margin-bottom: 10px; /* gentle air before the tabs */
+}
+body.dashboard .power-card,
+.token-card{
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 130px;
+}
+
+/* Tabs: a touch more air, rounded corners match cards */
+.tab-buttons{
+  margin-top: 2px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+  border-radius: 8px 8px 0 0;
+  padding-bottom: 2px;
+}
+.tab-button{
+  border-radius: 8px 8px 0 0;
+}
+
+/* Header controls row (filters, add button) spacing */
+.table-header-row{
+  margin: 8px 0 8px;
+  gap: 14px;
+}
+.table-header-controls{ gap: 8px; }
+
+/* Add button: subtle, on-brand, good focus state (you already have most of this) */
+.table-header-controls .add-btn{
+  display:inline-flex; align-items:center; gap:8px;
+  padding:8px 14px;
+  border-radius:8px;
+  border:1.5px solid rgba(0,255,198,.55);
+  background: rgba(0,255,198,.08);
+  color: var(--accent);
+  font-weight:700;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.03), 0 1px 6px rgba(0,0,0,.28);
+  transition: transform .12s ease, box-shadow .12s ease, background-color .12s ease;
+}
+.table-header-controls .add-btn:hover{
+  background: rgba(0,255,198,.12);
+  box-shadow: 0 0 0 3px rgba(0,255,198,.10);
+  transform: translateY(-1px);
+}
+.table-header-controls .add-btn:focus-visible{
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(0,255,198,.25);
+}
+.table-header-controls .add-btn i{ font-size:14px; opacity:.9; }
+
+/* Table scroller: keep bars clear & aligned with your theme */
+.table-scroll{
+  padding-bottom: 6px;                /* avoids OS bar hugging the edge */
+  border: 1px solid var(--line-weak);
+  background-clip: padding-box;       /* crisp border */
+}
+.table-scroll::-webkit-scrollbar{ height: 10px; width: 10px; }
+.table-scroll::-webkit-scrollbar-thumb{
+  background: rgba(0,255,198,.35);
+  border-radius: 8px;
+  border: 2px solid rgba(0,0,0,.25);
+}
+.table-scroll::-webkit-scrollbar-track{ background: rgba(255,255,255,.05); }
+.table-scroll:hover::-webkit-scrollbar-thumb{ background: rgba(0,255,198,.6); }
+
+/* Table header: slightly clearer separation from rows */
+.table-scroll thead th{
+  border-bottom: 1px solid var(--line);
+}
+
+/* Zebra + hover are good; add a super-subtle row divider */
+.table-scroll tbody tr{
+  border-bottom: 1px solid rgba(255,255,255,.045);
+}
+
+/* OPTIONAL: make the first column sticky on wide screens so View stays visible.
+   Comment out this block if you don’t want it. */
+@media (min-width: 1200px){
+  #ci-table th:first-child,
+  #ci-table td:first-child,
+  #safety-table th:first-child,
+  #safety-table td:first-child,
+  #quality-table th:first-child,
+  #quality-table td:first-child{
+    position: sticky;
+    left: 0;
+    z-index: 3;
+    background: #1a2b2b; /* matches header row tone */
+    box-shadow: 2px 0 0 0 rgba(0,0,0,.25); /* subtle edge */
+  }
+  /* keep the sticky cell’s hover readable */
+  .table-scroll tbody tr:hover td:first-child{ background: #1c2f2f; }
+}
+
+/* Filter <select> visual alignment */
+.table-header-controls select{
+  padding: 7px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: #1a2a2a;
+}
+
+/* Small nudge to the H1/top rows to reduce unused space */
+.header{ padding-top: 12px; padding-bottom: 12px; gap: 6px; }
+
+/* Tokens/PH mini text a touch brighter for readability */
+.power-card p, .token-card .token-tracker { color: rgba(255,255,255,.90); }
+
+/* Horizontal min-widths: keep, but soften the jumps on very small laptops */
+@media (max-width: 1366px){
+  #ci-table{ min-width: 1400px; }
+  #safety-table{ min-width: 1100px; }
+  #quality-table{ min-width: 1100px; }
+}
+
+
+
