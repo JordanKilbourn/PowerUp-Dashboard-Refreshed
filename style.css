@@ -558,3 +558,38 @@ body.sidebar-expanded #pu-content.content {
 }
 .table-header-controls .add-btn:active { transform: translateY(0); }
 .table-header-controls .add-btn i { font-size:14px; opacity:.9; }
+
+
+/* --- Layout hardening (add near the end of your CSS) --- */
+
+/* Keep sidebar above scrolling content/tabs/header variants */
+.sidebar { z-index: 1000; }
+
+/* Let children shrink; prevents horizontal overflow in content */
+#pu-content.content,
+#pu-content.content > * { min-width: 0; }
+
+/* Top cards: wrap on narrow screens */
+body.dashboard .top-cards { flex-wrap: wrap; }
+@media (max-width: 980px) {
+  body.dashboard .power-card,
+  body.dashboard .token-card {
+    flex: 1 1 100%;
+    max-width: none;
+  }
+}
+
+/* Keep tabs visible under the sticky header */
+.tab-buttons {
+  position: sticky;
+  top: var(--header-h);
+  z-index: 5;              /* below header (z:10), above table body */
+  background: var(--bg);
+}
+
+/* (Optional) reduce motion for motion-sensitive users */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}
+
+
