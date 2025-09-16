@@ -40,7 +40,7 @@
           <p>
             Welcome: <span data-hook="userName">—</span>
             &emsp; Level: <span data-hook="userLevel">Level Unknown</span>
-            &emsp; <button id="pu-refresh" class="btn btn-xs" style="margin-left:8px;border:1px solid #2a354b;background:#0b1328;color:#e5e7eb;border-radius:8px;padding:6px 10px;cursor:pointer">Refresh Data</button>
+            
           </p>
 
           <!-- 🔹 Single, dedicated row for ALL header filters/buttons -->
@@ -91,16 +91,6 @@
       logoutBtn.addEventListener('click', (e) => {
         e.preventDefault();
         window.PowerUpLogout && window.PowerUpLogout();
-      });
-    }
-
-    // Refresh button
-    const refreshBtn = document.getElementById('pu-refresh');
-    if (refreshBtn) {
-      refreshBtn.addEventListener('click', () => {
-        try { window.P && P.api && P.api.clearCache && P.api.clearCache(); } catch {}
-        try { sessionStorage.removeItem('pu.sheetCache.v1'); } catch {}
-        location.reload();
       });
     }
 
@@ -229,12 +219,11 @@
 
 /* Viewport-aware height for ONLY the 3 dashboard tab tables */
 (function () {
-  // Only run on the dashboard page
   function onDashboard() {
     return document.body.classList.contains('dashboard');
   }
 
-  const BOTTOM_PAD = 16; // small breathing room at bottom
+  const BOTTOM_PAD = 24; // slightly larger breathing room
   const TABLE_IDS = ['ci-table', 'safety-table', 'quality-table'];
 
   function sizeFor(el) {
@@ -252,23 +241,39 @@
     TABLE_IDS.forEach(id => sizeFor(document.getElementById(id)));
   }
 
-  // Expose so table renderers can call after data/filters reflow
+  // Expose so renderers can call after data loads or filters change
   window.PU = window.PU || {};
   window.PU.sizeDashboardTables = sizeDashboardTables;
 
-  // Initial + resize
-  window.addEventListener('load', sizeDashboardTables, { once: true });
-  window.addEventListener('resize', sizeDashboardTables);
+  // “Soon” helper — handles late reflows (fonts, filters, etc.)
+  function sizeSoon() {
+    sizeDashboardTables();
+    requestAnimationFrame(sizeDashboardTables);
+    setTimeout(sizeDashboardTables, 120);
+  }
+
+  window.addEventListener('load', sizeSoon, { once: true });
+  window.addEventListener('resize', sizeSoon);
 
   // Recalc when switching tabs
   document.addEventListener('click', e => {
-    if (e.target.closest('.tab-button')) setTimeout(sizeDashboardTables, 0);
+    if (e.target.closest('.tab-button')) setTimeout(sizeSoon, 0);
   });
 
   // Recalc when the content column shifts (sidebar expand/collapse)
   const content = document.getElementById('pu-content');
   if (content && 'ResizeObserver' in window) {
-    new ResizeObserver(sizeDashboardTables).observe(content);
+    new ResizeObserver(sizeSoon).observe(content);
+  }
+
+  // If layout.js recomputes header height, also nudge tables
+  const oldFit = window.fitDashboardBlocks;
+  // (If you kept fitDashboardBlocks scoped, just call sizeSoon() at the end of it instead)
+  if (typeof oldFit === 'function') {
+    window.fitDashboardBlocks = function () {
+      oldFit();
+      sizeSoon();
+    };
   }
 })();
 
