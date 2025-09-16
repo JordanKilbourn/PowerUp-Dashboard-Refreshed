@@ -603,5 +603,44 @@ body.sidebar-expanded .content,
   margin: 0 !important;        /* no auto-centering */
 }
 
+/* ---- Squad Details: fill the content area and keep inner scrollers ---- */
+
+/* Stretch inside the main content column, but don't touch the sidebar offset */
+#pu-content {
+  max-width: none;      /* remove any center clamp */
+  width: 100%;          /* use full content column width */
+  /* leave margins alone so the layout's sidebar offset stays intact */
+}
+
+/* Inner scrollers so the page never grows past the viewport */
+:root{
+  /* header height and total vertical stack above the two scrollers on this page */
+  --header-h: 72px;
+  /* tweak this to taste (objective/notes row + KPIs/header paddings) */
+  --sqd-top-stack: 260px;
+}
+
+.members-scroll,
+.acts-scroll{
+  max-height: calc(100vh - var(--header-h) - var(--sqd-top-stack));
+  overflow: auto;
+  border: 1px solid #263636;
+  border-radius: 8px;
+}
+
+/* Sticky headers inside the scrollers for nice UX */
+.members-table thead th,
+#activities-table thead th{
+  position: sticky; top: 0; z-index: 1;
+  background:#0f1a1a; color:#9ca3af;
+}
+
+/* (Optional) if you still see content slip under the sidebar, your layout’s
+   sidebar is fixed and the main column lost its offset. Restore it here by
+   uncommenting and matching your actual sidebar width. */
+/*
+.main { margin-left: var(--sidebar-w, 220px); }
+*/
+
 
 
