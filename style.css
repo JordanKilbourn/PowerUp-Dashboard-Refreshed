@@ -44,6 +44,8 @@ body.dashboard .top-cards {
   gap: 20px;
   padding: 15px 20px 16px 20px;
   background: var(--bg);
+  /* NEW: allow wrapping on narrow screens */
+  flex-wrap: wrap;
 }
 .card { background: var(--card-bg); padding: 15px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,.4); transition: transform .3s, box-shadow .3s; }
 .card:hover { transform: translateY(-2px); box-shadow: 0 4px 10px rgba(20,226,181,.3); }
@@ -57,6 +59,15 @@ body.dashboard .power-card h3 { font-size: 16px; margin-bottom: 5px; color: var(
 .token-tracker { display: flex; align-items: center; gap: 8px; font-size: 24px; margin-top: 8px; }
 .token-tracker i { font-size: 28px; color: #facc15; }
 
+/* Make cards stack gracefully on smaller screens */
+@media (max-width: 980px) {
+  body.dashboard .power-card,
+  body.dashboard .token-card {
+    flex: 1 1 100%;
+    max-width: none;
+  }
+}
+
 /* === 4) Tabs === */
 .tab-buttons {
   display: flex;
@@ -64,6 +75,11 @@ body.dashboard .power-card h3 { font-size: 16px; margin-bottom: 5px; color: var(
   padding: 0 20px;
   background: var(--bg);
   border-bottom: 2px solid var(--accent);
+
+  /* NEW: keep tabs visible under sticky header */
+  position: sticky;
+  top: var(--header-h);
+  z-index: 5; /* below header (z:10), above tables */
 }
 .tab-button {
   background: var(--card-bg); border: 2px solid transparent; border-bottom: none;
@@ -95,20 +111,8 @@ body.dashboard .power-card h3 { font-size: 16px; margin-bottom: 5px; color: var(
   border: 1px solid #2d3f3f;
   border-radius: 6px;
   padding-bottom: 4px;           /* tiny buffer so the bar never hugs the edge */
-}
 
-/* Let these dashboard tables grow wider than the viewport. Adjust as needed. */
-#ci-table      { min-width: 1600px; }  /* CI usually has the most columns */
-#safety-table  { min-width: 1200px; }
-#quality-table { min-width: 1200px; }
-
-.table-scroll table { width: 100%; border-collapse: collapse; }
-.table-scroll th, .table-scroll td { padding: 10px; text-align: left; border-bottom: 1px solid #3a4e4e; }
-.table-scroll thead th { position: sticky; top: 0; background: #213331; z-index: 2; color: var(--accent); cursor: pointer; }
-.table-scroll tbody tr:hover { background-color: rgba(255,255,255,.05); }
-
-/* Slim, visible scrollbars inside table areas (themed) */
-.table-scroll {
+  /* Themed, visible scrollbars */
   scrollbar-width: thin;                                  /* Firefox */
   scrollbar-color: rgba(0,255,198,.45) rgba(255,255,255,.06);
   -ms-overflow-style: auto;                               /* Old Edge */
@@ -134,7 +138,6 @@ body.dashboard .power-card h3 { font-size: 16px; margin-bottom: 5px; color: var(
 
 /* keep page/outer columns clean (no page scrollbar) */
 body::-webkit-scrollbar, .main::-webkit-scrollbar { width: 0; height: 0; }
-
 
 /* Badges */
 .load-more { background: none; color: var(--accent); border: 1px dashed var(--accent); border-radius: 4px; padding: 6px 12px; margin-top: 10px; cursor: pointer; transition: background .2s, transform .2s; }
@@ -325,6 +328,9 @@ th[data-sort="none"]::after { content: " ⇅"; opacity: .35; }
   background: #0b1020; border-right: 1px solid #1f2937;
   padding: 12px; transition: width .2s ease;
   box-shadow: 2px 0 8px rgba(0,0,0,.6);
+
+  /* NEW: keep above scrolling content */
+  z-index: 1000;
 }
 .sidebar.expanded,
 body.sidebar-expanded .sidebar { width: 220px; }
@@ -374,6 +380,10 @@ body.sidebar-expanded .header,
 }
 body.sidebar-expanded .content,
 .sidebar.expanded ~ .main .content { margin-left: 220px; }
+
+/* NEW: let content children shrink instead of overflowing */
+#pu-content.content,
+#pu-content.content > * { min-width: 0; }
 
 .btn.small { padding:6px 10px; border:1px solid #2a354b; background:#111a2f; border-radius:8px; color:#e5e7eb; }
 
@@ -507,7 +517,7 @@ body.sidebar-expanded .content,
 :root {
   --sidebar-w: 72px;         /* collapsed width */
   --sidebar-w-expanded: 220px;
-  --header-h: 72px;          /* actual header height */
+  /* --header-h already defined at top; keep single source of truth */
 }
 
 /* Header (already working for you) */
@@ -534,8 +544,8 @@ body.sidebar-expanded #pu-content.content {
 }
 
 /* Safety: wide tables */
-#pu-content.content .table-scroll { max-width: 100%; }           /* CHANGED: keep scroller only here */
-#pu-content.content .dashboard-table { max-width: 100%; }         /* CHANGED: no overflow here */
+#pu-content.content .table-scroll { max-width: 100%; }
+#pu-content.content .dashboard-table { max-width: 100%; }
 
 /* Subtle outline Add button styled like your Squad chips */
 .table-header-controls .add-btn {
@@ -544,7 +554,7 @@ body.sidebar-expanded #pu-content.content {
   border-radius:8px;
 
   border:1.5px solid rgba(0,255,198,.6);
-  background: rgba(0,255,198,.08);  /* faint accent wash */
+  background: rgba(0,255,198,.08);
   color: var(--accent);
   font-weight:700;
 
@@ -559,37 +569,7 @@ body.sidebar-expanded #pu-content.content {
 .table-header-controls .add-btn:active { transform: translateY(0); }
 .table-header-controls .add-btn i { font-size:14px; opacity:.9; }
 
-
-/* --- Layout hardening (add near the end of your CSS) --- */
-
-/* Keep sidebar above scrolling content/tabs/header variants */
-.sidebar { z-index: 1000; }
-
-/* Let children shrink; prevents horizontal overflow in content */
-#pu-content.content,
-#pu-content.content > * { min-width: 0; }
-
-/* Top cards: wrap on narrow screens */
-body.dashboard .top-cards { flex-wrap: wrap; }
-@media (max-width: 980px) {
-  body.dashboard .power-card,
-  body.dashboard .token-card {
-    flex: 1 1 100%;
-    max-width: none;
-  }
-}
-
-/* Keep tabs visible under the sticky header */
-.tab-buttons {
-  position: sticky;
-  top: var(--header-h);
-  z-index: 5;              /* below header (z:10), above table body */
-  background: var(--bg);
-}
-
-/* (Optional) reduce motion for motion-sensitive users */
+/* NEW: Reduce motion for sensitive users */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
 }
-
-
