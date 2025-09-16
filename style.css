@@ -94,6 +94,7 @@ body.dashboard .power-card h3 { font-size: 16px; margin-bottom: 5px; color: var(
   overflow-x: auto;
   border: 1px solid #2d3f3f;
   border-radius: 6px;
+  padding-bottom: 4px;           /* tiny buffer so the bar never hugs the edge */
 }
 
 /* Let these dashboard tables grow wider than the viewport. Adjust as needed. */
@@ -106,26 +107,29 @@ body.dashboard .power-card h3 { font-size: 16px; margin-bottom: 5px; color: var(
 .table-scroll thead th { position: sticky; top: 0; background: #213331; z-index: 2; color: var(--accent); cursor: pointer; }
 .table-scroll tbody tr:hover { background-color: rgba(255,255,255,.05); }
 
-/* Slim, visible scrollbars inside table areas */
+/* Slim, visible scrollbars inside table areas (themed) */
 .table-scroll {
-  scrollbar-width: thin;                  /* Firefox */
-  -ms-overflow-style: auto;               /* Old Edge */
-  overscroll-behavior: contain;
+  scrollbar-width: thin;                                  /* Firefox */
+  scrollbar-color: rgba(0,255,198,.45) rgba(255,255,255,.06);
+  -ms-overflow-style: auto;                               /* Old Edge */
+  overscroll-behavior: contain;                           /* avoid scroll chaining */
 }
-.table-scroll::-webkit-scrollbar {        /* Chromium/WebKit */
-  height: 10px;                           /* horizontal bar */
-  width: 10px;                            /* vertical bar */
-}
-.table-scroll::-webkit-scrollbar-thumb {
-  background: rgba(0,255,198,.35);
-  border-radius: 8px;
-  border: 2px solid rgba(0,0,0,.25);
+.table-scroll::-webkit-scrollbar {                        /* Chromium/WebKit */
+  height: 10px;                                           /* horizontal bar */
+  width: 10px;                                            /* vertical bar */
 }
 .table-scroll::-webkit-scrollbar-track {
-  background: rgba(255,255,255,.06);
+  background: #0f1a1a;
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.06);
 }
-.table-scroll:hover::-webkit-scrollbar-thumb {
-  background: rgba(0,255,198,.6);
+.table-scroll::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(0,255,198,.6), rgba(0,255,198,.35));
+  border-radius: 8px;
+  border: 2px solid #0f1a1a;                              /* pill look */
+}
+.table-scroll::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(0,255,198,.8), rgba(0,255,198,.5));
 }
 
 /* keep page/outer columns clean (no page scrollbar) */
@@ -554,6 +558,3 @@ body.sidebar-expanded #pu-content.content {
 }
 .table-header-controls .add-btn:active { transform: translateY(0); }
 .table-header-controls .add-btn i { font-size:14px; opacity:.9; }
-
-
-
