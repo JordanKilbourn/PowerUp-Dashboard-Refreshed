@@ -226,3 +226,52 @@
     });
   });
 })();
+
+<!-- layout.js (append at the end) -->
+<script>
+/* Viewport-aware height for ONLY the 3 dashboard tab tables */
+(function () {
+  // Only run on the dashboard page
+  function onDashboard() {
+    return document.body.classList.contains('dashboard');
+  }
+
+  const BOTTOM_PAD = 16; // small breathing room
+  const TABLE_IDS = ['ci-table', 'safety-table', 'quality-table'];
+
+  function sizeFor(el) {
+    if (!el) return;
+    // Use the scroll container if present, otherwise fall back to the table itself
+    const scroller = el.closest('.table-scroll') || el;
+    const vH = window.innerHeight || document.documentElement.clientHeight;
+    const top = scroller.getBoundingClientRect().top;
+    const h = Math.max(140, vH - top - BOTTOM_PAD);
+    scroller.style.setProperty('--table-max', h + 'px');
+  }
+
+  function sizeDashboardTables() {
+    if (!onDashboard()) return;
+    TABLE_IDS.forEach(id => sizeFor(document.getElementById(id)));
+  }
+
+  // Expose so your table renderers can call after data loads/filters
+  window.PU = window.PU || {};
+  window.PU.sizeDashboardTables = sizeDashboardTables;
+
+  // Initial + resize
+  window.addEventListener('load', sizeDashboardTables, { once: true });
+  window.addEventListener('resize', sizeDashboardTables);
+
+  // When switching tabs, recalc after DOM flips visibility
+  document.addEventListener('click', e => {
+    if (e.target.closest('.tab-button')) setTimeout(sizeDashboardTables, 0);
+  });
+
+  // If your content column shifts (sidebar expand/collapse), recalc
+  const content = document.getElementById('pu-content');
+  if (content && 'ResizeObserver' in window) {
+    new ResizeObserver(sizeDashboardTables).observe(content);
+  }
+})();
+</script>
+
