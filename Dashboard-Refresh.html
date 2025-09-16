@@ -30,36 +30,37 @@
 
 <style>
   /* View column/button */
-/* View column/button — match style.css and make it visible */
-.view-col, .view-cell { width: 80px; min-width: 80px; text-align: center; }
+  /* View column/button — match style.css and make it visible */
+  .view-col, .view-cell { width: 80px; min-width: 80px; text-align: center; }
 
-/* Style the legacy <button class="btn small">View</button> ONLY in the first cell,
-   and also support .view-btn if you switch later. */
-#ci-table td:first-child .btn.small,
-#safety-table td:first-child .btn.small,
-#quality-table td:first-child .btn.small,
-.view-btn {
-  display: inline-flex; align-items: center; justify-content: center;
-  padding: 4px 10px; border-radius: 8px;
-  border: 1.5px solid var(--accent) !important;
-  color: var(--accent) !important;
-  background: transparent !important;
-  font-size: 12px; line-height: 1; cursor: pointer; transition: all .15s ease;
-}
-#ci-table td:first-child .btn.small:hover,
-#safety-table td:first-child .btn.small:hover,
-#quality-table td:first-child .btn.small:hover,
-.view-btn:hover {
-  background: var(--accent) !important;
-  color: #06201a !important;                 /* readable on the accent */
-  box-shadow: 0 0 0 3px rgba(0,255,198,.12);
-}
-#ci-table td:first-child .btn.small:focus-visible,
-#safety-table td:first-child .btn.small:focus-visible,
-#quality-table td:first-child .btn.small:focus-visible,
-.view-btn:focus-visible {
-  outline: 2px solid var(--accent); outline-offset: 2px;
-}
+  /* Style the legacy <button class="btn small">View</button> ONLY in the first cell,
+     and also support .view-btn if you switch later. */
+  #ci-table td:first-child .btn.small,
+  #safety-table td:first-child .btn.small,
+  #quality-table td:first-child .btn.small,
+  .view-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 4px 10px; border-radius: 8px;
+    border: 1.5px solid var(--accent) !important;
+    color: var(--accent) !important;
+    background: transparent !important;
+    font-size: 12px; line-height: 1; cursor: pointer; transition: all .15s ease;
+  }
+  #ci-table td:first-child .btn.small:hover,
+  #safety-table td:first-child .btn.small:hover,
+  #quality-table td:first-child .btn.small:hover,
+  .view-btn:hover {
+    background: var(--accent) !important;
+    color: #06201a !important;                 /* readable on the accent */
+    box-shadow: 0 0 0 3px rgba(0,255,198,.12);
+  }
+  #ci-table td:first-child .btn.small:focus-visible,
+  #safety-table td:first-child .btn.small:focus-visible,
+  #quality-table td:first-child .btn.small:focus-visible,
+  .view-btn:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 2px;
+  }
+
   /* Accent & danger tokens (hook to your theme if present) */
   :root{
     --pu-accent: var(--accent, #22c55e);
@@ -207,7 +208,39 @@
 </head>
 
 <body class="dashboard">
-  <!-- (unchanged content up to tables) -->
+  <!-- Top cards (restored) -->
+  <div class="top-cards">
+    <!-- Power Hours -->
+    <div class="card power-card">
+      <h3>Power Hours Logged</h3>
+      <p>
+        <span data-hook="ph.total">0.0</span> /
+        <span data-hook="ph.goalMax">8</span>
+      </p>
+
+      <!-- Simple progress bar (no bubbles/legends) -->
+      <div class="phbar"
+           data-hook="ph.track"
+           role="progressbar"
+           aria-valuemin="0"
+           aria-valuemax="8"
+           aria-valuenow="0">
+        <div class="phbar__fill"  data-hook="ph.fill"></div>
+        <div class="phbar__thumb" data-hook="ph.thumb" title="Current"></div>
+      </div>
+
+      <small data-hook="ph.message">—</small>
+    </div>
+
+    <!-- Tokens -->
+    <div class="card token-card">
+      <h3>Tokens</h3>
+      <div class="token-tracker">
+        <i class="fas fa-coins"></i>
+        <span data-hook="token.total">0</span>
+      </div>
+    </div>
+  </div>
 
   <!-- Tabs -->
   <div class="tab-buttons">
@@ -221,15 +254,14 @@
     <div class="table-header-row">
       <h3>Continuous Improvement</h3>
       <div class="table-header-controls">
-  <select id="ci-col"    title="Pick a column to filter"></select>
-  <select id="ci-colval" title="Pick a value" disabled></select>
+        <select id="ci-col"    title="Pick a column to filter"></select>
+        <select id="ci-colval" title="Pick a value" disabled></select>
 
-  <a class="add-btn" id="ci-add"
-     href="https://app.smartsheet.com/b/form/e60862d9ae0b44358d6f85dcd1c81d2b"
-     target="_blank" rel="noopener">+ Add Submission</a>
-  <span id="ci-count" class="row-count">0 submissions</span>
-</div>
-
+        <a class="add-btn" id="ci-add"
+          href="https://app.smartsheet.com/b/form/e60862d9ae0b44358d6f85dcd1c81d2b"
+          target="_blank" rel="noopener">+ Add Submission</a>
+        <span id="ci-count" class="row-count">0 submissions</span>
+      </div>
     </div>
     <div class="table-scroll">
       <table id="ci-table" class="dashboard-table">
@@ -249,15 +281,14 @@
     <div class="table-header-row">
       <h3>Safety Concerns</h3>
       <div class="table-header-controls">
-  <select id="safety-col"    title="Pick a column to filter"></select>
-  <select id="safety-colval" title="Pick a value" disabled></select>
+        <select id="safety-col"    title="Pick a column to filter"></select>
+        <select id="safety-colval" title="Pick a value" disabled></select>
 
-  <a class="add-btn" id="safety-add"
-     href="https://app.smartsheet.com/b/form/162129580c03440f88cc5f284627b52f"
-     target="_blank" rel="noopener">+ Add Submission</a>
-  <span id="safety-count" class="row-count">0 submissions</span>
-</div>
-
+        <a class="add-btn" id="safety-add"
+          href="https://app.smartsheet.com/b/form/162129580c03440f88cc5f284627b52f"
+          target="_blank" rel="noopener">+ Add Submission</a>
+        <span id="safety-count" class="row-count">0 submissions</span>
+      </div>
     </div>
     <div class="table-scroll">
       <table id="safety-table" class="dashboard-table">
@@ -276,16 +307,15 @@
   <div class="tab-panel" id="tab-quality">
     <div class="table-header-row">
       <h3>Quality Catches</h3>
-     <div class="table-header-controls">
-  <select id="quality-col"    title="Pick a column to filter"></select>
-  <select id="quality-colval" title="Pick a value" disabled></select>
+      <div class="table-header-controls">
+        <select id="quality-col"    title="Pick a column to filter"></select>
+        <select id="quality-colval" title="Pick a value" disabled></select>
 
-  <a class="add-btn" id="quality-add"
-     href="https://app.smartsheet.com/b/form/2ba4ff03861d4d068ee5a0bff46308c3"
-     target="_blank" rel="noopener">+ Add Submission</a>
-  <span id="quality-count" class="row-count">0 submissions</span>
-</div>
-
+        <a class="add-btn" id="quality-add"
+          href="https://app.smartsheet.com/b/form/2ba4ff03861d4d068ee5a0bff46308c3"
+          target="_blank" rel="noopener">+ Add Submission</a>
+        <span id="quality-count" class="row-count">0 submissions</span>
+      </div>
     </div>
     <div class="table-scroll">
       <table id="quality-table" class="dashboard-table">
@@ -354,68 +384,60 @@
   });
   </script>
 
-<script>
-/** Native title="" tooltips for table cells and sidebar icons. */
-(function () {
-  function titleizeTables(root=document) {
-    root.querySelectorAll('.table-scroll table tbody').forEach(tbody => {
-      Array.from(tbody.rows).forEach(tr => {
-        Array.from(tr.cells).forEach((td, idx) => {
-          // Skip the "View" column if it's a button
-          if (idx === 0 && td.querySelector('button, a')) return;
-          if (!td.getAttribute('title')) {
-            const raw = (td.textContent || '').trim();
-            if (raw) td.title = raw;
-          }
+  <script>
+  /** Native title="" tooltips for table cells and sidebar icons. */
+  (function () {
+    function titleizeTables(root=document) {
+      root.querySelectorAll('.table-scroll table tbody').forEach(tbody => {
+        Array.from(tbody.rows).forEach(tr => {
+          Array.from(tr.cells).forEach((td, idx) => {
+            // Skip the "View" column if it's a button
+            if (idx === 0 && td.querySelector('button, a')) return;
+            if (!td.getAttribute('title')) {
+              const raw = (td.textContent || '').trim();
+              if (raw) td.title = raw;
+            }
+          });
         });
       });
-    });
-  }
-  function titleizeSidebar(root=document) {
-    root.querySelectorAll('.sidebar .item').forEach(item => {
-      const txt = (item.querySelector('span')?.textContent || item.getAttribute('aria-label') || '').trim();
-      if (!txt) return;
-      if (!item.title) item.title = txt;
-      const ico = item.querySelector('i'); if (ico && !ico.title) ico.title = txt;
-    });
-  }
-  document.addEventListener('DOMContentLoaded', () => { titleizeSidebar(); });
-  document.addEventListener('data-hydrated', () => { titleizeTables(); titleizeSidebar(); });
-})();
-</script>
+    }
+    function titleizeSidebar(root=document) {
+      root.querySelectorAll('.sidebar .item').forEach(item => {
+        const txt = (item.querySelector('span')?.textContent || item.getAttribute('aria-label') || '').trim();
+        if (!txt) return;
+        if (!item.title) item.title = txt;
+        const ico = item.querySelector('i'); if (ico && !ico.title) ico.title = txt;
+      });
+    }
+    document.addEventListener('DOMContentLoaded', () => { titleizeSidebar(); });
+    document.addEventListener('data-hydrated', () => { titleizeTables(); titleizeSidebar(); });
+  })();
+  </script>
 
-<!-- Modal (single reusable) -->
-<div id="pu-record-modal" class="pu-modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="pu-record-title">
-  <div class="pu-modal__backdrop" data-modal-close></div>
-  <div class="pu-modal__card" tabindex="-1">
-    <div class="pu-modal__header">
-      <div class="pu-handle" aria-hidden="true"></div>
-      <div class="pu-modal__heading">
-        <h3 id="pu-record-title" class="pu-modal__title">Record</h3>
-        <div id="pu-record-meta" class="pu-modal__meta" hidden></div>
+  <!-- Modal (single reusable) -->
+  <div id="pu-record-modal" class="pu-modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="pu-record-title">
+    <div class="pu-modal__backdrop" data-modal-close></div>
+    <div class="pu-modal__card" tabindex="-1">
+      <div class="pu-modal__header">
+        <div class="pu-handle" aria-hidden="true"></div>
+        <div class="pu-modal__heading">
+          <h3 id="pu-record-title" class="pu-modal__title">Record</h3>
+          <div id="pu-record-meta" class="pu-modal__meta" hidden></div>
+        </div>
+        <button class="pu-modal__close" data-modal-close aria-label="Close">&times;</button>
       </div>
-      <button class="pu-modal__close" data-modal-close aria-label="Close">&times;</button>
-    </div>
-    <div class="pu-modal__body">
-      <dl id="pu-record-dl" class="pu-kv"></dl>
-    </div>
-    <div class="pu-modal__footer">
-      <button id="pu-nav-prev" class="pu-modal__navBtn" aria-label="Previous record"><i class="fa fa-chevron-left"></i> Prev</button>
-      <button class="pu-modal__closeBig" data-modal-close aria-label="Close">
-        <span class="fa-solid fa-xmark"></span> Close
-      </button>
-      <button id="pu-nav-next" class="pu-modal__navBtn" aria-label="Next record">Next <i class="fa fa-chevron-right"></i></button>
+      <div class="pu-modal__body">
+        <dl id="pu-record-dl" class="pu-kv"></dl>
+      </div>
+      <div class="pu-modal__footer">
+        <button id="pu-nav-prev" class="pu-modal__navBtn" aria-label="Previous record"><i class="fa fa-chevron-left"></i> Prev</button>
+        <button class="pu-modal__closeBig" data-modal-close aria-label="Close">
+          <span class="fa-solid fa-xmark"></span> Close
+        </button>
+        <button id="pu-nav-next" class="pu-modal__navBtn" aria-label="Next record">Next <i class="fa fa-chevron-right"></i></button>
+      </div>
     </div>
   </div>
-</div>
 
 </body>
 </html>
-
-
-
-
-
-
-
-
