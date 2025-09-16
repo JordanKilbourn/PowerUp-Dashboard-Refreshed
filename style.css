@@ -91,10 +91,16 @@ body.dashboard .power-card h3 { font-size: 16px; margin-bottom: 5px; color: var(
   height: var(--table-max);
   max-height: var(--table-max);
   overflow-y: auto;
-  overflow-x: hidden;
+  overflow-x: auto;
   border: 1px solid #2d3f3f;
   border-radius: 6px;
 }
+
+/* Let these dashboard tables grow wider than the viewport. Adjust as needed. */
+#ci-table      { min-width: 1600px; }  /* CI usually has the most columns */
+#safety-table  { min-width: 1200px; }
+#quality-table { min-width: 1200px; }
+
 .table-scroll table { width: 100%; border-collapse: collapse; }
 .table-scroll th, .table-scroll td { padding: 10px; text-align: left; border-bottom: 1px solid #3a4e4e; }
 .table-scroll thead th { position: sticky; top: 0; background: #213331; z-index: 2; color: var(--accent); cursor: pointer; }
@@ -446,3 +452,4 @@ body.sidebar-expanded #pu-content.content {
 /* Safety: wide tables */
 #pu-content.content .table-scroll { max-width: 100%; }           /* CHANGED: keep scroller only here */
 #pu-content.content .dashboard-table { max-width: 100%; }         /* CHANGED: no overflow here */
+
