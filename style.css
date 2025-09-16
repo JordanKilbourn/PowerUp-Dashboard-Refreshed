@@ -525,7 +525,7 @@ body.sidebar-expanded #pu-header.header {
   margin-left: var(--sidebar-w);
   height: calc(100vh - var(--header-h));
   overflow: hidden; /* CHANGED: page must not scroll */
-  padding: 10px 16px;
+  padding: 10px 16px 10px 2px;
   box-sizing: border-box;
   transition: margin-left .2s ease;
 }
@@ -558,3 +558,4 @@ body.sidebar-expanded #pu-content.content {
 }
 .table-header-controls .add-btn:active { transform: translateY(0); }
 .table-header-controls .add-btn i { font-size:14px; opacity:.9; }
+
