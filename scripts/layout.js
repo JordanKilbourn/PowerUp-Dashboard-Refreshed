@@ -213,8 +213,9 @@
   });
 })();
 
-/* Viewport-aware height + horizontal wheel for ONLY the 3 dashboard tab tables */
+/* Viewport-aware height for ONLY the 3 dashboard tab tables (no wheel hijack) */
 (function () {
+  // Only run on the dashboard page
   function onDashboard() {
     return document.body.classList.contains('dashboard');
   }
@@ -224,10 +225,11 @@
 
   function sizeFor(el) {
     if (!el) return;
+    // Use the scroll container if present, otherwise the table itself
     const scroller = el.closest('.table-scroll') || el;
-    const vH = window.innerHeight || document.documentElement.clientHeight;
+    const vH  = window.innerHeight || document.documentElement.clientHeight;
     const top = scroller.getBoundingClientRect().top;
-    const h = Math.max(140, vH - top - BOTTOM_PAD);
+    const h   = Math.max(140, vH - top - BOTTOM_PAD);
     scroller.style.setProperty('--table-max', h + 'px');
     scroller.style.maxHeight = h + 'px';
   }
@@ -248,47 +250,28 @@
     setTimeout(sizeDashboardTables, 120);
   }
 
-  window.addEventListener('load', sizeSoon, { once: true });
+  // Initial + resize
+  window.addEventListener('load',   sizeSoon, { once: true });
   window.addEventListener('resize', sizeSoon);
 
-  // Recalc when switching tabs
+  // When switching tabs, recalc after DOM flips visibility
   document.addEventListener('click', e => {
     if (e.target.closest('.tab-button')) setTimeout(sizeSoon, 0);
   });
 
-  // Recalc when the content column shifts (sidebar expand/collapse)
+  // If your content column shifts (sidebar expand/collapse), recalc
   const content = document.getElementById('pu-content');
   if (content && 'ResizeObserver' in window) {
     new ResizeObserver(sizeSoon).observe(content);
   }
 
-  // Turn vertical wheel into horizontal scroll for the dashboard tables
-  function installWheel(scroller) {
-    if (!scroller || scroller._hscrollWired) return;
-    scroller.addEventListener('wheel', (e) => {
-      const canHX = scroller.scrollWidth > scroller.clientWidth;
-      const canVY = scroller.scrollHeight > scroller.clientHeight;
-      if (!canHX) return;
-      if (!canVY || Math.abs(e.deltaX) < Math.abs(e.deltaY)) {
-        scroller.scrollLeft += e.deltaY;
-        e.preventDefault();
-      }
-    }, { passive: false });
-    scroller._hscrollWired = true;
+  // If layout recomputes header height elsewhere, nudge tables too
+  const oldFit = window.fitDashboardBlocks;
+  if (typeof oldFit === 'function') {
+    window.fitDashboardBlocks = function () {
+      oldFit();
+      sizeSoon();
+    };
   }
-
-  function wireWheelForTables() {
-    if (!onDashboard()) return;
-    ['ci-table','safety-table','quality-table'].forEach(id => {
-      const el = document.getElementById(id);
-      const scroller = el && (el.closest('.table-scroll') || el);
-      if (scroller) installWheel(scroller);
-    });
-  }
-
-  window.addEventListener('load', wireWheelForTables, { once:true });
-  window.addEventListener('resize', wireWheelForTables);
-  document.addEventListener('click', e => {
-    if (e.target.closest('.tab-button')) setTimeout(wireWheelForTables, 0);
-  });
 })();
+
