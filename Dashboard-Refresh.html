@@ -243,10 +243,10 @@
   </div>
 
   <!-- Tabs -->
-  <div class="tab-buttons">
-    <button class="tab-button active" onclick="showTab(event,'ci')">Continuous Improvement</button>
-    <button class="tab-button" onclick="showTab(event,'safety')">Safety Concerns</button>
-    <button class="tab-button" onclick="showTab(event,'quality')">Quality Catches</button>
+  <div class="tab-buttons" role="tablist" aria-label="Dashboard Sections">
+    <button class="tab-button active" role="tab" aria-selected="true" aria-controls="tab-ci" onclick="showTab(event,'ci')">Continuous Improvement</button>
+    <button class="tab-button"        role="tab" aria-selected="false" aria-controls="tab-safety" onclick="showTab(event,'safety')">Safety Concerns</button>
+    <button class="tab-button"        role="tab" aria-selected="false" aria-controls="tab-quality" onclick="showTab(event,'quality')">Quality Catches</button>
   </div>
 
   <!-- CI Tab -->
@@ -332,10 +332,28 @@
   <!-- Basic tab switch (safe event version) -->
   <script>
     function showTab(e, tabId) {
+      // hide all panels
       document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-      document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+
+      // reset all tabs
+      document.querySelectorAll('.tab-button').forEach(b => {
+        b.classList.remove('active');
+        b.setAttribute('aria-selected', 'false');
+      });
+
+      // show selected panel
       document.getElementById(`tab-${tabId}`).classList.add('active');
-      if (e && e.currentTarget) e.currentTarget.classList.add('active');
+
+      // mark selected tab (by event or by aria-controls fallback)
+      const btn = e && e.currentTarget ? e.currentTarget : document.querySelector(`[aria-controls="tab-${tabId}"]`);
+      if (btn) {
+        btn.classList.add('active');
+        btn.setAttribute('aria-selected', 'true');
+        btn.focus?.();
+      }
+
+      // Recompute layout if the tab row wraps or heights changed
+      requestAnimationFrame(() => window?.PowerUp?.layout?.fitDashboardBlocks?.());
     }
   </script>
 
@@ -411,6 +429,24 @@
     }
     document.addEventListener('DOMContentLoaded', () => { titleizeSidebar(); });
     document.addEventListener('data-hydrated', () => { titleizeTables(); titleizeSidebar(); });
+  })();
+  </script>
+
+  <!-- NEW: Recompute table height after cards render or resize -->
+  <script>
+  (function () {
+    function recalc() {
+      try { window?.PowerUp?.layout?.fitDashboardBlocks?.(); } catch (e) {}
+    }
+    // observe top-cards height changes (progress/tokens update)
+    const cards = document.querySelector('.top-cards');
+    if (cards && typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver(() => requestAnimationFrame(recalc));
+      ro.observe(cards);
+    }
+    // late passes after paint
+    requestAnimationFrame(recalc);
+    window.addEventListener('load', () => setTimeout(recalc, 0));
   })();
   </script>
 
