@@ -266,6 +266,39 @@
     new ResizeObserver(sizeSoon).observe(content);
   }
 
+    // Turn vertical wheel into horizontal scroll for the dashboard tables
+  function installWheel(scroller) {
+    if (!scroller || scroller._hscrollWired) return;
+    scroller.addEventListener('wheel', (e) => {
+      // Only hijack when there's horizontal overflow and no vertical scrolling happening
+      const canHX = scroller.scrollWidth > scroller.clientWidth;
+      const canVY = scroller.scrollHeight > scroller.clientHeight;
+      if (!canHX) return;                       // nothing to do
+      if (!canVY || Math.abs(e.deltaX) < Math.abs(e.deltaY)) {
+        scroller.scrollLeft += e.deltaY;
+        e.preventDefault();
+      }
+    }, { passive: false });
+    scroller._hscrollWired = true;
+  }
+
+  function wireWheelForTables() {
+    if (!onDashboard()) return;
+    ['ci-table','safety-table','quality-table'].forEach(id => {
+      const el = document.getElementById(id);
+      const scroller = el && (el.closest('.table-scroll') || el);
+      if (scroller) installWheel(scroller);
+    });
+  }
+
+  // call alongside sizing hooks
+  window.addEventListener('load', wireWheelForTables, { once:true });
+  window.addEventListener('resize', wireWheelForTables);
+  document.addEventListener('click', e => {
+    if (e.target.closest('.tab-button')) setTimeout(wireWheelForTables, 0);
+  });
+
+
   // If layout.js recomputes header height, also nudge tables
   const oldFit = window.fitDashboardBlocks;
   // (If you kept fitDashboardBlocks scoped, just call sizeSoon() at the end of it instead)
