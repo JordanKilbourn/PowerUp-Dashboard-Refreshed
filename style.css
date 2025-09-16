@@ -465,13 +465,45 @@ body.sidebar-expanded .content,
   background:#0f1a1a; color:#9ca3af;
 }
 
-/* Fill the content area on Squad Details (remove any center clamp) */
-#pu-content.content, .content#pu-content, .page-wrap {
-  max-width: none !important;
-  width: 100% !important;
-  margin: 0 !important;
-}
-
 /* Optional: tiny KPI tweaks */
 .kpi-strip { margin-top: 2px; }
 .kpi .k { opacity: .85; }
+
+/* === Shell alignment fix: keep content to the right of the sidebar === */
+/* 1) Declare the widths once so header + content stay in sync */
+:root {
+  --sidebar-w: 72px;         /* collapsed width */
+  --sidebar-w-expanded: 220px;
+  --header-h: 72px;          /* actual header height */
+}
+
+/* 2) Header (already working for you, but kept here for consistency) */
+#pu-header.header {
+  margin-left: var(--sidebar-w);
+  transition: margin-left .2s ease;
+}
+body.sidebar-expanded #pu-header.header {
+  margin-left: var(--sidebar-w-expanded);
+}
+
+/* 3) Content column: match the sidebar offset just like the header */
+#pu-content.content {
+  position: relative;
+  margin-left: var(--sidebar-w);              /* << key line */
+  height: calc(100vh - var(--header-h));      /* sit under header */
+  overflow: auto;                              /* the page scrolls here */
+  padding: 10px 16px;                          /* your gutter */
+  box-sizing: border-box;
+  transition: margin-left .2s ease;
+}
+body.sidebar-expanded #pu-content.content {
+  margin-left: var(--sidebar-w-expanded);      /* shift when expanded */
+}
+
+/* 4) Safety: never let wide tables force overflow under the sidebar */
+#pu-content.content .table-scroll,
+#pu-content.content .dashboard-table {
+  max-width: 100%;
+  overflow: auto;
+}
+
