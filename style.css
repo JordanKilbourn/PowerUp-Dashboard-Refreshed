@@ -258,6 +258,11 @@ body.notes .note-editor:empty:before { content: attr(data-placeholder); color: v
 #ci-table tbody tr, #safety-table tbody tr, #quality-table tbody tr { height: 36px; border-bottom: 1px solid rgba(255,255,255,.06); }
 #ci-table thead th, #safety-table thead th, #quality-table thead th { background: #213331; border-bottom: 1px solid #1f2940; color: var(--accent); }
 
+/* === Power Hours & Level Tracker table widths (match dashboard style) === */
+#ph-sessions-table { min-width: 1100px; }   /* tweak if you want more/less */
+#level-table       { min-width: 1200px; }   /* many columns => wider */
+
+
 /* Keep headers pinned at the top of the .table-scroll while rows scroll */
 .table-scroll thead th {
   position: sticky;
@@ -602,5 +607,6 @@ body.sidebar-expanded #pu-content.content {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
 }
+
 
 
