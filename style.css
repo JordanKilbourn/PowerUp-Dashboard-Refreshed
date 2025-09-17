@@ -257,6 +257,36 @@ body.notes .note-editor:empty:before { content: attr(data-placeholder); color: v
 }
 #ci-table tbody tr, #safety-table tbody tr, #quality-table tbody tr { height: 36px; border-bottom: 1px solid rgba(255,255,255,.06); }
 #ci-table thead th, #safety-table thead th, #quality-table thead th { background: #213331; border-bottom: 1px solid #1f2940; color: var(--accent); }
+
+/* Power Hours + Level Tracker header theme (match main tables) */
+.table-scroll #ph-table thead th,
+.table-scroll #lt-table thead th {
+  position: sticky;     /* same sticky behavior */
+  top: 0;
+  z-index: 4;
+  background: #213331;
+  border-bottom: 1px solid #1f2940;
+  color: var(--accent);
+  font-weight: 600;     /* same as main tables */
+  font-size: 12.5px;    /* same as main tables */
+  letter-spacing: 0;
+}
+
+/* Power Hours + Level Tracker body cell typography (match main tables) */
+.table-scroll #ph-table th,
+.table-scroll #ph-table td,
+.table-scroll #lt-table th,
+.table-scroll #lt-table td {
+  padding: 6px 8px;             /* same spacing */
+  font-size: 12.5px;            /* same size */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+  font-family: 'Inter', sans-serif;
+  color: var(--text);           /* force same text color */
+}
+
 #ph-table thead th, #lt-table thead th { background: #213331; border-bottom: 1px solid #1f2940; color: var(--accent); }
 
 
@@ -346,6 +376,39 @@ body.notes .note-editor:empty:before { content: attr(data-placeholder); color: v
 /* Zebra + refined hover */
 .table-scroll tbody tr:nth-child(odd) { background: rgba(255,255,255,0.03); }
 .table-scroll tbody tr:hover { background: rgba(0,0,0,0.18); }
+
+/* === PH/LT: force same borders + zebra + hover as main tables === */
+
+/* Row bottom borders */
+#ph-table tbody tr,
+#lt-table tbody tr {
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
+
+/* Header bottom rule */
+#ph-table thead th,
+#lt-table thead th {
+  border-bottom: 1px solid #1f2940;
+}
+
+/* Zebra striping (explicit to beat overrides) */
+#ph-table tbody tr:nth-child(odd),
+#lt-table tbody tr:nth-child(odd) {
+  background: rgba(255,255,255,0.03);
+}
+
+/* Hover color (explicit to beat overrides) */
+#ph-table tbody tr:hover,
+#lt-table tbody tr:hover {
+  background: rgba(0,0,0,0.18);
+}
+
+/* Don’t let outer cards tint the table */
+#ph-table,
+#lt-table {
+  background: transparent;
+  color: var(--text);
+}
 
 /* Sort arrows */
 th[data-sort="asc"]::after { content: " ▲"; opacity: .7; }
@@ -608,6 +671,7 @@ body.sidebar-expanded #pu-content.content {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
 }
+
 
 
 
