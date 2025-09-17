@@ -377,8 +377,75 @@ body.notes .note-editor:empty:before { content: attr(data-placeholder); color: v
 .table-scroll tbody tr:nth-child(odd) { background: rgba(255,255,255,0.03); }
 .table-scroll tbody tr:hover { background: rgba(0,0,0,0.18); }
 
-/* === PH/LT: force same borders + zebra + hover as main tables === */
+/* === PH/LT: force identical row theming to main tables === */
+/* Base row border */
+#ph-table tbody tr,
+#lt-table tbody tr {
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
 
+/* Explicit even/odd colors to avoid any page/card overrides */
+#ph-table tbody tr:nth-child(even),
+#lt-table tbody tr:nth-child(even) {
+  /* matches the darker “base” feel from main dashboard tables */
+  background: rgba(0,0,0,0.12);
+}
+#ph-table tbody tr:nth-child(odd),
+#lt-table tbody tr:nth-child(odd) {
+  background: rgba(255,255,255,0.03);
+}
+
+/* Hover — same as main */
+#ph-table tbody tr:hover,
+#lt-table tbody tr:hover {
+  background: rgba(0,0,0,0.18);
+}
+
+/* Header bottom rule (= main) */
+#ph-table thead th,
+#lt-table thead th {
+  border-bottom: 1px solid #1f2940;
+}
+
+/* Don’t let outer cards tint these tables */
+#ph-table,
+#lt-table {
+  background: transparent;
+  color: var(--text);
+}
+
+/* === PH/LT: header & cell alignment === */
+/* Keep all headers left-aligned like the main dashboard tables */
+#ph-table thead th,
+#lt-table thead th {
+  text-align: left;
+}
+
+/* Default cells left, then override per-column for clarity */
+/* ---- Power Hours (#ph-table) ----
+   Columns: 1 Date | 2 Start | 3 End | 4 Completed Hours | 5 Scheduled | 6 Completed | 7 Topic */
+#ph-table td:nth-child(2), /* Start  */
+#ph-table td:nth-child(3), /* End    */
+#ph-table td:nth-child(5), /* Scheduled (badge) */
+#ph-table td:nth-child(6)  /* Completed (badge) */
+{ text-align: center; }
+
+#ph-table td:nth-child(4)  /* Completed Hours (numeric) */
+{ text-align: right; }
+
+/* ---- Level Tracker (#lt-table) ----
+   Column 1 is Month (left); the rest are counts/flags — center them for quick column tracing */
+#lt-table td:nth-child(n+2) { text-align: center; }
+#lt-table td:first-child    { text-align: left;  }
+
+/* Keep header/cell padding consistent with main tables for visual alignment */
+#ph-table th, #ph-table td,
+#lt-table th, #lt-table td {
+  padding: 6px 8px;
+  vertical-align: middle;
+}
+
+/* === PH/LT: force same borders + zebra + hover as main tables === */
 /* Row bottom borders */
 #ph-table tbody tr,
 #lt-table tbody tr {
@@ -671,6 +738,7 @@ body.sidebar-expanded #pu-content.content {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
 }
+
 
 
 
