@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
 
-  <!-- EARLY AUTH GUARD — must be the first thing in <head> -->
+  <!-- EARLY AUTH GUARD — must be first in <head> -->
   <script>
   !function () {
     try {
@@ -31,11 +31,9 @@
 </head>
 
 <body class="notes">
-
-  <!-- ===== PAGE CONTENT (no local header/sidebar; we use the shared shell) ===== -->
-  <!-- We’ll move this whole block into the shell’s #pu-content after injectLayout() -->
-  <div id="notes-root" class="notes-layout" style="display: contents;">
-    <!-- Left: Sidebar Notes List -->
+  <!-- Only page-specific content goes here; layout.js injects the shared shell -->
+  <div class="content-inner notes-layout">
+    <!-- Left: list -->
     <aside class="notes-sidebar">
       <div class="note-sidebar-header">
         <h2>My Notes</h2>
@@ -44,7 +42,7 @@
       <ul id="notesList"></ul>
     </aside>
 
-    <!-- Right: Editor Pane -->
+    <!-- Right: editor -->
     <main class="notes-editor">
       <header class="notes-toolbar">
         <div class="toolbar">
@@ -67,15 +65,26 @@
     </main>
   </div>
 
-  <!-- ===== JS (shared app libs) ===== -->
+  <!-- PowerUp core (must load before we call PowerUp.*) -->
   <script src="scripts/api.js"></script>
   <script src="scripts/session.js"></script>
   <script src="scripts/roles.js"></script>
   <script src="scripts/layout.js"></script>
 
-  <!-- ===== Notes logic + boot ===== -->
+  <!-- Page boot: inject shell + title, then init header -->
   <script>
-    // Local storage “notes” store (kept as-is)
+    document.addEventListener('DOMContentLoaded', async () => {
+      PowerUp.session.requireLogin();
+      if (!document.getElementById('pu-header')) {
+        PowerUp.layout.injectLayout();
+      }
+      PowerUp.layout.setPageTitle('Notes');
+      await PowerUp.session.initHeader();
+    });
+  </script>
+
+  <!-- Notes logic (unchanged) -->
+  <script>
     let notes = JSON.parse(localStorage.getItem("notes") || "[]");
     let currentNoteId = null;
 
@@ -164,28 +173,9 @@
       document.execCommand(command, false, null);
     }
 
-    function toggleSidebar() {
-      document.body.classList.toggle('sidebar-expanded');
-    }
-
-    // -------- Boot: use shared shell + set header title from <title> ----------
-    document.addEventListener('DOMContentLoaded', async () => {
-      PowerUp.session.requireLogin();
-      PowerUp.layout.injectLayout();
-      PowerUp.layout.setPageTitle(document.title || 'PowerUp — Notes');
-      await PowerUp.session.initHeader();
-
-      // Move our page content into the shell's content area
-      const root = document.getElementById('notes-root');
-      const host = document.getElementById('pu-content') || document.querySelector('.content') || document.body;
-      if (root && host && root.parentElement !== host) {
-        host.appendChild(root);
-      }
-
-      // Initial render
-      renderNotes();
-      if (notes.length) loadNote(notes[0].id);
-    });
+    // Init local data
+    renderNotes();
+    if (notes.length) loadNote(notes[0].id);
   </script>
 </body>
 </html>
