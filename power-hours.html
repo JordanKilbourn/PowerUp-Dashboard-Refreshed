@@ -739,7 +739,8 @@
       document.addEventListener('DOMContentLoaded', async () => {
         PowerUp.session.requireLogin();
         PowerUp.layout.injectLayout();
-        PowerUp.layout.setPageTitle('Power Hours');
+        PowerUp.layout.setPageTitle(document.title || 'PowerUp — Power Hours');
+
         await PowerUp.session.initHeader();
 
         // mount controls into the one shared row
@@ -772,5 +773,6 @@
   </script>
 </body>
 </html>
+
 
 
