@@ -739,8 +739,63 @@ body.sidebar-expanded #pu-content.content {
   *, *::before, *::after { transition: none !important; animation: none !important; }
 }
 
+/* === PH & LT COLUMN WIDTHS + ALIGNMENT — match main tables === */
 
+/* POWER HOURS (#ph-table)
+   Columns:
+   1 Date | 2 Start | 3 End | 4 Completed Hours | 5 Scheduled | 6 Completed | 7 Topic
+*/
+#ph-table th:nth-child(1), #ph-table td:nth-child(1) { width: 140px; } /* Date */
+#ph-table th:nth-child(2), #ph-table td:nth-child(2) { width: 110px; text-align: center; } /* Start */
+#ph-table th:nth-child(3), #ph-table td:nth-child(3) { width: 110px; text-align: center; } /* End */
+#ph-table th:nth-child(4), #ph-table td:nth-child(4) { width: 140px; text-align: right; }  /* Completed Hours */
+#ph-table th:nth-child(5), #ph-table td:nth-child(5) { width: 140px; text-align: center; } /* Scheduled (badge) */
+#ph-table th:nth-child(6), #ph-table td:nth-child(6) { width: 140px; text-align: center; } /* Completed (badge) */
+/* Topic gets the remaining space; no fixed width */
 
+/* Make sure badges stay nicely centered in Scheduled/Completed columns */
+#ph-table td:nth-child(5) .pill,
+#ph-table td:nth-child(6) .pill { display: inline-block; }
 
+/* LEVEL TRACKER (#lt-table)
+   Columns:
+   1 Month | 2 CI Submissions | 3 Safety Submissions | 4 Quality Submissions | 5 Total Submissions
+   6 Tuesday Tutorial Attended | 7 Power Hours Logged | 8 On Team | 9 Leads Team | 10 Job Relations Follow-up
+*/
+#lt-table th:nth-child(1),  #lt-table td:nth-child(1)  { width: 160px; text-align: left;  } /* Month */
+#lt-table th:nth-child(2),  #lt-table td:nth-child(2)  { width: 140px; text-align: center; } /* CI Submissions */
+#lt-table th:nth-child(3),  #lt-table td:nth-child(3)  { width: 160px; text-align: center; } /* Safety Submissions */
+#lt-table th:nth-child(4),  #lt-table td:nth-child(4)  { width: 170px; text-align: center; } /* Quality Submissions */
+#lt-table th:nth-child(5),  #lt-table td:nth-child(5)  { width: 160px; text-align: center; } /* Total Submissions */
+#lt-table th:nth-child(6),  #lt-table td:nth-child(6)  { width: 210px; text-align: center; } /* Tuesday Tutorial Attended (✓/–) */
+#lt-table th:nth-child(7),  #lt-table td:nth-child(7)  { width: 180px; text-align: center; } /* Power Hours Logged (number) */
+#lt-table th:nth-child(8),  #lt-table td:nth-child(8)  { width: 140px; text-align: center; } /* On Team (✓/✗) */
+#lt-table th:nth-child(9),  #lt-table td:nth-child(9)  { width: 150px; text-align: center; } /* Leads Team (✓/✗) */
+#lt-table th:nth-child(10), #lt-table td:nth-child(10) { width: 210px; text-align: center; } /* Job Relations Follow-up (✓/✗) */
 
+/* Ensure sticky header background & border exactly match main tables (belt & suspenders) */
+#ph-table thead th, #lt-table thead th {
+  background: #213331;
+  border-bottom: 1px solid #1f2940;
+  color: var(--accent);
+  position: sticky;
+  top: 0;
+  z-index: 4;
+}
+
+/* Keep zebra + hover identical to the dashboard’s main tables (explicit to beat page-specific styles) */
+#ph-table tbody tr:nth-child(odd),
+#lt-table tbody tr:nth-child(odd)   { background: rgba(255,255,255,0.03); }
+#ph-table tbody tr:nth-child(even),
+#lt-table tbody tr:nth-child(even)  { background: rgba(0,0,0,0.12); }
+#ph-table tbody tr:hover,
+#lt-table tbody tr:hover            { background: rgba(0,0,0,0.18); }
+
+/* Tighten numeric columns for readability (optional micro-polish) */
+#ph-table td:nth-child(4),  /* Completed Hours */
+#lt-table td:nth-child(2),
+#lt-table td:nth-child(3),
+#lt-table td:nth-child(4),
+#lt-table td:nth-child(5),
+#lt-table td:nth-child(7) { font-variant-numeric: tabular-nums; }
 
