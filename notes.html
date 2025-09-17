@@ -3,102 +3,79 @@
 <head>
   <meta charset="UTF-8" />
 
-<!-- EARLY AUTH GUARD — must be the first thing in <head> -->
-<script>
-!function () {
-  try {
-    // Prefer the real session key; fall back to legacy only if present
-    const s = JSON.parse(sessionStorage.getItem('pu.session') || 'null')
-           || JSON.parse(localStorage.getItem('powerup_session') || 'null');
-    if (!s || !s.employeeId) {
-      // block paint, then bounce to login
+  <!-- EARLY AUTH GUARD — must be the first thing in <head> -->
+  <script>
+  !function () {
+    try {
+      const s = JSON.parse(sessionStorage.getItem('pu.session') || 'null')
+             || JSON.parse(localStorage.getItem('powerup_session') || 'null');
+      if (!s || !s.employeeId) {
+        document.documentElement.style.visibility = 'hidden';
+        location.replace('login.html');
+      }
+    } catch {
       document.documentElement.style.visibility = 'hidden';
       location.replace('login.html');
     }
-  } catch {
-    document.documentElement.style.visibility = 'hidden';
-    location.replace('login.html');
-  }
-}();
-</script>
+  }();
+  </script>
 
-
-  <title>PowerUp - Notes</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <title>PowerUp — Notes</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link href="style.css" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
-  <link rel="stylesheet" href="style.css">
-  <!-- Favicon (SVG + PNG fallback) -->
-<link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
-
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
 </head>
 
 <body class="notes">
-  <div class="container">
-    
-    <!-- Sidebar Nav -->
-    <div class="sidebar" id="sidebar">
-      <div class="item" onclick="toggleSidebar()"><i class="fas fa-bars"></i><span>Menu</span></div>
-      <div class="item" onclick="location.href='Dashboard-Refresh.html'"><i class="fas fa-home"></i><span>Dashboard</span></div>
-      <div class="item" onclick="location.href='level-tracker.html'"><i class="fas fa-layer-group"></i><span>Level Tracker</span></div>
-      <div class="item" onclick="location.href='power-hours.html'"><i class="fas fa-clock"></i><span>Power Hours</span></div>
-      <div class="item active"><i class="fas fa-sticky-note"></i><span>Notes</span></div>
-      <div class="item" onclick="location.href='squads.html'"><i class="fas fa-users"></i><span>Squads</span></div>
-    </div>
 
-    <!-- Main -->
-    <div class="main">
-      <div class="header">
-        <h1>PowerUp Notes</h1>
-        <p>Capture your ideas, reminders, and goals.</p>
+  <!-- ===== PAGE CONTENT (no local header/sidebar; we use the shared shell) ===== -->
+  <!-- We’ll move this whole block into the shell’s #pu-content after injectLayout() -->
+  <div id="notes-root" class="notes-layout" style="display: contents;">
+    <!-- Left: Sidebar Notes List -->
+    <aside class="notes-sidebar">
+      <div class="note-sidebar-header">
+        <h2>My Notes</h2>
+        <button class="add-btn" onclick="createNote()">➕ Add</button>
       </div>
+      <ul id="notesList"></ul>
+    </aside>
 
-      <div class="content notes-layout">
-        <!-- Left: Sidebar Notes List -->
-        <aside class="notes-sidebar">
-          <div class="note-sidebar-header">
-            <h2>My Notes</h2>
-            <button class="add-btn" onclick="createNote()">➕ Add</button>
-          </div>
-          <ul id="notesList"></ul>
-        </aside>
+    <!-- Right: Editor Pane -->
+    <main class="notes-editor">
+      <header class="notes-toolbar">
+        <div class="toolbar">
+          <button onclick="format('bold')"><i class="fas fa-bold"></i></button>
+          <button onclick="format('underline')"><i class="fas fa-underline"></i></button>
+          <button onclick="format('insertUnorderedList')"><i class="fas fa-list-ul"></i></button>
+          <button onclick="format('insertOrderedList')"><i class="fas fa-list-ol"></i></button>
+          <button onclick="format('undo')"><i class="fas fa-undo"></i></button>
+          <button onclick="format('redo')"><i class="fas fa-redo"></i></button>
+          <button onclick="format('removeFormat')"><i class="fas fa-eraser"></i></button>
+        </div>
 
-        <!-- Right: Editor Pane -->
-        <main class="notes-editor">
+        <div class="controls">
+          <button class="save-btn" onclick="saveCurrentNote()">💾 Save</button>
+          <button class="delete-btn" onclick="deleteCurrentNote()">🗑 Delete</button>
+        </div>
+      </header>
 
-<header class="notes-toolbar">
-  <div class="toolbar">
-    <button onclick="format('bold')"><i class="fas fa-bold"></i></button>
-    <button onclick="format('underline')"><i class="fas fa-underline"></i></button>
-    <button onclick="format('insertUnorderedList')"><i class="fas fa-list-ul"></i></button>
-    <button onclick="format('insertOrderedList')"><i class="fas fa-list-ol"></i></button>
-    <button onclick="format('undo')"><i class="fas fa-undo"></i></button>
-    <button onclick="format('redo')"><i class="fas fa-redo"></i></button>
-    <button onclick="format('removeFormat')"><i class="fas fa-eraser"></i></button>
+      <div id="editor" class="note-editor" contenteditable="true" data-placeholder="Start writing your note..."></div>
+    </main>
   </div>
 
-  <div class="controls">
-    <button class="save-btn" onclick="saveCurrentNote()">💾 Save</button>
-    <button class="delete-btn" onclick="deleteCurrentNote()">🗑 Delete</button>
-  </div>
-</header>
+  <!-- ===== JS (shared app libs) ===== -->
+  <script src="scripts/api.js"></script>
+  <script src="scripts/session.js"></script>
+  <script src="scripts/roles.js"></script>
+  <script src="scripts/layout.js"></script>
 
-          <div id="editor" class="note-editor" contenteditable="true" data-placeholder="Start writing your note..."></div>
-        </main>
-      </div>
-    </div>
-  </div>
-
-  <!-- Script -->
-
+  <!-- ===== Notes logic + boot ===== -->
   <script>
-  document.addEventListener('DOMContentLoaded', async () => {
-    PowerUp.session.requireLogin();     // redirect to login.html if not logged in
-    await PowerUp.session.initHeader(); // fill user name & level; wire logout
-  });
-</script>
-
-  <script>
+    // Local storage “notes” store (kept as-is)
     let notes = JSON.parse(localStorage.getItem("notes") || "[]");
     let currentNoteId = null;
 
@@ -107,18 +84,17 @@
       list.innerHTML = '';
       notes.forEach(note => {
         const li = document.createElement('li');
-li.innerHTML = `
-  <div class="note-card">
-    <div class="note-info">
-      <strong>${note.title || 'Untitled'}</strong>
-      <div class="note-meta">${new Date(note.updated).toLocaleString()}</div>
-    </div>
-    <button class="delete-icon" onclick="deleteNoteById(${note.id}, event)">
-      <i class="fas fa-trash-alt"></i>
-    </button>
-  </div>
-`;
-
+        li.innerHTML = `
+          <div class="note-card">
+            <div class="note-info">
+              <strong>${note.title || 'Untitled'}</strong>
+              <div class="note-meta">${new Date(note.updated).toLocaleString()}</div>
+            </div>
+            <button class="delete-icon" onclick="deleteNoteById(${note.id}, event)">
+              <i class="fas fa-trash-alt"></i>
+            </button>
+          </div>
+        `;
         li.classList.toggle('active', note.id === currentNoteId);
         li.onclick = () => loadNote(note.id);
         list.appendChild(li);
@@ -169,16 +145,16 @@ li.innerHTML = `
       renderNotes();
     }
 
-function deleteNoteById(id, e) {
-  e.stopPropagation(); // Don’t open note when trash is clicked
-  if (!confirm("Delete this note?")) return;
-  notes = notes.filter(n => n.id !== id);
-  currentNoteId = notes.length ? notes[0].id : null;
-  if (currentNoteId) loadNote(currentNoteId);
-  else document.getElementById('editor').innerHTML = '';
-  saveNotes();
-  renderNotes();
-}
+    function deleteNoteById(id, e) {
+      e.stopPropagation();
+      if (!confirm("Delete this note?")) return;
+      notes = notes.filter(n => n.id !== id);
+      currentNoteId = notes.length ? notes[0].id : null;
+      if (currentNoteId) loadNote(currentNoteId);
+      else document.getElementById('editor').innerHTML = '';
+      saveNotes();
+      renderNotes();
+    }
 
     function saveNotes() {
       localStorage.setItem("notes", JSON.stringify(notes));
@@ -188,25 +164,28 @@ function deleteNoteById(id, e) {
       document.execCommand(command, false, null);
     }
 
-    function formatBlock(tag) {
-      document.execCommand('formatBlock', false, tag);
-    }
-
     function toggleSidebar() {
-      document.getElementById('sidebar').classList.toggle('expanded');
+      document.body.classList.toggle('sidebar-expanded');
     }
 
-    // Init
-    renderNotes();
-    if (notes.length) loadNote(notes[0].id);
+    // -------- Boot: use shared shell + set header title from <title> ----------
+    document.addEventListener('DOMContentLoaded', async () => {
+      PowerUp.session.requireLogin();
+      PowerUp.layout.injectLayout();
+      PowerUp.layout.setPageTitle(document.title || 'PowerUp — Notes');
+      await PowerUp.session.initHeader();
+
+      // Move our page content into the shell's content area
+      const root = document.getElementById('notes-root');
+      const host = document.getElementById('pu-content') || document.querySelector('.content') || document.body;
+      if (root && host && root.parentElement !== host) {
+        host.appendChild(root);
+      }
+
+      // Initial render
+      renderNotes();
+      if (notes.length) loadNote(notes[0].id);
+    });
   </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
