@@ -144,8 +144,29 @@
 <script src="scripts/layout.js"></script>
 <script src="scripts/squads-cards.js"></script>
 
+  <script>
+  // Minimal, safe: set the header title using the shared layout shell
+  document.addEventListener('DOMContentLoaded', async () => {
+    // Ensure user is logged in
+    PowerUp.session.requireLogin();
+
+    // Inject the shared shell (sidebar + header) only if it isn’t already there
+    if (!document.getElementById('pu-header')) {
+      PowerUp.layout.injectLayout();
+    }
+
+    // Set the in-header page title (the tab <title> tag you already have is fine)
+    PowerUp.layout.setPageTitle('Squads');
+
+    // Fill in the “Welcome, <name> / Level” bits in the header
+    await PowerUp.session.initHeader();
+  });
+</script>
+
+
 </body>
 </html>
+
 
 
 
