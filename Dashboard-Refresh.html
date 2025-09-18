@@ -450,38 +450,56 @@
   })();
   </script>
 
-  <!-- Empty-state hook for CI / Safety / Quality tables -->
-  <script>
-    (function(){
-      function fallbackEmptyRow(tbody, text){
-        const table = tbody.closest('table');
-        const cols  = (table.tHead && table.tHead.rows[0] ? table.tHead.rows[0].cells.length : 1);
-        tbody.innerHTML =
-          `<tr class="pu-empty-row"><td colspan="${cols}">
-             <div class="pu-empty">
-               <div class="pu-empty__title">${text}</div>
-             </div>
-           </td></tr>`;
-      }
-      function ensureEmpty(tbody, message){
-        if (!tbody) return;
-        if (tbody.children.length > 0) return;
-        if (window.PowerUp?.layout?.renderEmptyState) {
-          try { PowerUp.layout.renderEmptyState(tbody, message); return; } catch(e){}
-        }
-        fallbackEmptyRow(tbody, message);
-      }
+<!-- Empty-state hook for CI / Safety / Quality tables -->
+<script>
+  (function(){
+    function fallbackEmptyRow(tbody, text){
+      const table = tbody.closest('table');
+      const cols  = (table.tHead && table.tHead.rows[0] ? table.tHead.rows[0].cells.length : 1);
+      tbody.innerHTML =
+        `<tr class="pu-empty-row"><td colspan="${cols}">
+           <div class="pu-empty">
+             <div class="pu-empty__title">${text}</div>
+           </div>
+         </td></tr>`;
+    }
 
-      function applyDashboardEmptyStates(){
-        ensureEmpty(document.querySelector('[data-hook="table.ci.tbody"]'),      'No CI submissions to show.');
-        ensureEmpty(document.querySelector('[data-hook="table.safety.tbody"]'),  'No Safety concerns submitted.');
-        ensureEmpty(document.querySelector('[data-hook="table.quality.tbody"]'), 'No Quality catches to show.');
-      }
+    // Treat “No rows” placeholder as empty too
+    function isEffectivelyEmpty(tbody){
+      if (!tbody) return true;
+      if (tbody.children.length === 0) return true;
+      // If every cell is blank or only says "No rows"
+      return !Array.from(tbody.rows).some(tr =>
+        Array.from(tr.cells).some(td => {
+          const txt = (td.textContent || '').trim().toLowerCase();
+          const hasWidget = td.querySelector('button, a, .pill, .view-btn');
+          return hasWidget || (txt && txt !== 'no rows');
+        })
+      );
+    }
 
-      // Run after tables finish hydrating
-      document.addEventListener('data-hydrated', applyDashboardEmptyStates);
-    })();
-  </script>
+    function ensureEmpty(tbody, message){
+      if (!tbody) return;
+      if (!isEffectivelyEmpty(tbody)) return;
+      // Clear SmartSheet “No rows” row and render the unified empty state
+      tbody.innerHTML = '';
+      if (window.PowerUp?.layout?.renderEmptyState) {
+        try { PowerUp.layout.renderEmptyState(tbody, message); return; } catch(e){}
+      }
+      fallbackEmptyRow(tbody, message);
+    }
+
+    function applyDashboardEmptyStates(){
+      ensureEmpty(document.querySelector('[data-hook="table.ci.tbody"]'),      'No CI submissions to show.');
+      ensureEmpty(document.querySelector('[data-hook="table.safety.tbody"]'),  'No Safety concerns submitted.');
+      ensureEmpty(document.querySelector('[data-hook="table.quality.tbody"]'), 'No Quality catches to show.');
+    }
+
+    // Run after tables finish hydrating
+    document.addEventListener('data-hydrated', applyDashboardEmptyStates);
+  })();
+</script>
+
 
   <!-- Modal (single reusable) -->
   <div id="pu-record-modal" class="pu-modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="pu-record-title">
@@ -510,3 +528,4 @@
 
 </body>
 </html>
+
