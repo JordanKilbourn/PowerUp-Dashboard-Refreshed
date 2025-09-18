@@ -822,71 +822,101 @@ body.sidebar-expanded #pu-content.content {
 #ph-table tbody tr:hover,
 #lt-table tbody tr:hover            { background: rgba(0,0,0,0.18); }
 
-/* Tighten numeric columns for readability (optional micro-polish) */
-#ph-table td:nth-child(4),  /* Completed Hours */
-#lt-table td:nth-child(2),
-#lt-table td:nth-child(3),
-#lt-table td:nth-child(4),
-#lt-table td:nth-child(5),
-#lt-table td:nth-child(7) { font-variant-numeric: tabular-nums; }
+/* ============================
+   Compact block sidebar + hover flyout labels
+   (keeps your colors; overlaps content; icon glows)
+   ============================ */
 
-
-/* === Hover-reveal flyouts for collapsed sidebar === */
-.sidebar .item { position: relative; }
-
-/* Only when collapsed (72px) */
-.sidebar:not(.expanded) .item::after {
-  content: attr(data-title);
-  position: absolute;
-  top: 50%;
-  left: calc(100% - 8px);               /* slightly tucked under the bar */
-  transform: translate(-10px, -50%);    /* start a bit hidden */
-  opacity: 0;
-  pointer-events: none;
-
-  /* Match your theme */
-  background: var(--card-bg, #0f1a1a);
-  color: var(--text, #e5e7eb);
-  border: 1.5px solid var(--accent, #00ffc6);
-  border-left: none;                     /* feels connected to the bar */
-  border-top-right-radius: 10px;
-  border-bottom-right-radius: 10px;
-
-  padding: 10px 12px;
-  font-weight: 700;
-  white-space: nowrap;
-  z-index: 2000;                         /* overlap page content */
-  box-shadow: 0 8px 20px rgba(0,0,0,.35),
-              0 0 0 1px rgba(255,255,255,.04) inset;
-  transition: transform .18s ease, opacity .18s ease;
+/* Keep the fixed narrow rail */
+.sidebar {
+  width: 72px;                 /* same footprint as before */
+  padding: 12px 12px;
+  background: #0b1020;         /* your current sidebar bg */
+  border-right: 1px solid #1f2937;
+  box-shadow: 2px 0 8px rgba(0,0,0,.6);
+  z-index: 1000;               /* keep above content so flyout overlaps */
 }
 
-/* Reveal on hover (only the label slides in; bar stays put) */
-.sidebar:not(.expanded) .item:hover::after {
-  transform: translate(0, -50%);
+/* Stacked rounded blocks */
+.sidebar .item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  margin: 8px 0;               /* space between blocks */
+  border-radius: 14px;         /* “little round-shaped blocks” */
+  background: var(--sidebar-btn-bg, #152424);
+  border: 1px solid rgba(255,255,255,.08);
+  cursor: pointer;
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+
+/* Don’t change the block bg on hover — only the icon glows */
+.sidebar .item:hover {
+  background: var(--sidebar-btn-bg, #152424);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0,0,0,.35);
+}
+
+/* Active item (soft outline, no bg change) */
+.sidebar .item.active {
+  box-shadow: 0 0 0 2px rgba(0,255,198,.18);
+  border-color: rgba(0,255,198,.35);
+}
+
+/* Center the icon; glow on hover/active */
+.sidebar .item i {
+  font-size: 20px;
+  color: rgba(255,255,255,.85);
+  transition: color .15s ease, text-shadow .15s ease, filter .15s ease;
+}
+.sidebar .item:hover i,
+.sidebar .item.active i {
+  color: var(--accent);
+  text-shadow: 0 0 10px var(--accent);
+}
+
+/* Hide the inline text; we’ll show a flyout instead */
+.sidebar .item span { 
+  display: none !important;
+}
+
+/* Flyout label that overlaps content (no layout shift) */
+.sidebar .item::after {
+  content: attr(data-title);
+  position: absolute;
+  top: 0;
+  left: 52px;                   /* starts just to the right of the block */
+  height: 48px;
+  line-height: 48px;
+  padding: 0 12px 0 10px;
+  white-space: nowrap;
+  color: var(--text);
+  background: var(--card-bg);
+  border: 1px solid #2d3f3f;
+  border-left: none;
+  border-radius: 0 12px 12px 0;
+  box-shadow: 0 6px 18px rgba(0,0,0,.45), 0 0 0 1px rgba(255,255,255,.04) inset;
+  transform: translateX(-10px);
+  opacity: 0;
+  pointer-events: none;        /* don’t steal hover from the icon */
+  transition: transform .18s ease, opacity .18s ease;
+  z-index: 2000;               /* above page content */
+}
+
+/* Show the flyout on hover */
+.sidebar .item:hover::after {
+  transform: translateX(0);
   opacity: 1;
 }
 
-/* Keep only the icon “glow”; don’t tint the full button */
-.sidebar:not(.expanded) .item:hover {
-  background: transparent;              /* don't highlight whole row */
-  box-shadow: none;                      /* keep your current glow behavior focused on the icon */
+/* Keep the “Menu / bars” button visually consistent */
+#pu-toggle-item { 
+  background: #1a2438;
 }
+#pu-toggle-item i { font-size: 18px; }
 
-/* Stronger icon glow on hover (matches your vibe) */
-.sidebar .item i { transition: color .15s ease, text-shadow .15s ease; }
-.sidebar .item:hover i {
-  color: var(--accent);
-  text-shadow: 0 0 8px rgba(0,255,198,.45);
-}
-
-/* When expanded, you already show text inside <span>; hide the flyout entirely */
-.sidebar.expanded .item::after,
-body.sidebar-expanded .sidebar .item::after { display: none; }
-
-/* Optional: keep flyout readable near bottom edge on small screens */
-@media (max-height: 540px) {
-  .sidebar:not(.expanded) .item::after { max-width: 60vw; }
-}
-
-
+/* Make sure expanding the sidebar (if you ever toggle) still works */
+.sidebar.expanded .item span { display: inline; } /* harmless if you never expand */
