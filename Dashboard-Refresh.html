@@ -450,6 +450,39 @@
   })();
   </script>
 
+  <!-- Empty-state hook for CI / Safety / Quality tables -->
+  <script>
+    (function(){
+      function fallbackEmptyRow(tbody, text){
+        const table = tbody.closest('table');
+        const cols  = (table.tHead && table.tHead.rows[0] ? table.tHead.rows[0].cells.length : 1);
+        tbody.innerHTML =
+          `<tr class="pu-empty-row"><td colspan="${cols}">
+             <div class="pu-empty">
+               <div class="pu-empty__title">${text}</div>
+             </div>
+           </td></tr>`;
+      }
+      function ensureEmpty(tbody, message){
+        if (!tbody) return;
+        if (tbody.children.length > 0) return;
+        if (window.PowerUp?.layout?.renderEmptyState) {
+          try { PowerUp.layout.renderEmptyState(tbody, message); return; } catch(e){}
+        }
+        fallbackEmptyRow(tbody, message);
+      }
+
+      function applyDashboardEmptyStates(){
+        ensureEmpty(document.querySelector('[data-hook="table.ci.tbody"]'),      'No CI submissions to show.');
+        ensureEmpty(document.querySelector('[data-hook="table.safety.tbody"]'),  'No Safety concerns submitted.');
+        ensureEmpty(document.querySelector('[data-hook="table.quality.tbody"]'), 'No Quality catches to show.');
+      }
+
+      // Run after tables finish hydrating
+      document.addEventListener('data-hydrated', applyDashboardEmptyStates);
+    })();
+  </script>
+
   <!-- Modal (single reusable) -->
   <div id="pu-record-modal" class="pu-modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="pu-record-title">
     <div class="pu-modal__backdrop" data-modal-close></div>
