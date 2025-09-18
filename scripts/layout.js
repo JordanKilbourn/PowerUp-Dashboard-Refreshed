@@ -133,6 +133,13 @@
     if (h1) h1.textContent = text || 'PowerUp';
   }
 
+  // NEW: unified helper for tab + header titles
+  function setTitles(pageName) {
+    const full = `PowerUp — ${pageName}`;
+    document.title = full;   // browser tab
+    setPageTitle(full);      // in-header h1
+  }
+
   function fitDashboardBlocks() {
     const root   = document.documentElement;
     const header = document.getElementById('pu-header');
@@ -180,7 +187,7 @@
     }
   }
 
-  P.layout = { injectLayout, setPageTitle, setUserHeaderFromEmployeeMaster };
+  P.layout = { injectLayout, setPageTitle, setTitles, setUserHeaderFromEmployeeMaster };
   window.PowerUp = P;
 
 })(window.PowerUp || {});
@@ -274,4 +281,3 @@
     };
   }
 })();
-
