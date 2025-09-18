@@ -3,30 +3,30 @@
 
   const SHELL_HTML = `
     <div class="container" id="pu-shell">
-      <!-- Sidebar -->
-      <div class="sidebar" id="sidebar">
-        <div class="item snav" data-link="Dashboard-Refresh.html">
-          <i class="fas fa-home"></i><span class="snav-label">Dashboard</span>
-        </div>
-        <div class="item snav" data-link="level-tracker.html">
-          <i class="fas fa-layer-group"></i><span class="snav-label">Level Tracker</span>
-        </div>
-        <div class="item snav" data-link="power-hours.html">
-          <i class="fas fa-clock"></i><span class="snav-label">Power Hours</span>
-        </div>
-        <div class="item snav" data-link="notes.html">
-          <i class="fas fa-sticky-note"></i><span class="snav-label">Notes</span>
-        </div>
-        <div class="item snav" data-link="squads.html">
-          <i class="fas fa-users"></i><span class="snav-label">Squads</span>
-        </div>
+      <!-- Sidebar (hover pills) -->
+      <nav class="sidebar sidebar--hover" id="sidebar" aria-label="Primary">
+        <a class="item" data-link="Dashboard-Refresh.html">
+          <i class="fas fa-home"></i><span class="label">Dashboard</span>
+        </a>
+        <a class="item" data-link="level-tracker.html">
+          <i class="fas fa-layer-group"></i><span class="label">Level Tracker</span>
+        </a>
+        <a class="item" data-link="power-hours.html">
+          <i class="fas fa-clock"></i><span class="label">Power Hours</span>
+        </a>
+        <a class="item" data-link="notes.html">
+          <i class="fas fa-sticky-note"></i><span class="label">Notes</span>
+        </a>
+        <a class="item" data-link="squads.html">
+          <i class="fas fa-users"></i><span class="label">Squads</span>
+        </a>
 
-        <div class="sidebar-spacer"></div>
+        <div class="sidebar-spacer" aria-hidden="true"></div>
 
-        <div class="item snav logout" id="pu-logout">
-          <i class="fas fa-sign-out-alt"></i><span class="snav-label">Logout</span>
-        </div>
-      </div>
+        <a class="item logout" id="pu-logout">
+          <i class="fas fa-sign-out-alt"></i><span class="label">Logout</span>
+        </a>
+      </nav>
 
       <!-- Main -->
       <div class="main">
@@ -47,69 +47,8 @@
     </div>
   `;
 
-  // Inject the small flyout-only sidebar CSS once
-  function ensureFlyoutCSS() {
-    if (document.getElementById('pu-flyout-css')) return;
-    const css = document.createElement('style');
-    css.id = 'pu-flyout-css';
-    css.textContent = `
-      /* --- Compact icon bar with hover flyout (no page push) --- */
-      .sidebar { width: 72px; } /* keep your collapsed width */
-      .sidebar .item.snav {
-        position: relative;
-        width: 48px; height: 48px;
-        margin: 10px 12px;
-        border-radius: 12px;
-        display: flex; align-items: center; justify-content: center;
-        background: var(--sidebar-bg);
-        border: 1px solid rgba(255,255,255,.08);
-        box-shadow: 0 2px 6px rgba(0,0,0,.35);
-        cursor: pointer;
-      }
-      .sidebar .item.snav i { color: rgba(255,255,255,.9); font-size: 20px; }
-      .sidebar .item.snav.active { box-shadow: 0 0 0 2px var(--accent) inset; }
-
-      /* One-piece label that slides out; overlaps content */
-      .sidebar .item.snav .snav-label {
-        position: absolute; top: 0; left: 52px;
-        height: 100%;
-        display: inline-flex; align-items: center;
-        padding: 0 12px;
-        background: var(--sidebar-bg);
-        color: var(--text);
-        border: 1px solid rgba(255,255,255,.10);
-        border-left: none; /* visually fuse with the icon block */
-        border-top-right-radius: 12px;
-        border-bottom-right-radius: 12px;
-        white-space: nowrap;
-        opacity: 0;
-        transform: translateX(-8px);
-        pointer-events: none;
-        transition: transform .18s ease, opacity .18s ease, box-shadow .18s ease;
-        box-shadow: 2px 2px 8px rgba(0,0,0,.35);
-        z-index: 1100; /* above content */
-      }
-      .sidebar .item.snav:hover .snav-label {
-        opacity: 1;
-        transform: translateX(0);
-      }
-      /* Keep your existing glow-on-hover vibe, only on the icon puck */
-      .sidebar .item.snav:hover { box-shadow: 0 0 8px var(--accent); }
-      .sidebar .item.snav:hover i { color: var(--accent); }
-
-      /* Logout tint on hover (matches your existing feel) */
-      .sidebar .item.logout:hover {
-        background: rgba(255,0,0,0.12);
-        border-color: rgba(255,0,0,0.25);
-      }
-    `;
-    document.head.appendChild(css);
-  }
-
   function injectLayout() {
     if (document.getElementById('pu-shell')) return;
-
-    ensureFlyoutCSS();
 
     const wrap = document.createElement('div');
     wrap.innerHTML = SHELL_HTML;
@@ -123,14 +62,18 @@
     while (n) { toMove.push(n); n = n.nextSibling; }
     toMove.forEach(node => content.appendChild(node));
 
-    // NOTE: removed old expand/collapse code; no margin shoves anymore
-
-    // Nav highlighting + clicks
+    // Nav wiring + highlighting
     shell.querySelectorAll('.sidebar .item[data-link]').forEach(el => {
       const href = el.getAttribute('data-link') || '';
-      el.addEventListener('click', () => (href ? (location.href = href) : null));
+      el.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (href) location.href = href;
+      });
       const here = location.pathname.split('/').pop();
       if (here && href.split('?')[0] === here.split('?')[0]) el.classList.add('active');
+      // Accessibility label
+      const lbl = el.querySelector('.label')?.textContent?.trim();
+      if (lbl) el.setAttribute('aria-label', lbl);
     });
 
     // Logout
@@ -177,6 +120,25 @@
     const obs = new MutationObserver(() => { moveAdminFilterIntoRow(); });
     obs.observe(document.getElementById('pu-header'), { childList: true, subtree: true });
     setTimeout(() => obs.disconnect(), 3000);
+
+    // Kill any native tooltips another script might add to the sidebar
+    neutralizeNativeSidebarTooltips();
+  }
+
+  function neutralizeNativeSidebarTooltips() {
+    const sb = document.getElementById('sidebar');
+    if (!sb) return;
+
+    const strip = () => {
+      sb.querySelectorAll('.item, .item i').forEach(el => {
+        if (el.hasAttribute('title')) el.removeAttribute('title');
+      });
+    };
+    strip();
+
+    // If something re-adds titles later, remove them again.
+    const mo = new MutationObserver(strip);
+    mo.observe(sb, { attributes: true, subtree: true, attributeFilter: ['title'] });
   }
 
   function setPageTitle(text) {
@@ -201,13 +163,13 @@
 
     tbody.innerHTML =
       `<tr class="table-empty-row" role="status" aria-live="polite">
-         <td colspan="\${colCount}">
-           <div class="table-empty">\${htmlMessage}</div>
+         <td colspan="${colCount}">
+           <div class="table-empty">${htmlMessage}</div>
          </td>
        </tr>`;
   }
 
-  // Unified helper for tab + header titles
+  // Unified helper for titles
   function setTitles(pageName) {
     const full = `PowerUp — ${pageName}`;
     document.title = full;   // browser tab
@@ -260,7 +222,7 @@
     }
   }
 
-  P.layout = { injectLayout, setPageTitle, setTitles, setUserHeaderFromEmployeeMaster, setEmptyRow };
+  P.layout = { injectLayout, setPageTitle, setTitles, setUserHeaderFromEmployeeMaster, setEmptyRow, fitDashboardBlocks };
   window.PowerUp = P;
 
 })(window.PowerUp || {});
@@ -295,7 +257,9 @@
 
 /* Viewport-aware height for ONLY the 3 dashboard tab tables (no wheel hijack) */
 (function () {
-  function onDashboard() { return document.body.classList.contains('dashboard'); }
+  function onDashboard() {
+    return document.body.classList.contains('dashboard');
+  }
 
   const BOTTOM_PAD = 24;
   const TABLE_IDS = ['ci-table', 'safety-table', 'quality-table'];
