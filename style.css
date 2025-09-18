@@ -920,3 +920,72 @@ body.sidebar-expanded #pu-content.content {
 
 /* Make sure expanding the sidebar (if you ever toggle) still works */
 .sidebar.expanded .item span { display: inline; } /* harmless if you never expand */
+
+
+
+
+
+
+
+/* ==== Hover-Pill Sidebar (compact, no push) ==== */
+.sidebar.sidebar--hover { 
+  position: fixed; left: 0; top: 0; bottom: 0;
+  width: 72px; padding: 12px 8px; display: flex; flex-direction: column; gap: 14px;
+  background: #0b1020; border-right: 1px solid #1f2937; z-index: 1000;
+}
+.sidebar.sidebar--hover .item {
+  position: relative;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 56px; height: 56px; margin: 0 auto;
+  border-radius: 14px;
+  background: var(--card-bg);
+  border: 1px solid rgba(255,255,255,.12);
+  box-shadow: 0 2px 6px rgba(0,0,0,.45);
+  color: var(--text);
+  text-decoration: none;
+  overflow: visible;                 /* allow label to extend right */
+  transition: transform .12s ease, box-shadow .12s ease, background .12s ease, border-color .12s ease;
+}
+.sidebar.sidebar--hover .item i {
+  font-size: 22px;
+  color: rgba(255,255,255,.85);
+  transition: filter .12s ease, color .12s ease;
+}
+.sidebar.sidebar--hover .item:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(0,255,198,.12), 0 6px 16px rgba(0,0,0,.45);
+}
+.sidebar.sidebar--hover .item:hover i { color: var(--accent); filter: drop-shadow(0 0 6px rgba(0,255,198,.6)); }
+
+/* Active glow (current page) */
+.sidebar.sidebar--hover .item.active {
+  outline: 0;
+  box-shadow:
+    0 0 0 2px rgba(0,255,198,.65) inset,
+    0 0 10px rgba(0,255,198,.55),
+    0 0 0 3px rgba(0,255,198,.18);
+  border-color: var(--accent);
+}
+.sidebar.sidebar--hover .item.active i { color: var(--accent); }
+
+/* One-piece expanding label (same element) */
+.sidebar.sidebar--hover .item .label {
+  position: absolute; left: 56px; top: 0;
+  height: 100%; display: inline-flex; align-items: center;
+  padding: 0 12px;
+  background: var(--card-bg);               /* match pill */
+  border: 1px solid rgba(255,255,255,.12);  /* same border */
+  border-left: none;                        /* seamless join */
+  border-top-right-radius: 14px;
+  border-bottom-right-radius: 14px;
+  color: var(--text);
+  white-space: nowrap;
+  opacity: 0; transform: translateX(6px);
+  pointer-events: none;
+  transition: opacity .12s ease, transform .12s ease;
+}
+.sidebar.sidebar--hover .item:hover .label { opacity: 1; transform: translateX(0); }
+
+/* Keep Logout spaced at bottom */
+.sidebar.sidebar--hover .sidebar-spacer { flex: 1; }
+
