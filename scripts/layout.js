@@ -133,6 +133,30 @@
     if (h1) h1.textContent = text || 'PowerUp';
   }
 
+  // Render a single full-width empty row into a table body
+  function setEmptyRow(tableElOrId, htmlMessage) {
+    const table =
+      typeof tableElOrId === 'string'
+        ? document.getElementById(tableElOrId)
+        : tableElOrId;
+    if (!table) return;
+
+    const tbody =
+      table.tBodies?.[0] || table.querySelector('tbody') || table;
+    // Prefer header count; fall back to first row’s cell count; last resort 1
+    const colCount =
+      (table.tHead && table.tHead.rows[0]?.cells.length) ||
+      (table.rows[0]?.cells.length) ||
+      1;
+
+    tbody.innerHTML =
+      `<tr class="table-empty-row" role="status" aria-live="polite">
+         <td colspan="${colCount}">
+           <div class="table-empty">${htmlMessage}</div>
+         </td>
+       </tr>`;
+  }
+
   // NEW: unified helper for tab + header titles
   function setTitles(pageName) {
     const full = `PowerUp — ${pageName}`;
@@ -187,7 +211,7 @@
     }
   }
 
-  P.layout = { injectLayout, setPageTitle, setTitles, setUserHeaderFromEmployeeMaster };
+  P.layout = { injectLayout, setPageTitle, setTitles, setUserHeaderFromEmployeeMaster, setEmptyRow };
   window.PowerUp = P;
 
 })(window.PowerUp || {});
