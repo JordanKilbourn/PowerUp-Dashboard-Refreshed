@@ -383,13 +383,26 @@ body.notes .note-editor:empty:before { content: attr(data-placeholder); color: v
 #safety-table thead th:last-child,
 #safety-table tbody td:last-child { width: 120px; }
 
-/* Quality widths */
-#quality-table th:nth-child(2), #quality-table td:nth-child(2),
-#quality-table th:nth-child(3), #quality-table td:nth-child(3) { width: 96px; }
-#quality-table th:nth-child(3), #quality-table td:nth-child(3),
-#quality-table th:nth-child(4), #quality-table td:nth-child(4) { width: 104px; }
-#quality-table th:nth-child(7), #quality-table td:nth-child(7),
-#quality-table th:nth-child(8), #quality-table td:nth-child(8) { width: 120px; }
+/* Quality widths — compact QC, generous Description */
+#quality-table { table-layout: fixed; } /* already set globally, harmless duplicate */
+
+/* 1 = View (handled by .view-col at 68px) */
+/* 2 = Catch ID */
+#quality-table th:nth-child(2), #quality-table td:nth-child(2) { width: 110px; }
+/* 3 = Entry Date */
+#quality-table th:nth-child(3), #quality-table td:nth-child(3) { width: 120px; }
+/* 4 = Submitted By */
+#quality-table th:nth-child(4), #quality-table td:nth-child(4) { width: 160px; }
+/* 5 = Area */
+#quality-table th:nth-child(5), #quality-table td:nth-child(5) { width: 140px; }
+/* 6 = Quality Catch (narrowed) */
+#quality-table th:nth-child(6), #quality-table td:nth-child(6) { width: 180px; }
+/* 7 = Part Number */
+#quality-table th:nth-child(7), #quality-table td:nth-child(7) { width: 140px; }
+/* 8 = Description (soaks remaining space + wraps) */
+#quality-table th:nth-child(8), #quality-table td:nth-child(8) { width: auto; }
+#quality-table td:nth-child(8) { white-space: normal; } /* override global nowrap for wrapping */
+
 
 /* Zebra + refined hover */
 .table-scroll tbody tr:nth-child(odd) { background: rgba(255,255,255,0.03); }
@@ -816,5 +829,6 @@ body.sidebar-expanded #pu-content.content {
 #lt-table td:nth-child(4),
 #lt-table td:nth-child(5),
 #lt-table td:nth-child(7) { font-variant-numeric: tabular-nums; }
+
 
 
