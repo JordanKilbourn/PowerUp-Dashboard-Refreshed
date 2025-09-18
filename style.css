@@ -171,6 +171,24 @@ body::-webkit-scrollbar, .main::-webkit-scrollbar { width: 0; height: 0; }
 .filter-clear:hover { border-color: var(--accent); color: var(--accent); background: rgba(0,255,198,.06); }
 .filter-clear:active { transform: translateY(1px); }
 
+/* === Shared table empty-state === */
+.table-empty-row td {
+  padding: 18px 12px;
+  text-align: center;
+  border-bottom: 0;
+}
+.table-empty {
+  display: inline-block;
+  font-size: 14px;
+  color: #9fb0c3;
+}
+.table-empty .who,
+.table-empty .scope {
+  font-weight: 700;
+  color: #e5e7eb;
+}
+
+
 /* === 6) Notes page (unchanged) === */
 body.notes .notes-controls { padding: 20px; background: var(--card-bg); border-bottom: 2px solid var(--accent); }
 body.notes #note-input { width: 100%; padding: 12px 14px; font-size: 16px; border: none; border-radius: 6px; background: #213331; color: var(--text); }
@@ -798,4 +816,5 @@ body.sidebar-expanded #pu-content.content {
 #lt-table td:nth-child(4),
 #lt-table td:nth-child(5),
 #lt-table td:nth-child(7) { font-variant-numeric: tabular-nums; }
+
 
