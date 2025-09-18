@@ -82,6 +82,20 @@
       if (here && href.split('?')[0] === here.split('?')[0]) el.classList.add('active');
     });
 
+    /* NEW: copy each item's <span> label into data-title for the hover flyout */
+    (function labelizeSidebarItems() {
+      const items = shell.querySelectorAll('.sidebar .item');
+      items.forEach(el => {
+        const label = (el.querySelector('span')?.textContent || '').trim();
+        if (label) {
+          el.setAttribute('data-title', label);          // used by CSS ::after
+          if (!el.getAttribute('aria-label')) {
+            el.setAttribute('aria-label', label);        // accessibility bonus
+          }
+        }
+      });
+    })();
+
     // Logout
     const logoutBtn = document.getElementById('pu-logout');
     if (logoutBtn) {
