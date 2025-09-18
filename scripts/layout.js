@@ -5,29 +5,26 @@
     <div class="container" id="pu-shell">
       <!-- Sidebar -->
       <div class="sidebar" id="sidebar">
-        <div class="item" id="pu-toggle-item">
-          <i class="fas fa-bars"></i><span>Menu</span>
+        <div class="item snav" data-link="Dashboard-Refresh.html">
+          <i class="fas fa-home"></i><span class="snav-label">Dashboard</span>
         </div>
-        <div class="item" data-link="Dashboard-Refresh.html">
-          <i class="fas fa-home"></i><span>Dashboard</span>
+        <div class="item snav" data-link="level-tracker.html">
+          <i class="fas fa-layer-group"></i><span class="snav-label">Level Tracker</span>
         </div>
-        <div class="item" data-link="level-tracker.html">
-          <i class="fas fa-layer-group"></i><span>Level Tracker</span>
+        <div class="item snav" data-link="power-hours.html">
+          <i class="fas fa-clock"></i><span class="snav-label">Power Hours</span>
         </div>
-        <div class="item" data-link="power-hours.html">
-          <i class="fas fa-clock"></i><span>Power Hours</span>
+        <div class="item snav" data-link="notes.html">
+          <i class="fas fa-sticky-note"></i><span class="snav-label">Notes</span>
         </div>
-        <div class="item" data-link="notes.html">
-          <i class="fas fa-sticky-note"></i><span>Notes</span>
-        </div>
-        <div class="item" data-link="squads.html">
-          <i class="fas fa-users"></i><span>Squads</span>
+        <div class="item snav" data-link="squads.html">
+          <i class="fas fa-users"></i><span class="snav-label">Squads</span>
         </div>
 
         <div class="sidebar-spacer"></div>
 
-        <div class="item logout" id="pu-logout">
-          <i class="fas fa-sign-out-alt"></i><span>Logout</span>
+        <div class="item snav logout" id="pu-logout">
+          <i class="fas fa-sign-out-alt"></i><span class="snav-label">Logout</span>
         </div>
       </div>
 
@@ -50,8 +47,69 @@
     </div>
   `;
 
+  // Inject the small flyout-only sidebar CSS once
+  function ensureFlyoutCSS() {
+    if (document.getElementById('pu-flyout-css')) return;
+    const css = document.createElement('style');
+    css.id = 'pu-flyout-css';
+    css.textContent = `
+      /* --- Compact icon bar with hover flyout (no page push) --- */
+      .sidebar { width: 72px; } /* keep your collapsed width */
+      .sidebar .item.snav {
+        position: relative;
+        width: 48px; height: 48px;
+        margin: 10px 12px;
+        border-radius: 12px;
+        display: flex; align-items: center; justify-content: center;
+        background: var(--sidebar-bg);
+        border: 1px solid rgba(255,255,255,.08);
+        box-shadow: 0 2px 6px rgba(0,0,0,.35);
+        cursor: pointer;
+      }
+      .sidebar .item.snav i { color: rgba(255,255,255,.9); font-size: 20px; }
+      .sidebar .item.snav.active { box-shadow: 0 0 0 2px var(--accent) inset; }
+
+      /* One-piece label that slides out; overlaps content */
+      .sidebar .item.snav .snav-label {
+        position: absolute; top: 0; left: 52px;
+        height: 100%;
+        display: inline-flex; align-items: center;
+        padding: 0 12px;
+        background: var(--sidebar-bg);
+        color: var(--text);
+        border: 1px solid rgba(255,255,255,.10);
+        border-left: none; /* visually fuse with the icon block */
+        border-top-right-radius: 12px;
+        border-bottom-right-radius: 12px;
+        white-space: nowrap;
+        opacity: 0;
+        transform: translateX(-8px);
+        pointer-events: none;
+        transition: transform .18s ease, opacity .18s ease, box-shadow .18s ease;
+        box-shadow: 2px 2px 8px rgba(0,0,0,.35);
+        z-index: 1100; /* above content */
+      }
+      .sidebar .item.snav:hover .snav-label {
+        opacity: 1;
+        transform: translateX(0);
+      }
+      /* Keep your existing glow-on-hover vibe, only on the icon puck */
+      .sidebar .item.snav:hover { box-shadow: 0 0 8px var(--accent); }
+      .sidebar .item.snav:hover i { color: var(--accent); }
+
+      /* Logout tint on hover (matches your existing feel) */
+      .sidebar .item.logout:hover {
+        background: rgba(255,0,0,0.12);
+        border-color: rgba(255,0,0,0.25);
+      }
+    `;
+    document.head.appendChild(css);
+  }
+
   function injectLayout() {
     if (document.getElementById('pu-shell')) return;
+
+    ensureFlyoutCSS();
 
     const wrap = document.createElement('div');
     wrap.innerHTML = SHELL_HTML;
@@ -65,36 +123,15 @@
     while (n) { toMove.push(n); n = n.nextSibling; }
     toMove.forEach(node => content.appendChild(node));
 
-    // Sidebar toggle
-    function toggleSidebar() {
-      const sb = document.getElementById('sidebar');
-      const expanded = sb.classList.toggle('expanded');
-      document.body.classList.toggle('sidebar-expanded', expanded);
-      requestAnimationFrame(fitDashboardBlocks);
-    }
-    document.getElementById('pu-toggle-item').addEventListener('click', toggleSidebar);
+    // NOTE: removed old expand/collapse code; no margin shoves anymore
 
-    // Nav highlighting
+    // Nav highlighting + clicks
     shell.querySelectorAll('.sidebar .item[data-link]').forEach(el => {
       const href = el.getAttribute('data-link') || '';
       el.addEventListener('click', () => (href ? (location.href = href) : null));
       const here = location.pathname.split('/').pop();
       if (here && href.split('?')[0] === here.split('?')[0]) el.classList.add('active');
     });
-
-    /* NEW: copy each item's <span> label into data-title for the hover flyout */
-    (function labelizeSidebarItems() {
-      const items = shell.querySelectorAll('.sidebar .item');
-      items.forEach(el => {
-        const label = (el.querySelector('span')?.textContent || '').trim();
-        if (label) {
-          el.setAttribute('data-title', label);          // used by CSS ::after
-          if (!el.getAttribute('aria-label')) {
-            el.setAttribute('aria-label', label);        // accessibility bonus
-          }
-        }
-      });
-    })();
 
     // Logout
     const logoutBtn = document.getElementById('pu-logout');
@@ -157,7 +194,6 @@
 
     const tbody =
       table.tBodies?.[0] || table.querySelector('tbody') || table;
-    // Prefer header count; fall back to first row’s cell count; last resort 1
     const colCount =
       (table.tHead && table.tHead.rows[0]?.cells.length) ||
       (table.rows[0]?.cells.length) ||
@@ -165,13 +201,13 @@
 
     tbody.innerHTML =
       `<tr class="table-empty-row" role="status" aria-live="polite">
-         <td colspan="${colCount}">
-           <div class="table-empty">${htmlMessage}</div>
+         <td colspan="\${colCount}">
+           <div class="table-empty">\${htmlMessage}</div>
          </td>
        </tr>`;
   }
 
-  // NEW: unified helper for tab + header titles
+  // Unified helper for tab + header titles
   function setTitles(pageName) {
     const full = `PowerUp — ${pageName}`;
     document.title = full;   // browser tab
@@ -195,7 +231,6 @@
     root.style.setProperty('--header-h', `${headerH}px`);
     root.style.setProperty('--table-max', `${tableMax}px`);
 
-    /* 👇 IMPORTANT: also re-measure dashboard table scrollers */
     try { window.PU && window.PU.sizeDashboardTables && window.PU.sizeDashboardTables(); } catch {}
   }
   window.addEventListener('resize', fitDashboardBlocks);
@@ -260,17 +295,13 @@
 
 /* Viewport-aware height for ONLY the 3 dashboard tab tables (no wheel hijack) */
 (function () {
-  // Only run on the dashboard page
-  function onDashboard() {
-    return document.body.classList.contains('dashboard');
-  }
+  function onDashboard() { return document.body.classList.contains('dashboard'); }
 
-  const BOTTOM_PAD = 24; // small breathing room
+  const BOTTOM_PAD = 24;
   const TABLE_IDS = ['ci-table', 'safety-table', 'quality-table'];
 
   function sizeFor(el) {
     if (!el) return;
-    // Use the scroll container if present, otherwise the table itself
     const scroller = el.closest('.table-scroll') || el;
     const vH  = window.innerHeight || document.documentElement.clientHeight;
     const top = scroller.getBoundingClientRect().top;
@@ -284,33 +315,27 @@
     TABLE_IDS.forEach(id => sizeFor(document.getElementById(id)));
   }
 
-  // Expose so renderers can call after data loads or filters change
   window.PU = window.PU || {};
   window.PU.sizeDashboardTables = sizeDashboardTables;
 
-  // “Soon” helper — handles late reflows (fonts, filters, etc.)
   function sizeSoon() {
     sizeDashboardTables();
     requestAnimationFrame(sizeDashboardTables);
     setTimeout(sizeDashboardTables, 120);
   }
 
-  // Initial + resize
   window.addEventListener('load',   sizeSoon, { once: true });
   window.addEventListener('resize', sizeSoon);
 
-  // When switching tabs, recalc after DOM flips visibility
   document.addEventListener('click', e => {
     if (e.target.closest('.tab-button')) setTimeout(sizeSoon, 0);
   });
 
-  // If your content column shifts (sidebar expand/collapse), recalc
   const content = document.getElementById('pu-content');
   if (content && 'ResizeObserver' in window) {
     new ResizeObserver(sizeSoon).observe(content);
   }
 
-  // If layout recomputes header height elsewhere, nudge tables too
   const oldFit = window.fitDashboardBlocks;
   if (typeof oldFit === 'function') {
     window.fitDashboardBlocks = function () {
