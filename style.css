@@ -831,4 +831,62 @@ body.sidebar-expanded #pu-content.content {
 #lt-table td:nth-child(7) { font-variant-numeric: tabular-nums; }
 
 
+/* === Hover-reveal flyouts for collapsed sidebar === */
+.sidebar .item { position: relative; }
+
+/* Only when collapsed (72px) */
+.sidebar:not(.expanded) .item::after {
+  content: attr(data-title);
+  position: absolute;
+  top: 50%;
+  left: calc(100% - 8px);               /* slightly tucked under the bar */
+  transform: translate(-10px, -50%);    /* start a bit hidden */
+  opacity: 0;
+  pointer-events: none;
+
+  /* Match your theme */
+  background: var(--card-bg, #0f1a1a);
+  color: var(--text, #e5e7eb);
+  border: 1.5px solid var(--accent, #00ffc6);
+  border-left: none;                     /* feels connected to the bar */
+  border-top-right-radius: 10px;
+  border-bottom-right-radius: 10px;
+
+  padding: 10px 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  z-index: 2000;                         /* overlap page content */
+  box-shadow: 0 8px 20px rgba(0,0,0,.35),
+              0 0 0 1px rgba(255,255,255,.04) inset;
+  transition: transform .18s ease, opacity .18s ease;
+}
+
+/* Reveal on hover (only the label slides in; bar stays put) */
+.sidebar:not(.expanded) .item:hover::after {
+  transform: translate(0, -50%);
+  opacity: 1;
+}
+
+/* Keep only the icon “glow”; don’t tint the full button */
+.sidebar:not(.expanded) .item:hover {
+  background: transparent;              /* don't highlight whole row */
+  box-shadow: none;                      /* keep your current glow behavior focused on the icon */
+}
+
+/* Stronger icon glow on hover (matches your vibe) */
+.sidebar .item i { transition: color .15s ease, text-shadow .15s ease; }
+.sidebar .item:hover i {
+  color: var(--accent);
+  text-shadow: 0 0 8px rgba(0,255,198,.45);
+}
+
+/* When expanded, you already show text inside <span>; hide the flyout entirely */
+.sidebar.expanded .item::after,
+body.sidebar-expanded .sidebar .item::after { display: none; }
+
+/* Optional: keep flyout readable near bottom edge on small screens */
+@media (max-height: 540px) {
+  .sidebar:not(.expanded) .item::after { max-width: 60vw; }
+}
+
 
