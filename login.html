@@ -292,7 +292,10 @@
 
     /* ---------------- Login with resilient loop + dynamic status ---------------- */
     async function doLoginLoop(id, overallMs) {
-      setBusy(true);
+      // show splash while login loop runs
+      if (window.Splash && typeof window.Splash.play === 'function') {
+        Splash.play();
+      }
       startNarrator(1);
 
       const deadline = Date.now() + (overallMs || 120000); // default 2 minutes
