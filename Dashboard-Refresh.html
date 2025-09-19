@@ -419,14 +419,6 @@
         });
       });
     }
-    function titleizeSidebar(root=document) {
-      root.querySelectorAll('.sidebar .item').forEach(item => {
-        const txt = (item.querySelector('span')?.textContent || item.getAttribute('aria-label') || '').trim();
-        if (!txt) return;
-        if (!item.title) item.title = txt;
-        const ico = item.querySelector('i'); if (ico && !ico.title) ico.title = txt;
-      });
-    }
     document.addEventListener('DOMContentLoaded', () => { titleizeSidebar(); });
     document.addEventListener('data-hydrated', () => { titleizeTables(); titleizeSidebar(); });
   })();
@@ -528,4 +520,5 @@
 
 </body>
 </html>
+
 
