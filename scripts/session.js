@@ -178,3 +178,27 @@
   P.session = { get, set, clear, requireLogin, loginWithId, initHeader, logout };
   window.PowerUp = P;
 })(window.PowerUp || {});
+
+// Show splash for ~1.8s, then fade + redirect.
+PowerUp.session.playSplashThenGo = function (nextUrl = 'Dashboard-Refresh.html', totalMs = 1800) {
+  try {
+    let el = document.getElementById('pu-splash');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'pu-splash';
+      el.innerHTML = '<div class="pu-splash-inner"><img src="assets/favicon.svg" alt="PowerUp" width="120" height="120"></div>';
+      document.body.appendChild(el);
+    }
+    el.hidden = false;
+    // force reflow so the 'on' class transitions
+    void el.offsetWidth;
+    el.classList.add('on');
+
+    // start fade slightly before redirect
+    setTimeout(() => el.classList.add('fade'), Math.max(0, totalMs - 500));
+    setTimeout(() => { location.href = nextUrl; }, totalMs);
+  } catch {
+    location.href = nextUrl;
+  }
+};
+
