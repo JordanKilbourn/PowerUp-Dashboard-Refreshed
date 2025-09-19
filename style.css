@@ -1065,4 +1065,22 @@ body.sidebar-expanded #pu-content.content {
 .sidebar.sidebar--hover .sidebar-spacer{ flex: 1; }
 
 
+/* Splash shown after successful login (not a loading screen) */
+#pu-splash{
+  position: fixed; inset: 0; display: grid; place-items: center;
+  background: #081214; z-index: 100000; opacity: 0; pointer-events: none;
+  transition: opacity .5s ease;
+}
+#pu-splash.on{ opacity: 1; pointer-events: auto; }
+#pu-splash.on.fade{ opacity: 0; }
+
+#pu-splash .pu-splash-inner{
+  animation: puSplashPop .6s ease both;
+  filter: drop-shadow(0 8px 30px rgba(0,0,0,.45));
+}
+@keyframes puSplashPop{
+  0%{ transform: scale(.9); opacity: 0; }
+  100%{ transform: scale(1); opacity: 1; }
+}
+
 
