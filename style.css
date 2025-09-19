@@ -25,6 +25,9 @@
 
   /* Squad details: vertical space above the two scrollers */
   --sqd-top-stack: 260px;
+
+  /* Sidebar rail (constant) */
+  --sidebar-w: 72px;
 }
 
 /* === 2) Reset / base === */
@@ -34,8 +37,7 @@ html, body {
   font-family: 'Inter', sans-serif;
   background: var(--bg);
   color: var(--text);
-  /* Page itself doesn’t scroll; inner blocks manage scroll */
-  overflow: hidden;
+  overflow: hidden; /* Page itself doesn’t scroll; inner blocks manage scroll */
 }
 
 /* === 3) Top cards row === */
@@ -44,8 +46,7 @@ body.dashboard .top-cards {
   gap: 20px;
   padding: 15px 20px 16px 20px;
   background: var(--bg);
-  /* NEW: allow wrapping on narrow screens */
-  flex-wrap: wrap;
+  flex-wrap: wrap; /* wrap on narrow screens */
 }
 .card { background: var(--card-bg); padding: 15px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,.4); transition: transform .3s, box-shadow .3s; }
 .card:hover { transform: translateY(-2px); box-shadow: 0 4px 10px rgba(20,226,181,.3); }
@@ -75,8 +76,6 @@ body.dashboard .power-card h3 { font-size: 16px; margin-bottom: 5px; color: var(
   padding: 0 20px;
   background: var(--bg);
   border-bottom: 2px solid var(--accent);
-
-  /* NEW: keep tabs visible under sticky header */
   position: sticky;
   top: var(--header-h);
   z-index: 5; /* below header (z:10), above tables */
@@ -103,26 +102,20 @@ body.dashboard .power-card h3 { font-size: 16px; margin-bottom: 5px; color: var(
 
 /* The table “block” owns the only scrollbar on the page */
 .table-scroll {
-  --table-max: 520px;            /* JS can override; this is a safe fallback */
+  --table-max: 520px; /* JS can override; safe fallback */
   height: var(--table-max);
   max-height: var(--table-max);
-  overflow-y: auto;
-  overflow-x: auto;
+  overflow: auto;
   border: 1px solid #2d3f3f;
   border-radius: 6px;
-  padding-bottom: 4px;           /* tiny buffer so the bar never hugs the edge */
+  padding-bottom: 4px;
   position: relative;
-
-  /* Themed, visible scrollbars */
-  scrollbar-width: thin;                                  /* Firefox */
+  scrollbar-width: thin; /* Firefox */
   scrollbar-color: rgba(0,255,198,.45) rgba(255,255,255,.06);
-  -ms-overflow-style: auto;                               /* Old Edge */
-  overscroll-behavior: contain;                           /* avoid scroll chaining */
+  -ms-overflow-style: auto;
+  overscroll-behavior: contain;
 }
-.table-scroll::-webkit-scrollbar {                        /* Chromium/WebKit */
-  height: 10px;                                           /* horizontal bar */
-  width: 10px;                                            /* vertical bar */
-}
+.table-scroll::-webkit-scrollbar { height: 10px; width: 10px; }
 .table-scroll::-webkit-scrollbar-track {
   background: #0f1a1a;
   border-radius: 8px;
@@ -131,13 +124,13 @@ body.dashboard .power-card h3 { font-size: 16px; margin-bottom: 5px; color: var(
 .table-scroll::-webkit-scrollbar-thumb {
   background: linear-gradient(180deg, rgba(0,255,198,.6), rgba(0,255,198,.35));
   border-radius: 8px;
-  border: 2px solid #0f1a1a;                              /* pill look */
+  border: 2px solid #0f1a1a;
 }
 .table-scroll::-webkit-scrollbar-thumb:hover {
   background: linear-gradient(180deg, rgba(0,255,198,.8), rgba(0,255,198,.5));
 }
 
-/* === Generic table base inside .table-scroll (restores styling for ALL pages) === */
+/* Generic table base inside .table-scroll */
 .table-scroll table { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .table-scroll th, .table-scroll td {
   padding: 6px 8px;
@@ -146,7 +139,6 @@ body.dashboard .power-card h3 { font-size: 16px; margin-bottom: 5px; color: var(
   text-overflow: ellipsis;
   vertical-align: middle;
 }
-
 
 /* keep page/outer columns clean (no page scrollbar) */
 body::-webkit-scrollbar, .main::-webkit-scrollbar { width: 0; height: 0; }
@@ -187,7 +179,6 @@ body::-webkit-scrollbar, .main::-webkit-scrollbar { width: 0; height: 0; }
   font-weight: 700;
   color: #e5e7eb;
 }
-
 
 /* === 6) Notes page (unchanged) === */
 body.notes .notes-controls { padding: 20px; background: var(--card-bg); border-bottom: 2px solid var(--accent); }
@@ -276,53 +267,15 @@ body.notes .note-editor:empty:before { content: attr(data-placeholder); color: v
 #ci-table tbody tr, #safety-table tbody tr, #quality-table tbody tr { height: 36px; border-bottom: 1px solid rgba(255,255,255,.06); }
 #ci-table thead th, #safety-table thead th, #quality-table thead th { background: #213331; border-bottom: 1px solid #1f2940; color: var(--accent); }
 
-/* Power Hours + Level Tracker header theme (match main tables) */
-.table-scroll #ph-table thead th,
-.table-scroll #lt-table thead th {
-  position: sticky;     /* same sticky behavior */
-  top: 0;
-  z-index: 4;
-  background: #213331;
-  border-bottom: 1px solid #1f2940;
-  color: var(--accent);
-  font-weight: 600;     /* same as main tables */
-  font-size: 12.5px;    /* same as main tables */
-  letter-spacing: 0;
-}
-
-/* Power Hours + Level Tracker body cell typography (match main tables) */
-.table-scroll #ph-table th,
-.table-scroll #ph-table td,
-.table-scroll #lt-table th,
-.table-scroll #lt-table td {
-  padding: 6px 8px;             /* same spacing */
-  font-size: 12.5px;            /* same size */
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  vertical-align: middle;
-  font-family: 'Inter', sans-serif;
-  color: var(--text);           /* force same text color */
-}
-
-#ph-table thead th, #lt-table thead th { background: #213331; border-bottom: 1px solid #1f2940; color: var(--accent); }
-
-
-/* === Power Hours & Level Tracker table widths (match dashboard style) === */
-#ph-table { min-width: 1100px; }  /* Power Hours */
-#lt-table { min-width: 1200px; }  /* Level Tracker */
-
 /* Keep headers pinned at the top of the .table-scroll while rows scroll */
 .table-scroll thead th {
   position: sticky;
   top: 0;
-  z-index: 4;              /* above tbody rows */
-  background: #213331;     /* ensure not transparent while sticky */
+  z-index: 4;
+  background: #213331;
 }
-
-/* Optional: slight divider under the header while scrolling */
 .table-scroll thead {
-  position: sticky;        /* helps some browsers keep the row as a group */
+  position: sticky;
   top: 0;
   z-index: 3;
   background: #213331;
@@ -345,7 +298,7 @@ body.notes .note-editor:empty:before { content: attr(data-placeholder); color: v
 #quality-table td:first-child .btn.small:hover,
 .view-btn:hover{ background:var(--accent); color:#06201a; box-shadow:0 0 0 3px rgba(0,255,198,.12); }
 
-/* CI column widths (works for admin/non-admin) */
+/* CI column widths */
 #ci-table th:nth-child(2),  #ci-table td:nth-child(2),
 #ci-table th:nth-child(3),  #ci-table td:nth-child(3)  { width: 96px; }
 #ci-table th:nth-child(3),  #ci-table td:nth-child(3),
@@ -384,168 +337,70 @@ body.notes .note-editor:empty:before { content: attr(data-placeholder); color: v
 #safety-table tbody td:last-child { width: 120px; }
 
 /* Quality widths — compact QC, generous Description */
-#quality-table { table-layout: fixed; } /* already set globally, harmless duplicate */
-
-/* 1 = View (handled by .view-col at 68px) */
-/* 2 = Catch ID */
-#quality-table th:nth-child(2), #quality-table td:nth-child(2) { width: 110px; }
-/* 3 = Entry Date */
-#quality-table th:nth-child(3), #quality-table td:nth-child(3) { width: 120px; }
-/* 4 = Submitted By */
-#quality-table th:nth-child(4), #quality-table td:nth-child(4) { width: 160px; }
-/* 5 = Area */
-#quality-table th:nth-child(5), #quality-table td:nth-child(5) { width: 140px; }
-/* 6 = Quality Catch (narrowed) */
-#quality-table th:nth-child(6), #quality-table td:nth-child(6) { width: 180px; }
-/* 7 = Part Number */
-#quality-table th:nth-child(7), #quality-table td:nth-child(7) { width: 140px; }
-/* 8 = Description (soaks remaining space + wraps) */
-#quality-table th:nth-child(8), #quality-table td:nth-child(8) { width: auto; }
-#quality-table td:nth-child(8) { white-space: normal; } /* override global nowrap for wrapping */
-
+#quality-table th:nth-child(2), #quality-table td:nth-child(2) { width: 110px; } /* Catch ID */
+#quality-table th:nth-child(3), #quality-table td:nth-child(3) { width: 120px; } /* Entry Date */
+#quality-table th:nth-child(4), #quality-table td:nth-child(4) { width: 160px; } /* Submitted By */
+#quality-table th:nth-child(5), #quality-table td:nth-child(5) { width: 140px; } /* Area */
+#quality-table th:nth-child(6), #quality-table td:nth-child(6) { width: 180px; } /* Quality Catch */
+#quality-table th:nth-child(7), #quality-table td:nth-child(7) { width: 140px; } /* Part Number */
+#quality-table th:nth-child(8), #quality-table td:nth-child(8) { width: auto; }  /* Description gets rest */
+#quality-table td:nth-child(8) { white-space: normal; } /* allow wrapping */
 
 /* Zebra + refined hover */
 .table-scroll tbody tr:nth-child(odd) { background: rgba(255,255,255,0.03); }
 .table-scroll tbody tr:hover { background: rgba(0,0,0,0.18); }
 
-/* === PH/LT: force identical row theming to main tables === */
-/* Base row border */
-#ph-table tbody tr,
-#lt-table tbody tr {
-  border-bottom: 1px solid rgba(255,255,255,.06);
-}
-
-/* Explicit even/odd colors to avoid any page/card overrides */
-#ph-table tbody tr:nth-child(even),
-#lt-table tbody tr:nth-child(even) {
-  /* matches the darker “base” feel from main dashboard tables */
-  background: rgba(0,0,0,0.12);
-}
-#ph-table tbody tr:nth-child(odd),
-#lt-table tbody tr:nth-child(odd) {
-  background: rgba(255,255,255,0.03);
-}
-
-/* Hover — same as main */
-#ph-table tbody tr:hover,
-#lt-table tbody tr:hover {
-  background: rgba(0,0,0,0.18);
-}
-
-/* Header bottom rule (= main) */
-#ph-table thead th,
-#lt-table thead th {
+/* PH/LT theming to match main tables */
+#ph-table tbody tr, #lt-table tbody tr { border-bottom: 1px solid rgba(255,255,255,.06); }
+#ph-table tbody tr:nth-child(even), #lt-table tbody tr:nth-child(even) { background: rgba(0,0,0,0.12); }
+#ph-table tbody tr:nth-child(odd),  #lt-table tbody tr:nth-child(odd)  { background: rgba(255,255,255,0.03); }
+#ph-table tbody tr:hover,            #lt-table tbody tr:hover          { background: rgba(0,0,0,0.18); }
+#ph-table thead th,                  #lt-table thead th {
   border-bottom: 1px solid #1f2940;
+  background: #213331;
+  color: var(--accent);
+  position: sticky; top: 0; z-index: 4;
 }
+#ph-table, #lt-table { background: transparent; color: var(--text); }
 
-/* Don’t let outer cards tint these tables */
-#ph-table,
-#lt-table {
-  background: transparent;
-  color: var(--text);
-}
-
-/* === PH/LT: header & cell alignment === */
-/* Keep all headers left-aligned like the main dashboard tables */
-#ph-table thead th,
-#lt-table thead th {
-  text-align: left;
-}
-
-/* Default cells left, then override per-column for clarity */
-/* ---- Power Hours (#ph-table) ----
-   Columns: 1 Date | 2 Start | 3 End | 4 Completed Hours | 5 Scheduled | 6 Completed | 7 Topic */
-#ph-table td:nth-child(2), /* Start  */
-#ph-table td:nth-child(3), /* End    */
-#ph-table td:nth-child(5), /* Scheduled (badge) */
-#ph-table td:nth-child(6)  /* Completed (badge) */
-{ text-align: center; }
-
-#ph-table td:nth-child(4)  /* Completed Hours (numeric) */
-{ text-align: right; }
-
-/* ---- Level Tracker (#lt-table) ----
-   Column 1 is Month (left); the rest are counts/flags — center them for quick column tracing */
+/* PH/LT: alignment */
+#ph-table td:nth-child(2), #ph-table td:nth-child(3),
+#ph-table td:nth-child(5), #ph-table td:nth-child(6) { text-align: center; }
+#ph-table td:nth-child(4) { text-align: right; }
 #lt-table td:nth-child(n+2) { text-align: center; }
-#lt-table td:first-child    { text-align: left;  }
+#lt-table td:first-child { text-align: left; }
+#ph-table th, #ph-table td, #lt-table th, #lt-table td { padding: 6px 8px; vertical-align: middle; }
 
-/* Keep header/cell padding consistent with main tables for visual alignment */
-#ph-table th, #ph-table td,
-#lt-table th, #lt-table td {
-  padding: 6px 8px;
-  vertical-align: middle;
-}
-
-/* === PH/LT: force same borders + zebra + hover as main tables === */
-/* Row bottom borders */
-#ph-table tbody tr,
-#lt-table tbody tr {
-  border-bottom: 1px solid rgba(255,255,255,.06);
-}
-
-/* Header bottom rule */
-#ph-table thead th,
-#lt-table thead th {
-  border-bottom: 1px solid #1f2940;
-}
-
-/* Zebra striping (explicit to beat overrides) */
-#ph-table tbody tr:nth-child(odd),
-#lt-table tbody tr:nth-child(odd) {
-  background: rgba(255,255,255,0.03);
-}
-
-/* Hover color (explicit to beat overrides) */
-#ph-table tbody tr:hover,
-#lt-table tbody tr:hover {
-  background: rgba(0,0,0,0.18);
-}
-
-/* Don’t let outer cards tint the table */
-#ph-table,
-#lt-table {
-  background: transparent;
-  color: var(--text);
-}
+/* PH/LT: widths */
+#ph-table { min-width: 1100px; }
+#lt-table { min-width: 1200px; }
+#ph-table th:nth-child(1),  #ph-table td:nth-child(1)  { width: 140px; } /* Date */
+#ph-table th:nth-child(2),  #ph-table td:nth-child(2)  { width: 110px; } /* Start */
+#ph-table th:nth-child(3),  #ph-table td:nth-child(3)  { width: 110px; } /* End */
+#ph-table th:nth-child(4),  #ph-table td:nth-child(4)  { width: 140px; } /* Completed Hours */
+#ph-table th:nth-child(5),  #ph-table td:nth-child(5)  { width: 140px; } /* Scheduled */
+#ph-table th:nth-child(6),  #ph-table td:nth-child(6)  { width: 140px; } /* Completed */
+#lt-table th:nth-child(1),  #lt-table td:nth-child(1)  { width: 160px; } /* Month */
+#lt-table th:nth-child(2),  #lt-table td:nth-child(2)  { width: 140px; } /* CI */
+#lt-table th:nth-child(3),  #lt-table td:nth-child(3)  { width: 160px; } /* Safety */
+#lt-table th:nth-child(4),  #lt-table td:nth-child(4)  { width: 170px; } /* Quality */
+#lt-table th:nth-child(5),  #lt-table td:nth-child(5)  { width: 160px; } /* Total */
+#lt-table th:nth-child(6),  #lt-table td:nth-child(6)  { width: 210px; } /* Tues Tutorial */
+#lt-table th:nth-child(7),  #lt-table td:nth-child(7)  { width: 180px; } /* PH Logged */
+#lt-table th:nth-child(8),  #lt-table td:nth-child(8)  { width: 140px; } /* On Team */
+#lt-table th:nth-child(9),  #lt-table td:nth-child(9)  { width: 150px; } /* Leads Team */
+#lt-table th:nth-child(10), #lt-table td:nth-child(10) { width: 210px; } /* Job Relations */
 
 /* Sort arrows */
 th[data-sort="asc"]::after { content: " ▲"; opacity: .7; }
 th[data-sort="desc"]::after { content: " ▼"; opacity: .7; }
 th[data-sort="none"]::after { content: " ⇅"; opacity: .35; }
 
-/* ===== SHARED LAYOUT (sidebar + header) ===== */
+/* ===== SHARED LAYOUT (header + content offset) ===== */
 .container { display: flex; min-height: 100vh; }
 
-/* Fixed sidebar */
-.sidebar {
-  position: fixed; left: 0; top: 0; bottom: 0;
-  width: 72px;
-  display: flex; flex-direction: column;
-  background: #0b1020; border-right: 1px solid #1f2937;
-  padding: 12px; transition: width .2s ease;
-  box-shadow: 2px 0 8px rgba(0,0,0,.6);
-
-  /* NEW: keep above scrolling content */
-  z-index: 1000;
-}
-.sidebar.expanded,
-body.sidebar-expanded .sidebar { width: 220px; }
-
-/* Sidebar items */
-.sidebar .item { display: flex; align-items: center; gap: 12px; padding: 15px; cursor: pointer; color: var(--text); transition: background .2s, transform .2s, box-shadow .2s; }
-.sidebar .item i { font-size: 20px; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; color: rgba(255,255,255,.7); }
-.sidebar .item span { font-size: 16px; display: none; }
-.sidebar.expanded .item span, body.sidebar-expanded .sidebar .item span { display: inline; }
-.sidebar .item:hover { background: var(--card-bg-hover); box-shadow: 0 0 8px var(--accent); transform: scale(1.05); }
-.sidebar .item:hover i { color: var(--accent); }
-.sidebar .item.active { background: var(--card-bg-hover); font-weight: 700; }
-.sidebar .item.active i { color: var(--accent); }
-.sidebar-spacer { flex: 1; }
-.sidebar .item.logout { margin-top: auto; border-top: 1px solid rgba(255,255,255,0.1); }
-.sidebar .item.logout:hover { background: rgba(255,0,0,0.12); color: #ff6b6b; }
-
-/* Sticky header, offset by sidebar width */
-.header {
+/* Header (offset by the constant sidebar rail) */
+#pu-header.header {
   position: sticky; top: 0; z-index: 10;
   display:flex; flex-direction: column; gap: 6px;
   padding: 15px 20px;
@@ -553,12 +408,8 @@ body.sidebar-expanded .sidebar { width: 220px; }
   backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
   border-bottom: 1px solid rgba(0,255,198,.1);
   box-shadow: 0 4px 12px rgba(0,255,198,.08);
-  margin-left: 72px;
-  transition: margin-left .2s ease;
+  margin-left: var(--sidebar-w);
 }
-body.sidebar-expanded .header,
-.sidebar.expanded ~ .main .header { margin-left: 220px; }
-
 .header h1 { font-size: 24px; color: var(--accent); margin-bottom: 0; }
 .header p  { font-size: 14px; color: var(--info); }
 .header p span { color: var(--accent); font-weight: 600; }
@@ -566,22 +417,44 @@ body.sidebar-expanded .header,
 /* Main column */
 .main { flex: 1; display: flex; flex-direction: column; width: 100%; overflow: hidden; }
 
-/* Scrollable page content, offset to clear sidebar */
-.content {
-  margin-left: 72px;
-  transition: margin-left .2s ease;
+/* Scrollable page content, offset to clear sidebar rail */
+#pu-content.content {
+  position: relative;
+  margin-left: var(--sidebar-w);
   height: calc(100vh - var(--header-h));
-  padding: 10px;
-  overflow: hidden; /* inner blocks (tables, scrollers) handle their own scroll */
+  overflow: hidden; /* inner blocks handle their own scroll */
+  padding: 10px 16px 10px 2px;
+  box-sizing: border-box;
 }
-body.sidebar-expanded .content,
-.sidebar.expanded ~ .main .content { margin-left: 220px; }
 
-/* NEW: let content children shrink instead of overflowing */
-#pu-content.content,
-#pu-content.content > * { min-width: 0; }
+/* Safety: wide tables */
+#pu-content.content .table-scroll { max-width: 100%; }
+#pu-content.content .dashboard-table { max-width: 100%; }
 
-.btn.small { padding:6px 10px; border:1px solid #2a354b; background:#111a2f; border-radius:8px; color:#e5e7eb; }
+/* Subtle outline Add button styled like your Squad chips */
+.table-header-controls .add-btn {
+  display:inline-flex; align-items:center; gap:8px;
+  padding:8px 14px;
+  border-radius:8px;
+  border:1.5px solid rgba(0,255,198,.6);
+  background: rgba(0,255,198,.08);
+  color: var(--accent);
+  font-weight:700;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.04), 0 1px 6px rgba(0,0,0,.35);
+  transition: transform .12s ease, box-shadow .12s ease, background-color .12s ease;
+}
+.table-header-controls .add-btn:hover {
+  background: rgba(0,255,198,.12);
+  box-shadow: 0 0 0 3px rgba(0,255,198,.12);
+  transform: translateY(-1px);
+}
+.table-header-controls .add-btn:active { transform: translateY(0); }
+.table-header-controls .add-btn i { font-size:14px; opacity:.9; }
+
+/* NEW: Reduce motion for sensitive users */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}
 
 /* ---------- Chips used in dashboard tables ---------- */
 .dashboard-table .pill { display: inline-block; padding: 3px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; line-height: 1; white-space: nowrap; }
@@ -709,303 +582,32 @@ body.sidebar-expanded .content,
 .kpi-strip { margin-top: 2px; }
 .kpi .k { opacity: .85; }
 
-/* === Shell alignment fix: keep content to the right of the sidebar === */
-:root {
-  --sidebar-w: 72px;         /* collapsed width */
-  --sidebar-w-expanded: 220px;
-  /* --header-h already defined at top; keep single source of truth */
-}
+/* ===========================
+   HOVER-PILL SIDEBAR (clean)
+   One-piece pill widens on hover; no layout push.
+   =========================== */
 
-/* Header (already working for you) */
-#pu-header.header {
-  margin-left: var(--sidebar-w);
-  transition: margin-left .2s ease;
-}
-body.sidebar-expanded #pu-header.header {
-  margin-left: var(--sidebar-w-expanded);
-}
-
-/* Content column: match the sidebar offset just like the header */
-#pu-content.content {
-  position: relative;
-  margin-left: var(--sidebar-w);
-  height: calc(100vh - var(--header-h));
-  overflow: hidden; /* CHANGED: page must not scroll */
-  padding: 10px 16px 10px 2px;
-  box-sizing: border-box;
-  transition: margin-left .2s ease;
-}
-body.sidebar-expanded #pu-content.content {
-  margin-left: var(--sidebar-w-expanded);
-}
-
-/* Safety: wide tables */
-#pu-content.content .table-scroll { max-width: 100%; }
-#pu-content.content .dashboard-table { max-width: 100%; }
-
-/* Subtle outline Add button styled like your Squad chips */
-.table-header-controls .add-btn {
-  display:inline-flex; align-items:center; gap:8px;
-  padding:8px 14px;
-  border-radius:8px;
-
-  border:1.5px solid rgba(0,255,198,.6);
-  background: rgba(0,255,198,.08);
-  color: var(--accent);
-  font-weight:700;
-
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,.04), 0 1px 6px rgba(0,0,0,.35);
-  transition: transform .12s ease, box-shadow .12s ease, background-color .12s ease;
-}
-.table-header-controls .add-btn:hover {
-  background: rgba(0,255,198,.12);
-  box-shadow: 0 0 0 3px rgba(0,255,198,.12);
-  transform: translateY(-1px);
-}
-.table-header-controls .add-btn:active { transform: translateY(0); }
-.table-header-controls .add-btn i { font-size:14px; opacity:.9; }
-
-/* NEW: Reduce motion for sensitive users */
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { transition: none !important; animation: none !important; }
-}
-
-/* === PH & LT COLUMN WIDTHS + ALIGNMENT — match main tables === */
-
-/* POWER HOURS (#ph-table)
-   Columns:
-   1 Date | 2 Start | 3 End | 4 Completed Hours | 5 Scheduled | 6 Completed | 7 Topic
-*/
-#ph-table th:nth-child(1), #ph-table td:nth-child(1) { width: 140px; } /* Date */
-#ph-table th:nth-child(2), #ph-table td:nth-child(2) { width: 110px; text-align: center; } /* Start */
-#ph-table th:nth-child(3), #ph-table td:nth-child(3) { width: 110px; text-align: center; } /* End */
-#ph-table th:nth-child(4), #ph-table td:nth-child(4) { width: 140px; text-align: right; }  /* Completed Hours */
-#ph-table th:nth-child(5), #ph-table td:nth-child(5) { width: 140px; text-align: center; } /* Scheduled (badge) */
-#ph-table th:nth-child(6), #ph-table td:nth-child(6) { width: 140px; text-align: center; } /* Completed (badge) */
-/* Topic gets the remaining space; no fixed width */
-
-/* Make sure badges stay nicely centered in Scheduled/Completed columns */
-#ph-table td:nth-child(5) .pill,
-#ph-table td:nth-child(6) .pill { display: inline-block; }
-
-/* LEVEL TRACKER (#lt-table)
-   Columns:
-   1 Month | 2 CI Submissions | 3 Safety Submissions | 4 Quality Submissions | 5 Total Submissions
-   6 Tuesday Tutorial Attended | 7 Power Hours Logged | 8 On Team | 9 Leads Team | 10 Job Relations Follow-up
-*/
-#lt-table th:nth-child(1),  #lt-table td:nth-child(1)  { width: 160px; text-align: left;  } /* Month */
-#lt-table th:nth-child(2),  #lt-table td:nth-child(2)  { width: 140px; text-align: center; } /* CI Submissions */
-#lt-table th:nth-child(3),  #lt-table td:nth-child(3)  { width: 160px; text-align: center; } /* Safety Submissions */
-#lt-table th:nth-child(4),  #lt-table td:nth-child(4)  { width: 170px; text-align: center; } /* Quality Submissions */
-#lt-table th:nth-child(5),  #lt-table td:nth-child(5)  { width: 160px; text-align: center; } /* Total Submissions */
-#lt-table th:nth-child(6),  #lt-table td:nth-child(6)  { width: 210px; text-align: center; } /* Tuesday Tutorial Attended (✓/–) */
-#lt-table th:nth-child(7),  #lt-table td:nth-child(7)  { width: 180px; text-align: center; } /* Power Hours Logged (number) */
-#lt-table th:nth-child(8),  #lt-table td:nth-child(8)  { width: 140px; text-align: center; } /* On Team (✓/✗) */
-#lt-table th:nth-child(9),  #lt-table td:nth-child(9)  { width: 150px; text-align: center; } /* Leads Team (✓/✗) */
-#lt-table th:nth-child(10), #lt-table td:nth-child(10) { width: 210px; text-align: center; } /* Job Relations Follow-up (✓/✗) */
-
-/* Ensure sticky header background & border exactly match main tables (belt & suspenders) */
-#ph-table thead th, #lt-table thead th {
-  background: #213331;
-  border-bottom: 1px solid #1f2940;
-  color: var(--accent);
-  position: sticky;
-  top: 0;
-  z-index: 4;
-}
-
-/* Keep zebra + hover identical to the dashboard’s main tables (explicit to beat page-specific styles) */
-#ph-table tbody tr:nth-child(odd),
-#lt-table tbody tr:nth-child(odd)   { background: rgba(255,255,255,0.03); }
-#ph-table tbody tr:nth-child(even),
-#lt-table tbody tr:nth-child(even)  { background: rgba(0,0,0,0.12); }
-#ph-table tbody tr:hover,
-#lt-table tbody tr:hover            { background: rgba(0,0,0,0.18); }
-
-/* ============================
-   Compact block sidebar + hover flyout labels
-   (keeps your colors; overlaps content; icon glows)
-   ============================ */
-
-/* Keep the fixed narrow rail */
 .sidebar {
-  width: 72px;                 /* same footprint as before */
-  padding: 12px 12px;
-  background: #0b1020;         /* your current sidebar bg */
+  position: fixed; left: 0; top: 0; bottom: 0;
+  width: var(--sidebar-w);
+  padding: 12px 8px;
+  display: flex; flex-direction: column; gap: 14px;
+  background: #0b1020;
   border-right: 1px solid #1f2937;
   box-shadow: 2px 0 8px rgba(0,0,0,.6);
-  z-index: 1000;               /* keep above content so flyout overlaps */
+  overflow: visible; /* allow pill to overflow to the right */
+  z-index: 1000;
 }
+.sidebar .sidebar-spacer { flex: 1; }
 
-/* Stacked rounded blocks */
+/* Pill (single element). At rest, just the icon is visible inside rail. */
 .sidebar .item {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 48px;
-  height: 48px;
-  margin: 8px 0;               /* space between blocks */
-  border-radius: 14px;         /* “little round-shaped blocks” */
-  background: var(--sidebar-btn-bg, #152424);
-  border: 1px solid rgba(255,255,255,.08);
-  cursor: pointer;
-  transition: transform .12s ease, box-shadow .12s ease;
-}
-
-/* Don’t change the block bg on hover — only the icon glows */
-.sidebar .item:hover {
-  background: var(--sidebar-btn-bg, #152424);
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(0,0,0,.35);
-}
-
-/* Active item (soft outline, no bg change) */
-.sidebar .item.active {
-  box-shadow: 0 0 0 2px rgba(0,255,198,.18);
-  border-color: rgba(0,255,198,.35);
-}
-
-/* Center the icon; glow on hover/active */
-.sidebar .item i {
-  font-size: 20px;
-  color: rgba(255,255,255,.85);
-  transition: color .15s ease, text-shadow .15s ease, filter .15s ease;
-}
-.sidebar .item:hover i,
-.sidebar .item.active i {
-  color: var(--accent);
-  text-shadow: 0 0 10px var(--accent);
-}
-
-/* Hide the inline text; we’ll show a flyout instead */
-.sidebar .item span { 
-  display: none !important;
-}
-
-/* Flyout label that overlaps content (no layout shift) */
-.sidebar .item::after {
-  content: attr(data-title);
-  position: absolute;
-  top: 0;
-  left: 52px;                   /* starts just to the right of the block */
-  height: 48px;
-  line-height: 48px;
-  padding: 0 12px 0 10px;
-  white-space: nowrap;
-  color: var(--text);
-  background: var(--card-bg);
-  border: 1px solid #2d3f3f;
-  border-left: none;
-  border-radius: 0 12px 12px 0;
-  box-shadow: 0 6px 18px rgba(0,0,0,.45), 0 0 0 1px rgba(255,255,255,.04) inset;
-  transform: translateX(-10px);
-  opacity: 0;
-  pointer-events: none;        /* don’t steal hover from the icon */
-  transition: transform .18s ease, opacity .18s ease;
-  z-index: 2000;               /* above page content */
-}
-
-/* Show the flyout on hover */
-.sidebar .item:hover::after {
-  transform: translateX(0);
-  opacity: 1;
-}
-
-/* Keep the “Menu / bars” button visually consistent */
-#pu-toggle-item { 
-  background: #1a2438;
-}
-#pu-toggle-item i { font-size: 18px; }
-
-/* Make sure expanding the sidebar (if you ever toggle) still works */
-.sidebar.expanded .item span { display: inline; } /* harmless if you never expand */
-
-
-
-
-
-
-
-/* ==== Hover-Pill Sidebar (compact, no push) ==== */
-.sidebar.sidebar--hover { 
-  position: fixed; left: 0; top: 0; bottom: 0;
-  width: 72px; padding: 12px 8px; display: flex; flex-direction: column; gap: 14px;
-  background: #0b1020; border-right: 1px solid #1f2937; z-index: 1000;
-}
-.sidebar.sidebar--hover .item {
-  position: relative;
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 56px; height: 56px; margin: 0 auto;
-  border-radius: 14px;
-  background: var(--card-bg);
-  border: 1px solid rgba(255,255,255,.12);
-  box-shadow: 0 2px 6px rgba(0,0,0,.45);
-  color: var(--text);
-  text-decoration: none;
-  overflow: visible;                 /* allow label to extend right */
-  transition: transform .12s ease, box-shadow .12s ease, background .12s ease, border-color .12s ease;
-}
-.sidebar.sidebar--hover .item i {
-  font-size: 22px;
-  color: rgba(255,255,255,.85);
-  transition: filter .12s ease, color .12s ease;
-}
-.sidebar.sidebar--hover .item:hover {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(0,255,198,.12), 0 6px 16px rgba(0,0,0,.45);
-}
-.sidebar.sidebar--hover .item:hover i { color: var(--accent); filter: drop-shadow(0 0 6px rgba(0,255,198,.6)); }
-
-/* Active glow (current page) */
-.sidebar.sidebar--hover .item.active {
-  outline: 0;
-  box-shadow:
-    0 0 0 2px rgba(0,255,198,.65) inset,
-    0 0 10px rgba(0,255,198,.55),
-    0 0 0 3px rgba(0,255,198,.18);
-  border-color: var(--accent);
-}
-.sidebar.sidebar--hover .item.active i { color: var(--accent); }
-
-/* One-piece expanding label (same element) */
-.sidebar.sidebar--hover .item .label {
-  position: absolute; left: 56px; top: 0;
-  height: 100%; display: inline-flex; align-items: center;
-  padding: 0 12px;
-  background: var(--card-bg);               /* match pill */
-  border: 1px solid rgba(255,255,255,.12);  /* same border */
-  border-left: none;                        /* seamless join */
-  border-top-right-radius: 14px;
-  border-bottom-right-radius: 14px;
-  color: var(--text);
-  white-space: nowrap;
-  opacity: 0; transform: translateX(6px);
-  pointer-events: none;
-  transition: opacity .12s ease, transform .12s ease;
-}
-.sidebar.sidebar--hover .item:hover .label { opacity: 1; transform: translateX(0); }
-
-/* Keep Logout spaced at bottom */
-.sidebar.sidebar--hover .sidebar-spacer { flex: 1; }
-
-
-
-
-
-/* ==== Hover-Pill Sidebar (one-piece slide-out) ==== */
-
-/* The rail is still 72px wide; children can overflow to the right */
-.sidebar.sidebar--hover { overflow: visible; z-index: 1000; }
-
-/* The pill (single element): center icon, but allow label space on hover */
-.sidebar.sidebar--hover .item{
   position: relative;
   display: inline-flex;
   align-items: center;
-  justify-content: flex-start;      /* icon at the left */
+  justify-content: flex-start;    /* icon left, text reveals on right */
   gap: 12px;
-  width: 56px;                      /* compact width in the rail */
+  width: 56px;                    /* fits within 72px rail */
   height: 56px;
   padding: 0 14px;
   margin: 0 auto;
@@ -1018,54 +620,50 @@ body.sidebar-expanded #pu-content.content {
   transition: width .18s ease, box-shadow .12s ease, border-color .12s ease;
 }
 
-/* icon look */
-.sidebar.sidebar--hover .item i{
+/* Icon glow behavior */
+.sidebar .item i {
   font-size: 22px;
   color: rgba(255,255,255,.85);
   transition: color .12s ease, filter .12s ease;
 }
-
-/* when hovered, the SAME pill widens; no separate bubble */
-.sidebar.sidebar--hover .item:hover{
-  width: 220px;                     /* overflows the rail to the right */
+.sidebar .item:hover {
+  width: 220px;                   /* expand over page content (no push) */
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(0,255,198,.12), 0 6px 16px rgba(0,0,0,.45);
 }
-.sidebar.sidebar--hover .item:hover i{
+.sidebar .item:hover i {
   color: var(--accent);
   filter: drop-shadow(0 0 6px rgba(0,255,198,.6));
 }
 
-/* active page glow */
-.sidebar.sidebar--hover .item.active{
+/* Active pill (current page) */
+.sidebar .item.active {
   border-color: var(--accent);
   box-shadow:
     0 0 0 2px rgba(0,255,198,.65) inset,
     0 0 10px rgba(0,255,198,.55),
     0 0 0 3px rgba(0,255,198,.18);
 }
-.sidebar.sidebar--hover .item.active i{ color: var(--accent); }
+.sidebar .item.active i { color: var(--accent); }
 
-/* label lives INSIDE the pill; we just reveal space for it */
-.sidebar.sidebar--hover .item .label{
-  display: inline-block;
-  max-width: 0;                     /* hidden by default */
+/* The text label lives INSIDE the pill; we simply reveal space for it */
+.sidebar .item .label {
+  display: inline-block;          /* keep visible when space allows */
+  max-width: 0;                   /* hidden at rest */
   opacity: 0;
   overflow: hidden;
   white-space: nowrap;
   color: var(--text);
   transition: max-width .18s ease, opacity .12s ease;
 }
-.sidebar.sidebar--hover .item:hover .label{
-  max-width: 140px;                 /* reveal */
+.sidebar .item:hover .label {
+  max-width: 140px;               /* smoothly reveals with width */
   opacity: 1;
 }
 
-/* keep logout at the bottom */
-.sidebar.sidebar--hover .sidebar-spacer{ flex: 1; }
+/* ---------- End Sidebar ---------- */
 
-
-/* Splash shown after successful login (not a loading screen) */
+/* Splash shown after successful login (optional; controlled by JS) */
 #pu-splash{
   position: fixed; inset: 0; display: grid; place-items: center;
   background: #081214; z-index: 100000; opacity: 0; pointer-events: none;
@@ -1073,7 +671,6 @@ body.sidebar-expanded #pu-content.content {
 }
 #pu-splash.on{ opacity: 1; pointer-events: auto; }
 #pu-splash.on.fade{ opacity: 0; }
-
 #pu-splash .pu-splash-inner{
   animation: puSplashPop .6s ease both;
   filter: drop-shadow(0 8px 30px rgba(0,0,0,.45));
@@ -1082,5 +679,3 @@ body.sidebar-expanded #pu-content.content {
   0%{ transform: scale(.9); opacity: 0; }
   100%{ transform: scale(1); opacity: 1; }
 }
-
-
