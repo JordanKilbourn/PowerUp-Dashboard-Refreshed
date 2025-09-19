@@ -989,3 +989,80 @@ body.sidebar-expanded #pu-content.content {
 /* Keep Logout spaced at bottom */
 .sidebar.sidebar--hover .sidebar-spacer { flex: 1; }
 
+
+
+
+
+/* ==== Hover-Pill Sidebar (one-piece slide-out) ==== */
+
+/* The rail is still 72px wide; children can overflow to the right */
+.sidebar.sidebar--hover { overflow: visible; z-index: 1000; }
+
+/* The pill (single element): center icon, but allow label space on hover */
+.sidebar.sidebar--hover .item{
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;      /* icon at the left */
+  gap: 12px;
+  width: 56px;                      /* compact width in the rail */
+  height: 56px;
+  padding: 0 14px;
+  margin: 0 auto;
+  border-radius: 14px;
+  background: var(--card-bg);
+  border: 1px solid rgba(255,255,255,.12);
+  box-shadow: 0 2px 6px rgba(0,0,0,.45);
+  color: var(--text);
+  text-decoration: none;
+  transition: width .18s ease, box-shadow .12s ease, border-color .12s ease;
+}
+
+/* icon look */
+.sidebar.sidebar--hover .item i{
+  font-size: 22px;
+  color: rgba(255,255,255,.85);
+  transition: color .12s ease, filter .12s ease;
+}
+
+/* when hovered, the SAME pill widens; no separate bubble */
+.sidebar.sidebar--hover .item:hover{
+  width: 220px;                     /* overflows the rail to the right */
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(0,255,198,.12), 0 6px 16px rgba(0,0,0,.45);
+}
+.sidebar.sidebar--hover .item:hover i{
+  color: var(--accent);
+  filter: drop-shadow(0 0 6px rgba(0,255,198,.6));
+}
+
+/* active page glow */
+.sidebar.sidebar--hover .item.active{
+  border-color: var(--accent);
+  box-shadow:
+    0 0 0 2px rgba(0,255,198,.65) inset,
+    0 0 10px rgba(0,255,198,.55),
+    0 0 0 3px rgba(0,255,198,.18);
+}
+.sidebar.sidebar--hover .item.active i{ color: var(--accent); }
+
+/* label lives INSIDE the pill; we just reveal space for it */
+.sidebar.sidebar--hover .item .label{
+  display: inline-block;
+  max-width: 0;                     /* hidden by default */
+  opacity: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  color: var(--text);
+  transition: max-width .18s ease, opacity .12s ease;
+}
+.sidebar.sidebar--hover .item:hover .label{
+  max-width: 140px;                 /* reveal */
+  opacity: 1;
+}
+
+/* keep logout at the bottom */
+.sidebar.sidebar--hover .sidebar-spacer{ flex: 1; }
+
+
+
