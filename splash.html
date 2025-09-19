@@ -501,5 +501,22 @@ function getNextSetIndex(){
   return idx;
 }
 </script>
+
+  <script>
+  (function () {
+    const params = new URLSearchParams(location.search);
+    const next = params.get('next') || 'Dashboard-Refresh.html';
+
+    // call this after your 7s animation OR on "Skip" click
+    window.PUSplashGo = function () {
+      // fade out if you want, then:
+      window.location.replace(next);
+    };
+
+    // Auto-advance after 7s (or whatever you want)
+    setTimeout(() => window.PUSplashGo(), 7000);
+  })();
+</script>
+
 </body>
 </html>
