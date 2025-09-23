@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <script>
+  // Require a session; bounce to login if missing
   !function () {
     try {
       const s = JSON.parse(sessionStorage.getItem('pu.session') || 'null')
@@ -27,8 +28,8 @@
   <style>
     :root { --header-h: 72px; }
 
-    /* Page container now fills the available content width (no conflict with #pu-content) */
-    .page-wrap { width: 100%; margin: 0; padding: 14px; display: grid; gap: 14px; padding-top: 10px; }
+    /* Page container fills content column, consistent padding */
+    .page-wrap { width: 100%; margin: 0; padding: 14px 14px 24px; display: grid; gap: 14px; }
 
     .btn { padding:8px 12px; border-radius:8px; border:1px solid var(--accent); background:var(--card-bg); color:var(--text); cursor:pointer; }
     .btn:hover { background: var(--card-bg-hover); }
@@ -38,21 +39,21 @@
     .pill--on  { background: var(--success); color:#062; }
     .pill--off { background:#3a4e4e; color:#fff; }
 
-    /* ========== HERO SUMMARY BAND ========== */
+    /* ========== HERO SUMMARY BAND (Back button lives in this grid) ========== */
     .hero {
       background: var(--panel, #0f151a);
       border: 1px solid rgba(255,255,255,.06);
       border-radius: 12px;
       padding: 10px 14px;
     }
-    /* 5 info cells + 1 button column; align everything on the same row */
     .hero-grid {
       display: grid;
-      grid-template-columns: repeat(5, minmax(160px, 1fr)) auto;
+      grid-template-columns: repeat(5, minmax(160px, 1fr)) auto; /* 5 fact cells + button cell */
       gap: 12px;
-      align-items: center; /* vertically centers the Back button with the text cells */
+      align-items: center; /* vertically center the row */
     }
-    .hero-grid .back { justify-self: end; } /* push Back to the far right */
+    .hero-grid .back { justify-self: end; }
+    .hero-grid .back .btn { white-space: nowrap; line-height: 1; }
 
     @media (max-width: 1100px) {
       .hero-grid { grid-template-columns: 1fr 1fr; }
@@ -100,8 +101,10 @@
 
     /* Members (left) */
     .members-scroll {
-      overflow: auto; border:1px solid #263636; border-radius:8px;
-      height: auto; max-height: none; /* JS will size these */
+      max-height: calc(100vh - var(--header-h, 72px) - 300px);
+      overflow: auto;
+      border:1px solid #263636; border-radius:8px;
+      margin-bottom: 12px; /* breathing room at bottom */
     }
     .members-table { width:100%; border-collapse:collapse; font-size:13px; }
     .members-table th, .members-table td { padding:6px 8px; border-bottom:1px solid #1c2929; vertical-align:top; line-height:1.25; }
@@ -123,8 +126,10 @@
     .acts-tools select { padding:6px 10px; border-radius:8px; background:#122; color:#e5e7eb; border:1px solid #2d3f3f; }
 
     .acts-scroll {
-      overflow:auto; border:1px solid #263636; border-radius:8px;
-      height: auto; max-height: none; /* JS will size these */
+      max-height: calc(100vh - var(--header-h, 72px) - 300px);
+      overflow:auto;
+      border:1px solid #263636; border-radius:8px;
+      margin-bottom: 12px; /* breathing room at bottom */
     }
     #activities-table { width:100%; border-collapse:collapse; font-size:13px; }
     #activities-table th, #activities-table td { padding:6px 8px; border-bottom:1px solid #1c2929; vertical-align:top; line-height:1.25; }
@@ -137,7 +142,7 @@
     .members-scroll::-webkit-scrollbar-thumb, .acts-scroll::-webkit-scrollbar-thumb { background:#223035; border-radius:8px; border:2px solid #0b1328; }
     .members-scroll::-webkit-scrollbar-track, .acts-scroll::-webkit-scrollbar-track { background:#0b1328; }
 
-    /* Minimal modal (preserves your IDs) */
+    /* Modal base */
     .modal { position: fixed; inset:0; display:none; align-items:center; justify-content:center; background: rgba(0,0,0,.5); z-index: 50; }
     .modal.show { display:flex; }
     .modal .panel { width:min(720px, 92vw); background: var(--card-bg); border:1px solid var(--accent); border-radius:10px; padding:16px; box-shadow: 0 10px 30px rgba(0,0,0,.45); }
@@ -150,20 +155,17 @@
     .modal .actions { display:flex; justify-content:flex-end; gap:10px; margin-top:12px; }
     .chk { display:flex; align-items:center; gap:8px; font-size:14px; color:var(--text); }
 
-    /* Prevent flash of unauthorized button before JS hides it */
+    /* prevent brief flash before JS hides the Add Member for unauthorized */
     #btn-addmember[hidden] { display:none !important; }
-
-    /* REMOVE old hero-bar rules completely (kept here to neutralize any leftover) */
-    .hero .hero-bar { display:none !important; }
   </style>
 </head>
 <body>
-  <!-- NOTE: no #pu-content here; layout.js injects it. -->
+  <!-- NOTE: layout.js injects the standard header/rail; we keep our own content wrapper -->
   <div class="page-wrap" id="page-wrap">
 
-    <!-- HERO SUMMARY (one light band). Keep #card-core .kv for JS compatibility -->
+    <!-- HERO SUMMARY (with Back button cell integrated) -->
     <section class="hero" id="card-core">
-      <div class="hero-grid kv" id="hero-grid">
+      <div class="hero-grid kv">
         <div class="kvline"><b>Name:</b> <span id="sqd-name">—</span></div>
         <div class="kvline"><b>Leader:</b> <span id="sqd-leader">—</span></div>
         <div class="kvline"><b>Status:</b> <span id="sqd-status" class="pill pill--off">Inactive</span></div>
@@ -175,7 +177,7 @@
       </div>
     </section>
 
-    <!-- BRIEF: Objective + Notes in one unified card chrome -->
+    <!-- BRIEF: Objective + Notes -->
     <section class="brief">
       <div class="block" id="card-objective">
         <h3>Objective</h3>
@@ -252,7 +254,7 @@
     </section>
   </div>
 
-  <!-- Add Member Modal (existing IDs) -->
+  <!-- Add Member Modal -->
   <div id="addMemberModal" class="modal" aria-hidden="true">
     <div class="panel">
       <h3 style="margin-bottom:8px;color:var(--accent)">Add Squad Member</h3>
@@ -282,7 +284,7 @@
     </div>
   </div>
 
-  <!-- Add Activity Modal (new) -->
+  <!-- Add Activity Modal -->
   <div id="addActivityModal" class="modal" aria-hidden="true">
     <div class="panel">
       <h3 style="margin-bottom:8px;color:var(--accent)">Add Squad Activity</h3>
@@ -335,7 +337,7 @@
     </div>
   </div>
 
-  <!-- Log Power Hour Modal (new) -->
+  <!-- Log Power Hour Modal -->
   <div id="logHourModal" class="modal" aria-hidden="true">
     <div class="panel">
       <h3 style="margin-bottom:8px;color:var(--accent)">Log Power Hour</h3>
@@ -376,7 +378,6 @@
         <button class="btn primary" id="lh-save">Log Hours</button>
       </div>
 
-      <!-- hidden fields so JS can prefill -->
       <input type="hidden" id="lh-activity-id" />
     </div>
   </div>
