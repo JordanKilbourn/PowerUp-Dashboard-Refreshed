@@ -25,9 +25,16 @@
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
 
   <style>
-    :root { --header-h: 72px; }
+    :root {
+      --header-h: 72px;
 
-    /* Page container now fills the available content width (no conflict with #pu-content) */
+      /* Provide safe fallbacks for mock variables (mapped to your tokens) */
+      --panel: var(--card-bg);
+      --panel-2: #101617;                    /* slightly deeper than card */
+      --chip-border: rgba(255,255,255,0.08); /* soft hairline for chips */
+    }
+
+    /* Page container */
     .page-wrap { width: 100%; margin: 0; padding: 14px; display: grid; gap: 14px; }
 
     .btn { padding:8px 12px; border-radius:8px; border:1px solid var(--accent); background:var(--card-bg); color:var(--text); cursor:pointer; }
@@ -38,68 +45,87 @@
     .pill--on  { background: var(--success); color:#062; }
     .pill--off { background:#3a4e4e; color:#fff; }
 
-    /* ===================== NEW SUMMARY LEDGER ===================== */
-    .summary-ledger{ background: var(--panel, #0f151a); border:1px solid rgba(255,255,255,.06);
-      border-radius:12px; padding:10px 14px; }
-    .summary-ledger .hero-bar{ display:flex; justify-content:flex-end; align-items:center; margin-bottom:6px; }
+    /* ===================== SUMMARY RIBBON (from your chosen mock) ===================== */
+    .card{
+      background: linear-gradient(180deg, var(--panel), var(--panel-2));
+      border:1px solid var(--ph-track-border, rgba(255,255,255,.08));
+      border-radius:12px;
+      box-shadow: 0 3px 12px rgba(0,0,0,.18);
+      padding:12px 14px;
+    }
 
-    /* Row A */
-    .summary-ledger .sl-top{ display:flex; align-items:center; gap:14px; flex-wrap:wrap;
-      padding-bottom:6px; border-bottom:1px solid var(--ph-track-border,#2d3f3f); }
-    .summary-ledger .sl-title #sqd-name{ font-size:18px; font-weight:800; letter-spacing:.2px; }
-    .summary-ledger .sl-meta{ margin-left:auto; display:flex; gap:18px; flex-wrap:wrap; }
-    .summary-ledger .sl-meta .m{ display:flex; gap:6px; align-items:center; font-size:12px; color:var(--info); }
-    .summary-ledger .sl-meta .m b{ color:var(--text); font-weight:700; }
+    .summary-card{padding:12px 14px}
+    .info-row{display:flex;gap:18px;flex-wrap:wrap;align-items:center}
+    .kv-inline{
+      display:flex;gap:8px;align-items:center;
+      padding:6px 10px;border:1px solid var(--ph-track-border, rgba(255,255,255,.08));
+      border-radius:999px;background:var(--panel-2)
+    }
+    .kv-inline .k{letter-spacing:.4px;text-transform:uppercase;font-size:11px;color:var(--info)}
+    .kv-inline .v{font-weight:700;color:var(--text)}
+    .kv-inline .chip{padding:4px 8px}
 
-    /* Row B */
-    .summary-ledger .sl-fields{ display:grid; grid-template-columns:1.2fr 1fr; gap:22px; padding:10px 0; }
-    @media (max-width:1100px){ .summary-ledger .sl-fields{ grid-template-columns:1fr; } }
-    .summary-ledger .f{ display:flex; gap:10px; align-items:flex-start; }
-    .summary-ledger .f .k{ width:96px; min-width:96px; color:var(--info); font-size:12px; text-transform:uppercase; letter-spacing:.4px; padding-top:2px; }
-    .summary-ledger .f .v{ color:var(--text); }
-    .summary-ledger .clamp{ display:block; max-height:1.6em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .notes-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px}
+    @media (max-width:1000px){.notes-row{grid-template-columns:1fr}}
+    .note-tile{background:var(--panel-2);border:1px solid var(--ph-track-border, rgba(255,255,255,.08));border-radius:10px;padding:10px}
+    .note-tile .h{font-size:12px;color:var(--info);font-weight:600;margin-bottom:4px}
 
-    /* KPI rail (right side of Row B) */
-    .summary-ledger .sl-kpis{ display:grid; grid-template-columns:repeat(4,1fr); gap:0; border-top:1px solid var(--ph-track-border,#2d3f3f); }
-    @media (max-width:1100px){ .summary-ledger .sl-kpis{ grid-template-columns:repeat(2,1fr); } }
-    .summary-ledger .mcell{ display:flex; justify-content:space-between; align-items:baseline; padding:10px 12px; border-right:1px solid var(--ph-track-border,#2d3f3f); }
-    .summary-ledger .mcell:last-child{ border-right:0; }
-    .summary-ledger .mlabel{ font-size:11px; text-transform:uppercase; letter-spacing:.4px; color:var(--info); }
-    .summary-ledger .mnum{ font-size:22px; font-weight:800; color:var(--text); }
+    .mini-kpis{display:grid;grid-template-columns:repeat(4, minmax(150px,1fr));gap:10px;margin-top:10px}
+    @media (max-width:900px){.mini-kpis{grid-template-columns:repeat(2,1fr)}}
+    .mini-kpi{
+      display:flex;align-items:center;justify-content:space-between;
+      padding:10px 12px;border:1px solid var(--ph-track-border, rgba(255,255,255,.08));
+      border-radius:12px;background:var(--panel-2)
+    }
+    .mini-kpi .label{font-size:12px;color:var(--info)}
+    .mini-kpi .val{font-size:20px;font-weight:800;color:var(--text)}
 
-    /* ========== WORKSPACE GRID (unchanged) ========== */
-    .work { display:grid; grid-template-columns: 360px 1fr; gap: 12px; align-items: start; }
+    /* ===================== EXISTING WORKSPACE (kept from your file) ===================== */
+    .work {
+      display:grid;
+      grid-template-columns: 360px 1fr;
+      gap: 12px;
+      align-items: start;
+    }
     @media (max-width: 1100px) { .work { grid-template-columns: 1fr; } }
 
-    .card { background: var(--card-bg); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:12px; }
-    .card-h { font-size:15px; font-weight:700; color:#9ffbe6; margin:0 0 8px; display:flex; align-items:center; justify-content:space-between; gap:8px; }
+    .card-h {
+      font-size:15px; font-weight:700; color:#9ffbe6; margin:0 0 8px;
+      display:flex; align-items:center; justify-content:space-between; gap:8px;
+    }
     .card-h .left { display:flex; align-items:center; gap:10px; }
     .subtle { color:#9ca3af; font-weight:600; font-size:12px; }
 
-    /* Members (left) */
-    .members-scroll { height: auto; max-height: none; /* JS can set precise height */
-      overflow: auto; border:1px solid #263636; border-radius:8px; }
+    /* Members */
+    .members-scroll {
+      height: auto;        /* JS sets height/max-height */
+      max-height: none;    /* JS sets height/max-height */
+      overflow: auto; border:1px solid #263636; border-radius:8px;
+    }
     .members-table { width:100%; border-collapse:collapse; font-size:13px; }
     .members-table th, .members-table td { padding:6px 8px; border-bottom:1px solid #1c2929; vertical-align:top; line-height:1.25; }
     .members-table thead th { background:#0f1a1a; color:#9ca3af; position:sticky; top:0; z-index:1; }
 
-    /* Right column: Activities (KPI strip removed from here) */
+    /* Activities */
     .acts-tools { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin: 6px 0 8px; }
     .acts-tools select { padding:6px 10px; border-radius:8px; background:#122; color:#e5e7eb; border:1px solid #2d3f3f; }
 
-    .acts-scroll { height: auto; max-height: none; overflow:auto; border:1px solid #263636; border-radius:8px; }
+    .acts-scroll {
+      height: auto; max-height: none;
+      overflow:auto; border:1px solid #263636; border-radius:8px;
+    }
     #activities-table { width:100%; border-collapse:collapse; font-size:13px; }
     #activities-table th, #activities-table td { padding:6px 8px; border-bottom:1px solid #1c2929; vertical-align:top; line-height:1.25; }
     #activities-table thead th { background:#0f1a1a; color:#9ca3af; position:sticky; top:0; z-index:1; }
     .row-actions a { color: var(--accent); text-decoration:none; }
     .row-actions a:hover { text-decoration:underline; }
 
-    /* Subtle scrollbars for the two scrollers */
+    /* Scrollbars */
     .members-scroll::-webkit-scrollbar, .acts-scroll::-webkit-scrollbar { width:10px; height:10px; }
     .members-scroll::-webkit-scrollbar-thumb, .acts-scroll::-webkit-scrollbar-thumb { background:#223035; border-radius:8px; border:2px solid #0b1328; }
     .members-scroll::-webkit-scrollbar-track, .acts-scroll::-webkit-scrollbar-track { background:#0b1328; }
 
-    /* Minimal modal (preserves your IDs) */
+    /* Modal (unchanged) */
     .modal { position: fixed; inset:0; display:none; align-items:center; justify-content:center; background: rgba(0,0,0,.5); z-index: 50; }
     .modal.show { display:flex; }
     .modal .panel { width:min(720px, 92vw); background: var(--card-bg); border:1px solid var(--accent); border-radius:10px; padding:16px; box-shadow: 0 10px 30px rgba(0,0,0,.45); }
@@ -115,7 +141,7 @@
     /* Prevent flash of unauthorized button before JS hides it */
     #btn-addmember[hidden] { display:none !important; }
 
-    /* Make the page wrap hug the header; no wasted row */
+    /* Page spacing below header */
     .page-wrap { padding-top: 10px; }
   </style>
 </head>
@@ -123,45 +149,42 @@
   <!-- NOTE: no #pu-content here; layout.js injects it. -->
   <div class="page-wrap" id="page-wrap">
 
-    <!-- SUMMARY LEDGER (replaces old hero + brief + right KPIs) -->
-    <section class="summary-ledger" id="card-core">
-      <div class="hero-bar">
+    <!-- SUMMARY RIBBON (your chosen mock, wired to real IDs) -->
+    <section class="card summary-card" id="card-core">
+      <div class="hero-bar" style="display:flex; justify-content:flex-end; align-items:center; margin-bottom:6px;">
         <button class="btn" id="btn-back">
           <i class="fa fa-arrow-left"></i> Back
         </button>
       </div>
 
-      <!-- Row A: name left, meta right (IDs unchanged) -->
-      <div class="sl-top">
-        <div class="sl-title">
-          <span id="sqd-name">—</span>
+      <div class="info-row">
+        <div class="kv-inline"><span class="k">Name</span><span class="v"><span id="sqd-name">—</span></span></div>
+        <div class="kv-inline"><span class="k">Leader</span><span class="v"><span id="sqd-leader">—</span></span></div>
+        <div class="kv-inline">
+          <span class="k">Status</span>
+          <span class="v"><span id="sqd-status" class="pill pill--off">Inactive</span></span>
         </div>
-        <div class="sl-meta">
-          <div class="m">Leader <b id="sqd-leader">—</b></div>
-          <div class="m">Status <span id="sqd-status" class="pill pill--off">Inactive</span></div>
-          <div class="m">Category <b id="sqd-cat">—</b></div>
-          <div class="m">Created <b id="sqd-created">—</b></div>
+        <div class="kv-inline"><span class="k">Category</span><span class="v"><span id="sqd-cat">—</span></span></div>
+        <div class="kv-inline"><span class="k">Created</span><span class="v"><span id="sqd-created">—</span></span></div>
+      </div>
+
+      <div class="notes-row">
+        <div class="note-tile">
+          <div class="h">Objective</div>
+          <!-- keep original structure for JS compatibility -->
+          <div id="card-objective"><div class="kv">—</div></div>
+        </div>
+        <div class="note-tile">
+          <div class="h">Notes</div>
+          <div id="card-notes"><div class="kv">—</div></div>
         </div>
       </div>
 
-      <!-- Row B: fields left, KPI rail right (IDs unchanged) -->
-      <div class="sl-fields">
-        <div>
-          <div class="f">
-            <div class="k">Objective</div>
-            <div class="v" id="card-objective"><div class="kv clamp">—</div></div>
-          </div>
-          <div class="f">
-            <div class="k">Notes</div>
-            <div class="v" id="card-notes"><div class="kv clamp">—</div></div>
-          </div>
-        </div>
-        <div class="sl-kpis">
-          <div class="mcell"><span class="mlabel">Active activities</span><span class="mnum" id="kpi-active">0</span></div>
-          <div class="mcell"><span class="mlabel">Planned</span><span class="mnum" id="kpi-planned">0</span></div>
-          <div class="mcell"><span class="mlabel">Completed</span><span class="mnum" id="kpi-done">0</span></div>
-          <div class="mcell"><span class="mlabel">Completed hours</span><span class="mnum" id="kpi-hours">0</span></div>
-        </div>
+      <div class="mini-kpis">
+        <div class="mini-kpi"><span class="label">Active activities</span><span class="val" id="kpi-active">0</span></div>
+        <div class="mini-kpi"><span class="label">Planned</span><span class="val" id="kpi-planned">0</span></div>
+        <div class="mini-kpi"><span class="label">Completed</span><span class="val" id="kpi-done">0</span></div>
+        <div class="mini-kpi"><span class="label">Completed hours</span><span class="val" id="kpi-hours">0</span></div>
       </div>
     </section>
 
@@ -188,7 +211,7 @@
         </div>
       </div>
 
-      <!-- RIGHT: Activities (KPI strip removed) -->
+      <!-- RIGHT: Activities (KPI strip removed to avoid duplicates) -->
       <div class="card">
         <div class="card-h">
           <div class="left"><i class="fa fa-chart-line"></i> Squad Overview</div>
@@ -253,7 +276,7 @@
     </div>
   </div>
 
-  <!-- Add Activity Modal (new) -->
+  <!-- Add Activity Modal (existing IDs) -->
   <div id="addActivityModal" class="modal" aria-hidden="true">
     <div class="panel">
       <h3 style="margin-bottom:8px;color:var(--accent)">Add Squad Activity</h3>
@@ -306,7 +329,7 @@
     </div>
   </div>
 
-  <!-- Log Power Hour Modal (new) -->
+  <!-- Log Power Hour Modal (existing IDs) -->
   <div id="logHourModal" class="modal" aria-hidden="true">
     <div class="panel">
       <h3 style="margin-bottom:8px;color:var(--accent)">Log Power Hour</h3>
