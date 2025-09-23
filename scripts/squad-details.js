@@ -3,7 +3,7 @@
   const { api, session, layout } = P;
 
   // ---------- utils ----------
-  const qs  = (k) => new URLSearchParams(location.search).get(k) || "";
+  const qs = (k) => new URLSearchParams(location.search).get(k) || "";
   const esc = (s) => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
   const norm = (s) => String(s || "").trim().toLowerCase();
   const isTrue = (v) => v === true || /^(true|yes|y|1|active)$/i.test(String(v ?? "").trim());
@@ -19,22 +19,21 @@
     return d;
   };
 
-  // ---------- viewport sizing (members/activities scrollers) ----------
+  // ---------- viewport sizing ----------
   function sizeSquadScrollers() {
     const fit = (el) => {
       if (!el) return;
       const rect = el.getBoundingClientRect();
-      const pad = 16; // breathing room at bottom
-      const h = Math.max(
-        140,
-        (window.innerHeight || document.documentElement.clientHeight) - rect.top - pad
-      );
-      el.style.maxHeight = h + "px";
-      el.style.height    = h + "px";
+      const pad = 18; // breathing room so the last row isn't flush to the edge
+      const vh  = Math.max(window.innerHeight || 0, document.documentElement.clientHeight || 0);
+      const h   = Math.max(140, vh - rect.top - pad);
+      el.style.maxHeight = h + 'px';
+      el.style.height    = h + 'px';
     };
-    fit(document.querySelector(".members-scroll"));
-    fit(document.querySelector(".acts-scroll"));
+    fit(document.querySelector('.members-scroll'));
+    fit(document.querySelector('.acts-scroll'));
   }
+  const queueResize = () => requestAnimationFrame(sizeSquadScrollers);
 
   // ---------- data helpers ----------
   async function loadEmployeeMap() {
@@ -55,7 +54,7 @@
     const rows = await api.getRowsByTitle(api.SHEETS.SQUAD_ACTIVITIES);
     const items = rows.map(r => {
       const actId = pick(r, ["Activity ID","ID"], "").toString().trim();
-      const squad = (r["Squad"] || r["Squad ID"] || r["Squad Name"] || "").toString().trim();
+      const squad = (r["Squad ID"] || r["Squad"] || r["Squad Name"] || "").toString().trim();
       const title = (r["Activity Title"] || r["Title"] || "").toString().trim();
       const type  = (r["Type"] || "").toString().trim() || "Other";
       const status= (r["Status"] || "").toString().trim() || "Planned";
@@ -96,11 +95,11 @@
     const core = document.querySelector("#card-core .kv");
     if (core) {
       core.innerHTML = `
-        <div><b>Name:</b> ${esc(squadName)}</div>
-        <div><b>${leaderNames.length > 1 ? "Leaders" : "Leader"}:</b> ${esc(leaderNames.join(", ") || "-")}</div>
-        <div><b>Status:</b> ${statusPill}</div>
-        <div><b>Category:</b> ${esc(squadRow["Category"] || "-")}</div>
-        <div><b>Created:</b> ${fmtMDYY(squadRow["Created Date"] || squadRow["Created"] || "")}</div>
+        <div class="kvline"><b>Name:</b> ${esc(squadName)}</div>
+        <div class="kvline"><b>${leaderNames.length > 1 ? "Leaders" : "Leader"}:</b> ${esc(leaderNames.join(", ") || "-")}</div>
+        <div class="kvline"><b>Status:</b> ${statusPill}</div>
+        <div class="kvline"><b>Category:</b> ${esc(squadRow["Category"] || "-")}</div>
+        <div class="kvline"><b>Created:</b> ${fmtMDYY(squadRow["Created Date"] || squadRow["Created"] || "")}</div>
       `;
     }
     const obj = document.querySelector("#card-objective .kv");
@@ -216,7 +215,6 @@
       if (P.squadForm && typeof P.squadForm.open === "function") {
         P.squadForm.open({ squadId, squadName });
       } else {
-        console.warn("P.squadForm.open not found. Ensure scripts/squad-member-form.js loads before this file.");
         alert("Member form not found. Please include scripts/squad-member-form.js earlier on the page.");
       }
     };
@@ -224,14 +222,6 @@
     if (btn._amHandler) btn.removeEventListener("click", btn._amHandler);
     btn._amHandler = handler;
     btn.addEventListener("click", handler);
-
-    if (!document._amDelegated) {
-      document._amDelegated = true;
-      document.addEventListener("click", (evt) => {
-        const t = evt.target.closest("#btn-addmember");
-        if (t && !t.disabled && !t.hidden) handler(evt);
-      });
-    }
   }
 
   // ---------- main ----------
@@ -245,6 +235,7 @@
       return;
     }
 
+    // Admin check
     const isAdmin = !!(P.auth && typeof P.auth.isAdmin === "function" && P.auth.isAdmin());
 
     // Load base data
@@ -276,19 +267,19 @@
       .filter(Boolean);
     const leaderNames = leaderIds.map(id => empMap.get(id) || id);
 
-    // meta cards
+    // meta
     renderMeta({ ...squadRow, id: squadId }, leaderNames);
 
     // members
     renderMembers(members, empMap, squadId, isAdmin);
-    sizeSquadScrollers(); // <-- ensure scroller fits after members render
     document.addEventListener("squad-member-added", async () => {
       const latest = await api.getRowsByTitle("SQUAD_MEMBERS", { force: true });
       renderMembers(latest, empMap, squadId, isAdmin);
-      sizeSquadScrollers(); // <-- re-fit after refresh
+      queueResize();
+      setTimeout(queueResize, 0);
     });
 
-    // permissions for add member
+    // permissions & back button
     const me = session.get?.() || {};
     const userId = (me.employeeId || "").trim().toLowerCase();
     const canAdd = isAdmin || leaderIds.some(id => id.toLowerCase() === userId);
@@ -300,7 +291,6 @@
       await loadActivitiesForSquad(squadId, squadName);
     renderKpis(acts, hoursByAct);
     renderActivities(acts, hoursByAct, configured);
-    sizeSquadScrollers(); // <-- ensure scroller fits after activities render
 
     // filters
     const statusSel = document.getElementById("act-status");
@@ -315,34 +305,18 @@
       });
       renderKpis(filtered, hoursByAct);
       renderActivities(filtered, hoursByAct, configured);
-      sizeSquadScrollers(); // <-- re-fit after filter
+      queueResize();
     }
     statusSel?.addEventListener("change", applyActFilters);
     typeSel?.addEventListener("change", applyActFilters);
 
-    // Add Activity (hook up when form exists)
-    const addActBtn = document.getElementById("btn-add-activity");
-    if (addActBtn) {
-      if (isAdmin || canAdd) {
-        addActBtn.disabled = false;
-        addActBtn.addEventListener("click", (e) => {
-          e.preventDefault();
-          if (P.activities && typeof P.activities.openCreate === "function") {
-            P.activities.openCreate({ squadId, squadName });
-          } else {
-            alert("Activity form not wired yet. Expose P.activities.openCreate({ squadId, squadName }) when ready.");
-          }
-        });
-      } else {
-        addActBtn.disabled = true;
-      }
-    }
-
-    // window resize => keep it fitting the viewport
-    window.addEventListener("resize", sizeSquadScrollers);
-
-    // final nudge (after layout & fonts settle)
-    requestAnimationFrame(sizeSquadScrollers);
-    setTimeout(sizeSquadScrollers, 150);
+    // Final layout pass(es) after everything paints
+    queueResize();
+    setTimeout(queueResize, 0);
+    setTimeout(queueResize, 300);
   });
+
+  window.addEventListener('load', queueResize);
+  window.addEventListener('resize', queueResize);
+
 })(window.PowerUp || (window.PowerUp = {}));
