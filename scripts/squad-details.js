@@ -3,7 +3,7 @@
   const { api, session, layout } = P;
 
   // ---------- utils ----------
-  const qs = (k) => new URLSearchParams(location.search).get(k) || "";
+  const qs  = (k) => new URLSearchParams(location.search).get(k) || "";
   const esc = (s) => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
   const norm = (s) => String(s || "").trim().toLowerCase();
   const isTrue = (v) => v === true || /^(true|yes|y|1|active)$/i.test(String(v ?? "").trim());
@@ -18,6 +18,23 @@
     for (const k of keys) if (row && row[k] != null && String(row[k]).trim() !== "") return row[k];
     return d;
   };
+
+  // ---------- viewport sizing (members/activities scrollers) ----------
+  function sizeSquadScrollers() {
+    const fit = (el) => {
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const pad = 16; // breathing room at bottom
+      const h = Math.max(
+        140,
+        (window.innerHeight || document.documentElement.clientHeight) - rect.top - pad
+      );
+      el.style.maxHeight = h + "px";
+      el.style.height    = h + "px";
+    };
+    fit(document.querySelector(".members-scroll"));
+    fit(document.querySelector(".acts-scroll"));
+  }
 
   // ---------- data helpers ----------
   async function loadEmployeeMap() {
@@ -187,7 +204,6 @@
     });
   }
 
-  // robust, idempotent binder for Add Member
   function wireAddMemberButton({ canAdd, squadId, squadName }) {
     const btn = document.getElementById("btn-addmember");
     if (!btn) return;
@@ -229,7 +245,6 @@
       return;
     }
 
-    // Admin check
     const isAdmin = !!(P.auth && typeof P.auth.isAdmin === "function" && P.auth.isAdmin());
 
     // Load base data
@@ -266,9 +281,11 @@
 
     // members
     renderMembers(members, empMap, squadId, isAdmin);
+    sizeSquadScrollers(); // <-- ensure scroller fits after members render
     document.addEventListener("squad-member-added", async () => {
       const latest = await api.getRowsByTitle("SQUAD_MEMBERS", { force: true });
       renderMembers(latest, empMap, squadId, isAdmin);
+      sizeSquadScrollers(); // <-- re-fit after refresh
     });
 
     // permissions for add member
@@ -283,6 +300,7 @@
       await loadActivitiesForSquad(squadId, squadName);
     renderKpis(acts, hoursByAct);
     renderActivities(acts, hoursByAct, configured);
+    sizeSquadScrollers(); // <-- ensure scroller fits after activities render
 
     // filters
     const statusSel = document.getElementById("act-status");
@@ -297,11 +315,12 @@
       });
       renderKpis(filtered, hoursByAct);
       renderActivities(filtered, hoursByAct, configured);
+      sizeSquadScrollers(); // <-- re-fit after filter
     }
     statusSel?.addEventListener("change", applyActFilters);
     typeSel?.addEventListener("change", applyActFilters);
 
-    // Add Activity (wire later when your form exists)
+    // Add Activity (hook up when form exists)
     const addActBtn = document.getElementById("btn-add-activity");
     if (addActBtn) {
       if (isAdmin || canAdd) {
@@ -318,24 +337,12 @@
         addActBtn.disabled = true;
       }
     }
+
+    // window resize => keep it fitting the viewport
+    window.addEventListener("resize", sizeSquadScrollers);
+
+    // final nudge (after layout & fonts settle)
+    requestAnimationFrame(sizeSquadScrollers);
+    setTimeout(sizeSquadScrollers, 150);
   });
 })(window.PowerUp || (window.PowerUp = {}));
-
-// === Viewport-aware scroller sizing for Squad Details ===
-function sizeSquadScrollers() {
-  const fit = (el) => {
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const pad = 16; // bottom breathing room
-    const h = Math.max(
-      140,
-      (window.innerHeight || document.documentElement.clientHeight) - rect.top - pad
-    );
-    el.style.maxHeight = h + 'px';
-    el.style.height = h + 'px';
-  };
-  fit(document.querySelector('.members-scroll'));
-  fit(document.querySelector('.acts-scroll'));
-}
-window.addEventListener('resize', sizeSquadScrollers);
-
