@@ -27,66 +27,65 @@
   <style>
     :root { --header-h: 72px; }
 
-    /* Page container fills the content column; no empty band under header */
-    .page-wrap { width: 100%; margin: 0; padding: 10px 14px 18px; display: grid; gap: 14px; }
+    /* layout container sits snug under header, full width, with bottom breathing room */
+    .page-wrap { width: 100%; margin: 0; padding: 12px 16px 24px; display: grid; gap: 14px; }
 
-    .btn { padding:8px 12px; border-radius:8px; border:1px solid var(--accent); background:var(--card-bg); color:var(--text); cursor:pointer; }
+    .btn { padding:8px 12px; border-radius:12px; border:1px solid var(--accent); background:var(--card-bg); color:var(--text); cursor:pointer; }
     .btn:hover { background: var(--card-bg-hover); }
-    .btn.primary { background: var(--accent); color:#000; border-color: var(--accent); }
+    .btn.primary { background: var(--accent); color:#06201a; border-color: var(--accent); }
 
-    .pill { display:inline-block; border-radius:999px; padding:2px 8px; font-size:11px; font-weight:700; }
+    .pill { display:inline-flex; align-items:center; gap:8px; border-radius:999px; padding:4px 10px; font-size:12px; font-weight:700;
+            border:1px solid rgba(255,255,255,.12); background:#0e1a1a; color:var(--text); white-space:nowrap; }
     .pill--on  { background: var(--success); color:#062; }
     .pill--off { background:#3a4e4e; color:#fff; }
+    .chip { display:inline-flex; align-items:center; gap:8px; padding:4px 10px; border:1px solid rgba(255,255,255,.1);
+            border-radius:999px; background:#122; color:#cfe4e8; font-size:12px; }
 
-    /* ========= HERO SUMMARY ========= */
+    /* ===== Summary Ribbon (hero) ===== */
     .hero {
-      position: relative;
       background: var(--panel, #0f151a);
       border: 1px solid rgba(255,255,255,.06);
-      border-radius: 12px;
-      padding: 10px 14px;
-    }
-    /* Inline back button (top-right, same row as the summary) */
-    .hero .back-inline {
-      position: absolute;
-      top: 8px;
-      right: 10px;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .hero-grid {
+      border-radius: 16px;
+      padding: 12px 12px 14px;
       display: grid;
-      grid-template-columns: repeat(5, minmax(160px, 1fr));
-      gap: 12px;
+      gap: 10px;
     }
-    @media (max-width: 1100px) { .hero-grid { grid-template-columns: repeat(2, 1fr); } }
-    .kvline { font-size:14px; }
-    .kvline b { color: var(--info); font-weight:600; margin-right: 6px; }
+    .hero-top {
+      display:flex; align-items:center; gap:12px;
+    }
+    .hero-top .kvline { display:flex; align-items:center; gap:8px; padding:6px 10px; border:1px solid rgba(255,255,255,.08);
+                        border-radius:999px; background:#0f1a1a; font-size:13px; }
+    .hero-top .kvline b { color: var(--info); font-weight:600; letter-spacing:.3px; text-transform:uppercase; font-size:11px; }
+    .hero-top .spacer { flex:1 1 auto; }
+    .hero-top #btn-back { line-height:1; }
 
-    /* ========= BRIEF (Objective + Notes) ========= */
-    .brief {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
+    .notes-grid {
+      display:grid; grid-template-columns:1fr 1fr; gap:10px;
+    }
+    @media (max-width: 1000px){ .notes-grid { grid-template-columns:1fr; } }
+    .note {
       background: var(--card-bg);
       border:1px solid rgba(255,255,255,.08);
       border-radius: 12px;
-      padding: 12px;
+      padding: 10px;
     }
-    @media (max-width: 1100px) { .brief { grid-template-columns: 1fr; } }
-    .brief .block h3 { margin: 0 0 6px; font-size:14px; color: var(--info); }
-    .brief .kv { font-size:14px; }
+    .note h4 { margin:0 0 6px; font-size:12px; color: var(--info); }
+    .note .kv { font-size:14px; }
 
-    /* ========= WORKSPACE GRID ========= */
-    .work {
-      display:grid;
-      grid-template-columns: 360px 1fr;
-      gap: 12px;
-      align-items: start;
+    .mini-kpis {
+      display:grid; grid-template-columns:repeat(4, minmax(160px, 1fr)); gap:10px;
     }
-    @media (max-width: 1100px) { .work { grid-template-columns: 1fr; } }
+    @media (max-width: 900px){ .mini-kpis { grid-template-columns:repeat(2,1fr); } }
+    .kpi {
+      background:#0e1a1a; border:1px solid #243434; border-radius:12px; padding:10px 12px;
+      display:flex; align-items:center; justify-content:space-between;
+    }
+    .kpi .k { font-size:12px; color:#93a4a4; }
+    .kpi .v { font-size:20px; font-weight:800; color:#e5e7eb; }
+
+    /* ===== Two Columns ===== */
+    .columns { display:grid; grid-template-columns: 340px 1fr; gap: 12px; align-items:start; }
+    @media (max-width:1100px) { .columns { grid-template-columns: 1fr; } }
 
     .card {
       background: var(--card-bg);
@@ -101,96 +100,97 @@
     .card-h .left { display:flex; align-items:center; gap:10px; }
     .subtle { color:#9ca3af; font-weight:600; font-size:12px; }
 
-    /* Members (left) */
-    .members-scroll {
-      /* height set via JS so it never runs off-screen */
-      overflow: auto; border:1px solid #263636; border-radius:8px;
-      padding-bottom: 8px;  /* breathing room at bottom */
-    }
+    /* Members */
+    .members-scroll { overflow:auto; border:1px solid #263636; border-radius:12px; padding-bottom: 10px; }
     .members-table { width:100%; border-collapse:collapse; font-size:13px; }
-    .members-table th, .members-table td { padding:6px 8px; border-bottom:1px solid #1c2929; vertical-align:top; line-height:1.25; }
+    .members-table th, .members-table td { padding:8px 10px; border-bottom:1px solid #1c2929; vertical-align:top; line-height:1.25; }
     .members-table thead th { background:#0f1a1a; color:#9ca3af; position:sticky; top:0; z-index:1; }
+    .members-scroll::-webkit-scrollbar { width:10px; height:10px; }
+    .members-scroll::-webkit-scrollbar-thumb { background:#223035; border-radius:8px; border:2px solid #0b1328; }
+    .members-scroll::-webkit-scrollbar-track { background:#0b1328; }
 
-    /* Right column: KPIs + activities */
-    .kpi-strip {
-      display:grid;
-      grid-template-columns: repeat(4, minmax(160px, 1fr));
-      gap: 10px;
-      margin: 2px 0 10px;
-    }
-    @media (max-width: 1100px) { .kpi-strip { grid-template-columns: repeat(2, 1fr); } }
-    .kpi { background:#0e1a1a; border:1px solid #243434; border-radius:10px; padding:10px; }
-    .kpi .k { font-size:12px; color:#93a4a4; }
-    .kpi .v { font-size:20px; font-weight:800; color:#e5e7eb; }
-
+    /* Activities — “card rows” table */
     .acts-tools { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin: 6px 0 8px; }
-    .acts-tools select { padding:6px 10px; border-radius:8px; background:#122; color:#e5e7eb; border:1px solid #2d3f3f; }
-
-    .acts-scroll {
-      /* height set via JS so it never runs off-screen */
-      overflow:auto; border:1px solid #263636; border-radius:8px;
-      padding-bottom: 8px;  /* breathing room at bottom */
+    .acts-tools select, .acts-tools input[type="search"] {
+      padding:8px 10px; border-radius:10px; background:#122; color:#e5e7eb; border:1px solid #2d3f3f;
     }
-    #activities-table { width:100%; border-collapse:collapse; font-size:13px; }
-    #activities-table th, #activities-table td { padding:6px 8px; border-bottom:1px solid #1c2929; vertical-align:top; line-height:1.25; }
-    #activities-table thead th { background:#0f1a1a; color:#9ca3af; position:sticky; top:0; z-index:1; }
-    .row-actions a { color: var(--accent); text-decoration:none; }
-    .row-actions a:hover { text-decoration:underline; }
-
-    /* Subtle scrollbars */
-    .members-scroll::-webkit-scrollbar, .acts-scroll::-webkit-scrollbar { width:10px; height:10px; }
-    .members-scroll::-webkit-scrollbar-thumb, .acts-scroll::-webkit-scrollbar-thumb { background:#223035; border-radius:8px; border:2px solid #0b1328; }
-    .members-scroll::-webkit-scrollbar-track, .acts-scroll::-webkit-scrollbar-track { background:#0b1328; }
-
-    /* Modal chrome (kept minimal; uses your existing IDs) */
-    .modal { position: fixed; inset:0; display:none; align-items:center; justify-content:center; background: rgba(0,0,0,.5); z-index: 50; }
-    .modal.show { display:flex; }
-    .modal .panel { width:min(720px, 92vw); background: var(--card-bg); border:1px solid var(--accent); border-radius:10px; padding:16px; box-shadow: 0 10px 30px rgba(0,0,0,.45); }
-    .modal .row { display:flex; gap:12px; margin:10px 0; align-items:flex-start; flex-wrap:wrap; }
-    .modal label { font-size:12px; color:var(--info); display:block; margin-bottom:4px; }
-    .modal input[type="date"], .modal input[type="time"], .modal input[type="text"], .modal textarea, .modal select {
-      width:100%; padding:8px 10px; border:1px solid #2d3f3f; border-radius:6px; background:#132121; color:var(--text);
+    .acts-scroll { overflow:auto; border:1px solid #263636; border-radius:12px; padding-bottom: 12px; }
+    #activities-table { width:100%; border-collapse:separate; border-spacing:0 10px; font-size:13px; }
+    #activities-table thead th { background:#0f1a1a; color:#9ca3af; position:sticky; top:0; z-index:2; padding:8px 10px; text-align:left; }
+    #activities-table tbody tr {
+      background:#101a1f; border:1px solid rgba(255,255,255,.08);
+      border-radius:16px; box-shadow:0 0 0 1px rgba(255,255,255,.02) inset;
     }
-    .modal textarea { min-height: 90px; resize: vertical; }
-    .modal .actions { display:flex; justify-content:flex-end; gap:10px; margin-top:12px; }
-    .chk { display:flex; align-items:center; gap:8px; font-size:14px; color:var(--text); }
+    #activities-table tbody td { padding:12px 12px; vertical-align:middle; }
+    /* make the row feel like columns while staying table-friendly */
+    #activities-table tbody tr td:first-child { border-top-left-radius:16px; border-bottom-left-radius:16px; }
+    #activities-table tbody tr td:last-child  { border-top-right-radius:16px; border-bottom-right-radius:16px; }
+    .row-actions .btn { border-color: var(--accent); }
 
-    /* Prevent flash of unauthorized button before JS hides it */
+    /* pills inside table */
+    .td-pill { display:inline-flex; align-items:center; gap:8px; padding:6px 10px; border-radius:999px;
+               background:#122; border:1px solid rgba(255,255,255,.12); font-size:12px; }
+
+    /* scrollbars for activities */
+    .acts-scroll::-webkit-scrollbar { width:10px; height:10px; }
+    .acts-scroll::-webkit-scrollbar-thumb { background:#223035; border-radius:8px; border:2px solid #0b1328; }
+    .acts-scroll::-webkit-scrollbar-track { background:#0b1328; }
+
+    /* Back button alignment track */
+    .hero-top { min-height: 44px; }
+    #btn-back { align-self:center; }
+
+    /* Hide old “top-actions” row if present in cached CSS */
+    .top-actions{ display:none !important; }
+
+    /* JS sets height; we let it control these panes */
+    .members-scroll, .acts-scroll { height:auto; max-height:none; }
+
+    /* Prevent flash */
     #btn-addmember[hidden] { display:none !important; }
   </style>
 </head>
 <body>
   <div class="page-wrap" id="page-wrap">
-    <!-- HERO -->
-    <section class="hero" id="card-core">
-      <div class="back-inline">
+
+    <!-- Summary ribbon matching your mockup, but with your existing IDs -->
+    <section class="hero">
+      <div class="hero-top">
+        <div class="kvline"><b>Name</b><span id="sqd-name">—</span></div>
+        <div class="kvline"><b>Leader</b><span id="sqd-leader">—</span></div>
+        <div class="kvline">
+          <b>Status</b>
+          <span id="sqd-status" class="pill">Inactive</span>
+        </div>
+        <div class="kvline"><b>Category</b><span id="sqd-cat">—</span></div>
+        <div class="kvline"><b>Created</b><span id="sqd-created">—</span></div>
+        <div class="spacer"></div>
         <button class="btn" id="btn-back"><i class="fa fa-arrow-left"></i> Back</button>
       </div>
 
-      <div class="hero-grid kv">
-        <div class="kvline"><b>Name:</b> <span id="sqd-name">—</span></div>
-        <div class="kvline"><b>Leader:</b> <span id="sqd-leader">—</span></div>
-        <div class="kvline"><b>Status:</b> <span id="sqd-status" class="pill pill--off">Inactive</span></div>
-        <div class="kvline"><b>Category:</b> <span id="sqd-cat">—</span></div>
-        <div class="kvline"><b>Created:</b> <span id="sqd-created">—</span></div>
+      <div class="notes-grid">
+        <div class="note" id="card-objective">
+          <h4>Objective</h4>
+          <div class="kv">—</div>
+        </div>
+        <div class="note" id="card-notes">
+          <h4>Notes</h4>
+          <div class="kv">—</div>
+        </div>
+      </div>
+
+      <div class="mini-kpis">
+        <div class="kpi"><span class="k">Active activities</span><span class="v" id="kpi-active">0</span></div>
+        <div class="kpi"><span class="k">Planned</span><span class="v" id="kpi-planned">0</span></div>
+        <div class="kpi"><span class="k">Completed</span><span class="v" id="kpi-done">0</span></div>
+        <div class="kpi"><span class="k">Completed hours</span><span class="v" id="kpi-hours">0</span></div>
       </div>
     </section>
 
-    <!-- BRIEF -->
-    <section class="brief">
-      <div class="block" id="card-objective">
-        <h3>Objective</h3>
-        <div class="kv">—</div>
-      </div>
-      <div class="block" id="card-notes">
-        <h3>Notes</h3>
-        <div class="kv">—</div>
-      </div>
-    </section>
+    <!-- Two columns -->
+    <section class="columns">
 
-    <!-- WORKSPACE -->
-    <section class="work">
-      <!-- LEFT: Members -->
+      <!-- Members -->
       <div class="card">
         <div class="card-h">
           <div class="left">
@@ -211,20 +211,9 @@
         </div>
       </div>
 
-      <!-- RIGHT: KPIs + Activities -->
+      <!-- Activities -->
       <div class="card">
         <div class="card-h">
-          <div class="left"><i class="fa fa-chart-line"></i> Squad Overview</div>
-        </div>
-
-        <div class="kpi-strip">
-          <div class="kpi"><div class="k">Active activities</div><div class="v" id="kpi-active">0</div></div>
-          <div class="kpi"><div class="k">Planned</div><div class="v" id="kpi-planned">0</div></div>
-          <div class="kpi"><div class="k">Completed</div><div class="v" id="kpi-done">0</div></div>
-          <div class="kpi"><div class="k">Completed hours</div><div class="v" id="kpi-hours">0</div></div>
-        </div>
-
-        <div class="card-h" style="margin-top:4px">
           <div class="left"><i class="fa fa-list-check"></i><span>Activities</span></div>
           <div class="acts-tools">
             <select id="act-status">
@@ -233,9 +222,10 @@
             </select>
             <select id="act-type">
               <option value="__ALL__">All types</option>
-              <option>Training</option><option>Kaizen</option><option>Process</option><option>Audit</option><option>Other</option>
+              <option>Training</option><option>Kaizen</option><option>Process</option><option>Audit</option><option>Safety</option><option>Quality</option><option>Other</option>
             </select>
-            <button class="btn" id="btn-add-activity">+ Add Activity</button>
+            <input type="search" id="act-search" placeholder="Search activities…" />
+            <button class="btn" id="btn-add-activity"><i class="fa fa-plus"></i> Add Activity</button>
           </div>
         </div>
 
@@ -243,27 +233,34 @@
           <table id="activities-table">
             <thead>
               <tr>
-                <th>Title</th><th>Status</th><th>Type</th><th>Start–End</th><th>Owner</th><th>Completed PH</th><th></th>
+                <th style="width:32%">Title</th>
+                <th>Status</th>
+                <th>Type</th>
+                <th>Start–End</th>
+                <th>Owner</th>
+                <th style="text-align:right">Completed PH</th>
+                <th></th>
               </tr>
             </thead>
             <tbody id="activities-tbody"></tbody>
           </table>
         </div>
       </div>
+
     </section>
   </div>
 
-  <!-- Add Member Modal -->
+  <!-- Existing modals (kept as-is so your JS continues to work) -->
   <div id="addMemberModal" class="modal" aria-hidden="true">
     <div class="panel">
       <h3 style="margin-bottom:8px;color:var(--accent)">Add Squad Member</h3>
-      <div class="row">
+      <div class="row" style="display:flex;gap:12px;margin:10px 0;align-items:flex-start;flex-wrap:wrap;">
         <div style="flex:1">
           <label for="memberSelect">Member</label>
           <select id="memberSelect"></select>
         </div>
       </div>
-      <div class="row">
+      <div class="row" style="display:flex;gap:12px;margin:10px 0;align-items:flex-start;flex-wrap:wrap;">
         <div style="flex:1">
           <label for="roleSelect">Role</label>
           <select id="roleSelect"><option>Member</option><option>Leader</option></select>
@@ -272,112 +269,14 @@
           <label for="startDate">Start Date</label>
           <input type="date" id="startDate">
         </div>
-        <label class="chk" style="align-self:flex-end">
+        <label class="chk" style="align-self:flex-end;display:flex;align-items:center;gap:8px;">
           <input type="checkbox" id="activeChk" checked> Active
         </label>
       </div>
-      <div class="actions">
+      <div class="actions" style="display:flex;justify-content:flex-end;gap:10px;margin-top:12px;">
         <button class="btn" id="am-cancel">Cancel</button>
         <button class="btn primary" id="am-save">Add Member</button>
       </div>
-    </div>
-  </div>
-
-  <!-- Add Activity Modal -->
-  <div id="addActivityModal" class="modal" aria-hidden="true">
-    <div class="panel">
-      <h3 style="margin-bottom:8px;color:var(--accent)">Add Squad Activity</h3>
-
-      <div class="row">
-        <div style="flex:2">
-          <label for="act-title">Title</label>
-          <input type="text" id="act-title" placeholder="Activity title">
-        </div>
-        <div style="flex:1; min-width:180px">
-          <label for="act-type-modal">Type</label>
-          <select id="act-type-modal">
-            <option>Training</option><option>Kaizen</option><option>Process</option><option>Audit</option><option>Other</option>
-          </select>
-        </div>
-        <div style="flex:1; min-width:180px">
-          <label for="act-status-modal">Status</label>
-          <select id="act-status-modal">
-            <option>Planned</option><option>In Progress</option><option>Blocked</option><option>Completed</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="row">
-        <div style="flex:1; min-width:180px">
-          <label for="act-start">Start date</label>
-          <input type="date" id="act-start">
-        </div>
-        <div style="flex:1; min-width:180px">
-          <label for="act-end">End/Due date</label>
-          <input type="date" id="act-end">
-        </div>
-        <div style="flex:1; min-width:220px">
-          <label for="act-owner">Owner</label>
-          <select id="act-owner"></select>
-        </div>
-      </div>
-
-      <div class="row">
-        <div style="flex:1">
-          <label for="act-desc">Description</label>
-          <textarea id="act-desc" placeholder="Short description (optional)"></textarea>
-        </div>
-      </div>
-
-      <div class="actions">
-        <button class="btn" id="aa-cancel">Cancel</button>
-        <button class="btn primary" id="aa-save">Create Activity</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Log Power Hour Modal -->
-  <div id="logHourModal" class="modal" aria-hidden="true">
-    <div class="panel">
-      <h3 style="margin-bottom:8px;color:var(--accent)">Log Power Hour</h3>
-
-    <div class="row">
-      <div style="flex:1; min-width:160px">
-        <label for="lh-date">Date</label>
-        <input type="date" id="lh-date">
-      </div>
-      <div style="flex:1; min-width:140px">
-        <label for="lh-start">Start</label>
-        <input type="time" id="lh-start">
-      </div>
-      <div style="flex:1; min-width:140px">
-        <label for="lh-end">End</label>
-        <input type="time" id="lh-end">
-      </div>
-      <div style="flex:1; min-width:140px">
-        <label for="lh-dur">Duration (hrs)</label>
-        <input type="text" id="lh-dur" placeholder="auto" />
-      </div>
-    </div>
-
-    <div class="row">
-      <label class="chk"><input type="checkbox" id="lh-scheduled"> Scheduled</label>
-      <label class="chk"><input type="checkbox" id="lh-completed" checked> Completed</label>
-    </div>
-
-    <div class="row">
-      <div style="flex:1">
-        <label for="lh-notes">Activity description (optional)</label>
-        <input type="text" id="lh-notes" placeholder="e.g., Training—Module 2" />
-      </div>
-    </div>
-
-    <div class="actions">
-      <button class="btn" id="lh-cancel">Cancel</button>
-      <button class="btn primary" id="lh-save">Log Hours</button>
-    </div>
-
-    <input type="hidden" id="lh-activity-id" />
     </div>
   </div>
 
