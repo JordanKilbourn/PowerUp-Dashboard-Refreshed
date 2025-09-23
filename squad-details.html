@@ -28,7 +28,7 @@
     :root { --header-h: 72px; }
 
     /* Page container now fills the available content width (no conflict with #pu-content) */
-    .page-wrap { width: 100%; margin: 0; padding: 14px; display: grid; gap: 14px; }
+    .page-wrap { width: 100%; margin: 0; padding: 14px; display: grid; gap: 14px; padding-top: 10px; }
 
     .btn { padding:8px 12px; border-radius:8px; border:1px solid var(--accent); background:var(--card-bg); color:var(--text); cursor:pointer; }
     .btn:hover { background: var(--card-bg-hover); }
@@ -45,12 +45,20 @@
       border-radius: 12px;
       padding: 10px 14px;
     }
+    /* 5 info cells + 1 button column; align everything on the same row */
     .hero-grid {
       display: grid;
-      grid-template-columns: repeat(5, minmax(160px, 1fr));
+      grid-template-columns: repeat(5, minmax(160px, 1fr)) auto;
       gap: 12px;
+      align-items: center; /* vertically centers the Back button with the text cells */
     }
-    @media (max-width: 1100px) { .hero-grid { grid-template-columns: repeat(2, 1fr); } }
+    .hero-grid .back { justify-self: end; } /* push Back to the far right */
+
+    @media (max-width: 1100px) {
+      .hero-grid { grid-template-columns: 1fr 1fr; }
+      .hero-grid .back { grid-column: 1 / -1; justify-self: end; margin-top: 6px; }
+    }
+
     .kvline { font-size:14px; }
     .kvline b { color: var(--info); font-weight:600; margin-right: 6px; }
 
@@ -92,8 +100,8 @@
 
     /* Members (left) */
     .members-scroll {
-      max-height: calc(100vh - var(--header-h, 72px) - 300px);
       overflow: auto; border:1px solid #263636; border-radius:8px;
+      height: auto; max-height: none; /* JS will size these */
     }
     .members-table { width:100%; border-collapse:collapse; font-size:13px; }
     .members-table th, .members-table td { padding:6px 8px; border-bottom:1px solid #1c2929; vertical-align:top; line-height:1.25; }
@@ -115,8 +123,8 @@
     .acts-tools select { padding:6px 10px; border-radius:8px; background:#122; color:#e5e7eb; border:1px solid #2d3f3f; }
 
     .acts-scroll {
-      max-height: calc(100vh - var(--header-h, 72px) - 300px);
       overflow:auto; border:1px solid #263636; border-radius:8px;
+      height: auto; max-height: none; /* JS will size these */
     }
     #activities-table { width:100%; border-collapse:collapse; font-size:13px; }
     #activities-table th, #activities-table td { padding:6px 8px; border-bottom:1px solid #1c2929; vertical-align:top; line-height:1.25; }
@@ -145,30 +153,8 @@
     /* Prevent flash of unauthorized button before JS hides it */
     #btn-addmember[hidden] { display:none !important; }
 
-/* Hero top bar with the back button aligned right */
-.hero .hero-bar{
-  display:flex; justify-content:flex-end; align-items:center;
-  margin-bottom: 6px;
-}
-
-/* Make the page wrap hug the header; no wasted row */
-.page-wrap { padding-top: 10px; }
-
-/* Make the two scrollers height be controlled from JS */
-.members-scroll, .acts-scroll {
-  height: auto;        /* JS sets height/max-height */
-  max-height: none;    /* JS sets height/max-height */
-}
-
-    /* Center the Back button in the hero bar */
-.hero .hero-bar {
-  display: flex;
-  align-items: center;   /* fixes “top-aligned” look */
-  justify-content: flex-end;
-  min-height: 44px;      /* gives it a consistent track height */
-}
-.hero .hero-bar .btn { line-height: 1; } /* prevents tall line-box weirdness */
-
+    /* REMOVE old hero-bar rules completely (kept here to neutralize any leftover) */
+    .hero .hero-bar { display:none !important; }
   </style>
 </head>
 <body>
@@ -176,21 +162,18 @@
   <div class="page-wrap" id="page-wrap">
 
     <!-- HERO SUMMARY (one light band). Keep #card-core .kv for JS compatibility -->
-   <section class="hero" id="card-core">
-  <div class="hero-bar">
-    <button class="btn" id="btn-back">
-      <i class="fa fa-arrow-left"></i> Back
-    </button>
-  </div>
-
-  <div class="hero-grid kv">
-    <div class="kvline"><b>Name:</b> <span id="sqd-name">—</span></div>
-    <div class="kvline"><b>Leader:</b> <span id="sqd-leader">—</span></div>
-    <div class="kvline"><b>Status:</b> <span id="sqd-status" class="pill pill--off">Inactive</span></div>
-    <div class="kvline"><b>Category:</b> <span id="sqd-cat">—</span></div>
-    <div class="kvline"><b>Created:</b> <span id="sqd-created">—</span></div>
-  </div>
-</section>
+    <section class="hero" id="card-core">
+      <div class="hero-grid kv" id="hero-grid">
+        <div class="kvline"><b>Name:</b> <span id="sqd-name">—</span></div>
+        <div class="kvline"><b>Leader:</b> <span id="sqd-leader">—</span></div>
+        <div class="kvline"><b>Status:</b> <span id="sqd-status" class="pill pill--off">Inactive</span></div>
+        <div class="kvline"><b>Category:</b> <span id="sqd-cat">—</span></div>
+        <div class="kvline"><b>Created:</b> <span id="sqd-created">—</span></div>
+        <div class="back">
+          <button class="btn" id="btn-back"><i class="fa fa-arrow-left"></i> Back</button>
+        </div>
+      </div>
+    </section>
 
     <!-- BRIEF: Objective + Notes in one unified card chrome -->
     <section class="brief">
@@ -316,7 +299,7 @@
           </select>
         </div>
         <div style="flex:1; min-width:180px">
-          <label for="act-status">Status</label>
+          <label for="act-status-modal">Status</label>
           <select id="act-status-modal">
             <option>Planned</option><option>In Progress</option><option>Blocked</option><option>Completed</option>
           </select>
@@ -406,5 +389,3 @@
   <script src="scripts/squad-details.js"></script>
 </body>
 </html>
-
-
