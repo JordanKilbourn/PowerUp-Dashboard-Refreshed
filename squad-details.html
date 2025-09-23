@@ -27,8 +27,8 @@
   <style>
     :root { --header-h: 72px; }
 
-    /* Page container: center and constrain width so things align */
-    .page-wrap { max-width: auto; margin: 0 auto; padding: 14px; display: grid; gap: 14px; }
+    /* Page container now fills the available content width (no conflict with #pu-content) */
+    .page-wrap { width: 100%; margin: 0; padding: 14px; display: grid; gap: 14px; }
 
     .btn { padding:8px 12px; border-radius:8px; border:1px solid var(--accent); background:var(--card-bg); color:var(--text); cursor:pointer; }
     .btn:hover { background: var(--card-bg-hover); }
@@ -132,10 +132,13 @@
     /* Minimal modal (preserves your IDs) */
     .modal { position: fixed; inset:0; display:none; align-items:center; justify-content:center; background: rgba(0,0,0,.5); z-index: 50; }
     .modal.show { display:flex; }
-    .modal .panel { width:min(680px, 92vw); background: var(--card-bg); border:1px solid var(--accent); border-radius:10px; padding:16px; box-shadow: 0 10px 30px rgba(0,0,0,.45); }
-    .modal .row { display:flex; gap:12px; margin:10px 0; align-items:flex-start; }
+    .modal .panel { width:min(720px, 92vw); background: var(--card-bg); border:1px solid var(--accent); border-radius:10px; padding:16px; box-shadow: 0 10px 30px rgba(0,0,0,.45); }
+    .modal .row { display:flex; gap:12px; margin:10px 0; align-items:flex-start; flex-wrap:wrap; }
     .modal label { font-size:12px; color:var(--info); display:block; margin-bottom:4px; }
-    .modal input[type="date"], .modal select { width:100%; padding:8px 10px; border:1px solid #2d3f3f; border-radius:6px; background:#132121; color:var(--text); }
+    .modal input[type="date"], .modal input[type="time"], .modal input[type="text"], .modal textarea, .modal select {
+      width:100%; padding:8px 10px; border:1px solid #2d3f3f; border-radius:6px; background:#132121; color:var(--text);
+    }
+    .modal textarea { min-height: 90px; resize: vertical; }
     .modal .actions { display:flex; justify-content:flex-end; gap:10px; margin-top:12px; }
     .chk { display:flex; align-items:center; gap:8px; font-size:14px; color:var(--text); }
 
@@ -147,7 +150,8 @@
   </style>
 </head>
 <body>
-  <div class="page-wrap" id="pu-content">
+  <!-- NOTE: no #pu-content here; layout.js injects it. -->
+  <div class="page-wrap" id="page-wrap">
     <div class="top-actions">
       <button class="btn" id="btn-back"><i class="fa fa-arrow-left"></i> Back</button>
     </div>
@@ -240,7 +244,7 @@
     </section>
   </div>
 
-  <!-- Add Member Modal (your original IDs; your JS already uses these) -->
+  <!-- Add Member Modal (existing IDs) -->
   <div id="addMemberModal" class="modal" aria-hidden="true">
     <div class="panel">
       <h3 style="margin-bottom:8px;color:var(--accent)">Add Squad Member</h3>
@@ -270,6 +274,105 @@
     </div>
   </div>
 
+  <!-- Add Activity Modal (new) -->
+  <div id="addActivityModal" class="modal" aria-hidden="true">
+    <div class="panel">
+      <h3 style="margin-bottom:8px;color:var(--accent)">Add Squad Activity</h3>
+
+      <div class="row">
+        <div style="flex:2">
+          <label for="act-title">Title</label>
+          <input type="text" id="act-title" placeholder="Activity title">
+        </div>
+        <div style="flex:1; min-width:180px">
+          <label for="act-type">Type</label>
+          <select id="act-type">
+            <option>Training</option><option>Kaizen</option><option>Process</option><option>Audit</option><option>Other</option>
+          </select>
+        </div>
+        <div style="flex:1; min-width:180px">
+          <label for="act-status">Status</label>
+          <select id="act-status-modal">
+            <option>Planned</option><option>In Progress</option><option>Blocked</option><option>Completed</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row">
+        <div style="flex:1; min-width:180px">
+          <label for="act-start">Start date</label>
+          <input type="date" id="act-start">
+        </div>
+        <div style="flex:1; min-width:180px">
+          <label for="act-end">End/Due date</label>
+          <input type="date" id="act-end">
+        </div>
+        <div style="flex:1; min-width:220px">
+          <label for="act-owner">Owner</label>
+          <select id="act-owner"></select>
+        </div>
+      </div>
+
+      <div class="row">
+        <div style="flex:1">
+          <label for="act-desc">Description</label>
+          <textarea id="act-desc" placeholder="Short description (optional)"></textarea>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="btn" id="aa-cancel">Cancel</button>
+        <button class="btn primary" id="aa-save">Create Activity</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Log Power Hour Modal (new) -->
+  <div id="logHourModal" class="modal" aria-hidden="true">
+    <div class="panel">
+      <h3 style="margin-bottom:8px;color:var(--accent)">Log Power Hour</h3>
+
+      <div class="row">
+        <div style="flex:1; min-width:160px">
+          <label for="lh-date">Date</label>
+          <input type="date" id="lh-date">
+        </div>
+        <div style="flex:1; min-width:140px">
+          <label for="lh-start">Start</label>
+          <input type="time" id="lh-start">
+        </div>
+        <div style="flex:1; min-width:140px">
+          <label for="lh-end">End</label>
+          <input type="time" id="lh-end">
+        </div>
+        <div style="flex:1; min-width:140px">
+          <label for="lh-dur">Duration (hrs)</label>
+          <input type="text" id="lh-dur" placeholder="auto" />
+        </div>
+      </div>
+
+      <div class="row">
+        <label class="chk"><input type="checkbox" id="lh-scheduled"> Scheduled</label>
+        <label class="chk"><input type="checkbox" id="lh-completed" checked> Completed</label>
+      </div>
+
+      <div class="row">
+        <div style="flex:1">
+          <label for="lh-notes">Activity description (optional)</label>
+          <input type="text" id="lh-notes" placeholder="e.g., Training—Module 2" />
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="btn" id="lh-cancel">Cancel</button>
+        <button class="btn primary" id="lh-save">Log Hours</button>
+      </div>
+
+      <!-- hidden fields so JS can prefill -->
+      <input type="hidden" id="lh-activity-id" />
+    </div>
+  </div>
+
   <script src="scripts/api.js"></script>
   <script src="scripts/session.js"></script>
   <script src="scripts/roles.js"></script>
@@ -278,4 +381,3 @@
   <script src="scripts/squad-details.js"></script>
 </body>
 </html>
-
