@@ -160,6 +160,15 @@
   max-height: none;    /* JS sets height/max-height */
 }
 
+    /* Center the Back button in the hero bar */
+.hero .hero-bar {
+  display: flex;
+  align-items: center;   /* fixes “top-aligned” look */
+  justify-content: flex-end;
+  min-height: 44px;      /* gives it a consistent track height */
+}
+.hero .hero-bar .btn { line-height: 1; } /* prevents tall line-box weirdness */
+
   </style>
 </head>
 <body>
@@ -397,4 +406,5 @@
   <script src="scripts/squad-details.js"></script>
 </body>
 </html>
+
 
