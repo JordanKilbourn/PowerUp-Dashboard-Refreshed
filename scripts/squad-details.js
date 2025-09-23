@@ -320,3 +320,22 @@
     }
   });
 })(window.PowerUp || (window.PowerUp = {}));
+
+// === Viewport-aware scroller sizing for Squad Details ===
+function sizeSquadScrollers() {
+  const fit = (el) => {
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const pad = 16; // bottom breathing room
+    const h = Math.max(
+      140,
+      (window.innerHeight || document.documentElement.clientHeight) - rect.top - pad
+    );
+    el.style.maxHeight = h + 'px';
+    el.style.height = h + 'px';
+  };
+  fit(document.querySelector('.members-scroll'));
+  fit(document.querySelector('.acts-scroll'));
+}
+window.addEventListener('resize', sizeSquadScrollers);
+
