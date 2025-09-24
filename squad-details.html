@@ -2,7 +2,6 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <!-- EARLY AUTH GUARD -->
     <script>
       !function () {
         try {
@@ -26,189 +25,98 @@
     <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
 
     <style>
-      :root{
-        --header-h: 72px;
-        --panel: var(--card-bg);
-        --panel-2:#101617;
-        --chip-border: rgba(255,255,255,.08);
-      }
+      :root{ --header-h:72px; --panel:var(--card-bg); --panel-2:#101617; --chip-border:rgba(255,255,255,.08); }
 
-      /* ============== PAGE SPACING (true viewport gap) ============== */
-      /* This creates space BETWEEN the page content and the viewport bottom,
-         not inside your cards. */
-      body { min-height: 100vh; }
-      .page-wrap{
-        width:100%;
-        margin:0;
-        padding:14px;
-        display:grid;
-        gap:14px;
-        margin-bottom:28px;     /* <- real gap below containers */
-      }
+      /* real gap outside your cards */
+      body{ min-height:100vh; }
+      .page-wrap{ width:100%; margin:0; padding:14px; display:grid; gap:14px; }
+      .page-bottom-gap{ height:32px; } /* <- the gap */
 
-      /* ============== UTILS / TOKENS ============== */
-      .btn{ padding:8px 12px; border-radius:8px; border:1px solid var(--accent);
-            background:var(--card-bg); color:var(--text); cursor:pointer; }
+      .btn{ padding:8px 12px; border-radius:8px; border:1px solid var(--accent); background:var(--card-bg); color:var(--text); cursor:pointer;}
       .btn:hover{ background:var(--card-bg-hover); }
       .btn.primary{ background:var(--accent); color:#000; border-color:var(--accent); }
       .btn.small{ padding:6px 10px; border-radius:999px; font-size:12px; line-height:1; }
       .btn.ghost{ background:transparent; border-color:var(--chip-border); }
+
       .pill{ display:inline-block; border-radius:999px; padding:4px 10px; font-size:12px; font-weight:700; line-height:1; }
-      .pill--on{ background: var(--success); color:#062; }
-      .pill--off{ background:#3a4e4e; color:#fff; }
+      .pill--on{ background:var(--success); color:#062; } .pill--off{ background:#3a4e4e; color:#fff; }
       .pill--status-progress{ background:#264b3f; color:#9ffbe6; }
       .pill--status-notstarted{ background:#2a3440; color:#c3d5ff; }
       .pill--status-completed{ background:#2a3a2f; color:#b5f2b2; }
       .pill--status-canceled{ background:#3a2d2d; color:#f1b5b5; }
       .pill--type{ background:#2a3a3a; color:#aee; }
 
-      .card{
-        background: linear-gradient(180deg, var(--panel), var(--panel-2));
-        border:1px solid var(--ph-track-border, rgba(255,255,255,.08));
-        border-radius:12px;
-        box-shadow: 0 3px 12px rgba(0,0,0,.18);
-        padding:12px 14px;
-      }
-      .card-h{
-        font-size:15px; font-weight:700; color:#9ffbe6; margin:0 0 8px;
-        display:flex; align-items:center; justify-content:space-between; gap:8px;
-      }
+      .card{ background:linear-gradient(180deg,var(--panel),var(--panel-2)); border:1px solid var(--chip-border); border-radius:12px; box-shadow:0 3px 12px rgba(0,0,0,.18); padding:12px 14px; }
+      .card-h{ font-size:15px; font-weight:700; color:#9ffbe6; margin:0 0 8px; display:flex; align-items:center; justify-content:space-between; gap:8px; }
       .card-h .left{ display:flex; align-items:center; gap:10px; }
       .subtle{ color:#9ca3af; font-weight:600; font-size:12px; }
 
-      /* ================= SUMMARY RIBBON ================= */
       .summary-card{ padding:12px 14px; position:relative; }
       .info-row{ display:flex; gap:18px; flex-wrap:wrap; align-items:center; padding-right:120px; }
-      .kv-inline{
-        display:flex; gap:8px; align-items:center;
-        padding:6px 10px; border:1px solid var(--chip-border);
-        border-radius:999px; background:var(--panel-2);
-      }
-      .kv-inline .k{ letter-spacing:.4px; text-transform:uppercase; font-size:11px; color:var(--info); }
-      .kv-inline .v{ font-weight:700; color:var(--text); }
-      .notes-row{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:10px; }
-      @media (max-width:1000px){ .notes-row{ grid-template-columns:1fr; } }
-      .note-tile{ background:var(--panel-2); border:1px solid var(--chip-border); border-radius:10px; padding:10px; }
-      .note-tile .h{ font-size:12px; color:var(--info); font-weight:600; margin-bottom:4px; }
+      .kv-inline{ display:flex; gap:8px; align-items:center; padding:6px 10px; border:1px solid var(--chip-border); border-radius:999px; background:var(--panel-2) }
+      .kv-inline .k{ letter-spacing:.4px; text-transform:uppercase; font-size:11px; color:var(--info) }
+      .kv-inline .v{ font-weight:700; color:var(--text) }
+      .notes-row{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:10px }
+      @media (max-width:1000px){ .notes-row{ grid-template-columns:1fr } }
+      .note-tile{ background:var(--panel-2); border:1px solid var(--chip-border); border-radius:10px; padding:10px }
+      .note-tile .h{ font-size:12px; color:var(--info); font-weight:600; margin-bottom:4px }
+      .mini-kpis{ display:grid; grid-template-columns:repeat(4,minmax(150px,1fr)); gap:10px; margin-top:10px }
+      @media (max-width:900px){ .mini-kpis{ grid-template-columns:repeat(2,1fr) } }
+      .mini-kpi{ display:flex; align-items:center; justify-content:space-between; padding:10px 12px; border:1px solid var(--chip-border); border-radius:12px; background:var(--panel-2) }
+      .mini-kpi .label{ font-size:12px; color:var(--info) } .mini-kpi .val{ font-size:20px; font-weight:800; color:var(--text) }
 
-      .mini-kpis{ display:grid; grid-template-columns:repeat(4,minmax(150px,1fr)); gap:10px; margin-top:10px; }
-      @media (max-width:900px){ .mini-kpis{ grid-template-columns:repeat(2,1fr); } }
-      .mini-kpi{ display:flex; align-items:center; justify-content:space-between;
-                 padding:10px 12px; border:1px solid var(--chip-border);
-                 border-radius:12px; background:var(--panel-2); }
-      .mini-kpi .label{ font-size:12px; color:var(--info); }
-      .mini-kpi .val{ font-size:20px; font-weight:800; color:var(--text); }
-
-      /* Back button in ribbon */
       .hero-bar{ position:absolute; top:10px; right:12px; display:flex; align-items:center; }
       .hero-bar .btn{ line-height:1; }
-      @media (max-width:700px){
-        .info-row{ padding-right:80px; }
-        .hero-bar{ top:8px; right:8px; }
-      }
+      @media (max-width:700px){ .info-row{ padding-right:80px } .hero-bar{ top:8px; right:8px } }
 
-      /* ================= WORKSPACE ================= */
-      .work{
-        display:grid;
-        grid-template-columns:360px 1fr;
-        gap:12px;
-        align-items:start;
-      }
-      @media (max-width:1100px){ .work{ grid-template-columns:1fr; } }
+      .work{ display:grid; grid-template-columns:360px 1fr; gap:12px; align-items:start; }
+      @media (max-width:1100px){ .work{ grid-template-columns:1fr } }
 
-      /* Members */
-      .members-scroll{
-        height:auto; max-height:none;
-        overflow:auto; border:1px solid #263636; border-radius:8px;
-        padding-bottom:12px;   /* inner breathing room */
-        margin-bottom:8px;     /* slight offset inside the card */
-      }
+      .members-scroll{ overflow:auto; border:1px solid #263636; border-radius:8px; padding-bottom:12px; margin-bottom:8px; }
       .members-table{ width:100%; border-collapse:collapse; font-size:13px; table-layout:fixed; }
-      .members-table th, .members-table td{ padding:6px 8px; border-bottom:1px solid #1c2929; vertical-align:top; line-height:1.25; }
+      .members-table th,.members-table td{ padding:6px 8px; border-bottom:1px solid #1c2929; vertical-align:top; line-height:1.25; }
       .members-table thead th{ background:#0f1a1a; color:#9ca3af; position:sticky; top:0; z-index:1; }
 
-      /* Activities – header/rows alignment + row-cards */
       .acts-tools{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:6px 0 8px; }
       .acts-tools select{ padding:6px 10px; border-radius:8px; background:#122; color:#e5e7eb; border:1px solid #2d3f3f; }
 
-      /* view switch */
       .view-switch{ display:flex; gap:8px; align-items:center; }
       .seg{ display:inline-flex; border:1px solid var(--chip-border); border-radius:10px; overflow:hidden; }
       .seg button{ padding:6px 10px; border:0; background:transparent; color:var(--text); cursor:pointer; }
-      .seg button.is-active{ background:var(--panel-2); border-right:1px solid var(--chip-border); }
-      .seg button + button{ border-left:1px solid var(--chip-border); }
+      .seg button.is-active{ background:var(--panel-2); }
+      .seg button + button{ border-left:1px solid var(--chip-border) }
 
-      .acts-scroll{
-        height:auto; max-height:none;
-        overflow:auto; border:1px solid #263636; border-radius:8px;
-        padding-bottom:12px;
-        margin-bottom:8px;
-      }
+      .acts-scroll{ overflow:auto; border:1px solid #263636; border-radius:8px; padding-bottom:12px; margin-bottom:8px; }
 
-      /* unified column widths for table layout */
+      /* table alignment */
       #activities-table{ width:100%; border-collapse:separate; border-spacing:0 10px; font-size:13px; table-layout:fixed; }
-      #activities-table col.title{ width:34%; }
-      #activities-table col.status{ width:12%; }
-      #activities-table col.type{ width:12%; }
-      #activities-table col.dates{ width:16%; }
-      #activities-table col.owner{ width:16%; }
-      #activities-table col.ph{ width:8%; }
-      #activities-table col.actions{ width:110px; } /* fixed for button */
-
-      #activities-table thead th{
-        background:#0f1a1a;
-        color:#9ca3af;
-        position:sticky; top:0; z-index:1;
-        padding:8px 10px;
-      }
-      #activities-table tbody td{
-        background:var(--panel-2);
-        padding:10px 12px;
-        border-top:1px solid var(--chip-border);
-        border-bottom:1px solid var(--chip-border);
-        vertical-align:middle;
-      }
-      #activities-table tbody td:first-child{
-        border-left:1px solid var(--chip-border);
-        border-top-left-radius:12px; border-bottom-left-radius:12px;
-      }
-      #activities-table tbody td:last-child{
-        border-right:1px solid var(--chip-border);
-        border-top-right-radius:12px; border-bottom-right-radius:12px;
-      }
+      #activities-table col.title{ width:34% } #activities-table col.status{ width:12% } #activities-table col.type{ width:12% }
+      #activities-table col.dates{ width:16% } #activities-table col.owner{ width:16% } #activities-table col.ph{ width:8% } #activities-table col.actions{ width:110px }
+      #activities-table thead th{ background:#0f1a1a; color:#9ca3af; position:sticky; top:0; z-index:1; padding:8px 10px; }
+      #activities-table tbody td{ background:var(--panel-2); padding:10px 12px; border-top:1px solid var(--chip-border); border-bottom:1px solid var(--chip-border); vertical-align:middle; }
+      #activities-table tbody td:first-child{ border-left:1px solid var(--chip-border); border-top-left-radius:12px; border-bottom-left-radius:12px; }
+      #activities-table tbody td:last-child{ border-right:1px solid var(--chip-border); border-top-right-radius:12px; border-bottom-right-radius:12px; }
       #activities-table .owner{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
       #activities-table .row-actions{ display:flex; justify-content:flex-end; gap:8px; }
-      #activities-table .ph{ text-align:right; }
 
-      /* Modal */
       .modal{ position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.5); z-index:50; }
       .modal.show{ display:flex; }
       .modal .panel{ width:min(720px,92vw); background:var(--card-bg); border:1px solid var(--accent); border-radius:10px; padding:16px; box-shadow:0 10px 30px rgba(0,0,0,.45); }
       .modal .row{ display:flex; gap:12px; margin:10px 0; align-items:flex-start; flex-wrap:wrap; }
       .modal label{ font-size:12px; color:var(--info); display:block; margin-bottom:4px; }
-      .modal input[type="date"], .modal input[type="time"], .modal input[type="text"], .modal textarea, .modal select{
-        width:100%; padding:8px 10px; border:1px solid #2d3f3f; border-radius:6px; background:#132121; color:var(--text);
-      }
+      .modal input[type="date"], .modal input[type="time"], .modal input[type="text"], .modal textarea, .modal select{ width:100%; padding:8px 10px; border:1px solid #2d3f3f; border-radius:6px; background:#132121; color:var(--text); }
       .modal textarea{ min-height:90px; resize:vertical; }
       .modal .actions{ display:flex; justify-content:flex-end; gap:10px; margin-top:12px; }
       .chk{ display:flex; align-items:center; gap:8px; font-size:14px; color:var(--text); }
 
-      /* Hide auth-gated button until JS authorizes */
       #btn-addmember[hidden]{ display:none !important; }
-
-      /* Keep summary Back button aligned with content */
-      .summary-card .hero-bar{ margin-bottom:6px; display:flex; justify-content:flex-end; align-items:center; }
     </style>
   </head>
   <body>
-    <!-- layout.js injects the global shell; this is page content -->
     <div class="page-wrap" id="page-wrap">
-      <!-- SUMMARY RIBBON -->
+      <!-- SUMMARY -->
       <section class="card summary-card" id="card-core">
-        <div class="hero-bar">
-          <button class="btn" id="btn-back"><i class="fa fa-arrow-left"></i> Back</button>
-        </div>
-
+        <div class="hero-bar"><button class="btn" id="btn-back"><i class="fa fa-arrow-left"></i> Back</button></div>
         <div class="info-row">
           <div class="kv-inline"><span class="k">Name</span><span class="v"><span id="sqd-name">—</span></span></div>
           <div class="kv-inline"><span class="k">Leader</span><span class="v"><span id="sqd-leader">—</span></span></div>
@@ -216,19 +124,10 @@
           <div class="kv-inline"><span class="k">Category</span><span class="v"><span id="sqd-cat">—</span></span></div>
           <div class="kv-inline"><span class="k">Created</span><span class="v"><span id="sqd-created">—</span></span></div>
         </div>
-
         <div class="notes-row">
-          <div class="note-tile">
-            <div class="h">Objective</div>
-            <div id="card-objective"><div class="kv">—</div></div>
-          </div>
-          <div class="note-tile">
-            <div class="h">Notes</div>
-            <div id="card-notes"><div class="kv">—</div></div>
-          </div>
+          <div class="note-tile"><div class="h">Objective</div><div id="card-objective"><div class="kv">—</div></div></div>
+          <div class="note-tile"><div class="h">Notes</div><div id="card-notes"><div class="kv">—</div></div></div>
         </div>
-
-        <!-- KPIs (new, clearer) -->
         <div class="mini-kpis">
           <div class="mini-kpi"><span class="label">Total activities</span><span class="val" id="kpi-total">0</span></div>
           <div class="mini-kpi"><span class="label">Planned hours</span><span class="val" id="kpi-planned-hrs">0</span></div>
@@ -239,33 +138,21 @@
 
       <!-- WORKSPACE -->
       <section class="work">
-        <!-- LEFT: Members -->
+        <!-- LEFT -->
         <div class="card">
           <div class="card-h">
-            <div class="left">
-              <i class="fa fa-users"></i>
-              <span>Members</span>
-              <span class="subtle" id="members-count">0</span>
-            </div>
+            <div class="left"><i class="fa fa-users"></i><span>Members</span><span class="subtle" id="members-count">0</span></div>
             <button class="btn" id="btn-addmember"><i class="fa fa-user-plus"></i> Add Member</button>
           </div>
-
           <div class="members-scroll">
             <table class="members-table" id="members-table">
-              <thead>
-                <tr>
-                  <th>Member</th>
-                  <th>Role</th>
-                  <th>Status</th>
-                  <th>Start</th>
-                </tr>
-              </thead>
+              <thead><tr><th>Member</th><th>Role</th><th>Status</th><th>Start</th></tr></thead>
               <tbody id="members-tbody"></tbody>
             </table>
           </div>
         </div>
 
-        <!-- RIGHT: Activities -->
+        <!-- RIGHT -->
         <div class="card">
           <div class="card-h">
             <div class="left"><i class="fa fa-chart-line"></i> Squad Overview</div>
@@ -282,57 +169,40 @@
             <div class="left"><i class="fa fa-list-check"></i><span>Activities</span></div>
             <div class="acts-tools">
               <select id="act-col">
-                <option value="">All columns</option>
-                <option value="status">Status</option>
+                <option value="status" selected>Status</option>
                 <option value="type">Type</option>
                 <option value="owner">Owner</option>
+                <option value="hours">Completed PH</option>
+                <option value="title">Title</option>
+                <option value="start">Start</option>
+                <option value="end">End</option>
               </select>
-              <select id="act-val" disabled>
-                <option value="">All values</option>
-              </select>
+              <select id="act-val" disabled><option value="__ALL__">All values</option></select>
+              <button class="btn ghost" id="btn-clear-filters" title="Clear filters"><i class="fa fa-xmark"></i> Clear</button>
               <button class="btn" id="btn-add-activity">+ Add Activity</button>
             </div>
           </div>
 
-          <!-- Views container -->
           <div id="activities-views">
-            <!-- TABLE VIEW (default) -->
+            <!-- Table -->
             <div id="view-table" role="tabpanel" aria-labelledby="view-tab-table">
               <div class="acts-scroll">
                 <table id="activities-table">
                   <colgroup>
-                    <col class="title"/>
-                    <col class="status"/>
-                    <col class="type"/>
-                    <col class="dates"/>
-                    <col class="owner"/>
-                    <col class="ph"/>
-                    <col class="actions"/>
+                    <col class="title"/><col class="status"/><col class="type"/><col class="dates"/><col class="owner"/><col class="ph"/><col class="actions"/>
                   </colgroup>
-                  <thead>
-                    <tr>
-                      <th>Title</th>
-                      <th>Status</th>
-                      <th>Type</th>
-                      <th>Start–End</th>
-                      <th>Owner</th>
-                      <th>Completed PH</th>
-                      <th></th>
-                    </tr>
-                  </thead>
+                  <thead><tr><th>Title</th><th>Status</th><th>Type</th><th>Start–End</th><th>Owner</th><th>Completed PH</th><th></th></tr></thead>
                   <tbody id="activities-tbody"></tbody>
                 </table>
               </div>
             </div>
-
-            <!-- GANTT VIEW (placeholder container for JS render) -->
+            <!-- Gantt -->
             <div id="view-gantt" role="tabpanel" aria-labelledby="view-tab-gantt" hidden>
               <div class="acts-scroll" id="gantt-container" style="min-height:280px; display:flex; align-items:center; justify-content:center; color:#9ca3af;">
                 Gantt view will render here.
               </div>
             </div>
-
-            <!-- CALENDAR VIEW (placeholder container for JS render) -->
+            <!-- Calendar -->
             <div id="view-calendar" role="tabpanel" aria-labelledby="view-tab-cal" hidden>
               <div class="acts-scroll" id="calendar-container" style="min-height:280px; display:flex; align-items:center; justify-content:center; color:#9ca3af;">
                 Calendar view will render here.
@@ -341,176 +211,70 @@
           </div>
         </div>
       </section>
+
+      <!-- bottom spacer -->
+      <div class="page-bottom-gap" aria-hidden="true"></div>
     </div>
 
-    <!-- Add Member Modal -->
+    <!-- Add Member Modal (unchanged) -->
     <div id="addMemberModal" class="modal" aria-hidden="true">
       <div class="panel">
         <h3 style="margin-bottom:8px;color:var(--accent)">Add Squad Member</h3>
+        <div class="row"><div style="flex:1"><label for="memberSelect">Member</label><select id="memberSelect"></select></div></div>
         <div class="row">
-          <div style="flex:1">
-            <label for="memberSelect">Member</label>
-            <select id="memberSelect"></select>
-          </div>
-        </div>
-        <div class="row">
-          <div style="flex:1">
-            <label for="roleSelect">Role</label>
-            <select id="roleSelect">
-              <option>Member</option>
-              <option>Leader</option>
-            </select>
-          </div>
-          <div style="width:180px">
-            <label for="startDate">Start Date</label>
-            <input type="date" id="startDate" />
-          </div>
+          <div style="flex:1"><label for="roleSelect">Role</label><select id="roleSelect"><option>Member</option><option>Leader</option></select></div>
+          <div style="width:180px"><label for="startDate">Start Date</label><input type="date" id="startDate" /></div>
           <label class="chk" style="align-self:flex-end"><input type="checkbox" id="activeChk" checked /> Active</label>
         </div>
-        <div class="actions">
-          <button class="btn" id="am-cancel">Cancel</button>
-          <button class="btn primary" id="am-save">Add Member</button>
-        </div>
+        <div class="actions"><button class="btn" id="am-cancel">Cancel</button><button class="btn primary" id="am-save">Add Member</button></div>
       </div>
     </div>
 
-    <!-- Add Activity Modal -->
+    <!-- Add Activity Modal (wired in JS below) -->
     <div id="addActivityModal" class="modal" aria-hidden="true">
       <div class="panel">
         <h3 style="margin-bottom:8px;color:var(--accent)">Add Squad Activity</h3>
-
         <div class="row">
-          <div style="flex:2">
-            <label for="act-title">Title</label>
-            <input type="text" id="act-title" placeholder="Activity title" />
+          <div style="flex:2"><label for="act-title">Title</label><input type="text" id="act-title" placeholder="Activity title" /></div>
+          <div style="flex:1; min-width:180px"><label for="act-type">Type</label>
+            <select id="act-type"><option>Training</option><option>Kaizen</option><option>Process</option><option>Audit</option><option>Safety</option><option>Quality</option><option>Other</option></select>
           </div>
-          <div style="flex:1; min-width:180px">
-            <label for="act-type">Type</label>
-            <select id="act-type">
-              <option>Training</option>
-              <option>Kaizen</option>
-              <option>Process</option>
-              <option>Audit</option>
-              <option>Other</option>
-            </select>
-          </div>
-          <div style="flex:1; min-width:180px">
-            <label for="act-status">Status</label>
-            <select id="act-status-modal">
-              <option>Planned</option>
-              <option>In Progress</option>
-              <option>Blocked</option>
-              <option>Completed</option>
-            </select>
+          <div style="flex:1; min-width:180px"><label for="act-status-modal">Status</label>
+            <select id="act-status-modal"><option>Planned</option><option>Not Started</option><option>In Progress</option><option>Blocked</option><option>Completed</option><option>Canceled</option></select>
           </div>
         </div>
-
         <div class="row">
-          <div style="flex:1; min-width:180px">
-            <label for="act-start">Start date</label>
-            <input type="date" id="act-start" />
-          </div>
-          <div style="flex:1; min-width:180px">
-            <label for="act-end">End/Due date</label>
-            <input type="date" id="act-end" />
-          </div>
-          <div style="flex:1; min-width:220px">
-            <label for="act-owner">Owner</label>
-            <select id="act-owner"></select>
-          </div>
+          <div style="flex:1; min-width:180px"><label for="act-start">Start date</label><input type="date" id="act-start" /></div>
+          <div style="flex:1; min-width:180px"><label for="act-end">End/Due date</label><input type="date" id="act-end" /></div>
+          <div style="flex:1; min-width:220px"><label for="act-owner">Owner</label><select id="act-owner"></select></div>
         </div>
-
-        <div class="row">
-          <div style="flex:1">
-            <label for="act-desc">Description</label>
-            <textarea id="act-desc" placeholder="Short description (optional)"></textarea>
-          </div>
-        </div>
-
-        <div class="actions">
-          <button class="btn" id="aa-cancel">Cancel</button>
-          <button class="btn primary" id="aa-save">Create Activity</button>
-        </div>
+        <div class="row"><div style="flex:1"><label for="act-desc">Description</label><textarea id="act-desc" placeholder="Short description (optional)"></textarea></div></div>
+        <div class="actions"><button class="btn" id="aa-cancel">Cancel</button><button class="btn primary" id="aa-save">Create Activity</button></div>
       </div>
     </div>
 
-    <!-- Log Power Hour Modal -->
+    <!-- Log Power Hour Modal (unchanged) -->
     <div id="logHourModal" class="modal" aria-hidden="true">
       <div class="panel">
         <h3 style="margin-bottom:8px;color:var(--accent)">Log Power Hour</h3>
-
         <div class="row">
-          <div style="flex:1; min-width:160px">
-            <label for="lh-date">Date</label>
-            <input type="date" id="lh-date" />
-          </div>
-          <div style="flex:1; min-width:140px">
-            <label for="lh-start">Start</label>
-            <input type="time" id="lh-start" />
-          </div>
-          <div style="flex:1; min-width:140px">
-            <label for="lh-end">End</label>
-            <input type="time" id="lh-end" />
-          </div>
-          <div style="flex:1; min-width:140px">
-            <label for="lh-dur">Duration (hrs)</label>
-            <input type="text" id="lh-dur" placeholder="auto" />
-          </div>
+          <div style="flex:1; min-width:160px"><label for="lh-date">Date</label><input type="date" id="lh-date" /></div>
+          <div style="flex:1; min-width:140px"><label for="lh-start">Start</label><input type="time" id="lh-start" /></div>
+          <div style="flex:1; min-width:140px"><label for="lh-end">End</label><input type="time" id="lh-end" /></div>
+          <div style="flex:1; min-width:140px"><label for="lh-dur">Duration (hrs)</label><input type="text" id="lh-dur" placeholder="auto" /></div>
         </div>
-
-        <div class="row">
-          <label class="chk"><input type="checkbox" id="lh-scheduled" /> Scheduled</label>
-          <label class="chk"><input type="checkbox" id="lh-completed" checked /> Completed</label>
-        </div>
-
-        <div class="row">
-          <div style="flex:1">
-            <label for="lh-notes">Activity description (optional)</label>
-            <input type="text" id="lh-notes" placeholder="e.g., Training—Module 2" />
-          </div>
-        </div>
-
-        <div class="actions">
-          <button class="btn" id="lh-cancel">Cancel</button>
-          <button class="btn primary" id="lh-save">Log Hours</button>
-        </div>
-
+        <div class="row"><label class="chk"><input type="checkbox" id="lh-scheduled" /> Scheduled</label><label class="chk"><input type="checkbox" id="lh-completed" checked /> Completed</label></div>
+        <div class="row"><div style="flex:1"><label for="lh-notes">Activity description (optional)</label><input type="text" id="lh-notes" placeholder="e.g., Training—Module 2" /></div></div>
+        <div class="actions"><button class="btn" id="lh-cancel">Cancel</button><button class="btn primary" id="lh-save">Log Hours</button></div>
         <input type="hidden" id="lh-activity-id" />
       </div>
     </div>
 
-    <!-- scripts -->
     <script src="scripts/api.js"></script>
     <script src="scripts/session.js"></script>
     <script src="scripts/roles.js"></script>
     <script src="scripts/layout.js"></script>
     <script src="scripts/squad-member-form.js"></script>
     <script src="scripts/squad-details.js"></script>
-
-    <!-- Minimal, non-conflicting view toggle (table/gantt/calendar).
-         This only shows/hides containers; your data render will live in squad-details.js -->
-    <script>
-      (function(){
-        const tabs = {
-          table: {btn: document.getElementById('view-tab-table'), panel: document.getElementById('view-table')},
-          gantt: {btn: document.getElementById('view-tab-gantt'), panel: document.getElementById('view-gantt')},
-          cal:   {btn: document.getElementById('view-tab-cal'),   panel: document.getElementById('view-calendar')}
-        };
-        function activate(key){
-          for(const k in tabs){
-            const on = (k===key);
-            tabs[k].btn.classList.toggle('is-active', on);
-            tabs[k].btn.setAttribute('aria-selected', on?'true':'false');
-            tabs[k].panel.hidden = !on;
-          }
-        }
-        tabs.table.btn?.addEventListener('click', ()=>activate('table'));
-        tabs.gantt.btn?.addEventListener('click', ()=>activate('gantt'));
-        tabs.cal.btn?.addEventListener('click', ()=>activate('cal'));
-        // default
-        activate('table');
-      })();
-    </script>
   </body>
 </html>
-
