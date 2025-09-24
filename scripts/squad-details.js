@@ -69,29 +69,29 @@
     return { items, configured: true, hoursByAct };
   }
 
-  // ---------- render: meta (UPDATED to target the new ribbon IDs) ----------
+  // ---------- render: meta ----------
   function renderMeta(squadRow, leaderNames) {
     const squadName = squadRow["Squad Name"] || squadRow["Name"] || squadRow.id || "-";
-    const active = isTrue(squadRow["Active"]);
+    const statusPill = isTrue(squadRow["Active"])
+      ? '<span class="pill pill--on">Active</span>'
+      : '<span class="pill pill--off">Inactive</span>';
 
-    const setText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = String(val ?? "—"); };
-
-    setText("sqd-name", squadName);
-    setText("sqd-leader", (leaderNames && leaderNames.length) ? leaderNames.join(", ") : "—");
-    setText("sqd-cat", squadRow["Category"] || "—");
-    setText("sqd-created", fmtMDYY(squadRow["Created Date"] || squadRow["Created"] || ""));
-
-    const statusEl = document.getElementById("sqd-status");
-    if (statusEl) {
-      statusEl.textContent = active ? "Active" : "Inactive";
-      statusEl.classList.toggle("pill--on",  active);
-      statusEl.classList.toggle("pill--off", !active);
+    const core = document.querySelector("#card-core .info-row");
+    if (core) {
+      // existing spans in the summary ribbon already have element IDs; just fill them
+      document.getElementById("sqd-name").textContent    = squadName || "—";
+      document.getElementById("sqd-leader").textContent  = (leaderNames.join(", ") || "—");
+      document.getElementById("sqd-cat").textContent     = (squadRow["Category"] || "—");
+      document.getElementById("sqd-created").textContent = fmtMDYY(squadRow["Created Date"] || squadRow["Created"] || "");
+      const statusEl = document.getElementById("sqd-status");
+      if (statusEl) statusEl.outerHTML = isTrue(squadRow["Active"])
+        ? '<span id="sqd-status" class="pill pill--on">Active</span>'
+        : '<span id="sqd-status" class="pill pill--off">Inactive</span>';
     }
-
     const obj = document.querySelector("#card-objective .kv");
-    if (obj) obj.textContent = squadRow["Objective"] || "—";
+    if (obj) obj.textContent = squadRow["Objective"] || "-";
     const notes = document.querySelector("#card-notes .kv");
-    if (notes) notes.textContent = squadRow["Notes"] || "—";
+    if (notes) notes.textContent = squadRow["Notes"] || "-";
   }
 
   // ---------- render: members ----------
@@ -124,9 +124,12 @@
   function renderKpis(acts, hoursByAct) {
     const set = (id,val) => { const el = document.getElementById(id); if (el) el.textContent = String(val); };
     const lc = (s) => String(s||"").toLowerCase();
-    set("kpi-active",  acts.filter(a => /progress|active|ongoing/.test(lc(a.status))).length);
-    set("kpi-planned", acts.filter(a => /plan/.test(lc(a.status))).length);
-    set("kpi-done",    acts.filter(a => /done|complete/.test(lc(a.status))).length);
+
+    // Active = anything NOT completed/done (counts Not Started, Planned, In Progress, Blocked, etc.)
+    const isCompleted = (s) => /done|complete/i.test(s || "");
+    set("kpi-active",  acts.filter(a => !isCompleted(a.status)).length);
+    set("kpi-planned", acts.filter(a => /plan/i.test(lc(a.status))).length);
+    set("kpi-done",    acts.filter(a => isCompleted(a.status)).length);
     set("kpi-hours",   acts.reduce((sum,a)=> sum+(hoursByAct.get(a.id)||0), 0));
   }
 
@@ -148,33 +151,74 @@
     }
 
     tb.innerHTML = acts.map(a => {
-      const range = `${fmtMDYY(a.start)} – ${fmtMDYY(a.end)}`;
+      const range = `${fmtMDYY(a.start)} — ${fmtMDYY(a.end)}`;
       const hrs   = hoursByAct.get(a.id) || 0;
+      const lastCell = /complete|done/i.test(a.status)
+        ? `<button class="btn small ghost" data-act="${esc(a.id)}" data-action="view">View</button>`
+        : `<button class="btn small ghost" data-act="${esc(a.id)}" data-action="log-ph">Log Hour</button>`;
+
       return `
         <tr>
           <td>${esc(a.title)}</td>
-          <td>${esc(a.status || "-")}</td>
-          <td>${esc(a.type || "-")}</td>
+          <td><span class="pill">${esc(a.status || "-")}</span></td>
+          <td><span class="pill">${esc(a.type || "-")}</span></td>
           <td>${range}</td>
           <td>${esc(a.owner || "-")}</td>
-          <td>${hrs}</td>
-          <td class="row-actions"><a href="#" data-act="${esc(a.id)}" data-action="log-ph">Log Hour</a></td>
+          <td style="text-align:right">${hrs}</td>
+          <td style="text-align:right">${lastCell}</td>
         </tr>
       `;
     }).join("");
 
-    // wire "Log Hour"
-    tb.querySelectorAll('[data-action="log-ph"]').forEach(a => {
-      a.addEventListener('click', (e) => {
+    // wire buttons (Log Hour / View)
+    tb.querySelectorAll('button[data-action]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
         e.preventDefault();
-        const actId = a.getAttribute('data-act') || '';
-        if (P.PowerHours && typeof P.PowerHours.open === 'function') {
-          P.PowerHours.open({ activityId: actId });
+        const actId = btn.getAttribute('data-act') || '';
+        const action = btn.getAttribute('data-action');
+        if (action === 'log-ph') {
+          if (P.PowerHours && typeof P.PowerHours.open === 'function') {
+            P.PowerHours.open({ activityId: actId });
+          } else {
+            location.href = `power-hours.html?activityId=${encodeURIComponent(actId)}`;
+          }
         } else {
-          location.href = `power-hours.html?activityId=${encodeURIComponent(actId)}`;
+          // a placeholder for a future view details screen
+          alert('Activity details not implemented yet.');
         }
       });
     });
+  }
+
+  // ---------- dependent filters ----------
+  function buildActFilterValues(acts, col, selEl) {
+    if (!selEl) return;
+    selEl.innerHTML = '<option value="">All values</option>';
+    if (!col) { selEl.disabled = true; return; }
+    const vals = new Set();
+    acts.forEach(a => {
+      const v = (a[col] || "").toString().trim();
+      if (v) vals.add(v);
+    });
+    [...vals].sort((a,b)=>a.localeCompare(b)).forEach(v => {
+      const opt = document.createElement('option');
+      opt.value = v; opt.textContent = v;
+      selEl.appendChild(opt);
+    });
+    selEl.disabled = false;
+  }
+
+  function applyDependentFilters(allActs, hoursByAct, configured) {
+    const col = document.getElementById('act-col')?.value || "";
+    const val = document.getElementById('act-val')?.value || "";
+
+    const filtered = allActs.filter(a => {
+      if (!col || !val) return true;
+      return (a[col] || "").toString().trim().toLowerCase() === val.toLowerCase();
+    });
+
+    renderKpis(filtered, hoursByAct);
+    renderActivities(filtered, hoursByAct, configured);
   }
 
   // ---------- controls ----------
@@ -189,7 +233,6 @@
     });
   }
 
-  // robust, idempotent binder for Add Member
   function wireAddMemberButton({ canAdd, squadId, squadName }) {
     const btn = document.getElementById("btn-addmember");
     if (!btn) return;
@@ -202,7 +245,6 @@
       if (P.squadForm && typeof P.squadForm.open === "function") {
         P.squadForm.open({ squadId, squadName });
       } else {
-        console.warn("P.squadForm.open not found. Ensure scripts/squad-member-form.js loads before this file.");
         alert("Member form not found. Please include scripts/squad-member-form.js earlier on the page.");
       }
     };
@@ -210,14 +252,6 @@
     if (btn._amHandler) btn.removeEventListener("click", btn._amHandler);
     btn._amHandler = handler;
     btn.addEventListener("click", handler);
-
-    if (!document._amDelegated) {
-      document._amDelegated = true;
-      document.addEventListener("click", (evt) => {
-        const t = evt.target.closest("#btn-addmember");
-        if (t && !t.disabled && !t.hidden) handler(evt);
-      });
-    }
   }
 
   // ---------- main ----------
@@ -280,30 +314,25 @@
     wireAddMemberButton({ canAdd, squadId, squadName });
     wireBackButton();
 
-    // activities
+    // activities (load once; filters render from this)
     const { items: acts, configured, hoursByAct } =
       await loadActivitiesForSquad(squadId, squadName);
     renderKpis(acts, hoursByAct);
     renderActivities(acts, hoursByAct, configured);
 
-    // filters
-    const statusSel = document.getElementById("act-status");
-    const typeSel   = document.getElementById("act-type");
-    function applyActFilters() {
-      const sVal = (statusSel?.value || "__ALL__").toLowerCase();
-      const tVal = (typeSel?.value || "__ALL__").toLowerCase();
-      const filtered = acts.filter(a => {
-        const sOK = sVal === "__ALL__" || (a.status || "").toLowerCase() === sVal;
-        const tOK = tVal === "__ALL__" || (a.type   || "").toLowerCase() === tVal;
-        return sOK && tOK;
-      });
-      renderKpis(filtered, hoursByAct);
-      renderActivities(filtered, hoursByAct, configured);
-    }
-    statusSel?.addEventListener("change", applyActFilters);
-    typeSel?.addEventListener("change", applyActFilters);
+    // dependent filters
+    const colSel = document.getElementById('act-col');
+    const valSel = document.getElementById('act-val');
 
-    // Add Activity (wire later when your form exists)
+    colSel?.addEventListener('change', () => {
+      buildActFilterValues(acts, colSel.value, valSel);
+      applyDependentFilters(acts, hoursByAct, configured);
+    });
+    valSel?.addEventListener('change', () => {
+      applyDependentFilters(acts, hoursByAct, configured);
+    });
+
+    // Add Activity (kept as before)
     const addActBtn = document.getElementById("btn-add-activity");
     if (addActBtn) {
       if (isAdmin || canAdd) {
