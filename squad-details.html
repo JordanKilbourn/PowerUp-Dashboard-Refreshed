@@ -99,6 +99,11 @@
       #activities-table .owner{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
       #activities-table .row-actions{ display:flex; justify-content:flex-end; gap:8px; }
 
+      /* Scrollbars (restored) */
+      .members-scroll::-webkit-scrollbar, .acts-scroll::-webkit-scrollbar { width:10px; height:10px; }
+      .members-scroll::-webkit-scrollbar-thumb, .acts-scroll::-webkit-scrollbar-thumb { background:#223035; border-radius:8px; border:2px solid #0b1328; }
+      .members-scroll::-webkit-scrollbar-track, .acts-scroll::-webkit-scrollbar-track { background:#0b1328; }
+
       .modal{ position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.5); z-index:50; }
       .modal.show{ display:flex; }
       .modal .panel{ width:min(720px,92vw); background:var(--card-bg); border:1px solid var(--accent); border-radius:10px; padding:16px; box-shadow:0 10px 30px rgba(0,0,0,.45); }
@@ -216,7 +221,7 @@
       <div class="page-bottom-gap" aria-hidden="true"></div>
     </div>
 
-    <!-- Add Member Modal (unchanged) -->
+    <!-- Add Member Modal -->
     <div id="addMemberModal" class="modal" aria-hidden="true">
       <div class="panel">
         <h3 style="margin-bottom:8px;color:var(--accent)">Add Squad Member</h3>
@@ -230,7 +235,7 @@
       </div>
     </div>
 
-    <!-- Add Activity Modal (wired in JS below) -->
+    <!-- Add Activity Modal -->
     <div id="addActivityModal" class="modal" aria-hidden="true">
       <div class="panel">
         <h3 style="margin-bottom:8px;color:var(--accent)">Add Squad Activity</h3>
@@ -253,7 +258,7 @@
       </div>
     </div>
 
-    <!-- Log Power Hour Modal (unchanged) -->
+    <!-- Log Power Hour Modal -->
     <div id="logHourModal" class="modal" aria-hidden="true">
       <div class="panel">
         <h3 style="margin-bottom:8px;color:var(--accent)">Log Power Hour</h3>
