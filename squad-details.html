@@ -45,7 +45,7 @@
     .pill--on  { background: var(--success); color:#062; }
     .pill--off { background:#3a4e4e; color:#fff; }
 
-    /* ===================== SUMMARY RIBBON (from your chosen mock) ===================== */
+    /* ===================== SUMMARY RIBBON ===================== */
     .card{
       background: linear-gradient(180deg, var(--panel), var(--panel-2));
       border:1px solid var(--ph-track-border, rgba(255,255,255,.08));
@@ -54,8 +54,8 @@
       padding:12px 14px;
     }
 
-    .summary-card{padding:12px 14px}
-    .info-row{display:flex;gap:18px;flex-wrap:wrap;align-items:center}
+    .summary-card{padding:12px 14px; position: relative;}
+    .info-row{display:flex;gap:18px;flex-wrap:wrap;align-items:center; padding-right:120px;} /* room for Back button */
     .kv-inline{
       display:flex;gap:8px;align-items:center;
       padding:6px 10px;border:1px solid var(--ph-track-border, rgba(255,255,255,.08));
@@ -80,7 +80,22 @@
     .mini-kpi .label{font-size:12px;color:var(--info)}
     .mini-kpi .val{font-size:20px;font-weight:800;color:var(--text)}
 
-    /* ===================== EXISTING WORKSPACE (kept from your file) ===================== */
+    /* Back button pinned in ribbon (no extra row) */
+    .hero-bar{
+      position:absolute; 
+      top:10px; 
+      right:12px; 
+      display:flex; 
+      align-items:center;
+      margin:0 !important;
+    }
+    .hero-bar .btn { line-height:1; }
+    @media (max-width:700px){
+      .info-row{ padding-right:80px; }
+      .hero-bar{ top:8px; right:8px; }
+    }
+
+    /* ===================== WORKSPACE ===================== */
     .work {
       display:grid;
       grid-template-columns: 360px 1fr;
@@ -101,6 +116,7 @@
       height: auto;        /* JS sets height/max-height */
       max-height: none;    /* JS sets height/max-height */
       overflow: auto; border:1px solid #263636; border-radius:8px;
+      padding-bottom:12px; /* breathing room */
     }
     .members-table { width:100%; border-collapse:collapse; font-size:13px; }
     .members-table th, .members-table td { padding:6px 8px; border-bottom:1px solid #1c2929; vertical-align:top; line-height:1.25; }
@@ -113,6 +129,7 @@
     .acts-scroll {
       height: auto; max-height: none;
       overflow:auto; border:1px solid #263636; border-radius:8px;
+      padding-bottom:12px; /* breathing room */
     }
     #activities-table { width:100%; border-collapse:collapse; font-size:13px; }
     #activities-table th, #activities-table td { padding:6px 8px; border-bottom:1px solid #1c2929; vertical-align:top; line-height:1.25; }
@@ -125,7 +142,7 @@
     .members-scroll::-webkit-scrollbar-thumb, .acts-scroll::-webkit-scrollbar-thumb { background:#223035; border-radius:8px; border:2px solid #0b1328; }
     .members-scroll::-webkit-scrollbar-track, .acts-scroll::-webkit-scrollbar-track { background:#0b1328; }
 
-    /* Modal (unchanged) */
+    /* Modal */
     .modal { position: fixed; inset:0; display:none; align-items:center; justify-content:center; background: rgba(0,0,0,.5); z-index: 50; }
     .modal.show { display:flex; }
     .modal .panel { width:min(720px, 92vw); background: var(--card-bg); border:1px solid var(--accent); border-radius:10px; padding:16px; box-shadow: 0 10px 30px rgba(0,0,0,.45); }
@@ -149,9 +166,9 @@
   <!-- NOTE: no #pu-content here; layout.js injects it. -->
   <div class="page-wrap" id="page-wrap">
 
-    <!-- SUMMARY RIBBON (your chosen mock, wired to real IDs) -->
+    <!-- SUMMARY RIBBON -->
     <section class="card summary-card" id="card-core">
-      <div class="hero-bar" style="display:flex; justify-content:flex-end; align-items:center; margin-bottom:6px;">
+      <div class="hero-bar">
         <button class="btn" id="btn-back">
           <i class="fa fa-arrow-left"></i> Back
         </button>
@@ -171,7 +188,6 @@
       <div class="notes-row">
         <div class="note-tile">
           <div class="h">Objective</div>
-          <!-- keep original structure for JS compatibility -->
           <div id="card-objective"><div class="kv">—</div></div>
         </div>
         <div class="note-tile">
@@ -211,7 +227,7 @@
         </div>
       </div>
 
-      <!-- RIGHT: Activities (KPI strip removed to avoid duplicates) -->
+      <!-- RIGHT: Activities -->
       <div class="card">
         <div class="card-h">
           <div class="left"><i class="fa fa-chart-line"></i> Squad Overview</div>
@@ -246,7 +262,7 @@
     </section>
   </div>
 
-  <!-- Add Member Modal (existing IDs) -->
+  <!-- Add Member Modal -->
   <div id="addMemberModal" class="modal" aria-hidden="true">
     <div class="panel">
       <h3 style="margin-bottom:8px;color:var(--accent)">Add Squad Member</h3>
@@ -276,7 +292,7 @@
     </div>
   </div>
 
-  <!-- Add Activity Modal (existing IDs) -->
+  <!-- Add Activity Modal -->
   <div id="addActivityModal" class="modal" aria-hidden="true">
     <div class="panel">
       <h3 style="margin-bottom:8px;color:var(--accent)">Add Squad Activity</h3>
@@ -329,7 +345,7 @@
     </div>
   </div>
 
-  <!-- Log Power Hour Modal (existing IDs) -->
+  <!-- Log Power Hour Modal -->
   <div id="logHourModal" class="modal" aria-hidden="true">
     <div class="panel">
       <h3 style="margin-bottom:8px;color:var(--accent)">Log Power Hour</h3>
@@ -370,7 +386,6 @@
         <button class="btn primary" id="lh-save">Log Hours</button>
       </div>
 
-      <!-- hidden fields so JS can prefill -->
       <input type="hidden" id="lh-activity-id" />
     </div>
   </div>
