@@ -344,61 +344,70 @@
   }
 
   // Owner list for Add Activity = active squad members (display names)
-  function populateOwnerOptions({ members, empMap, squadId, meId }) {
-    const sel = document.getElementById('act-owner'); if (!sel) return;
-    const rows = members.filter(r => norm(r["Squad ID"]) === norm(squadId) && isTrue(r["Active"]));
-    const names = rows.map(r => empMap.get(String(r["Employee ID"]||"").trim())).filter(Boolean);
-    const unique = Array.from(new Set(names));
-    sel.innerHTML = unique.map(n => `<option>${esc(n)}</option>`).join("") || `<option>—</option>`;
-    // preselect current user if present
-    const myName = empMap.get(meId) || "";
-    if (myName) {
-      const idx = unique.findIndex(n => n === myName);
-      if (idx >= 0) sel.selectedIndex = idx;
-    }
+function populateOwnerOptions({ members, empMap, squadId, meId }) {
+  const sel = document.getElementById('act-owner'); if (!sel) return;
+  const rows = members.filter(r => norm(r["Squad ID"]) === norm(squadId) && isTrue(r["Active"]));
+
+  // Build [{id: employeeId, name: displayName}] and de-dupe by id
+  const seen = new Set();
+  const opts = rows.map(r => {
+      const id = String(r["Employee ID"]||"").trim();
+      return { id, name: (empMap.get(id) || id) };
+    })
+    .filter(p => p.id && !seen.has(p.id) && seen.add(p.id));
+
+  // value = display name (what the user sees/keeps), data-id = hidden Employee ID
+  sel.innerHTML = opts.map(p =>
+    `<option value="${esc(p.name)}" data-id="${esc(p.id)}">${esc(p.name)}</option>`
+  ).join("") || `<option value="">—</option>`;
+
+  // Preselect me (by ID) if present
+  if (meId) {
+    const idx = opts.findIndex(p => p.id.toLowerCase() === meId.toLowerCase());
+    if (idx >= 0) sel.selectedIndex = idx;
   }
+}
 
   // Add Activity -> write to Smartsheet
-  async function createActivity({ squadId, squadName }) {
-    const title = document.getElementById('act-title').value.trim();
-    const type  = document.getElementById('act-type').value.trim() || "Other";
-    const status= document.getElementById('act-status-modal').value.trim();
-    const start = toISO(document.getElementById('act-start').value);
-    const end   = toISO(document.getElementById('act-end').value);
-    const owner = document.getElementById('act-owner').value.trim();
-    const desc  = document.getElementById('act-desc').value.trim();
+async function createActivity({ squadId, squadName }) {
+  const title = document.getElementById('act-title').value.trim();
+  const type  = document.getElementById('act-type').value.trim() || "Other";
+  const status= document.getElementById('act-status-modal').value.trim();
+  const start = toISO(document.getElementById('act-start').value);
+  const end   = toISO(document.getElementById('act-end').value) || start;
 
-    if (!title) { alert("Title is required."); return; }
-    if (!status || !/^(Not Started|In Progress|Completed|Canceled)$/i.test(status)) {
-      alert("Status must be one of: Not Started, In Progress, Completed, Canceled.");
-      return;
-    }
+  const ownerSel  = document.getElementById('act-owner');
+  const ownerName = ownerSel?.selectedOptions[0]?.text || ownerSel?.value || "";
+  const ownerId   = ownerSel?.selectedOptions[0]?.dataset?.id || ""; // hidden Employee ID
 
-    // Try to provide an ID; if that column is a formula, addRows will skip it.
-    const idCandidate = `ACT-${Date.now()}`;
+  const desc  = document.getElementById('act-desc').value.trim();
 
-    const row = {
-      "Activity ID": idCandidate,
-      "Squad ID": squadId,
-      "Squad": squadName,
-      "Activity Title": title,
-      "Title": title, // be flexible
-      "Type": type,
-      "Status": status,
-      "Start Date": start,
-      "End Date": end || start,
-      "Owner (Display Name)": owner,
-      "Owner": owner,
-      "Description": desc,
-      "Notes": desc
-    };
-
-    await api.addRows("SQUAD_ACTIVITIES", [row], { toTop: true });
-
-    // refresh lists
-    api.clearCache(api.SHEETS.SQUAD_ACTIVITIES);
-    return true;
+  if (!title) { alert("Title is required."); return; }
+  if (!status || !/^(Not Started|In Progress|Completed|Canceled)$/i.test(status)) {
+    alert("Status must be one of: Not Started, In Progress, Completed, Canceled."); return;
   }
+
+  const row = {
+    // Do NOT write Activity ID; let Smartsheet auto-number if configured
+    "Squad ID": squadId,
+    "Squad": squadName,
+    "Activity Title": title,
+    "Title": title,
+    "Type": type,
+    "Status": status,
+    "Start Date": start,
+    "End/Due Date": end,
+    "Owner (Display Name)": ownerName,
+    "Owner": ownerName,
+    "Owner ID": ownerId,            // <- hidden employee ID written here
+    "Description": desc,
+    "Notes": desc
+  };
+
+  await api.addRows("SQUAD_ACTIVITIES", [row], { toTop: true });
+  api.clearCache(api.SHEETS.SQUAD_ACTIVITIES);
+  return true;
+}
 
   // modal helpers
   function showModal(id){ const m = document.getElementById(id); if (m) m.classList.add('show'); }
