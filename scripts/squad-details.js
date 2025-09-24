@@ -1,3 +1,4 @@
+// scripts/squad-details.js
 (function (P) {
   const { api, session, layout } = P;
 
@@ -13,9 +14,13 @@
     const m = d.getMonth()+1, day = d.getDate(), y = (d.getFullYear()%100);
     return `${m}/${day}/${String(y).padStart(2,"0")}`;
   };
+  const toISO = (v) => {
+    if (!v) return "";
+    if (v instanceof Date) return v.toISOString().slice(0,10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(String(v))) return v;
+    const d = new Date(v); return isNaN(d) ? "" : d.toISOString().slice(0,10);
+  };
   const pick = (row, keys, d="") => { for (const k of keys) if (row && row[k] != null && String(row[k]).trim() !== "") return row[k]; return d; };
-  const toNum = (v) => { const n = Number(String(v ?? "").replace(/[^0-9.\-]/g,"")); return Number.isFinite(n) ? n : 0; };
-  const uid = (p="ACT") => `${p}-${Date.now().toString(36)}-${Math.floor(Math.random()*1e6).toString(36)}`;
 
   // ---------- data helpers ----------
   async function loadEmployeeMap() {
@@ -30,13 +35,9 @@
   }
 
   async function loadActivitiesForSquad(squadId, squadName) {
-    if (!api.SHEETS || !api.SHEETS.SQUAD_ACTIVITIES) {
-      return { items: [], configured: false, hoursByAct: new Map(), plannedByAct: new Map() };
-    }
-    const rows = await api.getRowsByTitle(api.SHEETS.SQUAD_ACTIVITIES);
-
+    const rows = await api.getRowsByTitle(api.SHEETS.SQUAD_ACTIVITIES).catch(()=>[]);
     const items = rows.map(r => {
-      const actId = pick(r, ["Activity ID","ID"], "").toString().trim();
+      const actId = (r["Activity ID"] || r["ID"] || "").toString().trim();
       const squad = (r["Squad"] || r["Squad ID"] || r["Squad Name"] || "").toString().trim();
       const title = (r["Activity Title"] || r["Title"] || "").toString().trim();
       const type  = (r["Type"] || "").toString().trim() || "Other";
@@ -47,49 +48,61 @@
       if (!title) return null;
       const match = (norm(squad) === norm(squadId)) || (squadName && norm(squad) === norm(squadName));
       if (!match) return null;
-      return { id: actId, title, type, status, start, end, owner };
+      return { id: actId || title, title, type, status, start, end, owner };
     }).filter(Boolean);
 
-    const hoursByAct   = new Map();
-    const plannedByAct = new Map();
+    // Hours rollups (completed + planned)
+    const hoursByActDone = new Map();
+    const hoursByActPlan = new Map();
     try {
       const ph = await api.getRowsByTitle(api.SHEETS.POWER_HOURS);
       ph.forEach(r => {
-        const actId = (r["Activity ID"] || r["Activity"] || "").toString().trim();
-        if (!actId) return;
-        const hrs = toNum(r["Completed Hours"] ?? r["Hours"] ?? r["Duration (hrs)"] ?? r["Duration"]);
-        if (!hrs) return;
-        if (isTrue(r["Completed"])) hoursByAct.set(actId, (hoursByAct.get(actId) || 0) + hrs);
-        else if (isTrue(r["Scheduled"])) plannedByAct.set(actId, (plannedByAct.get(actId) || 0) + hrs);
+        const aid = (r["Activity ID"] || r["Activity"] || "").toString().trim();
+        if (!aid) return;
+        const completed = isTrue(r["Completed"]);
+        const scheduled = isTrue(r["Scheduled"]);
+        const hrs = Number(String(r["Completed Hours"] ?? r["Hours"] ?? "0").replace(/[^0-9.\-]/g,"") || 0);
+        if (!Number.isFinite(hrs)) return;
+        if (completed) hoursByActDone.set(aid, (hoursByActDone.get(aid) || 0) + hrs);
+        else if (scheduled) hoursByActPlan.set(aid, (hoursByActPlan.get(aid) || 0) + hrs);
       });
     } catch {}
 
-    return { items, configured: true, hoursByAct, plannedByAct };
+    return { items, hoursByActDone, hoursByActPlan };
   }
 
-  // ---------- render: meta / members ----------
+  // ---------- render: meta ----------
   function renderMeta(squadRow, leaderNames) {
     const squadName = squadRow["Squad Name"] || squadRow["Name"] || squadRow.id || "-";
     const active = isTrue(squadRow["Active"]);
-    const statusPill = active ? '<span class="pill pill--on">Active</span>' : '<span class="pill pill--off">Inactive</span>';
+    const statusPill = active
+      ? '<span class="pill pill--on">Active</span>'
+      : '<span class="pill pill--off">Inactive</span>';
+
     const n = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val ?? "—"; };
-    n("sqd-name", squadName); n("sqd-leader", leaderNames.join(", ") || "—");
+
+    n("sqd-name", squadName);
+    n("sqd-leader", leaderNames.join(", ") || "—");
     const st = document.getElementById("sqd-status"); if (st) st.outerHTML = statusPill;
-    n("sqd-cat", squadRow["Category"] || "—"); n("sqd-created", fmtMDYY(squadRow["Created Date"] || squadRow["Created"] || ""));
-    const obj = document.querySelector("#card-objective .kv"); if (obj) obj.textContent = squadRow["Objective"] || "—";
-    const notes = document.querySelector("#card-notes .kv"); if (notes) notes.textContent = squadRow["Notes"] || "—";
+    n("sqd-cat", squadRow["Category"] || "—");
+    n("sqd-created", fmtMDYY(squadRow["Created Date"] || squadRow["Created"] || ""));
+
+    const obj = document.querySelector("#card-objective .kv");
+    if (obj) obj.textContent = squadRow["Objective"] || "—";
   }
 
+  // ---------- render: members ----------
   function renderMembers(allRows, empMap, squadId, isAdmin) {
     const rows = allRows.filter(r => norm(r["Squad ID"]) === norm(squadId));
     const tb = document.getElementById("members-tbody");
     const cnt = document.getElementById("members-count");
     if (!tb) return;
+
     tb.innerHTML = rows.map(r => {
-      const eid = String(r["Employee ID"] || "").trim();
-      const name = empMap.get(eid) || eid || "-";
-      const role = r["Role"] || "-";
-      const active = isTrue(r["Active"]);
+      const eid   = String(r["Employee ID"] || "").trim();
+      const name  = empMap.get(eid) || eid || "-";
+      const role  = r["Role"] || "-";
+      const active= isTrue(r["Active"]);
       const start = r["Start Date"] || r["Start"];
       return `
         <tr>
@@ -97,53 +110,60 @@
           <td>${esc(role)}</td>
           <td>${active ? '<span class="pill pill--on">Active</span>' : '<span class="pill pill--off">Inactive</span>'}</td>
           <td>${fmtMDYY(start)}</td>
-        </tr>`;
+        </tr>
+      `;
     }).join("") || `<tr><td colspan="4" style="opacity:.7;text-align:center;">No members yet</td></tr>`;
+
     if (cnt) cnt.textContent = String(rows.length);
   }
 
-  // ---------- KPIs ----------
-  function renderKpis(acts, hoursByAct, plannedByAct) {
+  // ---------- render: KPIs ----------
+  function renderKpis(acts, hoursDone, hoursPlan) {
     const set = (id,val) => { const el = document.getElementById(id); if (el) el.textContent = String(val); };
     const total = acts.length;
-    const completedActs = acts.filter(a => norm(a.status) === "completed").length;
-    const completedHrs = acts.reduce((sum,a)=> sum + (hoursByAct.get(a.id)||0), 0);
-    const plannedHrs   = acts.reduce((sum,a)=> sum + (plannedByAct.get(a.id)||0), 0);
-    const pct = total ? Math.round((completedActs/total)*100) : 0;
-    set("kpi-total", total); set("kpi-planned-hrs", plannedHrs); set("kpi-completed-hrs", completedHrs); set("kpi-complete-pct", `${pct}%`);
+    const completed = acts.filter(a => /completed/i.test(a.status)).length;
+    const pct = total ? Math.round((completed/total)*100) : 0;
+    const sum = (map) => Array.from(map.values()).reduce((a,b)=>a+b,0);
+
+    set("kpi-total", total);
+    set("kpi-planned-hrs", sum(hoursPlan));
+    set("kpi-completed-hrs", sum(hoursDone));
+    set("kpi-complete-pct", pct + "%");
   }
 
-  // ---------- activities table ----------
-  const statusPillClass = (s) => {
-    const k = norm(s);
-    if (k === "in progress" || k === "progress") return "pill--status-progress";
-    if (k === "completed") return "pill--status-completed";
-    if (k === "not started" || k === "planned") return "pill--status-notstarted";
-    if (k === "canceled" || k === "denied/cancelled") return "pill--status-canceled";
-    return "pill--type";
-  };
-
-  function renderActivities(acts, hoursByAct, configured) {
+  // ---------- render: activities table ----------
+  function renderActivities(acts, hoursDone, configured) {
     const tb = document.getElementById("activities-tbody");
     if (!tb) return;
-    if (!configured) { tb.innerHTML = `<tr><td colspan="7" style="opacity:.75;padding:12px;">Activities sheet isn’t configured.</td></tr>`; return; }
-    if (!acts.length) { tb.innerHTML = `<tr><td colspan="7" style="opacity:.75;padding:12px;text-align:center">No activities found for this squad.</td></tr>`; return; }
+
+    if (!configured) {
+      tb.innerHTML = `<tr><td colspan="7" style="opacity:.75;padding:12px;">Activities sheet isn’t configured.</td></tr>`;
+      return;
+    }
+    if (!acts.length) {
+      tb.innerHTML = `<tr><td colspan="7" style="opacity:.75;padding:12px;text-align:center">No activities found for this squad.</td></tr>`;
+      return;
+    }
 
     tb.innerHTML = acts.map(a => {
       const range = `${fmtMDYY(a.start)} — ${fmtMDYY(a.end)}`;
-      const hrs = hoursByAct.get(a.id) || 0;
+      const hrs   = hoursDone.get(a.id) || 0;
       const actionLabel = /completed/i.test(a.status) ? "View" : "Log Hour";
-      const statusCls = statusPillClass(a.status);
+      const statusChip = `<span class="pill" style="background:#2a3440;color:#c3d5ff">${esc(a.status)}</span>`;
+      const typeChip   = `<span class="pill" style="background:#2a3a3a;color:#aee">${esc(a.type)}</span>`;
       return `
         <tr>
-          <td class="title">${esc(a.title)}</td>
-          <td class="status"><span class="pill ${statusCls}">${esc(a.status)}</span></td>
-          <td class="type"><span class="pill pill--type">${esc(a.type)}</span></td>
-          <td class="dates">${esc(range)}</td>
+          <td>${esc(a.title)}</td>
+          <td>${statusChip}</td>
+          <td>${typeChip}</td>
+          <td>${esc(range)}</td>
           <td class="owner">${esc(a.owner || "-")}</td>
-          <td class="ph" style="text-align:right">${hrs}</td>
-          <td class="row-actions"><button class="btn small ${/completed/i.test(a.status)?'ghost':''}" data-act="${esc(a.id)}" data-action="${/completed/i.test(a.status)?'view':'log-ph'}">${actionLabel}</button></td>
-        </tr>`;
+          <td style="text-align:right">${hrs}</td>
+          <td class="row-actions">
+            <button class="btn small ghost" data-act="${esc(a.id)}" data-action="${/completed/i.test(a.status)?'view':'log-ph'}">${actionLabel}</button>
+          </td>
+        </tr>
+      `;
     }).join("");
 
     tb.querySelectorAll('button[data-action]').forEach(btn => {
@@ -151,170 +171,143 @@
         e.preventDefault();
         const actId = btn.getAttribute('data-act') || '';
         const action = btn.getAttribute('data-action') || 'log-ph';
-        if (action === 'view') { alert('View not wired yet.'); return; }
-        if (P.PowerHours && typeof P.PowerHours.open === 'function') P.PowerHours.open({ activityId: actId });
-        else location.href = `power-hours.html?activityId=${encodeURIComponent(actId)}`;
+        if (action === 'view') {
+          alert('View not wired yet.');
+          return;
+        }
+        if (P.PowerHours && typeof P.PowerHours.open === 'function') {
+          P.PowerHours.open({ activityId: actId });
+        } else {
+          location.href = `power-hours.html?activityId=${encodeURIComponent(actId)}`;
+        }
       });
     });
   }
 
-  // ---------- filters ----------
-  function buildDependentFilters(allActs, hoursByAct) {
+  // ---------- dependent filters ----------
+  function buildDependentFilters(allActs, hoursDone) {
     const colSel = document.getElementById("act-col");
     const valSel = document.getElementById("act-val");
     if (!colSel || !valSel) return;
 
     const cols = [
-      {key:"status", label:"Status",  get:a=>a.status},
-      {key:"type",   label:"Type",    get:a=>a.type},
-      {key:"owner",  label:"Owner",   get:a=>a.owner||"-"},
-      {key:"hours",  label:"Completed PH", get:a=>String(hoursByAct.get(a.id)||0)},
-      {key:"title",  label:"Title",   get:a=>a.title},
-      {key:"start",  label:"Start",   get:a=>fmtMDYY(a.start)},
-      {key:"end",    label:"End",     get:a=>fmtMDYY(a.end)}
+      {key:"status", label:"Status",     get:a=>a.status},
+      {key:"type",   label:"Type",       get:a=>a.type},
+      {key:"owner",  label:"Owner",      get:a=>a.owner||"-"},
+      {key:"hours",  label:"Completed PH", get:a=>String(hoursDone.get(a.id)||0)},
+      {key:"title",  label:"Title",      get:a=>a.title},
+      {key:"start",  label:"Start",      get:a=>fmtMDYY(a.start)},
+      {key:"end",    label:"End",        get:a=>fmtMDYY(a.end)},
     ];
+
     function setValuesFor(colKey){
       const col = cols.find(c=>c.key===colKey) || cols[0];
       const vals = Array.from(new Set(allActs.map(a => col.get(a)))).filter(v=>v!==undefined && v!==null);
       valSel.innerHTML = `<option value="__ALL__">All values</option>` + vals.map(v=>`<option>${esc(v)}</option>`).join("");
       valSel.disabled = false;
     }
-    setValuesFor(colSel.value || "status");
+
+    colSel.innerHTML = cols.map(c=>`<option value="${c.key}" ${c.key==='status'?'selected':''}>${c.label}</option>`).join("");
+    setValuesFor(colSel.value);
+
     colSel.addEventListener('change', () => setValuesFor(colSel.value));
   }
 
-  function applyDependentFilter(allActs, hoursByAct, plannedByAct) {
+  function applyDependentFilter(allActs, hoursDone, hoursPlan) {
     const colSel = document.getElementById("act-col");
     const valSel = document.getElementById("act-val");
-    const configured = true;
-
     const colKey = (colSel?.value)||"status";
     const val    = (valSel?.value)||"__ALL__";
 
-    const getters = {
+    const get = {
       title:a=>a.title, status:a=>a.status, type:a=>a.type,
       start:a=>fmtMDYY(a.start), end:a=>fmtMDYY(a.end),
-      owner:a=>a.owner||"-", hours:a=>String(hoursByAct.get(a.id)||0)
-    };
-    const get = getters[colKey] || ((a)=>"");
+      owner:a=>a.owner||"-", hours:a=>String(hoursDone.get(a.id)||0)
+    }[colKey] || ((a)=>"");
+
     const filtered = (val==="__ALL__") ? allActs : allActs.filter(a => String(get(a))===val);
 
-    renderKpis(filtered, hoursByAct, plannedByAct);
-    renderActivities(filtered, hoursByAct, configured);
-
-    if (!document.getElementById('view-gantt')?.hidden) renderGantt(filtered);
+    renderKpis(filtered, hoursDone, hoursPlan);
+    renderActivities(filtered, hoursDone, true);
+    renderGantt(filtered);       // keep Gantt in sync with filters
   }
 
-  // ---------- view switch: table / gantt / calendar ----------
+  // ---------- Gantt ----------
   function renderGantt(acts) {
-    const host = document.getElementById('gantt-container');
-    if (!host) return;
-    if (!acts.length) { host.innerHTML = `<div style="opacity:.75">No activities to show.</div>`; return; }
+    const el = document.getElementById('gantt-container');
+    if (!el) return;
 
-    const dates = acts.flatMap(a => [new Date(a.start||a.end||Date.now()), new Date(a.end||a.start||Date.now())])
-                      .filter(d=>!Number.isNaN(+d)).sort((a,b)=>a-b);
-    if (!dates.length) { host.innerHTML = `<div style="opacity:.75">No dates available.</div>`; return; }
-    const min = dates[0], max = dates[dates.length-1];
-    const total = Math.max(1, Math.round((max - min)/86400000));
+    if (!acts.length) {
+      el.innerHTML = `<div style="padding:16px; opacity:.75">No activities for Gantt.</div>`;
+      return;
+    }
 
-    host.innerHTML = `
-      <div style="width:100%;overflow:auto;">
-        <div style="min-width:720px;">
-          ${acts.map(a=>{
-            const s = new Date(a.start||a.end||min), e = new Date(a.end||a.start||s);
-            const startPct = Math.max(0, Math.min(100, Math.round(((s - min)/86400000)/total*100)));
-            const lenPct   = Math.max(2, Math.round((Math.max(1, Math.round((e - s)/86400000)))/total*100));
-            const cls = statusPillClass(a.status);
-            return `
-              <div style="display:grid;grid-template-columns:240px 1fr;align-items:center;gap:12px;margin:8px 0;">
-                <div title="${esc(a.title)}" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-                  <span class="pill ${cls}">${esc(a.status)}</span>&nbsp;${esc(a.title)}
-                </div>
-                <div style="position:relative;height:24px;border:1px solid rgba(255,255,255,.08);border-radius:6px;background:#0f1a1a;">
-                  <div title="${fmtMDYY(a.start)} — ${fmtMDYY(a.end)}"
-                       style="position:absolute;left:${startPct}%;width:${lenPct}%;height:100%;
-                              background:linear-gradient(90deg,#1f6f5a,#2e8a73);border-radius:6px;"></div>
-                </div>
-              </div>`;
-          }).join("")}
-        </div>
-      </div>`;
-  }
+    // collect date range (coerce missing dates to today so bars don't blow out)
+    const today = new Date();
+    const sDates = acts.map(a => a.start ? new Date(a.start) : today);
+    const eDates = acts.map(a => a.end   ? new Date(a.end)   : today);
+    const min = new Date(Math.min(...sDates.map(d=>+d)));
+    const max = new Date(Math.max(...eDates.map(d=>+d)));
+    // inclusive days
+    const DAY = 24*60*60*1000;
+    const days = Math.max(1, Math.round((max - min) / DAY) + 1);
 
-  function wireViewTabs(acts, hoursByAct, plannedByAct) {
-    const tabs = {
-      table: {btn: document.getElementById('view-tab-table'), panel: document.getElementById('view-table')},
-      gantt: {btn: document.getElementById('view-tab-gantt'), panel: document.getElementById('view-gantt')},
-      cal:   {btn: document.getElementById('view-tab-cal'),   panel: document.getElementById('view-calendar')}
-    };
-    function activate(key){
-      for(const k in tabs){
-        const on = (k===key);
-        tabs[k].btn?.classList.toggle('is-active', on);
-        tabs[k].btn?.setAttribute('aria-selected', on?'true':'false');
-        tabs[k].panel && (tabs[k].panel.hidden = !on);
-      }
-      if (key==='gantt') renderGantt(acts);
-      if (key==='table') applyDependentFilter(acts, hoursByAct, plannedByAct);
-      if (key==='cal') {
-        const host = document.getElementById('calendar-container');
-        if (host) host.innerHTML = `<div style="opacity:.75">Calendar view coming soon.</div>`;
+    // build header ticks (weekly)
+    const ticks = [];
+    for (let i=0;i<days;i++){
+      const d = new Date(min.getTime() + i*DAY);
+      // show label each Monday or first day
+      if (i===0 || d.getDay()===1) {
+        const lab = `${d.getMonth()+1}/${d.getDate()}`;
+        ticks.push({ i, label: lab });
       }
     }
-    tabs.table.btn?.addEventListener('click', ()=>activate('table'));
-    tabs.gantt.btn?.addEventListener('click', ()=>activate('gantt'));
-    tabs.cal.btn?.addEventListener('click', ()=>activate('cal'));
-    activate('table');
-  }
 
-  // ---------- Add Activity modal wiring ----------
-  function openAddActivityModal({ members, squadId, squadName, onSaved }) {
-    const modal = document.getElementById('addActivityModal');
-    const ownerSel = document.getElementById('act-owner');
-    const titleEl = document.getElementById('act-title');
-    const typeEl  = document.getElementById('act-type');
-    const statusEl= document.getElementById('act-status-modal');
-    const sEl     = document.getElementById('act-start');
-    const eEl     = document.getElementById('act-end');
-    const descEl  = document.getElementById('act-desc');
+    // construct DOM
+    const rowsHtml = acts.map(a=>{
+      // normalize invalid/missing dates to min/max so we don’t overflow
+      const ds = a.start ? new Date(a.start) : min;
+      const de = a.end   ? new Date(a.end)   : (a.start ? new Date(a.start) : min);
+      const left = Math.max(0, Math.min(days, Math.round((ds - min)/DAY)));
+      const len  = Math.max(1, Math.round((de - ds)/DAY)+1);
+      const leftPct = (left/days)*100;
+      const widthPct= (len/days)*100;
 
-    // owners = members list (display names)
-    ownerSel.innerHTML = members.map(m => `<option>${esc(m.name)}</option>`).join("");
+      return `
+        <div class="row">
+          <div class="label">${esc(a.title)}</div>
+          <div class="lane">
+            <div class="bar" style="left:${leftPct}%; width:${widthPct}%"></div>
+          </div>
+        </div>`;
+    }).join("");
 
-    const show = () => { modal.classList.add('show'); modal.setAttribute('aria-hidden','false'); titleEl.focus(); };
-    const hide = () => { modal.classList.remove('show'); modal.setAttribute('aria-hidden','true'); };
+    const ticksHtml = ticks.map(t=>{
+      const leftPct = (t.i/days)*100;
+      return `<div class="tick" style="left:${leftPct}%"><span>${esc(t.label)}</span></div>`;
+    }).join("");
 
-    document.getElementById('aa-cancel').onclick = hide;
+    el.innerHTML = `
+      <div class="gantt">
+        <div class="header">
+          <div class="ticks">${ticksHtml}</div>
+        </div>
+        <div class="grid">
+          <div></div>
+          <div style="position:relative; height:0; border-top:1px solid rgba(255,255,255,.08)"></div>
+        </div>
+        ${rowsHtml}
+      </div>
+    `;
 
-    document.getElementById('aa-save').onclick = async () => {
-      const title = titleEl.value.trim();
-      if (!title) { alert('Title is required.'); titleEl.focus(); return; }
-      const row = {
-        "Activity ID": uid(),
-        "Squad": squadName || squadId,
-        "Activity Title": title,
-        "Type": typeEl.value,
-        "Status": statusEl.value,
-        "Start Date": sEl.value || "",
-        "End/Due Date": eEl.value || "",
-        "Owner (Display Name)": ownerSel.value || "",
-        "Description": descEl.value || ""
-      };
-
-      // try common API write shapes; fall back to UI-only add
-      let saved = false;
-      try {
-        if (api.appendRowByTitle) { await api.appendRowByTitle(api.SHEETS.SQUAD_ACTIVITIES, row); saved = true; }
-        else if (api.addRowByTitle) { await api.addRowByTitle(api.SHEETS.SQUAD_ACTIVITIES, row); saved = true; }
-        else if (api.appendRowsByTitle) { await api.appendRowsByTitle(api.SHEETS.SQUAD_ACTIVITIES, [row]); saved = true; }
-        else if (api.addRowsByTitle) { await api.addRowsByTitle(api.SHEETS.SQUAD_ACTIVITIES, [row]); saved = true; }
-      } catch (e) { console.warn('Activity save error, falling back to UI-only add:', e); }
-
-      hide();
-      onSaved(row, saved);
-    };
-
-    show();
+    // stretch Gantt vertically to near bottom without touching the page edge
+    requestAnimationFrame(()=>{
+      const gap = 56; // match bottom page gap
+      const rect = el.getBoundingClientRect();
+      const vh = window.innerHeight || document.documentElement.clientHeight;
+      const h = Math.max(220, vh - rect.top - gap);
+      el.style.minHeight = h + 'px';
+    });
   }
 
   // ---------- controls ----------
@@ -332,33 +325,89 @@
   function wireAddMemberButton({ canAdd, squadId, squadName }) {
     const btn = document.getElementById("btn-addmember");
     if (!btn) return;
-    btn.hidden = !canAdd; btn.disabled = !canAdd;
+
+    btn.hidden = !canAdd;
+    btn.disabled = !canAdd;
+
     const handler = (e) => {
       e.preventDefault();
-      if (P.squadForm && typeof P.squadForm.open === "function") P.squadForm.open({ squadId, squadName });
-      else alert("Member form not found. Please include scripts/squad-member-form.js earlier on the page.");
+      if (P.squadForm && typeof P.squadForm.open === "function") {
+        P.squadForm.open({ squadId, squadName });
+      } else {
+        alert("Member form not found. Please include scripts/squad-member-form.js earlier on the page.");
+      }
     };
+
     if (btn._amHandler) btn.removeEventListener("click", btn._amHandler);
     btn._amHandler = handler;
     btn.addEventListener("click", handler);
   }
 
-  function sizeSquadScrollers() {
-    const gap = 24;
-    const fit = (el) => {
-      if (!el) return;
-      const rect = el.getBoundingClientRect();
-      const h = Math.max(140, (window.innerHeight || document.documentElement.clientHeight) - rect.top - gap);
-      el.style.maxHeight = h + 'px';
-      el.style.height = h + 'px';
-    };
-    fit(document.querySelector('.members-scroll'));
-    fit(document.querySelector('.acts-scroll'));
+  // Owner list for Add Activity = active squad members (display names)
+  function populateOwnerOptions({ members, empMap, squadId, meId }) {
+    const sel = document.getElementById('act-owner'); if (!sel) return;
+    const rows = members.filter(r => norm(r["Squad ID"]) === norm(squadId) && isTrue(r["Active"]));
+    const names = rows.map(r => empMap.get(String(r["Employee ID"]||"").trim())).filter(Boolean);
+    const unique = Array.from(new Set(names));
+    sel.innerHTML = unique.map(n => `<option>${esc(n)}</option>`).join("") || `<option>—</option>`;
+    // preselect current user if present
+    const myName = empMap.get(meId) || "";
+    if (myName) {
+      const idx = unique.findIndex(n => n === myName);
+      if (idx >= 0) sel.selectedIndex = idx;
+    }
   }
+
+  // Add Activity -> write to Smartsheet
+  async function createActivity({ squadId, squadName }) {
+    const title = document.getElementById('act-title').value.trim();
+    const type  = document.getElementById('act-type').value.trim() || "Other";
+    const status= document.getElementById('act-status-modal').value.trim();
+    const start = toISO(document.getElementById('act-start').value);
+    const end   = toISO(document.getElementById('act-end').value);
+    const owner = document.getElementById('act-owner').value.trim();
+    const desc  = document.getElementById('act-desc').value.trim();
+
+    if (!title) { alert("Title is required."); return; }
+    if (!status || !/^(Not Started|In Progress|Completed|Canceled)$/i.test(status)) {
+      alert("Status must be one of: Not Started, In Progress, Completed, Canceled.");
+      return;
+    }
+
+    // Try to provide an ID; if that column is a formula, addRows will skip it.
+    const idCandidate = `ACT-${Date.now()}`;
+
+    const row = {
+      "Activity ID": idCandidate,
+      "Squad ID": squadId,
+      "Squad": squadName,
+      "Activity Title": title,
+      "Title": title, // be flexible
+      "Type": type,
+      "Status": status,
+      "Start Date": start,
+      "End Date": end || start,
+      "Owner (Display Name)": owner,
+      "Owner": owner,
+      "Description": desc,
+      "Notes": desc
+    };
+
+    await api.addRows("SQUAD_ACTIVITIES", [row], { toTop: true });
+
+    // refresh lists
+    api.clearCache(api.SHEETS.SQUAD_ACTIVITIES);
+    return true;
+  }
+
+  // modal helpers
+  function showModal(id){ const m = document.getElementById(id); if (m) m.classList.add('show'); }
+  function hideModal(id){ const m = document.getElementById(id); if (m) m.classList.remove('show'); }
 
   // ---------- main ----------
   document.addEventListener("DOMContentLoaded", async () => {
-    layout.injectLayout?.(); await session.initHeader?.();
+    layout.injectLayout?.();
+    await session.initHeader?.();
 
     const urlId = qs("id") || qs("squadId") || qs("squad");
     if (!urlId) { layout.setPageTitle?.("Squad: (unknown)"); return; }
@@ -387,78 +436,92 @@
     const leaderNames = leaderIds.map(id => empMap.get(id) || id);
 
     renderMeta({ ...squadRow, id: squadId }, leaderNames);
-    renderMembers(members, empMap, squadId, isAdmin);
 
+    renderMembers(members, empMap, squadId, isAdmin);
     document.addEventListener("squad-member-added", async () => {
       const latest = await api.getRowsByTitle("SQUAD_MEMBERS", { force: true });
       renderMembers(latest, empMap, squadId, isAdmin);
+      populateOwnerOptions({ members: latest, empMap, squadId, meId: norm((session.get?.() || {}).employeeId || "") });
     });
 
     const me = session.get?.() || {};
-    const userId = (me.employeeId || "").trim().toLowerCase();
-    const canAdd = isAdmin || leaderIds.some(id => id.toLowerCase() === userId);
+    const userId = (me.employeeId || "").trim();
+    const canAdd = isAdmin || leaderIds.some(id => id.toLowerCase() === userId.toLowerCase());
     wireAddMemberButton({ canAdd, squadId, squadName });
     wireBackButton();
 
-    // activities + hours
-    let { items: acts, configured, hoursByAct, plannedByAct } = await loadActivitiesForSquad(squadId, squadName);
+    // activities initial load
+    const { items: acts, hoursByActDone, hoursByActPlan } = await loadActivitiesForSquad(squadId, squadName);
+    renderKpis(acts, hoursByActDone, hoursByActPlan);
+    renderActivities(acts, hoursByActDone, true);
+    buildDependentFilters(acts, hoursByActDone);
+    renderGantt(acts);
 
-    renderKpis(acts, hoursByAct, plannedByAct);
-    renderActivities(acts, hoursByAct, configured);
-    buildDependentFilters(acts, hoursByAct);
-
+    // dependent filters + Clear
     const colSel = document.getElementById("act-col");
     const valSel = document.getElementById("act-val");
-    const rerender = () => applyDependentFilter(acts, hoursByAct, plannedByAct);
+    const rerender = () => applyDependentFilter(acts, hoursByActDone, hoursByActPlan);
     colSel?.addEventListener("change", rerender);
     valSel?.addEventListener("change", rerender);
 
-    // clear filters
-    document.getElementById('btn-clear-filters')?.addEventListener('click', ()=>{
-      colSel.value = "status";
-      valSel.innerHTML = `<option value="__ALL__">All values</option>`;
-      valSel.value = "__ALL__";
-      rerender();
-    });
-
-    // Add Activity (wired to modal here; still respects permission)
-    const addActBtn = document.getElementById("btn-add-activity");
-    if (addActBtn) {
-      if (canAdd) {
-        addActBtn.disabled = false;
-        addActBtn.addEventListener("click", (e) => {
-          e.preventDefault();
-
-          // build a simple list of display names from current squad members
-          const mbrs = members.filter(r => norm(r["Squad ID"]) === norm(squadId))
-                              .map(r => ({ id: String(r["Employee ID"]||"").trim(), name: empMap.get(String(r["Employee ID"]||"").trim()) || String(r["Employee ID"]||"").trim() }));
-
-          openAddActivityModal({
-            members: mbrs, squadId, squadName,
-            onSaved: async (newRow, persisted) => {
-              if (persisted) {
-                // re-query to get canonical row + any computed columns
-                const reload = await loadActivitiesForSquad(squadId, squadName);
-                acts = reload.items; configured = reload.configured; hoursByAct = reload.hoursByAct; plannedByAct = reload.plannedByAct;
-              } else {
-                // UI-only optimistic add (so the user sees it immediately)
-                acts = [{ id: newRow["Activity ID"], title: newRow["Activity Title"], type: newRow["Type"], status: newRow["Status"], start: newRow["Start Date"], end: newRow["End/Due Date"], owner: newRow["Owner (Display Name)"] }, ...acts];
-              }
-              renderKpis(acts, hoursByAct, plannedByAct);
-              applyDependentFilter(acts, hoursByAct, plannedByAct);
-            }
-          });
-        });
-      } else {
-        addActBtn.disabled = true;
-      }
+    const clearBtn = document.getElementById('btn-clear-filters');
+    if (clearBtn) {
+      clearBtn.addEventListener('click', (e)=>{
+        e.preventDefault();
+        colSel.value = 'status';
+        // rebuild values for default column
+        const event = new Event('change');
+        colSel.dispatchEvent(event);
+        valSel.value = '__ALL__';
+        rerender();
+      });
     }
 
-    // view switch
-    wireViewTabs(acts, hoursByAct, plannedByAct);
+    // Owner dropdown for Add Activity
+    populateOwnerOptions({ members, empMap, squadId, meId: userId });
 
-    // sizing + bottom gap perception (scroll areas sized; extra spacer exists in HTML)
-    sizeSquadScrollers();
-    window.addEventListener('resize', sizeSquadScrollers);
+    // Add Activity modal wiring
+    const addActBtn = document.getElementById("btn-add-activity");
+    const modalId = 'addActivityModal';
+    document.getElementById('aa-cancel')?.addEventListener('click', ()=>hideModal(modalId));
+    addActBtn?.addEventListener('click', (e)=>{ e.preventDefault(); showModal(modalId); });
+
+    document.getElementById('aa-save')?.addEventListener('click', async ()=>{
+      try{
+        await createActivity({ squadId, squadName });
+        hideModal(modalId);
+        const fresh = await loadActivitiesForSquad(squadId, squadName);
+        renderKpis(fresh.items, fresh.hoursByActDone, fresh.hoursByActPlan);
+        renderActivities(fresh.items, fresh.hoursByActDone, true);
+        buildDependentFilters(fresh.items, fresh.hoursByActDone);
+        renderGantt(fresh.items);
+      } catch (err){
+        console.error(err);
+        alert("Failed to create activity. See console for details.");
+      }
+    });
+
+    // View switch
+    const tabs = [
+      {btn:'view-tab-table', panel:'view-table'},
+      {btn:'view-tab-gantt', panel:'view-gantt'},
+      {btn:'view-tab-cal',   panel:'view-calendar'},
+    ];
+    tabs.forEach(t=>{
+      const b = document.getElementById(t.btn), p = document.getElementById(t.panel);
+      if (!b||!p) return;
+      b.addEventListener('click', (e)=>{
+        e.preventDefault();
+        tabs.forEach(x=>{
+          const bx = document.getElementById(x.btn), px = document.getElementById(x.panel);
+          if (!bx||!px) return;
+          const on = (x.btn===t.btn);
+          bx.classList.toggle('is-active', on);
+          bx.setAttribute('aria-selected', on?'true':'false');
+          px.hidden = !on;
+        });
+        if (t.panel === 'view-gantt') renderGantt(acts);
+      });
+    });
   });
 })(window.PowerUp || (window.PowerUp = {}));
