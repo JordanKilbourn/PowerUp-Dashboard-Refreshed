@@ -19,22 +19,6 @@
     return d;
   };
 
-  // ---------- viewport sizing ----------
-  function sizeSquadScrollers() {
-    const fit = (el) => {
-      if (!el) return;
-      const rect = el.getBoundingClientRect();
-      const pad = 18; // breathing room so the last row isn't flush to the edge
-      const vh  = Math.max(window.innerHeight || 0, document.documentElement.clientHeight || 0);
-      const h   = Math.max(140, vh - rect.top - pad);
-      el.style.maxHeight = h + 'px';
-      el.style.height    = h + 'px';
-    };
-    fit(document.querySelector('.members-scroll'));
-    fit(document.querySelector('.acts-scroll'));
-  }
-  const queueResize = () => requestAnimationFrame(sizeSquadScrollers);
-
   // ---------- data helpers ----------
   async function loadEmployeeMap() {
     const rows = await api.getRowsByTitle("EMPLOYEE_MASTER");
@@ -54,7 +38,7 @@
     const rows = await api.getRowsByTitle(api.SHEETS.SQUAD_ACTIVITIES);
     const items = rows.map(r => {
       const actId = pick(r, ["Activity ID","ID"], "").toString().trim();
-      const squad = (r["Squad ID"] || r["Squad"] || r["Squad Name"] || "").toString().trim();
+      const squad = (r["Squad"] || r["Squad ID"] || r["Squad Name"] || "").toString().trim();
       const title = (r["Activity Title"] || r["Title"] || "").toString().trim();
       const type  = (r["Type"] || "").toString().trim() || "Other";
       const status= (r["Status"] || "").toString().trim() || "Planned";
@@ -85,27 +69,29 @@
     return { items, configured: true, hoursByAct };
   }
 
-  // ---------- render: meta ----------
+  // ---------- render: meta (UPDATED to target the new ribbon IDs) ----------
   function renderMeta(squadRow, leaderNames) {
     const squadName = squadRow["Squad Name"] || squadRow["Name"] || squadRow.id || "-";
-    const statusPill = isTrue(squadRow["Active"])
-      ? '<span class="pill pill--on">Active</span>'
-      : '<span class="pill pill--off">Inactive</span>';
+    const active = isTrue(squadRow["Active"]);
 
-    const core = document.querySelector("#card-core .kv");
-    if (core) {
-      core.innerHTML = `
-        <div class="kvline"><b>Name:</b> ${esc(squadName)}</div>
-        <div class="kvline"><b>${leaderNames.length > 1 ? "Leaders" : "Leader"}:</b> ${esc(leaderNames.join(", ") || "-")}</div>
-        <div class="kvline"><b>Status:</b> ${statusPill}</div>
-        <div class="kvline"><b>Category:</b> ${esc(squadRow["Category"] || "-")}</div>
-        <div class="kvline"><b>Created:</b> ${fmtMDYY(squadRow["Created Date"] || squadRow["Created"] || "")}</div>
-      `;
+    const setText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = String(val ?? "—"); };
+
+    setText("sqd-name", squadName);
+    setText("sqd-leader", (leaderNames && leaderNames.length) ? leaderNames.join(", ") : "—");
+    setText("sqd-cat", squadRow["Category"] || "—");
+    setText("sqd-created", fmtMDYY(squadRow["Created Date"] || squadRow["Created"] || ""));
+
+    const statusEl = document.getElementById("sqd-status");
+    if (statusEl) {
+      statusEl.textContent = active ? "Active" : "Inactive";
+      statusEl.classList.toggle("pill--on",  active);
+      statusEl.classList.toggle("pill--off", !active);
     }
+
     const obj = document.querySelector("#card-objective .kv");
-    if (obj) obj.textContent = squadRow["Objective"] || "-";
+    if (obj) obj.textContent = squadRow["Objective"] || "—";
     const notes = document.querySelector("#card-notes .kv");
-    if (notes) notes.textContent = squadRow["Notes"] || "-";
+    if (notes) notes.textContent = squadRow["Notes"] || "—";
   }
 
   // ---------- render: members ----------
@@ -203,6 +189,7 @@
     });
   }
 
+  // robust, idempotent binder for Add Member
   function wireAddMemberButton({ canAdd, squadId, squadName }) {
     const btn = document.getElementById("btn-addmember");
     if (!btn) return;
@@ -215,6 +202,7 @@
       if (P.squadForm && typeof P.squadForm.open === "function") {
         P.squadForm.open({ squadId, squadName });
       } else {
+        console.warn("P.squadForm.open not found. Ensure scripts/squad-member-form.js loads before this file.");
         alert("Member form not found. Please include scripts/squad-member-form.js earlier on the page.");
       }
     };
@@ -222,6 +210,14 @@
     if (btn._amHandler) btn.removeEventListener("click", btn._amHandler);
     btn._amHandler = handler;
     btn.addEventListener("click", handler);
+
+    if (!document._amDelegated) {
+      document._amDelegated = true;
+      document.addEventListener("click", (evt) => {
+        const t = evt.target.closest("#btn-addmember");
+        if (t && !t.disabled && !t.hidden) handler(evt);
+      });
+    }
   }
 
   // ---------- main ----------
@@ -267,7 +263,7 @@
       .filter(Boolean);
     const leaderNames = leaderIds.map(id => empMap.get(id) || id);
 
-    // meta
+    // meta cards
     renderMeta({ ...squadRow, id: squadId }, leaderNames);
 
     // members
@@ -275,11 +271,9 @@
     document.addEventListener("squad-member-added", async () => {
       const latest = await api.getRowsByTitle("SQUAD_MEMBERS", { force: true });
       renderMembers(latest, empMap, squadId, isAdmin);
-      queueResize();
-      setTimeout(queueResize, 0);
     });
 
-    // permissions & back button
+    // permissions for add member
     const me = session.get?.() || {};
     const userId = (me.employeeId || "").trim().toLowerCase();
     const canAdd = isAdmin || leaderIds.some(id => id.toLowerCase() === userId);
@@ -305,18 +299,26 @@
       });
       renderKpis(filtered, hoursByAct);
       renderActivities(filtered, hoursByAct, configured);
-      queueResize();
     }
     statusSel?.addEventListener("change", applyActFilters);
     typeSel?.addEventListener("change", applyActFilters);
 
-    // Final layout pass(es) after everything paints
-    queueResize();
-    setTimeout(queueResize, 0);
-    setTimeout(queueResize, 300);
+    // Add Activity (wire later when your form exists)
+    const addActBtn = document.getElementById("btn-add-activity");
+    if (addActBtn) {
+      if (isAdmin || canAdd) {
+        addActBtn.disabled = false;
+        addActBtn.addEventListener("click", (e) => {
+          e.preventDefault();
+          if (P.activities && typeof P.activities.openCreate === "function") {
+            P.activities.openCreate({ squadId, squadName });
+          } else {
+            alert("Activity form not wired yet. Expose P.activities.openCreate({ squadId, squadName }) when ready.");
+          }
+        });
+      } else {
+        addActBtn.disabled = true;
+      }
+    }
   });
-
-  window.addEventListener('load', queueResize);
-  window.addEventListener('resize', queueResize);
-
 })(window.PowerUp || (window.PowerUp = {}));
