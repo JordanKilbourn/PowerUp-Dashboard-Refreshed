@@ -230,6 +230,7 @@
     renderKpis(filtered, hoursDone, hoursPlan);
     renderActivities(filtered, hoursDone, true);
     renderGantt(filtered);       // keep Gantt in sync with filters
+    sizePanels();                // <-- keep scroll areas fitted after filter
   }
 
   // ---------- Gantt ----------
@@ -344,74 +345,108 @@
   }
 
   // Owner list for Add Activity = active squad members (display names)
-function populateOwnerOptions({ members, empMap, squadId, meId }) {
-  const sel = document.getElementById('act-owner'); if (!sel) return;
-  const rows = members.filter(r => norm(r["Squad ID"]) === norm(squadId) && isTrue(r["Active"]));
+  function populateOwnerOptions({ members, empMap, squadId, meId }) {
+    const sel = document.getElementById('act-owner'); if (!sel) return;
+    const rows = members.filter(r => norm(r["Squad ID"]) === norm(squadId) && isTrue(r["Active"]));
 
-  // Build [{id: employeeId, name: displayName}] and de-dupe by id
-  const seen = new Set();
-  const opts = rows.map(r => {
-      const id = String(r["Employee ID"]||"").trim();
-      return { id, name: (empMap.get(id) || id) };
-    })
-    .filter(p => p.id && !seen.has(p.id) && seen.add(p.id));
+    // Build [{id: employeeId, name: displayName}] and de-dupe by id
+    const seen = new Set();
+    const opts = rows.map(r => {
+        const id = String(r["Employee ID"]||"").trim();
+        return { id, name: (empMap.get(id) || id) };
+      })
+      .filter(p => p.id && !seen.has(p.id) && seen.add(p.id));
 
-  // value = display name (what the user sees/keeps), data-id = hidden Employee ID
-  sel.innerHTML = opts.map(p =>
-    `<option value="${esc(p.name)}" data-id="${esc(p.id)}">${esc(p.name)}</option>`
-  ).join("") || `<option value="">—</option>`;
+    // value = display name (what the user sees/keeps), data-id = hidden Employee ID
+    sel.innerHTML = opts.map(p =>
+      `<option value="${esc(p.name)}" data-id="${esc(p.id)}">${esc(p.name)}</option>`
+    ).join("") || `<option value="">—</option>`;
 
-  // Preselect me (by ID) if present
-  if (meId) {
-    const idx = opts.findIndex(p => p.id.toLowerCase() === meId.toLowerCase());
-    if (idx >= 0) sel.selectedIndex = idx;
+    // Preselect me (by ID) if present
+    if (meId) {
+      const idx = opts.findIndex(p => p.id.toLowerCase() === meId.toLowerCase());
+      if (idx >= 0) sel.selectedIndex = idx;
+    }
   }
-}
 
   // Add Activity -> write to Smartsheet
-async function createActivity({ squadId, squadName }) {
-  const title = document.getElementById('act-title').value.trim();
-  const type  = document.getElementById('act-type').value.trim() || "Other";
-  const status= document.getElementById('act-status-modal').value.trim();
-  const start = toISO(document.getElementById('act-start').value);
-  const end   = toISO(document.getElementById('act-end').value) || start;
+  async function createActivity({ squadId, squadName }) {
+    const title = document.getElementById('act-title').value.trim();
+    const type  = document.getElementById('act-type').value.trim() || "Other";
+    const status= document.getElementById('act-status-modal').value.trim();
+    const start = toISO(document.getElementById('act-start').value);
+    const end   = toISO(document.getElementById('act-end').value) || start;
 
-  const ownerSel  = document.getElementById('act-owner');
-  const ownerName = ownerSel?.selectedOptions[0]?.text || ownerSel?.value || "";
-  const ownerId   = ownerSel?.selectedOptions[0]?.dataset?.id || ""; // hidden Employee ID
+    const ownerSel  = document.getElementById('act-owner');
+    const ownerName = ownerSel?.selectedOptions[0]?.text || ownerSel?.value || "";
+    const ownerId   = ownerSel?.selectedOptions[0]?.dataset?.id || ""; // hidden Employee ID
 
-  const desc  = document.getElementById('act-desc').value.trim();
+    const desc  = document.getElementById('act-desc').value.trim();
 
-  if (!title) { alert("Title is required."); return; }
-  if (!status || !/^(Not Started|In Progress|Completed|Canceled)$/i.test(status)) {
-    alert("Status must be one of: Not Started, In Progress, Completed, Canceled."); return;
+    if (!title) { alert("Title is required."); return; }
+    if (!status || !/^(Not Started|In Progress|Completed|Canceled)$/i.test(status)) {
+      alert("Status must be one of: Not Started, In Progress, Completed, Canceled."); return;
+    }
+
+    const row = {
+      // Do NOT write Activity ID; let Smartsheet auto-number if configured
+      "Squad ID": squadId,
+      "Squad": squadName,
+      "Activity Title": title,
+      "Title": title,
+      "Type": type,
+      "Status": status,
+      "Start Date": start,
+      "End/Due Date": end,
+      "Owner (Display Name)": ownerName,
+      "Owner": ownerName,
+      "Owner ID": ownerId,            // <- hidden employee ID written here
+      "Description": desc,
+      "Notes": desc
+    };
+
+    await api.addRows("SQUAD_ACTIVITIES", [row], { toTop: true });
+    api.clearCache(api.SHEETS.SQUAD_ACTIVITIES);
+    return true;
   }
-
-  const row = {
-    // Do NOT write Activity ID; let Smartsheet auto-number if configured
-    "Squad ID": squadId,
-    "Squad": squadName,
-    "Activity Title": title,
-    "Title": title,
-    "Type": type,
-    "Status": status,
-    "Start Date": start,
-    "End/Due Date": end,
-    "Owner (Display Name)": ownerName,
-    "Owner": ownerName,
-    "Owner ID": ownerId,            // <- hidden employee ID written here
-    "Description": desc,
-    "Notes": desc
-  };
-
-  await api.addRows("SQUAD_ACTIVITIES", [row], { toTop: true });
-  api.clearCache(api.SHEETS.SQUAD_ACTIVITIES);
-  return true;
-}
 
   // modal helpers
   function showModal(id){ const m = document.getElementById(id); if (m) m.classList.add('show'); }
   function hideModal(id){ const m = document.getElementById(id); if (m) m.classList.remove('show'); }
+
+  // ---------- viewport sizing (restore bottom gap + fit scroll areas) ----------
+  function sizePanels() {
+    const GAP = 56; // keep a visible gap above the page bottom
+    const vh = window.innerHeight || document.documentElement.clientHeight;
+
+    function fit(el) {
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const h = Math.max(180, vh - rect.top - GAP);
+      el.style.maxHeight = h + 'px';
+      el.style.height = h + 'px';
+    }
+
+    // Members list is always visible
+    fit(document.querySelector('.members-scroll'));
+
+    // Active view in Activities: only size the visible panel
+    const tablePanel = document.getElementById('view-table');
+    const ganttPanel = document.getElementById('view-gantt');
+    const calPanel   = document.getElementById('view-calendar');
+
+    if (tablePanel && !tablePanel.hidden) {
+      fit(tablePanel.querySelector('.acts-scroll'));
+    }
+    if (ganttPanel && !ganttPanel.hidden) {
+      // let renderGantt set minHeight; ensure container respects gap too
+      const gc = document.getElementById('gantt-container');
+      fit(gc);
+    }
+    if (calPanel && !calPanel.hidden) {
+      fit(calPanel.querySelector('.acts-scroll'));
+    }
+  }
 
   // ---------- main ----------
   document.addEventListener("DOMContentLoaded", async () => {
@@ -451,6 +486,7 @@ async function createActivity({ squadId, squadName }) {
       const latest = await api.getRowsByTitle("SQUAD_MEMBERS", { force: true });
       renderMembers(latest, empMap, squadId, isAdmin);
       populateOwnerOptions({ members: latest, empMap, squadId, meId: norm((session.get?.() || {}).employeeId || "") });
+      sizePanels(); // refit after membership updates
     });
 
     const me = session.get?.() || {};
@@ -465,6 +501,10 @@ async function createActivity({ squadId, squadName }) {
     renderActivities(acts, hoursByActDone, true);
     buildDependentFilters(acts, hoursByActDone);
     renderGantt(acts);
+
+    // initial fit + on resize
+    sizePanels();
+    window.addEventListener('resize', sizePanels);
 
     // dependent filters + Clear
     const colSel = document.getElementById("act-col");
@@ -504,6 +544,7 @@ async function createActivity({ squadId, squadName }) {
         renderActivities(fresh.items, fresh.hoursByActDone, true);
         buildDependentFilters(fresh.items, fresh.hoursByActDone);
         renderGantt(fresh.items);
+        sizePanels(); // refit after data changes
       } catch (err){
         console.error(err);
         alert("Failed to create activity. See console for details.");
@@ -530,6 +571,7 @@ async function createActivity({ squadId, squadName }) {
           px.hidden = !on;
         });
         if (t.panel === 'view-gantt') renderGantt(acts);
+        sizePanels(); // refit after switching views
       });
     });
   });
