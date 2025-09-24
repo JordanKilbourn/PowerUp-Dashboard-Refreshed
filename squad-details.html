@@ -27,24 +27,29 @@
     <style>
       :root{ --header-h:72px; --panel:var(--card-bg); --panel-2:#101617; --chip-border:rgba(255,255,255,.08); }
 
-      /* real gap outside your cards */
+      /* page shell + true bottom gap OUTSIDE the cards */
+      html,body{ height:100%; }
       body{ min-height:100vh; }
-      .page-wrap{ width:100%; margin:0; padding:14px; display:grid; gap:14px; }
-      .page-bottom-gap{ height:32px; } /* <- the gap */
+      /* Prevent margin-collapse: the transparent border ensures the bottom margin is “real” */
+      .page-wrap{
+        width:100%; margin:0; padding:14px; display:grid; gap:14px;
+        border-bottom:1px solid transparent; /* anti-collapse */
+        margin-bottom:56px;                   /* ← real gap at the bottom */
+      }
 
       .btn{ padding:8px 12px; border-radius:8px; border:1px solid var(--accent); background:var(--card-bg); color:var(--text); cursor:pointer;}
       .btn:hover{ background:var(--card-bg-hover); }
       .btn.primary{ background:var(--accent); color:#000; border-color:var(--accent); }
       .btn.small{ padding:6px 10px; border-radius:999px; font-size:12px; line-height:1; }
       .btn.ghost{ background:transparent; border-color:var(--chip-border); }
+      .btn.clear{
+        padding:6px 12px; border-radius:999px; border:1px dashed rgba(255,255,255,.25);
+        background:transparent; color:#cbd5e1; font-size:13px;
+      }
+      .btn.clear i{ margin-right:6px; opacity:.9; }
 
       .pill{ display:inline-block; border-radius:999px; padding:4px 10px; font-size:12px; font-weight:700; line-height:1; }
       .pill--on{ background:var(--success); color:#062; } .pill--off{ background:#3a4e4e; color:#fff; }
-      .pill--status-progress{ background:#264b3f; color:#9ffbe6; }
-      .pill--status-notstarted{ background:#2a3440; color:#c3d5ff; }
-      .pill--status-completed{ background:#2a3a2f; color:#b5f2b2; }
-      .pill--status-canceled{ background:#3a2d2d; color:#f1b5b5; }
-      .pill--type{ background:#2a3a3a; color:#aee; }
 
       .card{ background:linear-gradient(180deg,var(--panel),var(--panel-2)); border:1px solid var(--chip-border); border-radius:12px; box-shadow:0 3px 12px rgba(0,0,0,.18); padding:12px 14px; }
       .card-h{ font-size:15px; font-weight:700; color:#9ffbe6; margin:0 0 8px; display:flex; align-items:center; justify-content:space-between; gap:8px; }
@@ -56,12 +61,16 @@
       .kv-inline{ display:flex; gap:8px; align-items:center; padding:6px 10px; border:1px solid var(--chip-border); border-radius:999px; background:var(--panel-2) }
       .kv-inline .k{ letter-spacing:.4px; text-transform:uppercase; font-size:11px; color:var(--info) }
       .kv-inline .v{ font-weight:700; color:var(--text) }
-      .notes-row{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:10px }
-      @media (max-width:1000px){ .notes-row{ grid-template-columns:1fr } }
+
       .note-tile{ background:var(--panel-2); border:1px solid var(--chip-border); border-radius:10px; padding:10px }
       .note-tile .h{ font-size:12px; color:var(--info); font-weight:600; margin-bottom:4px }
-      .mini-kpis{ display:grid; grid-template-columns:repeat(4,minmax(150px,1fr)); gap:10px; margin-top:10px }
-      @media (max-width:900px){ .mini-kpis{ grid-template-columns:repeat(2,1fr) } }
+
+      /* Objective full-width; KPIs compact directly under it */
+      .objective-wrap{ display:block; margin-top:10px; }
+      .mini-kpis{
+        display:grid; grid-template-columns:repeat(4, minmax(120px,1fr));
+        gap:10px; margin-top:10px; max-width:820px;  /* ← compact under objective */
+      }
       .mini-kpi{ display:flex; align-items:center; justify-content:space-between; padding:10px 12px; border:1px solid var(--chip-border); border-radius:12px; background:var(--panel-2) }
       .mini-kpi .label{ font-size:12px; color:var(--info) } .mini-kpi .val{ font-size:20px; font-weight:800; color:var(--text) }
 
@@ -72,7 +81,7 @@
       .work{ display:grid; grid-template-columns:360px 1fr; gap:12px; align-items:start; }
       @media (max-width:1100px){ .work{ grid-template-columns:1fr } }
 
-      .members-scroll{ overflow:auto; border:1px solid #263636; border-radius:8px; padding-bottom:12px; margin-bottom:8px; }
+      .members-scroll{ overflow:auto; border:1px solid #263636; border-radius:8px; }
       .members-table{ width:100%; border-collapse:collapse; font-size:13px; table-layout:fixed; }
       .members-table th,.members-table td{ padding:6px 8px; border-bottom:1px solid #1c2929; vertical-align:top; line-height:1.25; }
       .members-table thead th{ background:#0f1a1a; color:#9ca3af; position:sticky; top:0; z-index:1; }
@@ -86,9 +95,9 @@
       .seg button.is-active{ background:var(--panel-2); }
       .seg button + button{ border-left:1px solid var(--chip-border) }
 
-      .acts-scroll{ overflow:auto; border:1px solid #263636; border-radius:8px; padding-bottom:12px; margin-bottom:8px; }
+      .acts-scroll{ overflow:auto; border:1px solid #263636; border-radius:8px; }
 
-      /* table alignment */
+      /* Activities table as “row cards” */
       #activities-table{ width:100%; border-collapse:separate; border-spacing:0 10px; font-size:13px; table-layout:fixed; }
       #activities-table col.title{ width:34% } #activities-table col.status{ width:12% } #activities-table col.type{ width:12% }
       #activities-table col.dates{ width:16% } #activities-table col.owner{ width:16% } #activities-table col.ph{ width:8% } #activities-table col.actions{ width:110px }
@@ -96,7 +105,6 @@
       #activities-table tbody td{ background:var(--panel-2); padding:10px 12px; border-top:1px solid var(--chip-border); border-bottom:1px solid var(--chip-border); vertical-align:middle; }
       #activities-table tbody td:first-child{ border-left:1px solid var(--chip-border); border-top-left-radius:12px; border-bottom-left-radius:12px; }
       #activities-table tbody td:last-child{ border-right:1px solid var(--chip-border); border-top-right-radius:12px; border-bottom-right-radius:12px; }
-      #activities-table .owner{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
       #activities-table .row-actions{ display:flex; justify-content:flex-end; gap:8px; }
 
       /* Scrollbars (restored) */
@@ -115,6 +123,21 @@
       .chk{ display:flex; align-items:center; gap:8px; font-size:14px; color:var(--text); }
 
       #btn-addmember[hidden]{ display:none !important; }
+
+      /* --- Gantt view --- */
+      #gantt-container{ position:relative; min-height:320px; }
+      .gantt{ position:relative; }
+      .gantt .grid{ display:grid; grid-template-columns:220px 1fr; gap:12px; }
+      .gantt .rows{ position:relative; }
+      .gantt .row{ display:grid; grid-template-columns:220px 1fr; align-items:center; height:28px; }
+      .gantt .row + .row{ border-top:1px solid rgba(255,255,255,.06); }
+      .gantt .label{ padding:0 8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:#e5e7eb; }
+      .gantt .lane{ position:relative; height:100%; }
+      .gantt .bar{ position:absolute; top:4px; height:20px; border-radius:10px; background:#5aa38e; opacity:.9; }
+      .gantt .header{ position:sticky; top:0; background:#0f1a1a; z-index:2; padding:6px 8px; border:1px solid rgba(255,255,255,.08); border-radius:8px; margin-bottom:8px; }
+      .gantt .ticks{ position:relative; height:20px; }
+      .gantt .tick{ position:absolute; top:0; height:100%; border-left:1px solid rgba(255,255,255,.08); }
+      .gantt .tick > span{ position:absolute; top:-18px; transform:translateX(-50%); font-size:11px; color:#9ca3af; white-space:nowrap; }
     </style>
   </head>
   <body>
@@ -129,10 +152,13 @@
           <div class="kv-inline"><span class="k">Category</span><span class="v"><span id="sqd-cat">—</span></span></div>
           <div class="kv-inline"><span class="k">Created</span><span class="v"><span id="sqd-created">—</span></span></div>
         </div>
-        <div class="notes-row">
-          <div class="note-tile"><div class="h">Objective</div><div id="card-objective"><div class="kv">—</div></div></div>
-          <div class="note-tile"><div class="h">Notes</div><div id="card-notes"><div class="kv">—</div></div></div>
+
+        <!-- Objective only (Notes removed), KPIs compact under it -->
+        <div class="objective-wrap note-tile" style="margin-top:8px;">
+          <div class="h">Objective</div>
+          <div id="card-objective"><div class="kv">—</div></div>
         </div>
+
         <div class="mini-kpis">
           <div class="mini-kpi"><span class="label">Total activities</span><span class="val" id="kpi-total">0</span></div>
           <div class="mini-kpi"><span class="label">Planned hours</span><span class="val" id="kpi-planned-hrs">0</span></div>
@@ -183,7 +209,7 @@
                 <option value="end">End</option>
               </select>
               <select id="act-val" disabled><option value="__ALL__">All values</option></select>
-              <button class="btn ghost" id="btn-clear-filters" title="Clear filters"><i class="fa fa-xmark"></i> Clear</button>
+              <button class="btn clear" id="btn-clear-filters" title="Clear filters"><i class="fa fa-xmark"></i>Clear</button>
               <button class="btn" id="btn-add-activity">+ Add Activity</button>
             </div>
           </div>
@@ -201,24 +227,23 @@
                 </table>
               </div>
             </div>
+
             <!-- Gantt -->
             <div id="view-gantt" role="tabpanel" aria-labelledby="view-tab-gantt" hidden>
-              <div class="acts-scroll" id="gantt-container" style="min-height:280px; display:flex; align-items:center; justify-content:center; color:#9ca3af;">
-                Gantt view will render here.
+              <div class="acts-scroll" id="gantt-container">
+                <!-- built by JS -->
               </div>
             </div>
-            <!-- Calendar -->
+
+            <!-- Calendar (stub for now) -->
             <div id="view-calendar" role="tabpanel" aria-labelledby="view-tab-cal" hidden>
-              <div class="acts-scroll" id="calendar-container" style="min-height:280px; display:flex; align-items:center; justify-content:center; color:#9ca3af;">
-                Calendar view will render here.
+              <div class="acts-scroll" id="calendar-container" style="min-height:320px; display:flex; align-items:center; justify-content:center; color:#9ca3af;">
+                Calendar view coming next.
               </div>
             </div>
           </div>
         </div>
       </section>
-
-      <!-- bottom spacer -->
-      <div class="page-bottom-gap" aria-hidden="true"></div>
     </div>
 
     <!-- Add Member Modal -->
@@ -245,7 +270,8 @@
             <select id="act-type"><option>Training</option><option>Kaizen</option><option>Process</option><option>Audit</option><option>Safety</option><option>Quality</option><option>Other</option></select>
           </div>
           <div style="flex:1; min-width:180px"><label for="act-status-modal">Status</label>
-            <select id="act-status-modal"><option>Planned</option><option>Not Started</option><option>In Progress</option><option>Blocked</option><option>Completed</option><option>Canceled</option></select>
+            <!-- exact Smartsheet list -->
+            <select id="act-status-modal"><option>Not Started</option><option>In Progress</option><option>Completed</option><option>Canceled</option></select>
           </div>
         </div>
         <div class="row">
