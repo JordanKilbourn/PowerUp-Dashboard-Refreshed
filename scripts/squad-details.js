@@ -1,4 +1,3 @@
-squad-details.js
 // scripts/squad-details.js
 (function (P) {
   const { api, session, layout } = P;
