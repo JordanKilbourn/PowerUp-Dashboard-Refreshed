@@ -2,7 +2,7 @@
 (function (P) {
   const { api, session, layout } = P;
 
-  // ---------------- utils ----------------
+  // ---------- utils ----------
   const qs = (k) => new URLSearchParams(location.search).get(k) || "";
   const esc = (s) => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
   const norm = (s) => String(s || "").trim().toLowerCase();
@@ -22,11 +22,7 @@
   };
   const pick = (row, keys, d="") => { for (const k of keys) if (row && row[k] != null && String(row[k]).trim() !== "") return row[k]; return d; };
 
-  // ---------------- constants ----------------
-  const ACTIVITY_TYPES = ["5S","Kaizen","Training","CI Suggestion","Side Quest Project","Safety Concern","Quality Catch","Other"];
-  const STATUS_ALLOWED = ["Not Started","In Progress","Completed","Canceled"];
-
-  // ---------------- data helpers ----------------
+  // ---------- data helpers ----------
   async function loadEmployeeMap() {
     const rows = await api.getRowsByTitle("EMPLOYEE_MASTER");
     const map = new Map();
@@ -55,6 +51,7 @@
       return { id: actId || title, title, type, status, start, end, owner };
     }).filter(Boolean);
 
+    // Hours rollups
     const hoursByActDone = new Map();
     const hoursByActPlan = new Map();
     try {
@@ -74,25 +71,33 @@
     return { items, hoursByActDone, hoursByActPlan };
   }
 
-  // ---------------- renderers ----------------
+  // ---------- render: meta ----------
   function renderMeta(squadRow, leaderNames) {
     const squadName = squadRow["Squad Name"] || squadRow["Name"] || squadRow.id || "-";
     const active = isTrue(squadRow["Active"]);
-    const statusPill = active ? '<span class="pill pill--on">Active</span>' : '<span class="pill pill--off">Inactive</span>';
+    const statusPill = active
+      ? '<span class="pill pill--on">Active</span>'
+      : '<span class="pill pill--off">Inactive</span>';
+
     const n = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val ?? "—"; };
+
     n("sqd-name", squadName);
     n("sqd-leader", leaderNames.join(", ") || "—");
     const st = document.getElementById("sqd-status"); if (st) st.outerHTML = statusPill;
     n("sqd-cat", squadRow["Category"] || "—");
     n("sqd-created", fmtMDYY(squadRow["Created Date"] || squadRow["Created"] || ""));
-    const obj = document.querySelector("#card-objective .kv"); if (obj) obj.textContent = squadRow["Objective"] || "—";
+
+    const obj = document.querySelector("#card-objective .kv");
+    if (obj) obj.textContent = squadRow["Objective"] || "—";
   }
 
+  // ---------- render: members ----------
   function renderMembers(allRows, empMap, squadId, isAdmin) {
     const rows = allRows.filter(r => norm(r["Squad ID"]) === norm(squadId));
     const tb = document.getElementById("members-tbody");
-    if (!tb) return;
     const cnt = document.getElementById("members-count");
+    if (!tb) return;
+
     tb.innerHTML = rows.map(r => {
       const eid   = String(r["Employee ID"] || "").trim();
       const name  = empMap.get(eid) || eid || "-";
@@ -108,26 +113,37 @@
         </tr>
       `;
     }).join("") || `<tr><td colspan="4" style="opacity:.7;text-align:center;">No members yet</td></tr>`;
+
     if (cnt) cnt.textContent = String(rows.length);
   }
 
+  // ---------- render: KPIs ----------
   function renderKpis(acts, hoursDone, hoursPlan) {
     const set = (id,val) => { const el = document.getElementById(id); if (el) el.textContent = String(val); };
     const total = acts.length;
     const completed = acts.filter(a => /completed/i.test(a.status)).length;
     const pct = total ? Math.round((completed/total)*100) : 0;
     const sum = (map) => Array.from(map.values()).reduce((a,b)=>a+b,0);
+
     set("kpi-total", total);
     set("kpi-planned-hrs", sum(hoursPlan));
     set("kpi-completed-hrs", sum(hoursDone));
     set("kpi-complete-pct", pct + "%");
   }
 
+  // ---------- render: activities table ----------
   function renderActivities(acts, hoursDone, configured) {
     const tb = document.getElementById("activities-tbody");
     if (!tb) return;
-    if (!configured) { tb.innerHTML = `<tr><td colspan="7" style="opacity:.75;padding:12px;">Activities sheet isn’t configured.</td></tr>`; return; }
-    if (!acts.length) { tb.innerHTML = `<tr><td colspan="7" style="opacity:.75;padding:12px;text-align:center">No activities found for this squad.</td></tr>`; return; }
+
+    if (!configured) {
+      tb.innerHTML = `<tr><td colspan="7" style="opacity:.75;padding:12px;">Activities sheet isn’t configured.</td></tr>`;
+      return;
+    }
+    if (!acts.length) {
+      tb.innerHTML = `<tr><td colspan="7" style="opacity:.75;padding:12px;text-align:center">No activities found for this squad.</td></tr>`;
+      return;
+    }
 
     tb.innerHTML = acts.map(a => {
       const range = `${fmtMDYY(a.start)} — ${fmtMDYY(a.end)}`;
@@ -135,417 +151,453 @@
       const statusChip = `<span class="pill" style="background:#2a3440;color:#c3d5ff">${esc(a.status)}</span>`;
       const typeChip   = `<span class="pill" style="background:#2a3a3a;color:#aee">${esc(a.type)}</span>`;
       return `
-        <tr data-act="${esc(a.id)}">
+        <tr>
           <td>${esc(a.title)}</td>
           <td>${statusChip}</td>
           <td>${typeChip}</td>
           <td>${esc(range)}</td>
           <td class="owner">${esc(a.owner || "-")}</td>
-          <td style="text-align:right">${hrs}</td>
+          <td class="ph" style="text-align:right">${hrs}</td>
           <td class="row-actions">
-            <button class="btn small" data-action="log-ph">Log&nbsp;Hours</button>
+            <button class="btn small ghost btn-log" data-act="${esc(a.id)}">Log&nbsp;Hours</button>
           </td>
         </tr>
       `;
     }).join("");
 
-    tb.querySelectorAll('button[data-action="log-ph"]').forEach(btn => {
+    // row actions
+    tb.querySelectorAll('.btn-log').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.preventDefault();
-        const tr = btn.closest('tr'); const actId = tr?.getAttribute('data-act') || '';
-        openLogHourModal(actId);
+        const actId = btn.getAttribute('data-act') || '';
+        openLogHoursModal(actId);
       });
     });
   }
 
-  // ---------------- filters ----------------
-  function injectFilterStyles() {
-    const css = `
-      :root{ --filter-blue:#3B82F6; }
-      .acts-tools{display:flex;align-items:center;gap:10px;margin:6px 0 8px;}
-      .acts-filter-group{display:flex;align-items:center;gap:10px;padding:6px 8px;border:1px solid #2d3f3f;border-radius:999px;background:#0f1a1a;}
-      .acts-filter-group select{background:#0f1a1a;border:1px solid #2d3f3f;border-radius:999px;padding:6px 10px;color:#e5e7eb;}
-      .btn-clear{padding:6px 12px;border-radius:999px;border:1px solid #2d3f3f;background:transparent;color:#cbd5e1;opacity:.65;transition:all .15s;}
-      .btn-clear[disabled]{opacity:.35;cursor:not-allowed}
-      .acts-filter-group.active{border-color:var(--filter-blue);}
-      .acts-filter-group.active .btn-clear{opacity:1;border-color:var(--filter-blue);color:var(--filter-blue);}
-      .acts-filter-group.active .btn-clear:hover{box-shadow:0 0 0 2px rgba(59,130,246,.2) inset;}
-    `;
-    const style = document.createElement('style'); style.textContent = css; document.head.appendChild(style);
-  }
-  function setupFilterGroup() {
-    const tools = document.querySelector('.acts-tools'); if (!tools) return;
-    const colSel = document.getElementById('act-col');
-    const valSel = document.getElementById('act-val');
-    const clearBtn = document.getElementById('btn-clear-filters');
-    const addBtn = document.getElementById('btn-add-activity');
-
-    const group = document.createElement('div');
-    group.className = 'acts-filter-group';
-    if (colSel) group.appendChild(colSel);
-    if (valSel) group.appendChild(valSel);
-    if (clearBtn) { clearBtn.classList.add('btn-clear'); group.appendChild(clearBtn); }
-
-    tools.innerHTML = '';
-    tools.appendChild(group);
-    if (addBtn) tools.appendChild(addBtn);
-
-    updateClearBtnState();
-  }
-  function updateClearBtnState() {
-    const colSel = document.getElementById('act-col');
-    const valSel = document.getElementById('act-val');
-    const grp = document.querySelector('.acts-filter-group');
-    const clearBtn = document.getElementById('btn-clear-filters');
-    if (!colSel || !valSel || !grp || !clearBtn) return;
-    const isDefault = (colSel.value === 'status' && (valSel.value || '__ALL__') === '__ALL__');
-    clearBtn.disabled = isDefault; grp.classList.toggle('active', !isDefault);
-  }
+  // ---------- dependent filters ----------
   function buildDependentFilters(allActs, hoursDone) {
     const colSel = document.getElementById("act-col");
     const valSel = document.getElementById("act-val");
     if (!colSel || !valSel) return;
+
     const cols = [
-      {key:"status", label:"Status", get:a=>a.status},
-      {key:"type",   label:"Type",   get:a=>a.type},
-      {key:"owner",  label:"Owner",  get:a=>a.owner||"-"},
+      {key:"status", label:"Status",     get:a=>a.status},
+      {key:"type",   label:"Type",       get:a=>a.type},
+      {key:"owner",  label:"Owner",      get:a=>a.owner||"-"},
       {key:"hours",  label:"Completed PH", get:a=>String(hoursDone.get(a.id)||0)},
-      {key:"title",  label:"Title",  get:a=>a.title},
-      {key:"start",  label:"Start",  get:a=>fmtMDYY(a.start)},
-      {key:"end",    label:"End",    get:a=>fmtMDYY(a.end)},
+      {key:"title",  label:"Title",      get:a=>a.title},
+      {key:"start",  label:"Start",      get:a=>fmtMDYY(a.start)},
+      {key:"end",    label:"End",        get:a=>fmtMDYY(a.end)},
     ];
+
     function setValuesFor(colKey){
       const col = cols.find(c=>c.key===colKey) || cols[0];
       const vals = Array.from(new Set(allActs.map(a => col.get(a)))).filter(v=>v!==undefined && v!==null);
       valSel.innerHTML = `<option value="__ALL__">All values</option>` + vals.map(v=>`<option>${esc(v)}</option>`).join("");
-      valSel.disabled = false; updateClearBtnState();
+      valSel.disabled = false;
     }
+
     colSel.innerHTML = cols.map(c=>`<option value="${c.key}" ${c.key==='status'?'selected':''}>${c.label}</option>`).join("");
     setValuesFor(colSel.value);
+
     colSel.addEventListener('change', () => setValuesFor(colSel.value));
-    valSel.addEventListener('change', updateClearBtnState);
   }
+
   function applyDependentFilter(allActs, hoursDone, hoursPlan) {
     const colSel = document.getElementById("act-col");
     const valSel = document.getElementById("act-val");
     const colKey = (colSel?.value)||"status";
     const val    = (valSel?.value)||"__ALL__";
+
     const get = {
       title:a=>a.title, status:a=>a.status, type:a=>a.type,
       start:a=>fmtMDYY(a.start), end:a=>fmtMDYY(a.end),
       owner:a=>a.owner||"-", hours:a=>String(hoursDone.get(a.id)||0)
     }[colKey] || ((a)=>"");
+
     const filtered = (val==="__ALL__") ? allActs : allActs.filter(a => String(get(a))===val);
+
     renderKpis(filtered, hoursDone, hoursPlan);
     renderActivities(filtered, hoursDone, true);
-    renderGantt(filtered);
+    renderGantt(filtered);       // keep Gantt in sync with filters
+    // toggle active styling for the filter cluster
+    const wrap = document.querySelector('.acts-tools');
+    if (wrap) wrap.classList.toggle('is-active', !(val==="__ALL__" && colKey==="status"));
   }
 
-  // ---------------- gantt (compact) ----------------
-  function injectGanttStyles() {
-    const css = `
-      .gantt2{width:100%;padding:8px 4px 10px;}
-      .g2-header{display:grid;gap:2px;margin:6px 0 8px;}
-      .g2-header .cell{font-size:11px;color:#a8b3be;text-align:center;padding:4px 0;background:#0f1a1a;border:1px solid #1e2b2b;border-radius:6px;}
-      .g2-row{display:grid;grid-template-columns:240px 1fr;align-items:center;gap:10px;margin:6px 0;}
-      .g2-label{color:#e5e7eb;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-left:6px;}
-      .g2-lane{display:grid;gap:2px;}
-      .g2-lane .cell{height:22px;background:#0c1416;border:1px solid #172628;border-radius:6px;}
-      .g2-bar{height:18px;margin:2px 0;border-radius:999px;background:linear-gradient(180deg,#79d0bd,#58b9a7);box-shadow:0 1px 0 rgba(0,0,0,.4) inset,0 2px 6px rgba(0,0,0,.25);}
-      .g2-footerpad{height:4px;}
-    `;
-    const style = document.createElement('style'); style.textContent = css; document.head.appendChild(style);
-  }
+  // ---------- Gantt (unchanged layout logic; view switch handles rendering) ----------
   function renderGantt(acts) {
-    const el = document.getElementById('gantt-container'); if (!el) return;
-    if (!acts?.length) { el.innerHTML = `<div style="padding:16px;opacity:.75">No activities for Gantt.</div>`; return; }
-    const DAY = 24*60*60*1000;
+    const el = document.getElementById('gantt-container');
+    if (!el) return;
+
+    if (!acts.length) {
+      el.innerHTML = `<div style="padding:16px; opacity:.75">No activities for Gantt.</div>`;
+      return;
+    }
+
     const today = new Date();
     const sDates = acts.map(a => a.start ? new Date(a.start) : today);
-    const eDates = acts.map(a => a.end   ? new Date(a.end)   : (a.start ? new Date(a.start) : today));
+    const eDates = acts.map(a => a.end   ? new Date(a.end)   : today);
     const min = new Date(Math.min(...sDates.map(d=>+d)));
     const max = new Date(Math.max(...eDates.map(d=>+d)));
+    const DAY = 24*60*60*1000;
     const days = Math.max(1, Math.round((max - min) / DAY) + 1);
-    const headerCols = `repeat(${days},1fr)`;
-    const every = days > 28 ? 3 : days > 18 ? 2 : 1;
-    const headerCells = [];
+
+    const ticks = [];
     for (let i=0;i<days;i++){
-      const d = new Date(min.getTime()+i*DAY);
-      headerCells.push(`<div class="cell">${(i%every===0)?`${d.getMonth()+1}/${d.getDate()}`:""}</div>`);
+      const d = new Date(min.getTime() + i*DAY);
+      if (i===0 || d.getDay()===1) {
+        const lab = `${d.getMonth()+1}/${d.getDate()}`;
+        ticks.push({ i, label: lab });
+      }
     }
+
     const rowsHtml = acts.map(a=>{
       const ds = a.start ? new Date(a.start) : min;
-      const de = a.end   ? new Date(a.end)   : ds;
-      const startIdx = Math.max(0, Math.round((ds - min) / DAY));
-      const span = Math.max(1, Math.round((de - ds) / DAY) + 1);
+      const de = a.end   ? new Date(a.end)   : (a.start ? new Date(a.start) : min);
+      const left = Math.max(0, Math.min(days, Math.round((ds - min)/DAY)));
+      const len  = Math.max(1, Math.round((de - ds)/DAY)+1);
+      const leftPct = (left/days)*100;
+      const widthPct= (len/days)*100;
       return `
-        <div class="g2-row">
-          <div class="g2-label">${esc(a.title)}</div>
-          <div class="g2-lane" style="grid-template-columns:${headerCols}">
-            ${Array.from({length:days}).map(()=>`<div class="cell"></div>`).join("")}
-            <div class="g2-bar" style="grid-column:${startIdx+1} / span ${span}"></div>
+        <div class="row">
+          <div class="label">${esc(a.title)}</div>
+          <div class="lane">
+            <div class="bar" style="left:${leftPct}%; width:${widthPct}%"></div>
           </div>
-        </div>
-      `;
+        </div>`;
     }).join("");
+
+    const ticksHtml = ticks.map(t=>{
+      const leftPct = (t.i/days)*100;
+      return `<div class="tick" style="left:${leftPct}%"><span>${esc(t.label)}</span></div>`;
+    }).join("");
+
     el.innerHTML = `
-      <div class="gantt2">
-        <div class="g2-header" style="grid-template-columns:${headerCols}">${headerCells.join("")}</div>
+      <div class="gantt">
+        <div class="header"><div class="ticks">${ticksHtml}</div></div>
+        <div class="grid"><div></div><div style="position:relative;height:0;border-top:1px solid rgba(255,255,255,.08)"></div></div>
         ${rowsHtml}
-        <div class="g2-footerpad"></div>
-      </div>`;
+      </div>
+    `;
+
     requestAnimationFrame(()=>{
       const gap = 56;
       const rect = el.getBoundingClientRect();
       const vh = window.innerHeight || document.documentElement.clientHeight;
-      el.style.minHeight = Math.max(240, vh - rect.top - gap) + 'px';
+      const h = Math.max(220, vh - rect.top - gap);
+      el.style.minHeight = h + 'px';
     });
   }
 
-  // ---------------- back + member button ----------------
-  function wireBackButton() {
-    const btn = document.getElementById("btn-back");
-    if (!btn || btn.dataset.bound) return;
-    btn.dataset.bound = "1";
-    btn.addEventListener("click", (e) => {
-      e.preventDefault();
-      if (history.length > 1) history.back();
-      else location.href = "squads.html";
-    });
+  // ---------- modal helpers ----------
+  function showModal(id){ const m = document.getElementById(id); if (m) m.classList.add('show'); }
+  function hideModal(id){ const m = document.getElementById(id); if (m) m.classList.remove('show'); }
+
+  // ---- Add Activity: dropdown hydration + reset to placeholders
+  const TYPE_OPTIONS = ['5S','Kaizen','Training','CI Suggestion','Side Quest Project','Safety Concern','Quality Catch','Other'];
+  const STATUS_OPTIONS = ['Not Started','In Progress','Completed','Canceled'];
+
+  function ensurePlaceholder(selectEl, text){
+    if (!selectEl) return;
+    const first = selectEl.options[0];
+    if (!first || first.value !== "") {
+      selectEl.insertAdjacentHTML('afterbegin', `<option value="" disabled selected hidden>${esc(text)}</option>`);
+    } else {
+      first.textContent = text;
+      first.selected = true;
+    }
   }
-  function wireAddMemberButton({ canAdd, squadId, squadName }) {
-    const btn = document.getElementById("btn-addmember"); if (!btn) return;
-    btn.hidden = !canAdd; btn.disabled = !canAdd;
-    const handler = (e) => {
-      e.preventDefault();
-      if (P.squadForm && typeof P.squadForm.open === "function") P.squadForm.open({ squadId, squadName });
-      else alert("Member form not found. Please include scripts/squad-member-form.js earlier on the page.");
+
+  function hydrateAddActivityLists() {
+    const typeSel = document.getElementById('act-type');
+    const statusSel = document.getElementById('act-status-modal');
+
+    if (typeSel && !typeSel.dataset.hydrated) {
+      typeSel.innerHTML = TYPE_OPTIONS.map(o=>`<option value="${esc(o)}">${esc(o)}</option>`).join("");
+      typeSel.dataset.hydrated = "1";
+    }
+    if (statusSel && !statusSel.dataset.hydrated) {
+      statusSel.innerHTML = STATUS_OPTIONS.map(o=>`<option value="${esc(o)}">${esc(o)}</option>`).join("");
+      statusSel.dataset.hydrated = "1";
+    }
+
+    ensurePlaceholder(typeSel, "Select type…");
+    ensurePlaceholder(statusSel, "Select status…");
+
+    const ownerSel = document.getElementById('act-owner');
+    ensurePlaceholder(ownerSel, "Select owner…");
+  }
+
+  function resetAddActivityForm() {
+    hydrateAddActivityLists();
+    const f = {
+      title: document.getElementById('act-title'),
+      type:  document.getElementById('act-type'),
+      status:document.getElementById('act-status-modal'),
+      start: document.getElementById('act-start'),
+      end:   document.getElementById('act-end'),
+      owner: document.getElementById('act-owner'),
+      desc:  document.getElementById('act-desc'),
     };
-    if (btn._amHandler) btn.removeEventListener("click", btn._amHandler);
-    btn._amHandler = handler; btn.addEventListener("click", handler);
+    if (f.title)  f.title.value = "";
+    if (f.type)   f.type.selectedIndex = 0;           // placeholder
+    if (f.status) f.status.selectedIndex = 0;         // placeholder
+    if (f.owner)  f.owner.selectedIndex = 0;          // placeholder
+    if (f.start)  f.start.value = "";
+    if (f.end)    f.end.value = "";
+    if (f.desc)   f.desc.value = "";
   }
 
-  // ---------------- owner options & forms ----------------
-  function populateOwnerOptions({ members, empMap, squadId, meId }) {
+  // Owner list = active squad members (display names)
+  function populateOwnerOptions({ members, empMap, squadId }) {
     const sel = document.getElementById('act-owner'); if (!sel) return;
     const rows = members.filter(r => norm(r["Squad ID"]) === norm(squadId) && isTrue(r["Active"]));
+
     const seen = new Set();
     const opts = rows.map(r => {
       const id = String(r["Employee ID"]||"").trim();
       return { id, name: (empMap.get(id) || id) };
     }).filter(p => p.id && !seen.has(p.id) && seen.add(p.id));
-    sel.innerHTML = opts.map(p => `<option value="${esc(p.name)}" data-id="${esc(p.id)}">${esc(p.name)}</option>`).join("") || `<option value="">—</option>`;
-    if (meId) {
-      const idx = opts.findIndex(p => p.id.toLowerCase() === meId.toLowerCase());
-      if (idx >= 0) sel.selectedIndex = idx;
-    }
-  }
-  function resetAddActivityForm() {
-    const t = document.getElementById('act-title'); if (t) t.value = '';
-    const ty = document.getElementById('act-type'); if (ty) ty.value = ACTIVITY_TYPES[0] || 'Other';
-    const st = document.getElementById('act-status-modal'); if (st) st.value = 'Not Started';
-    const s = document.getElementById('act-start'); if (s) s.value = '';
-    const e = document.getElementById('act-end');   if (e) e.value = '';
-    const d = document.getElementById('act-desc');  if (d) d.value = '';
-  }
-  function ensureModalUX(modalId){
-    const modal = document.getElementById(modalId); if (!modal) return;
-    if (modal.querySelector('.modal-ux')) return;
-    const ux = document.createElement('div');
-    ux.className = 'modal-ux';
-    ux.style.cssText = "position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.45);z-index:2;border-radius:10px;";
-    ux.innerHTML = `<div class="box" style="background:#0f1a1a;border:1px solid #2d3f3f;padding:14px 16px;border-radius:10px;min-width:220px;text-align:center"><div class="msg" style="color:#e5e7eb;font-weight:700">Saving…</div></div>`;
-    modal.querySelector('.panel')?.appendChild(ux);
-  }
-  function showBusy(modalId,text){ ensureModalUX(modalId); const el=document.querySelector(`#${modalId} .modal-ux`); if(el){ el.style.display='flex'; const m=el.querySelector('.msg'); if(m) m.textContent=text||'Saving…'; } }
-  async function flashSuccess(modalId){ const el=document.querySelector(`#${modalId} .modal-ux .msg`); if(!el) return; el.textContent='Saved!'; el.style.color='#20d3a8'; await new Promise(r=>setTimeout(r,650)); }
-  function hideBusy(modalId){ const el=document.querySelector(`#${modalId} .modal-ux`); if(el) el.style.display='none'; }
 
+    const keepPlaceholder = sel.options[0] && sel.options[0].value === "" ? sel.options[0].outerHTML : `<option value="" disabled selected hidden>Select owner…</option>`;
+    sel.innerHTML = keepPlaceholder + opts.map(p =>
+      `<option value="${esc(p.name)}" data-id="${esc(p.id)}">${esc(p.name)}</option>`
+    ).join("");
+    sel.selectedIndex = 0; // keep placeholder selected
+  }
+
+  // Add Activity -> write to Smartsheet
   async function createActivity({ squadId, squadName }) {
     const title = document.getElementById('act-title').value.trim();
-    const type  = document.getElementById('act-type').value.trim() || "Other";
-    const status= document.getElementById('act-status-modal').value.trim();
+    const typeEl  = document.getElementById('act-type');
+    const statusEl= document.getElementById('act-status-modal');
+    const ownerEl = document.getElementById('act-owner');
+
+    const type  = typeEl?.value || "";
+    const status= statusEl?.value || "";
+    const ownerName = ownerEl?.selectedOptions[0]?.text || "";
+    const ownerId   = ownerEl?.selectedOptions[0]?.dataset?.id || "";
+
     const start = toISO(document.getElementById('act-start').value);
     const end   = toISO(document.getElementById('act-end').value) || start;
-    const ownerSel  = document.getElementById('act-owner');
-    const ownerName = ownerSel?.selectedOptions[0]?.text || ownerSel?.value || "";
-    const ownerId   = ownerSel?.selectedOptions[0]?.dataset?.id || "";
     const desc  = document.getElementById('act-desc').value.trim();
+
     if (!title) { alert("Title is required."); return; }
-    if (!STATUS_ALLOWED.includes(status)) { alert("Status must be one of: Not Started, In Progress, Completed, Canceled."); return; }
+    if (!type) { alert("Please choose a Type."); return; }
+    if (!status) { alert("Please choose a Status."); return; }
+    if (!ownerId) { alert("Please choose an Owner."); return; }
+
     const row = {
-      "Squad ID": squadId, "Squad": squadName,
-      "Activity Title": title, "Title": title,
-      "Type": type, "Status": status,
-      "Start Date": start, "End/Due Date": end,
-      "Owner (Display Name)": ownerName, "Owner": ownerName,
+      "Squad ID": squadId,
+      "Squad": squadName,
+      "Activity Title": title,
+      "Title": title,
+      "Type": type,
+      "Status": status,
+      "Start Date": start,
+      "End/Due Date": end,
+      "Owner (Display Name)": ownerName,
+      "Owner": ownerName,
       "Owner ID": ownerId,
-      "Description": desc, "Notes": desc
+      "Description": desc,
+      "Notes": desc
     };
+
     await api.addRows("SQUAD_ACTIVITIES", [row], { toTop: true });
     api.clearCache(api.SHEETS.SQUAD_ACTIVITIES);
     return true;
   }
 
-  // ---- Power Hours ----
-  function resetLogHourForm() {
-    const nowISO = new Date().toISOString().slice(0,10);
-    const d = document.getElementById('lh-date'); if (d) { d.setAttribute('value', nowISO); d.value = nowISO; }
-    const s = document.getElementById('lh-start'); if (s) s.value='';
-    const e = document.getElementById('lh-end');   if (e) e.value='';
-    const dh= document.getElementById('lh-dur');   if (dh) dh.value='';
-    const sch=document.getElementById('lh-scheduled'); if (sch) sch.checked=false;
-    const comp=document.getElementById('lh-completed'); if (comp) comp.checked=true;
-    const notes=document.getElementById('lh-notes'); if (notes) notes.value='';
-  }
-  function openLogHourModal(activityId) {
-    const hid = document.getElementById('lh-activity-id'); if (hid) hid.value = activityId || '';
-    resetLogHourForm(); showModal('logHourModal');
-  }
-  function calcHours(startStr, endStr) {
-    if (!startStr || !endStr) return 0;
-    const [sh, sm] = startStr.split(':').map(n=>parseInt(n,10));
-    const [eh, em] = endStr.split(':').map(n=>parseInt(n,10));
-    if ([sh,sm,eh,em].some(n => Number.isNaN(n))) return 0;
-    let mins = (eh*60+em) - (sh*60+sm); if (mins < 0) mins += 24*60;
-    return Math.round((mins/60)*100)/100;
-  }
-  async function saveLogHours() {
-    const actId = document.getElementById('lh-activity-id')?.value || '';
-    if (!actId) throw new Error("Missing Activity ID.");
-    const date = toISO(document.getElementById('lh-date')?.value || ''); if (!date) throw new Error("Date is required.");
-    const start = document.getElementById('lh-start')?.value || '';
-    const end   = document.getElementById('lh-end')?.value || '';
-    let dur = document.getElementById('lh-dur')?.value || '';
-    const scheduled = !!document.getElementById('lh-scheduled')?.checked;
-    const completed = !!document.getElementById('lh-completed')?.checked;
-    const notes = document.getElementById('lh-notes')?.value?.trim() || '';
-    if (!dur) dur = calcHours(start, end);
-    const row = { "Activity ID": actId, "Date": date, "Start": start, "End": end, "Completed Hours": Number(dur) || 0, "Scheduled": scheduled, "Completed": completed, "Notes": notes };
-    await api.addRows("POWER_HOURS", [row], { toTop: true });
-    api.clearCache(api.SHEETS.POWER_HOURS);
-  }
-
-  // ---- modal helpers ----
-  function showModal(id){ const m = document.getElementById(id); if (m) m.classList.add('show'); }
-  function hideModal(id){ const m = document.getElementById(id); if (m) m.classList.remove('show'); }
-
-  // ---------------- viewport sizing ----------------
-  function sizeSquadScrollers() {
-    const gap = 24;
-    const fit = (el) => {
-      if (!el) return;
-      const rect = el.getBoundingClientRect();
-      const h = Math.max(140, (window.innerHeight || document.documentElement.clientHeight) - rect.top - gap);
-      el.style.maxHeight = h + 'px';
-      el.style.height = h + 'px';
+  // ---- Log Hours modal (open + reset only; your logging handler stays as-is)
+  function resetLogHoursForm(actId="") {
+    const d = new Date();
+    const iso = d.toISOString().slice(0,10);
+    const f = {
+      date: document.getElementById('lh-date'),
+      start:document.getElementById('lh-start'),
+      end:  document.getElementById('lh-end'),
+      dur:  document.getElementById('lh-dur'),
+      sch:  document.getElementById('lh-scheduled'),
+      cmp:  document.getElementById('lh-completed'),
+      notes:document.getElementById('lh-notes'),
+      aid:  document.getElementById('lh-activity-id'),
     };
-    fit(document.querySelector('.members-scroll'));
-    fit(document.querySelector('.acts-scroll'));
-    fit(document.getElementById('gantt-container'));
+    if (f.date)  f.date.value = iso;
+    if (f.start) f.start.value = "";
+    if (f.end)   f.end.value = "";
+    if (f.dur)   f.dur.value = "";
+    if (f.sch)   f.sch.checked = false;
+    if (f.cmp)   f.cmp.checked = true;
+    if (f.notes) f.notes.value = "";
+    if (f.aid)   f.aid.value = actId || "";
+  }
+  function openLogHoursModal(actId) {
+    resetLogHoursForm(actId);
+    showModal('logHourModal');
   }
 
-  // ---------------- MAIN (single guarded block) ----------------
+  // ---------- main ----------
   document.addEventListener("DOMContentLoaded", async () => {
-    try {
-      // inject layout/header first so even if later fails, chrome shows nav/header
-      layout.injectLayout?.();
-      await session.initHeader?.();
+    // keep header/shell working
+    layout.injectLayout?.();
+    await session.initHeader?.();
 
-      injectFilterStyles();
-      injectGanttStyles();
+    // enforce uniform row height for last column (PH + Log Hours)
+    (function injectRowHeightFix(){
+      const css = `
+        #activities-table th, #activities-table td { vertical-align: middle; }
+        #activities-table td.row-actions { text-align: right; white-space: nowrap; }
+      `;
+      const tag = document.createElement('style'); tag.textContent = css; document.head.appendChild(tag);
+    })();
 
-      const urlId = qs("id") || qs("squadId") || qs("squad");
-      if (!urlId) { layout.setPageTitle?.("Squad: (unknown)"); return; }
+    const urlId = qs("id") || qs("squadId") || qs("squad");
+    if (!urlId) { layout.setPageTitle?.("Squad: (unknown)"); return; }
 
-      const isAdmin = !!(P.auth && typeof P.auth.isAdmin === "function" && P.auth.isAdmin());
-      const [squads, members, empMap] = await Promise.all([
-        api.getRowsByTitle("SQUADS", { force: true }),
-        api.getRowsByTitle("SQUAD_MEMBERS", { force: true }),
-        loadEmployeeMap()
-      ]);
+    const isAdmin = !!(P.auth && typeof P.auth.isAdmin === "function" && P.auth.isAdmin());
 
-      const sidLC = norm(urlId);
-      const squadRow =
-        squads.find(r => norm(r["Squad ID"]) === sidLC) ||
-        squads.find(r => norm(r["Squad Name"]) === sidLC) || null;
-      if (!squadRow) { layout.setPageTitle?.("Squad: Not Found"); return; }
+    const [squads, members, empMap] = await Promise.all([
+      api.getRowsByTitle("SQUADS", { force: true }),
+      api.getRowsByTitle("SQUAD_MEMBERS", { force: true }),
+      loadEmployeeMap()
+    ]);
 
-      const squadId   = (squadRow["Squad ID"] || urlId).toString().trim();
-      const squadName = (squadRow["Squad Name"] || squadRow["Name"] || "").toString().trim();
-      layout.setPageTitle?.(`Squad: ${squadName || squadId}`);
+    const sidLC = norm(urlId);
+    const squadRow =
+      squads.find(r => norm(r["Squad ID"]) === sidLC) ||
+      squads.find(r => norm(r["Squad Name"]) === sidLC) || null;
+    if (!squadRow) { layout.setPageTitle?.("Squad: Not Found"); return; }
 
-      const leaderIds = members
-        .filter(r => norm(r["Squad ID"]) === norm(squadId) && norm(r["Role"]) === "leader" && isTrue(r["Active"]))
-        .map(r => (r["Employee ID"] || "").toString().trim()).filter(Boolean);
-      const leaderNames = leaderIds.map(id => empMap.get(id) || id);
+    const squadId   = (squadRow["Squad ID"] || urlId).toString().trim();
+    const squadName = (squadRow["Squad Name"] || squadRow["Name"] || "").toString().trim();
+    layout.setPageTitle?.(`Squad: ${squadName || squadId}`);
 
-      renderMeta({ ...squadRow, id: squadId }, leaderNames);
-      renderMembers(members, empMap, squadId, isAdmin);
+    const leaderIds = members
+      .filter(r => norm(r["Squad ID"]) === norm(squadId) && norm(r["Role"]) === "leader" && isTrue(r["Active"]))
+      .map(r => (r["Employee ID"] || "").toString().trim()).filter(Boolean);
+    const leaderNames = leaderIds.map(id => empMap.get(id) || id);
 
-      document.addEventListener("squad-member-added", async () => {
-        const latest = await api.getRowsByTitle("SQUAD_MEMBERS", { force: true });
-        renderMembers(latest, empMap, squadId, isAdmin);
-        populateOwnerOptions({ members: latest, empMap, squadId, meId: norm((session.get?.() || {}).employeeId || "") });
+    renderMeta({ ...squadRow, id: squadId }, leaderNames);
+
+    renderMembers(members, empMap, squadId, isAdmin);
+    document.addEventListener("squad-member-added", async () => {
+      const latest = await api.getRowsByTitle("SQUAD_MEMBERS", { force: true });
+      renderMembers(latest, empMap, squadId, isAdmin);
+      populateOwnerOptions({ members: latest, empMap, squadId });
+    });
+
+    const me = session.get?.() || {};
+    const userId = (me.employeeId || "").trim();
+    const canAdd = isAdmin || leaderIds.some(id => id.toLowerCase() === userId.toLowerCase());
+    (function wireAddMemberButton(){
+      const btn = document.getElementById("btn-addmember");
+      if (!btn) return;
+      btn.hidden = !canAdd; btn.disabled = !canAdd;
+      const handler = (e) => {
+        e.preventDefault();
+        if (P.squadForm && typeof P.squadForm.open === "function") {
+          P.squadForm.open({ squadId, squadName });
+        } else {
+          alert("Member form not found. Please include scripts/squad-member-form.js earlier on the page.");
+        }
+      };
+      btn.addEventListener("click", handler);
+    })();
+
+    // activities initial load
+    const { items: acts, hoursByActDone, hoursByActPlan } = await loadActivitiesForSquad(squadId, squadName);
+    renderKpis(acts, hoursByActDone, hoursByActPlan);
+    renderActivities(acts, hoursByActDone, true);
+    buildDependentFilters(acts, hoursByActDone);
+    renderGantt(acts);
+
+    // dependent filters + Clear
+    const colSel = document.getElementById("act-col");
+    const valSel = document.getElementById("act-val");
+    const rerender = () => applyDependentFilter(acts, hoursByActDone, hoursByActPlan);
+    colSel?.addEventListener("change", rerender);
+    valSel?.addEventListener("change", rerender);
+
+    const clearBtn = document.getElementById('btn-clear-filters');
+    if (clearBtn) {
+      clearBtn.addEventListener('click', (e)=>{
+        e.preventDefault();
+        if (colSel) colSel.value = 'status';
+        colSel?.dispatchEvent(new Event('change'));
+        if (valSel) valSel.value = '__ALL__';
+        rerender();
       });
-
-      const me = session.get?.() || {};
-      const userId = (me.employeeId || "").trim();
-      const canAdd = isAdmin || leaderIds.some(id => id.toLowerCase() === userId.toLowerCase());
-      wireAddMemberButton({ canAdd, squadId, squadName });
-      wireBackButton();
-
-      const { items: acts, hoursByActDone, hoursByActPlan } = await loadActivitiesForSquad(squadId, squadName);
-      renderKpis(acts, hoursByActDone, hoursByActPlan);
-      renderActivities(acts, hoursByActDone, true);
-      buildDependentFilters(acts, hoursByActDone);
-      renderGantt(acts);
-
-      // filter group & events
-      setupFilterGroup();
-      const colSel = document.getElementById("act-col");
-      const valSel = document.getElementById("act-val");
-      const rerender = () => applyDependentFilter(acts, hoursByActDone, hoursByActPlan);
-      colSel?.addEventListener("change", rerender);
-      valSel?.addEventListener("change", rerender);
-      const clearBtn = document.getElementById('btn-clear-filters');
-      if (clearBtn) clearBtn.addEventListener('click', (e)=>{ e.preventDefault(); colSel.value='status'; colSel.dispatchEvent(new Event('change')); valSel.value='__ALL__'; updateClearBtnState(); rerender(); });
-
-      // add activity modal
-      populateOwnerOptions({ members, empMap, squadId, meId: userId });
-      const typeSel = document.getElementById('act-type'); if (typeSel) typeSel.innerHTML = ACTIVITY_TYPES.map(t=>`<option>${esc(t)}</option>`).join("");
-      const addActBtn = document.getElementById("btn-add-activity");
-      const modalAddId = 'addActivityModal';
-      document.getElementById('aa-cancel')?.addEventListener('click', ()=>{ resetAddActivityForm(); hideModal(modalAddId); });
-      addActBtn?.addEventListener('click', (e)=>{ e.preventDefault(); resetAddActivityForm(); showModal(modalAddId); });
-      document.getElementById('aa-save')?.addEventListener('click', async ()=>{
-        try { showBusy(modalAddId,'Saving…'); await createActivity({ squadId, squadName }); await flashSuccess(modalAddId); resetAddActivityForm(); hideBusy(modalAddId); hideModal(modalAddId);
-          const fresh = await loadActivitiesForSquad(squadId, squadName);
-          renderKpis(fresh.items, fresh.hoursByActDone, fresh.hoursByActPlan);
-          renderActivities(fresh.items, fresh.hoursByActDone, true);
-          buildDependentFilters(fresh.items, fresh.hoursByActDone);
-          renderGantt(fresh.items); setupFilterGroup();
-        } catch(err){ console.error(err); hideBusy(modalAddId); alert("Failed to create activity. See console for details."); }
-      });
-
-      // log hours modal
-      const modalPHId = 'logHourModal';
-      document.getElementById('lh-cancel')?.addEventListener('click', ()=>{ resetLogHourForm(); hideModal(modalPHId); });
-      document.getElementById('lh-save')?.addEventListener('click', async ()=>{
-        try { showBusy(modalPHId,'Saving…'); await saveLogHours(); await flashSuccess(modalPHId); resetLogHourForm(); hideBusy(modalPHId); hideModal(modalPHId);
-          const fresh = await loadActivitiesForSquad(squadId, squadName);
-          renderKpis(fresh.items, fresh.hoursByActDone, fresh.hoursByActPlan);
-          renderActivities(fresh.items, fresh.hoursByActDone, true);
-          buildDependentFilters(fresh.items, fresh.hoursByActDone);
-          renderGantt(fresh.items); setupFilterGroup();
-        } catch(err){ console.error(err); hideBusy(modalPHId); alert("Failed to log power hours. See console for details."); }
-      });
-
-      // viewport sizing
-      sizeSquadScrollers();
-      window.addEventListener('resize', sizeSquadScrollers);
-    } catch (err) {
-      console.error("squad-details init failed:", err);
     }
+
+    // Owner dropdown for Add Activity
+    populateOwnerOptions({ members, empMap, squadId });
+
+    // Add Activity modal wiring (reset on open, cancel, save)
+    const modalId = 'addActivityModal';
+    const addActBtn = document.getElementById("btn-add-activity");
+    addActBtn?.addEventListener('click', (e)=>{ e.preventDefault(); resetAddActivityForm(); showModal(modalId); });
+    document.getElementById('aa-cancel')?.addEventListener('click', ()=>{ hideModal(modalId); resetAddActivityForm(); });
+
+    document.getElementById('aa-save')?.addEventListener('click', async ()=>{
+      try{
+        const saveBtn = document.getElementById('aa-save');
+        if (saveBtn){ saveBtn.disabled = true; saveBtn.textContent = "Saving…"; }
+        await createActivity({ squadId, squadName });
+        hideModal(modalId);
+        resetAddActivityForm();
+
+        const fresh = await loadActivitiesForSquad(squadId, squadName);
+        renderKpis(fresh.items, fresh.hoursByActDone, fresh.hoursByActPlan);
+        renderActivities(fresh.items, fresh.hoursByActDone, true);
+        buildDependentFilters(fresh.items, fresh.hoursByActDone);
+        renderGantt(fresh.items);
+      } catch (err){
+        console.error(err);
+        alert("Failed to create activity. See console for details.");
+      } finally {
+        const saveBtn = document.getElementById('aa-save');
+        if (saveBtn){ saveBtn.disabled = false; saveBtn.textContent = "Create Activity"; }
+      }
+    });
+
+    // Log Hours modal: reset on cancel as well
+    document.getElementById('lh-cancel')?.addEventListener('click', ()=>{ hideModal('logHourModal'); resetLogHoursForm(); });
+
+    // View switch (Table / Gantt / Calendar)
+    (function wireViewTabs(){
+      const defs = [
+        {btn:'view-tab-table', panel:'view-table'},
+        {btn:'view-tab-gantt', panel:'view-gantt'},
+        {btn:'view-tab-cal',   panel:'view-calendar'},
+      ];
+      function activate(key){
+        defs.forEach(d=>{
+          const b = document.getElementById(d.btn), p = document.getElementById(d.panel);
+          const on = (d.btn === key);
+          if (b){ b.classList.toggle('is-active', on); b.setAttribute('aria-selected', on?'true':'false'); }
+          if (p) p.hidden = !on;
+        });
+        if (key==='view-tab-gantt') renderGantt(acts);
+      }
+      defs.forEach(d=>{
+        const b = document.getElementById(d.btn);
+        if (b) b.addEventListener('click', (e)=>{ e.preventDefault(); activate(d.btn); });
+      });
+      // default to Table panel visible
+      activate('view-tab-table');
+    })();
+
+    // Back button
+    (function wireBack(){
+      const btn = document.getElementById("btn-back");
+      if (!btn) return;
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        if (history.length > 1) history.back();
+        else location.href = "squads.html";
+      });
+    })();
   });
 })(window.PowerUp || (window.PowerUp = {}));
