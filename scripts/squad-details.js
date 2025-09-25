@@ -302,46 +302,41 @@
     });
   }
 
+  
 function injectTableStyles() {
   const css = `
-    /* Compact, sticky, clearly different table header */
-    table:has(#activities-tbody) thead th{
+    /* scope styles to this table only */
+    .acts-table{ width:100%; border-collapse:separate; border-spacing:0; }
+
+    /* clearly different header row */
+    .acts-table thead th{
       text-align:left;
       background:#0f1a1a;
       border-bottom:1px solid #1e2b2b;
       position:sticky; top:0; z-index:1;
       font-weight:700;
+      padding:10px 12px;
     }
-    /* Completed PH (second from right) is right-aligned */
-    table:has(#activities-tbody) thead th:nth-last-child(2),
-    table:has(#activities-tbody) tbody td:nth-last-child(2){ text-align:right; }
-    /* Actions column stays tight and centered */
-    table:has(#activities-tbody) thead th:last-child,
-    table:has(#activities-tbody) tbody td:last-child{
-      text-align:center; white-space:nowrap; width:1%;
-    }
+    .acts-table tbody td{ padding:10px 12px; vertical-align:middle; }
 
-    /* Pills: reuse a single style so they match other pages */
-    .chip{
-      display:inline-flex; align-items:center; gap:6px;
-      padding:6px 12px; border-radius:999px; font-weight:600;
-      line-height:1; font-size:12px;
-      background:#101b20; border:1px solid #203033; color:#dbe7ec;
-      box-shadow:0 1px 0 rgba(0,0,0,.35) inset;
-    }
-    .chip--not-started { background:#111821; border-color:#2a3550; color:#c7d3ff; }
-    .chip--in-progress{ background:#102026; border-color:#214a5a; color:#9bd7ff; }
-    .chip--completed   { background:#0f1f1b; border-color:#1d5a44; color:#9ef0cf; }
-    .chip--canceled    { background:#1b1416; border-color:#5a2631; color:#ffb7c6; }
+    /* column alignment (1=Title, 2=Status, 3=Type, 4=Start–End, 5=Owner, 6=Completed PH, 7=Actions) */
+    .acts-table th:nth-child(1), .acts-table td:nth-child(1),
+    .acts-table th:nth-child(5), .acts-table td:nth-child(5){ text-align:left; }
 
-    /* Neutral type tag stays consistent across all rows */
-    .chip--type{ background:#101d1d; border-color:#264646; color:#bfeeea; }
+    .acts-table th:nth-child(2), .acts-table td:nth-child(2),
+    .acts-table th:nth-child(3), .acts-table td:nth-child(3),
+    .acts-table th:nth-child(4), .acts-table td:nth-child(4){ text-align:center; }
+
+    .acts-table th:nth-child(6), .acts-table td:nth-child(6){ text-align:right; }   /* Completed PH */
+    .acts-table th:nth-child(7), .acts-table td:nth-child(7){ text-align:right; }   /* Log Hours */
   `;
   const style = document.createElement('style');
+  style.id = 'pu-acts-table-css';
   style.textContent = css;
   document.head.appendChild(style);
 }
 
+  
   // ---------------- back + member button ----------------
   function wireBackButton() {
     const btn = document.getElementById("btn-back");
@@ -554,6 +549,9 @@ function injectTableStyles() {
       injectFilterStyles();
       injectGanttStyles();
       injectTableStyles();
+      // tag the Activities table once so CSS can target it safely
+document.getElementById('activities-tbody')?.closest('table')?.classList.add('acts-table');
+
 
       const urlId = qs("id") || qs("squadId") || qs("squad");
       if (!urlId) { layout.setPageTitle?.("Squad: (unknown)"); return; }
