@@ -326,7 +326,9 @@
   }
 
   // ---------------- owner options & forms ----------------
-  function populateOwnerOptions({ members, empMap, squadId, meId }) {
+  function populateOwnerOptions({ members, empMap, squadId/*, meId*/ }) {
+    // NOTE: honoring your new requirement for placeholders,
+    // we no longer preselect "me" here.
     const sel = document.getElementById('act-owner'); if (!sel) return;
     const rows = members.filter(r => norm(r["Squad ID"]) === norm(squadId) && isTrue(r["Active"]));
     const seen = new Set();
@@ -335,19 +337,35 @@
       return { id, name: (empMap.get(id) || id) };
     }).filter(p => p.id && !seen.has(p.id) && seen.add(p.id));
     sel.innerHTML = opts.map(p => `<option value="${esc(p.name)}" data-id="${esc(p.id)}">${esc(p.name)}</option>`).join("") || `<option value="">—</option>`;
-    if (meId) {
-      const idx = opts.findIndex(p => p.id.toLowerCase() === meId.toLowerCase());
-      if (idx >= 0) sel.selectedIndex = idx;
-    }
   }
+
+  // >>> helper to enforce placeholder for selects
+  function setPlaceholderSelect(sel, text){
+    if (!sel) return;
+    let ph = sel.querySelector('option[data-ph="1"]');
+    if (!ph) {
+      ph = document.createElement('option');
+      ph.value = "";
+      ph.disabled = true;
+      ph.hidden = true;
+      ph.setAttribute('data-ph','1');
+      ph.textContent = text;
+      sel.insertBefore(ph, sel.firstChild);
+    }
+    sel.value = "";               // select the placeholder
+    sel.selectedIndex = 0;
+  }
+
   function resetAddActivityForm() {
     const t = document.getElementById('act-title'); if (t) t.value = '';
-    const ty = document.getElementById('act-type'); if (ty) ty.value = ACTIVITY_TYPES[0] || 'Other';
-    const st = document.getElementById('act-status-modal'); if (st) st.value = 'Not Started';
+    const ty = document.getElementById('act-type'); if (ty) setPlaceholderSelect(ty, 'Select type…');             // >>> changed
+    const st = document.getElementById('act-status-modal'); if (st) setPlaceholderSelect(st, 'Select status…');   // >>> changed
     const s = document.getElementById('act-start'); if (s) s.value = '';
     const e = document.getElementById('act-end');   if (e) e.value = '';
     const d = document.getElementById('act-desc');  if (d) d.value = '';
+    const ow = document.getElementById('act-owner'); if (ow) setPlaceholderSelect(ow, 'Select owner…');           // >>> added
   }
+
   function ensureModalUX(modalId){
     const modal = document.getElementById(modalId); if (!modal) return;
     if (modal.querySelector('.modal-ux')) return;
@@ -445,10 +463,51 @@
     fit(document.getElementById('gantt-container'));
   }
 
+  // >>> view wiring (Table / Gantt / Calendar) — minimal & flexible
+  function wireViews(getActsRef){
+    const findBtn = (ids)=> ids.map(id=>document.getElementById(id)).find(Boolean);
+    const tableBtn = findBtn(['view-tab-table','btn-view-table']);
+    const ganttBtn = findBtn(['view-tab-gantt','btn-view-gantt']);
+    const calBtn   = findBtn(['view-tab-cal','btn-view-calendar']);
+
+    const tablePanel = document.getElementById('view-table');
+    const ganttPanel = document.getElementById('view-gantt');
+    const calPanel   = document.getElementById('view-calendar');
+
+    if (!tablePanel || !ganttPanel || !calPanel) return;
+
+    let current = !ganttPanel.hidden ? 'gantt' : (!calPanel.hidden ? 'cal' : 'table');
+
+    function setActive(btn, on){
+      if (!btn) return;
+      btn.classList.toggle('is-active', !!on);
+      btn.setAttribute('aria-selected', on ? 'true' : 'false');
+    }
+    function show(view){
+      current = view;
+      tablePanel.hidden = view !== 'table';
+      ganttPanel.hidden = view !== 'gantt';
+      calPanel.hidden   = view !== 'cal';
+      setActive(tableBtn, view==='table');
+      setActive(ganttBtn, view==='gantt');
+      setActive(calBtn,   view==='cal');
+      if (view === 'gantt') {
+        const acts = getActsRef();
+        renderGantt(acts);
+      }
+    }
+
+    tableBtn && tableBtn.addEventListener('click', (e)=>{ e.preventDefault(); show('table'); });
+    ganttBtn && ganttBtn.addEventListener('click', (e)=>{ e.preventDefault(); show('gantt'); });
+    calBtn   && calBtn.addEventListener('click', (e)=>{ e.preventDefault(); show('cal'); });
+
+    // ensure the currently-visible one is synced
+    show(current);
+  }
+
   // ---------------- MAIN (single guarded block) ----------------
   document.addEventListener("DOMContentLoaded", async () => {
     try {
-      // inject layout/header first so even if later fails, chrome shows nav/header
       layout.injectLayout?.();
       await session.initHeader?.();
 
@@ -503,13 +562,18 @@
 
       // filter group & events
       setupFilterGroup();
+      let currentActs = acts; // >>> keep a ref for Gantt/Calendar view switching
       const colSel = document.getElementById("act-col");
       const valSel = document.getElementById("act-val");
-      const rerender = () => applyDependentFilter(acts, hoursByActDone, hoursByActPlan);
+      const rerender = () => {
+        applyDependentFilter(currentActs, hoursByActDone, hoursByActPlan);
+      };
       colSel?.addEventListener("change", rerender);
       valSel?.addEventListener("change", rerender);
       const clearBtn = document.getElementById('btn-clear-filters');
-      if (clearBtn) clearBtn.addEventListener('click', (e)=>{ e.preventDefault(); colSel.value='status'; colSel.dispatchEvent(new Event('change')); valSel.value='__ALL__'; updateClearBtnState(); rerender(); });
+      if (clearBtn) clearBtn.addEventListener('click', (e)=>{
+        e.preventDefault(); colSel.value='status'; colSel.dispatchEvent(new Event('change')); valSel.value='__ALL__'; updateClearBtnState(); rerender();
+      });
 
       // add activity modal
       populateOwnerOptions({ members, empMap, squadId, meId: userId });
@@ -519,8 +583,14 @@
       document.getElementById('aa-cancel')?.addEventListener('click', ()=>{ resetAddActivityForm(); hideModal(modalAddId); });
       addActBtn?.addEventListener('click', (e)=>{ e.preventDefault(); resetAddActivityForm(); showModal(modalAddId); });
       document.getElementById('aa-save')?.addEventListener('click', async ()=>{
-        try { showBusy(modalAddId,'Saving…'); await createActivity({ squadId, squadName }); await flashSuccess(modalAddId); resetAddActivityForm(); hideBusy(modalAddId); hideModal(modalAddId);
+        try {
+          showBusy(modalAddId,'Saving…');
+          await createActivity({ squadId, squadName });
+          await flashSuccess(modalAddId);
+          resetAddActivityForm();
+          hideBusy(modalAddId); hideModal(modalAddId);
           const fresh = await loadActivitiesForSquad(squadId, squadName);
+          currentActs = fresh.items; // >>> refresh acts reference
           renderKpis(fresh.items, fresh.hoursByActDone, fresh.hoursByActPlan);
           renderActivities(fresh.items, fresh.hoursByActDone, true);
           buildDependentFilters(fresh.items, fresh.hoursByActDone);
@@ -532,14 +602,23 @@
       const modalPHId = 'logHourModal';
       document.getElementById('lh-cancel')?.addEventListener('click', ()=>{ resetLogHourForm(); hideModal(modalPHId); });
       document.getElementById('lh-save')?.addEventListener('click', async ()=>{
-        try { showBusy(modalPHId,'Saving…'); await saveLogHours(); await flashSuccess(modalPHId); resetLogHourForm(); hideBusy(modalPHId); hideModal(modalPHId);
+        try {
+          showBusy(modalPHId,'Saving…');
+          await saveLogHours();
+          await flashSuccess(modalPHId);
+          resetLogHourForm();
+          hideBusy(modalPHId); hideModal(modalPHId);
           const fresh = await loadActivitiesForSquad(squadId, squadName);
+          currentActs = fresh.items; // >>> refresh acts reference
           renderKpis(fresh.items, fresh.hoursByActDone, fresh.hoursByActPlan);
           renderActivities(fresh.items, fresh.hoursByActDone, true);
           buildDependentFilters(fresh.items, fresh.hoursByActDone);
           renderGantt(fresh.items); setupFilterGroup();
         } catch(err){ console.error(err); hideBusy(modalPHId); alert("Failed to log power hours. See console for details."); }
       });
+
+      // >>> wire Table / Gantt / Calendar buttons (uses currentActs ref)
+      wireViews(()=>currentActs);
 
       // viewport sizing
       sizeSquadScrollers();
