@@ -2,7 +2,7 @@
 (function (P) {
   const { api, session, layout } = P;
 
-  // ---------- utils ----------
+  // ---------- small helpers ----------
   const qs = (k) => new URLSearchParams(location.search).get(k) || "";
   const esc = (s) => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
   const norm = (s) => String(s || "").trim().toLowerCase();
@@ -21,6 +21,12 @@
     const d = new Date(v); return isNaN(d) ? "" : d.toISOString().slice(0,10);
   };
   const pick = (row, keys, d="") => { for (const k of keys) if (row && row[k] != null && String(row[k]).trim() !== "") return row[k]; return d; };
+
+  // ---------- constants ----------
+  const ACTIVITY_TYPES = [
+    "5S","Kaizen","Training","CI Suggestion","Side Quest Project","Safety Concern","Quality Catch","Other"
+  ];
+  const STATUS_ALLOWED = ["Not Started","In Progress","Completed","Canceled"]; // Smartsheet list
 
   // ---------- data helpers ----------
   async function loadEmployeeMap() {
@@ -71,7 +77,7 @@
     return { items, hoursByActDone, hoursByActPlan };
   }
 
-  // ---------- render: meta ----------
+  // ---------- meta ----------
   function renderMeta(squadRow, leaderNames) {
     const squadName = squadRow["Squad Name"] || squadRow["Name"] || squadRow.id || "-";
     const active = isTrue(squadRow["Active"]);
@@ -91,13 +97,13 @@
     if (obj) obj.textContent = squadRow["Objective"] || "—";
   }
 
-  // ---------- render: members ----------
+  // ---------- members ----------
   function renderMembers(allRows, empMap, squadId, isAdmin) {
     const rows = allRows.filter(r => norm(r["Squad ID"]) === norm(squadId));
     const tb = document.getElementById("members-tbody");
     if (!tb) return;
-    const cnt = document.getElementById("members-count");
 
+    const cnt = document.getElementById("members-count");
     tb.innerHTML = rows.map(r => {
       const eid   = String(r["Employee ID"] || "").trim();
       const name  = empMap.get(eid) || eid || "-";
@@ -117,7 +123,7 @@
     if (cnt) cnt.textContent = String(rows.length);
   }
 
-  // ---------- render: KPIs ----------
+  // ---------- KPIs ----------
   function renderKpis(acts, hoursDone, hoursPlan) {
     const set = (id,val) => { const el = document.getElementById(id); if (el) el.textContent = String(val); };
     const total = acts.length;
@@ -131,7 +137,7 @@
     set("kpi-complete-pct", pct + "%");
   }
 
-  // ---------- render: activities table ----------
+  // ---------- activities table ----------
   function renderActivities(acts, hoursDone, configured) {
     const tb = document.getElementById("activities-tbody");
     if (!tb) return;
@@ -151,7 +157,7 @@
       const statusChip = `<span class="pill" style="background:#2a3440;color:#c3d5ff">${esc(a.status)}</span>`;
       const typeChip   = `<span class="pill" style="background:#2a3a3a;color:#aee">${esc(a.type)}</span>`;
       return `
-        <tr>
+        <tr data-act="${esc(a.id)}">
           <td>${esc(a.title)}</td>
           <td>${statusChip}</td>
           <td>${typeChip}</td>
@@ -159,21 +165,19 @@
           <td class="owner">${esc(a.owner || "-")}</td>
           <td style="text-align:right">${hrs}</td>
           <td class="row-actions">
-            <button class="btn small pill accent" data-act="${esc(a.id)}" data-action="log-ph">Log Hour</button>
+            <button class="btn small" data-action="log-ph">Log&nbsp;Hours</button>
           </td>
         </tr>
       `;
     }).join("");
 
-    // actions
-    tb.querySelectorAll('button[data-action]').forEach(btn => {
+    // actions -> open Log Power Hours modal
+    tb.querySelectorAll('button[data-action="log-ph"]').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.preventDefault();
-        const actId = btn.getAttribute('data-act') || '';
-        const action = btn.getAttribute('data-action') || '';
-        if (action === 'log-ph') {
-          openLogHourModal(actId);
-        }
+        const tr = btn.closest('tr');
+        const actId = tr?.getAttribute('data-act') || '';
+        openLogHourModal(actId);
       });
     });
   }
@@ -199,12 +203,14 @@
       const vals = Array.from(new Set(allActs.map(a => col.get(a)))).filter(v=>v!==undefined && v!==null);
       valSel.innerHTML = `<option value="__ALL__">All values</option>` + vals.map(v=>`<option>${esc(v)}</option>`).join("");
       valSel.disabled = false;
+      updateClearBtnState();
     }
 
     colSel.innerHTML = cols.map(c=>`<option value="${c.key}" ${c.key==='status'?'selected':''}>${c.label}</option>`).join("");
     setValuesFor(colSel.value);
 
     colSel.addEventListener('change', () => setValuesFor(colSel.value));
+    valSel.addEventListener('change', updateClearBtnState);
   }
 
   function applyDependentFilter(allActs, hoursDone, hoursPlan) {
@@ -224,86 +230,142 @@
     renderKpis(filtered, hoursDone, hoursPlan);
     renderActivities(filtered, hoursDone, true);
     renderGantt(filtered);       // keep Gantt in sync with filters
-    sizePanels();                // keep scroll areas fitted after filter
-    updateClearAffordance();     // update "Clear" enable + styling
   }
 
-  // ---------- Gantt ----------
+  // ---------- NEW: Gantt (compact, date headers, rounded bars) ----------
+  function injectGanttStyles() {
+    const css = `
+      .gantt2{width:100%; padding:8px 4px 10px;}
+      .g2-header{display:grid; gap:2px; margin:6px 0 8px;}
+      .g2-header .cell{font-size:11px; color:#a8b3be; text-align:center; padding:4px 0; background:#0f1a1a; border:1px solid #1e2b2b; border-radius:6px;}
+      .g2-row{display:grid; grid-template-columns: 240px 1fr; align-items:center; gap:10px; margin:6px 0;}
+      .g2-label{color:#e5e7eb; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding-left:6px;}
+      .g2-lane{display:grid; gap:2px;}
+      .g2-lane .cell{height:22px; background:#0c1416; border:1px solid #172628; border-radius:6px;}
+      .g2-bar{height:18px; margin:2px 0; border-radius:999px; background:linear-gradient(180deg,#79d0bd,#58b9a7); box-shadow:0 1px 0 rgba(0,0,0,.4) inset, 0 2px 6px rgba(0,0,0,.25);}
+      .g2-footerpad{height:4px;}
+    `;
+    const style = document.createElement('style'); style.textContent = css; document.head.appendChild(style);
+  }
+
   function renderGantt(acts) {
     const el = document.getElementById('gantt-container');
     if (!el) return;
+    if (!acts?.length) { el.innerHTML = `<div style="padding:16px; opacity:.75">No activities for Gantt.</div>`; return; }
 
-    if (!acts.length) {
-      el.innerHTML = `<div style="padding:16px; opacity:.75">No activities for Gantt.</div>`;
-      return;
-    }
-
-    // collect date range (coerce missing dates to today so bars don't blow out)
+    // pick date range (today if missing)
+    const DAY = 24*60*60*1000;
     const today = new Date();
     const sDates = acts.map(a => a.start ? new Date(a.start) : today);
-    const eDates = acts.map(a => a.end   ? new Date(a.end)   : today);
+    const eDates = acts.map(a => a.end   ? new Date(a.end)   : (a.start ? new Date(a.start) : today));
     const min = new Date(Math.min(...sDates.map(d=>+d)));
     const max = new Date(Math.max(...eDates.map(d=>+d)));
-    // inclusive days
-    const DAY = 24*60*60*1000;
     const days = Math.max(1, Math.round((max - min) / DAY) + 1);
 
-    // build header ticks (weekly)
-    const ticks = [];
+    // Build header grid: one column per day, label M/D (skip every other when long)
+    const headerCols = `repeat(${days}, 1fr)`;
+    const labelEvery = days > 28 ? 3 : days > 18 ? 2 : 1;
+    const headerCells = [];
     for (let i=0;i<days;i++){
       const d = new Date(min.getTime() + i*DAY);
-      if (i===0 || d.getDay()===1) {
-        const lab = `${d.getMonth()+1}/${d.getDate()}`;
-        ticks.push({ i, label: lab });
-      }
+      const lab = (i%labelEvery===0) ? `${d.getMonth()+1}/${d.getDate()}` : "";
+      headerCells.push(`<div class="cell">${esc(lab)}</div>`);
     }
 
-    // construct DOM
+    // Build rows; each lane is a grid of days; the bar uses grid-column to position/span
     const rowsHtml = acts.map(a=>{
       const ds = a.start ? new Date(a.start) : min;
-      const de = a.end   ? new Date(a.end)   : (a.start ? new Date(a.start) : min);
-      const left = Math.max(0, Math.min(days, Math.round((ds - min)/DAY)));
-      const len  = Math.max(1, Math.round((de - ds)/DAY)+1);
-      const leftPct = (left/days)*100;
-      const widthPct= (len/days)*100;
+      const de = a.end   ? new Date(a.end)   : ds;
+      const startIdx = Math.max(0, Math.round((ds - min) / DAY));
+      const span = Math.max(1, Math.round((de - ds) / DAY) + 1);
 
+      const lane = `
+        <div class="g2-lane" style="grid-template-columns:${headerCols}">
+          ${Array.from({length:days}).map(()=>`<div class="cell"></div>`).join("")}
+          <div class="g2-bar" style="grid-column:${startIdx+1} / span ${span}"></div>
+        </div>
+      `;
       return `
-        <div class="row">
-          <div class="label">${esc(a.title)}</div>
-          <div class="lane">
-            <div class="bar" style="left:${leftPct}%; width:${widthPct}%"></div>
-          </div>
-        </div>`;
-    }).join("");
-
-    const ticksHtml = ticks.map(t=>{
-      const leftPct = (t.i/days)*100;
-      return `<div class="tick" style="left:${leftPct}%"><span>${esc(t.label)}</span></div>`;
+        <div class="g2-row">
+          <div class="g2-label">${esc(a.title)}</div>
+          ${lane}
+        </div>
+      `;
     }).join("");
 
     el.innerHTML = `
-      <div class="gantt">
-        <div class="header">
-          <div class="ticks">${ticksHtml}</div>
-        </div>
-        <div class="grid">
-          <div></div>
-          <div style="position:relative; height:0; border-top:1px solid rgba(255,255,255,.08)"></div>
+      <div class="gantt2">
+        <div class="g2-header" style="grid-template-columns:${headerCols}">
+          ${headerCells.join("")}
         </div>
         ${rowsHtml}
+        <div class="g2-footerpad"></div>
       </div>
     `;
 
+    // stretch to bottom with gap
     requestAnimationFrame(()=>{
       const gap = 56;
       const rect = el.getBoundingClientRect();
       const vh = window.innerHeight || document.documentElement.clientHeight;
-      const h = Math.max(220, vh - rect.top - gap);
+      const h = Math.max(240, vh - rect.top - gap);
       el.style.minHeight = h + 'px';
     });
   }
 
-  // ---------- controls ----------
+  // ---------- filters group, "blue when active", and Clear ----------
+  function injectFilterStyles() {
+    const css = `
+      :root{ --filter-blue: #3B82F6; } /* update if your dashboard blue differs */
+      .acts-tools{display:flex;align-items:center;gap:10px;margin:6px 0 8px;}
+      .acts-filter-group{display:flex;align-items:center;gap:10px;padding:6px 8px;border:1px solid #2d3f3f;border-radius:999px;background:#0f1a1a;}
+      .btn-clear{padding:6px 12px;border-radius:999px;border:1px solid #2d3f3f;background:transparent;color:#cbd5e1;opacity:.65; transition:all .15s ease;}
+      .btn-clear[disabled]{opacity:.35;cursor:not-allowed}
+      .acts-filter-group.active{border-color:var(--filter-blue);}
+      .acts-filter-group.active .btn-clear{opacity:1;border-color:var(--filter-blue);color:var(--filter-blue);}
+      .acts-filter-group.active .btn-clear:hover{box-shadow:0 0 0 2px rgba(59,130,246,.2) inset;}
+      /* small look n feel for selects inside the pill */
+      .acts-filter-group select{background:#0f1a1a;border:1px solid #2d3f3f;border-radius:999px;padding:6px 10px;color:#e5e7eb;}
+    `;
+    const style = document.createElement('style'); style.textContent = css;
+    document.head.appendChild(style);
+  }
+
+  function setupFilterGroup() {
+    const tools = document.querySelector('.acts-tools');
+    if (!tools) return;
+
+    const colSel = document.getElementById('act-col');
+    const valSel = document.getElementById('act-val');
+    const clearBtn = document.getElementById('btn-clear-filters');
+    const addBtn = document.getElementById('btn-add-activity');
+
+    const group = document.createElement('div');
+    group.className = 'acts-filter-group';
+    if (colSel) group.appendChild(colSel);
+    if (valSel) group.appendChild(valSel);
+    if (clearBtn) { clearBtn.classList.add('btn-clear'); group.appendChild(clearBtn); }
+
+    tools.innerHTML = '';
+    tools.appendChild(group);
+    if (addBtn) tools.appendChild(addBtn);
+
+    updateClearBtnState();
+  }
+
+  function updateClearBtnState() {
+    const colSel = document.getElementById('act-col');
+    const valSel = document.getElementById('act-val');
+    const grp = document.querySelector('.acts-filter-group');
+    const clearBtn = document.getElementById('btn-clear-filters');
+    if (!colSel || !valSel || !grp || !clearBtn) return;
+
+    const isDefault = (colSel.value === 'status' && (valSel.value || '__ALL__') === '__ALL__');
+    clearBtn.disabled = isDefault;
+    grp.classList.toggle('active', !isDefault);
+  }
+
+  // ---------- back + permissions ----------
   function wireBackButton() {
     const btn = document.getElementById("btn-back");
     if (!btn || btn.dataset.bound) return;
@@ -336,7 +398,7 @@
     btn.addEventListener("click", handler);
   }
 
-  // Owner list for Add Activity = active squad members (display names)
+  // ---------- owner options for Add Activity ----------
   function populateOwnerOptions({ members, empMap, squadId, meId }) {
     const sel = document.getElementById('act-owner'); if (!sel) return;
     const rows = members.filter(r => norm(r["Squad ID"]) === norm(squadId) && isTrue(r["Active"]));
@@ -358,39 +420,76 @@
     }
   }
 
-  // Add Activity -> write to Smartsheet
+  // ---------- Add Activity ----------
+  function resetAddActivityForm() {
+    document.getElementById('act-title')?.value = '';
+    document.getElementById('act-type')?.value = ACTIVITY_TYPES[0] || 'Other';
+    document.getElementById('act-status-modal')?.value = 'Not Started';
+    document.getElementById('act-start')?.value = '';
+    document.getElementById('act-end')?.value = '';
+    document.getElementById('act-desc')?.value = '';
+  }
+
+  // --- modal UX overlay (Saving… / Saved!) ---
+  function ensureModalUX(modalId){
+    const modal = document.getElementById(modalId);
+    if (!modal) return;
+    if (modal.querySelector('.modal-ux')) return;
+    const ux = document.createElement('div');
+    ux.className = 'modal-ux';
+    ux.style.cssText = `
+      position:absolute; inset:0; display:none; align-items:center; justify-content:center;
+      background:rgba(0,0,0,.45); z-index:2; border-radius:10px;
+    `;
+    ux.innerHTML = `
+      <div class="box" style="background:#0f1a1a;border:1px solid #2d3f3f;padding:14px 16px;border-radius:10px;min-width:220px;text-align:center">
+        <div class="msg" style="color:#e5e7eb;font-weight:700">Saving…</div>
+      </div>
+    `;
+    modal.querySelector('.panel')?.appendChild(ux);
+  }
+  function showBusy(modalId, text){
+    ensureModalUX(modalId);
+    const el = document.querySelector(`#${modalId} .modal-ux`);
+    if (el){ el.style.display='flex'; const m = el.querySelector('.msg'); if (m) m.textContent = text || 'Saving…'; }
+  }
+  async function flashSuccess(modalId){
+    const el = document.querySelector(`#${modalId} .modal-ux .msg`);
+    if (!el) return;
+    el.textContent = 'Saved!';
+    el.style.color = '#20d3a8';
+    await new Promise(r=>setTimeout(r, 650));
+  }
+  function hideBusy(modalId){
+    const el = document.querySelector(`#${modalId} .modal-ux`);
+    if (el) el.style.display='none';
+  }
+
   async function createActivity({ squadId, squadName }) {
     const title = document.getElementById('act-title').value.trim();
     const type  = document.getElementById('act-type').value.trim() || "Other";
     const status= document.getElementById('act-status-modal').value.trim();
     const start = toISO(document.getElementById('act-start').value);
     const end   = toISO(document.getElementById('act-end').value) || start;
-
     const ownerSel  = document.getElementById('act-owner');
     const ownerName = ownerSel?.selectedOptions[0]?.text || ownerSel?.value || "";
     const ownerId   = ownerSel?.selectedOptions[0]?.dataset?.id || "";
-
     const desc  = document.getElementById('act-desc').value.trim();
 
     if (!title) { alert("Title is required."); return; }
-    if (!status || !/^(Not Started|In Progress|Completed|Canceled|Cancelled)$/i.test(status)) {
-      alert("Status must be one of: Not Started, In Progress, Completed, Canceled/Cancelled."); return;
+    if (!STATUS_ALLOWED.includes(status)) {
+      alert("Status must be one of: Not Started, In Progress, Completed, Canceled."); return;
     }
 
     const row = {
       "Squad ID": squadId,
       "Squad": squadName,
-      "Activity Title": title,
-      "Title": title,
-      "Type": type,
-      "Status": status,
-      "Start Date": start,
-      "End/Due Date": end,
-      "Owner (Display Name)": ownerName,
-      "Owner": ownerName,
+      "Activity Title": title, "Title": title,
+      "Type": type, "Status": status,
+      "Start Date": start, "End/Due Date": end,
+      "Owner (Display Name)": ownerName, "Owner": ownerName,
       "Owner ID": ownerId,
-      "Description": desc,
-      "Notes": desc
+      "Description": desc, "Notes": desc
     };
 
     await api.addRows("SQUAD_ACTIVITIES", [row], { toTop: true });
@@ -398,191 +497,77 @@
     return true;
   }
 
-  // ---------- Log Power Hour (modal) ----------
+  // ---------- Log Power Hours ----------
+  function resetLogHourForm() {
+    const nowISO = new Date().toISOString().slice(0,10);
+    document.getElementById('lh-date')?.setAttribute('value', nowISO);
+    const d = document.getElementById('lh-date'); if (d) d.value = nowISO;
+    document.getElementById('lh-start')?.setAttribute('value','');
+    document.getElementById('lh-end')?.setAttribute('value','');
+    const s = document.getElementById('lh-start'); if (s) s.value='';
+    const e = document.getElementById('lh-end'); if (e) e.value='';
+    const dh = document.getElementById('lh-dur'); if (dh) dh.value='';
+    const sch = document.getElementById('lh-scheduled'); if (sch) sch.checked = false;
+    const comp = document.getElementById('lh-completed'); if (comp) comp.checked = true;
+    const notes = document.getElementById('lh-notes'); if (notes) notes.value='';
+  }
+
   function openLogHourModal(activityId) {
-    const m = document.getElementById('logHourModal');
-    if (!m) { alert("Log Power Hour modal not found on this page."); return; }
-    (document.getElementById('lh-activity-id')||{}).value = activityId || "";
-    const d = document.getElementById('lh-date');
-    if (d && !d.value) d.value = new Date().toISOString().slice(0,10);
+    const hid = document.getElementById('lh-activity-id');
+    if (hid) hid.value = activityId || '';
+    resetLogHourForm();
     showModal('logHourModal');
   }
 
-  function parseHhMmToMinutes(str){
-    if (!str) return null;
-    const m = String(str).match(/^(\d{1,2}):(\d{2})$/);
-    if (!m) return null;
-    const hh = +m[1], mm = +m[2];
-    return (Number.isFinite(hh) && Number.isFinite(mm)) ? (hh*60 + mm) : null;
+  function calcHours(startStr, endStr) {
+    if (!startStr || !endStr) return 0;
+    const [sh, sm] = startStr.split(':').map(n=>parseInt(n,10));
+    const [eh, em] = endStr.split(':').map(n=>parseInt(n,10));
+    if ([sh,sm,eh,em].some(n => Number.isNaN(n))) return 0;
+    let mins = (eh*60+em) - (sh*60+sm);
+    if (mins < 0) mins += 24*60; // cross-midnight
+    return Math.round((mins/60)*100)/100;
   }
 
-  async function savePowerHour() {
-    const aid = (document.getElementById('lh-activity-id')||{}).value || "";
-    const date = toISO(document.getElementById('lh-date')?.value);
-    const start = document.getElementById('lh-start')?.value || "";
-    const end   = document.getElementById('lh-end')?.value || "";
-    const durIn = document.getElementById('lh-dur')?.value || "";
+  async function saveLogHours() {
+    const actId = document.getElementById('lh-activity-id')?.value || '';
+    if (!actId) throw new Error("Missing Activity ID.");
+    const date = toISO(document.getElementById('lh-date')?.value || '');
+    if (!date) throw new Error("Date is required.");
+    const start = document.getElementById('lh-start')?.value || '';
+    const end   = document.getElementById('lh-end')?.value || '';
+    let dur = document.getElementById('lh-dur')?.value || '';
     const scheduled = !!document.getElementById('lh-scheduled')?.checked;
     const completed = !!document.getElementById('lh-completed')?.checked;
-    const notes     = document.getElementById('lh-notes')?.value?.trim() || "";
+    const notes = document.getElementById('lh-notes')?.value?.trim() || '';
 
-    // derive hours if duration empty but time range provided
-    let hours = parseFloat(durIn);
-    if (!Number.isFinite(hours) || hours <= 0) {
-      const sm = parseHhMmToMinutes(start), em = parseHhMmToMinutes(end);
-      if (sm != null && em != null && em > sm) {
-        hours = (em - sm) / 60;
-      }
-    }
-    if (!Number.isFinite(hours) || hours <= 0) {
-      alert("Enter a Duration or a valid Start/End time.");
-      return;
-    }
-
+    if (!dur) dur = calcHours(start, end);
     const row = {
-      "Activity ID": aid,
+      "Activity ID": actId,
       "Date": date,
-      "Start": start,            // tolerant: your addRows will skip unknown titles
-      "Start Time": start,
+      "Start": start,
       "End": end,
-      "End Time": end,
+      "Completed Hours": Number(dur) || 0,
       "Scheduled": scheduled,
       "Completed": completed,
-      "Completed Hours": hours,
-      "Hours": hours,
-      "Notes": notes,
-      "Description": notes
+      "Notes": notes
     };
 
     await api.addRows("POWER_HOURS", [row], { toTop: true });
     api.clearCache(api.SHEETS.POWER_HOURS);
   }
 
-  // modal helpers
+  // ---------- modal helpers ----------
   function showModal(id){ const m = document.getElementById(id); if (m) m.classList.add('show'); }
   function hideModal(id){ const m = document.getElementById(id); if (m) m.classList.remove('show'); }
 
-  function wireLogHourModal() {
-    const cancel = document.getElementById('lh-cancel');
-    const save   = document.getElementById('lh-save');
-    cancel?.addEventListener('click', ()=>hideModal('logHourModal'));
-    save?.addEventListener('click', async ()=>{
-      try{
-        await savePowerHour();
-        hideModal('logHourModal');
-        // refresh rollups / activities
-        const urlId = qs("id") || qs("squadId") || qs("squad");
-        const sid = urlId ? String(urlId).trim() : "";
-        // pull current squad id/name from header
-        const squadName = document.getElementById('sqd-name')?.textContent || "";
-        const fresh = await loadActivitiesForSquad(sid, squadName);
-        renderKpis(fresh.items, fresh.hoursByActDone, fresh.hoursByActPlan);
-        renderActivities(fresh.items, fresh.hoursByActDone, true);
-        buildDependentFilters(fresh.items, fresh.hoursByActDone);
-        renderGantt(fresh.items);
-        sizePanels();
-      } catch(e){
-        console.error(e);
-        alert("Failed to log power hours.");
-      }
-    });
-  }
-
-  // ---------- Filter “chip group” affordance ----------
-  function injectFilterStyles() {
-    // only styles related to the filter group and the pill button
-    const css = `
-      .acts-tools {
-        display:flex; align-items:center; gap:8px; padding:6px;
-        border:1px solid #2d3f3f; border-radius:999px; background:#0f1a1a;
-      }
-      .acts-tools.filtered {
-        border-color: var(--accent);
-        box-shadow: 0 0 0 1px rgba(0,255,200,.15);
-      }
-      #btn-clear-filters {
-        border-radius:999px; padding:6px 10px; font-weight:700;
-        border:1px solid #2d3f3f; color:#9ca3af; background:transparent;
-        opacity:.5; cursor:not-allowed;
-      }
-      #btn-clear-filters:not([disabled]) {
-        opacity:1; cursor:pointer;
-        border-color: var(--accent); color: var(--accent);
-      }
-      .btn.pill { border-radius:999px; }
-      .btn.accent { border:1px solid var(--accent); color: var(--accent); background: transparent; }
-      .btn.accent:hover { background: rgba(34,197,154,.12); }
-    `;
-    const tag = document.createElement('style');
-    tag.setAttribute('data-squad-details-filters', '1');
-    tag.textContent = css;
-    document.head.appendChild(tag);
-  }
-
-  function updateClearAffordance(){
-    const colSel = document.getElementById("act-col");
-    const valSel = document.getElementById("act-val");
-    const clear  = document.getElementById("btn-clear-filters");
-    const bar    = document.querySelector(".acts-tools");
-    const isDefault = (colSel?.value === 'status') && (valSel?.value === '__ALL__');
-    if (clear) {
-      clear.disabled = !!isDefault;
-    }
-    if (bar) {
-      bar.classList.toggle('filtered', !isDefault);
-    }
-  }
-
-  // ---------- viewport sizing ----------
-  function sizePanels() {
-    const GAP = 56;
-    const vh = window.innerHeight || document.documentElement.clientHeight;
-
-    function fit(el) {
-      if (!el) return;
-      const rect = el.getBoundingClientRect();
-      const h = Math.max(180, vh - rect.top - GAP);
-      el.style.maxHeight = h + 'px';
-      el.style.height = h + 'px';
-    }
-
-    fit(document.querySelector('.members-scroll'));
-
-    const tablePanel = document.getElementById('view-table');
-    const ganttPanel = document.getElementById('view-gantt');
-    const calPanel   = document.getElementById('view-calendar');
-
-    if (tablePanel && !tablePanel.hidden) {
-      fit(tablePanel.querySelector('.acts-scroll'));
-    }
-    if (ganttPanel && !ganttPanel.hidden) {
-      const gc = document.getElementById('gantt-container');
-      fit(gc);
-    }
-    if (calPanel && !calPanel.hidden) {
-      fit(calPanel.querySelector('.acts-scroll'));
-    }
-  }
-
-  // ---------- seed “Type” options from Smartsheet list you sent ----------
-  function seedTypeOptions() {
-    const sel = document.getElementById('act-type');
-    if (!sel) return;
-    const TYPES = [
-      "5S","Kaizen","Training","CI Suggestion","Side Quest Project",
-      "Safety Concern","Quality Catch","Other"
-    ];
-    sel.innerHTML = TYPES.map(t=>`<option>${esc(t)}</option>`).join("");
-  }
-
   // ---------- main ----------
   document.addEventListener("DOMContentLoaded", async () => {
+    injectFilterStyles();
+    injectGanttStyles();
+
     layout.injectLayout?.();
     await session.initHeader?.();
-
-    injectFilterStyles();
-    wireLogHourModal();
-    seedTypeOptions();
 
     const urlId = qs("id") || qs("squadId") || qs("squad");
     if (!urlId) { layout.setPageTitle?.("Squad: (unknown)"); return; }
@@ -617,7 +602,6 @@
       const latest = await api.getRowsByTitle("SQUAD_MEMBERS", { force: true });
       renderMembers(latest, empMap, squadId, isAdmin);
       populateOwnerOptions({ members: latest, empMap, squadId, meId: norm((session.get?.() || {}).employeeId || "") });
-      sizePanels();
     });
 
     const me = session.get?.() || {};
@@ -633,9 +617,8 @@
     buildDependentFilters(acts, hoursByActDone);
     renderGantt(acts);
 
-    // initial fit + on resize
-    sizePanels();
-    window.addEventListener('resize', sizePanels);
+    // Filter group setup
+    setupFilterGroup();
 
     // dependent filters + Clear
     const colSel = document.getElementById("act-col");
@@ -652,34 +635,66 @@
         const event = new Event('change');
         colSel.dispatchEvent(event);
         valSel.value = '__ALL__';
+        updateClearBtnState();
         rerender();
       });
     }
-    updateClearAffordance();
 
-    // Owner dropdown for Add Activity
+    // Owner dropdown + Type options for Add Activity
     populateOwnerOptions({ members, empMap, squadId, meId: userId });
+    const typeSel = document.getElementById('act-type');
+    if (typeSel) typeSel.innerHTML = ACTIVITY_TYPES.map(t=>`<option>${esc(t)}</option>`).join("");
 
-    // Add Activity modal wiring
+    // Add Activity modal wiring + UX overlay
     const addActBtn = document.getElementById("btn-add-activity");
-    const modalId = 'addActivityModal';
-    document.getElementById('aa-cancel')?.addEventListener('click', ()=>hideModal(modalId));
-    addActBtn?.addEventListener('click', (e)=>{ e.preventDefault(); showModal(modalId); });
+    const modalAddId = 'addActivityModal';
+    document.getElementById('aa-cancel')?.addEventListener('click', ()=>{ resetAddActivityForm(); hideModal(modalAddId); });
+    addActBtn?.addEventListener('click', (e)=>{ e.preventDefault(); resetAddActivityForm(); showModal(modalAddId); });
 
     document.getElementById('aa-save')?.addEventListener('click', async ()=>{
       try{
+        showBusy(modalAddId,'Saving…');
         await createActivity({ squadId, squadName });
-        hideModal(modalId);
+        await flashSuccess(modalAddId);
+        resetAddActivityForm();
+        hideBusy(modalAddId);
+        hideModal(modalAddId);
+
         const fresh = await loadActivitiesForSquad(squadId, squadName);
         renderKpis(fresh.items, fresh.hoursByActDone, fresh.hoursByActPlan);
         renderActivities(fresh.items, fresh.hoursByActDone, true);
         buildDependentFilters(fresh.items, fresh.hoursByActDone);
         renderGantt(fresh.items);
-        sizePanels();
-        updateClearAffordance();
+        setupFilterGroup();
       } catch (err){
         console.error(err);
+        hideBusy(modalAddId);
         alert("Failed to create activity. See console for details.");
+      }
+    });
+
+    // Log Power Hours modal wiring + UX overlay
+    const modalPHId = 'logHourModal';
+    document.getElementById('lh-cancel')?.addEventListener('click', ()=>{ resetLogHourForm(); hideModal(modalPHId); });
+    document.getElementById('lh-save')?.addEventListener('click', async ()=>{
+      try{
+        showBusy(modalPHId,'Saving…');
+        await saveLogHours();
+        await flashSuccess(modalPHId);
+        resetLogHourForm();
+        hideBusy(modalPHId);
+        hideModal(modalPHId);
+
+        const fresh = await loadActivitiesForSquad(squadId, squadName);
+        renderKpis(fresh.items, fresh.hoursByActDone, fresh.hoursByActPlan);
+        renderActivities(fresh.items, fresh.hoursByActDone, true);
+        buildDependentFilters(fresh.items, fresh.hoursByActDone);
+        renderGantt(fresh.items);
+        setupFilterGroup();
+      } catch (err){
+        console.error(err);
+        hideBusy(modalPHId);
+        alert("Failed to log power hours. See console for details.");
       }
     });
 
@@ -703,8 +718,25 @@
           px.hidden = !on;
         });
         if (t.panel === 'view-gantt') renderGantt(acts);
-        sizePanels();
       });
     });
   });
+
+  // ---------- viewport sizing (kept) ----------
+  function sizeSquadScrollers() {
+    const gap = 24;
+    const fit = (el) => {
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const h = Math.max(140, (window.innerHeight || document.documentElement.clientHeight) - rect.top - gap);
+      el.style.maxHeight = h + 'px';
+      el.style.height = h + 'px';
+    };
+    fit(document.querySelector('.members-scroll'));
+    fit(document.querySelector('.acts-scroll'));
+    fit(document.getElementById('gantt-container'));
+  }
+  window.addEventListener('resize', sizeSquadScrollers);
+  document.addEventListener('DOMContentLoaded', sizeSquadScrollers);
+
 })(window.PowerUp || (window.PowerUp = {}));
