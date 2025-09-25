@@ -95,8 +95,8 @@
   function renderMembers(allRows, empMap, squadId, isAdmin) {
     const rows = allRows.filter(r => norm(r["Squad ID"]) === norm(squadId));
     const tb = document.getElementById("members-tbody");
-    const cnt = document.getElementById("members-count");
     if (!tb) return;
+    const cnt = document.getElementById("members-count");
 
     tb.innerHTML = rows.map(r => {
       const eid   = String(r["Employee ID"] || "").trim();
@@ -148,7 +148,6 @@
     tb.innerHTML = acts.map(a => {
       const range = `${fmtMDYY(a.start)} — ${fmtMDYY(a.end)}`;
       const hrs   = hoursDone.get(a.id) || 0;
-      const actionLabel = /completed/i.test(a.status) ? "View" : "Log Hour";
       const statusChip = `<span class="pill" style="background:#2a3440;color:#c3d5ff">${esc(a.status)}</span>`;
       const typeChip   = `<span class="pill" style="background:#2a3a3a;color:#aee">${esc(a.type)}</span>`;
       return `
@@ -160,25 +159,20 @@
           <td class="owner">${esc(a.owner || "-")}</td>
           <td style="text-align:right">${hrs}</td>
           <td class="row-actions">
-            <button class="btn small ghost" data-act="${esc(a.id)}" data-action="${/completed/i.test(a.status)?'view':'log-ph'}">${actionLabel}</button>
+            <button class="btn small pill accent" data-act="${esc(a.id)}" data-action="log-ph">Log Hour</button>
           </td>
         </tr>
       `;
     }).join("");
 
+    // actions
     tb.querySelectorAll('button[data-action]').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.preventDefault();
         const actId = btn.getAttribute('data-act') || '';
-        const action = btn.getAttribute('data-action') || 'log-ph';
-        if (action === 'view') {
-          alert('View not wired yet.');
-          return;
-        }
-        if (P.PowerHours && typeof P.PowerHours.open === 'function') {
-          P.PowerHours.open({ activityId: actId });
-        } else {
-          location.href = `power-hours.html?activityId=${encodeURIComponent(actId)}`;
+        const action = btn.getAttribute('data-action') || '';
+        if (action === 'log-ph') {
+          openLogHourModal(actId);
         }
       });
     });
@@ -230,7 +224,8 @@
     renderKpis(filtered, hoursDone, hoursPlan);
     renderActivities(filtered, hoursDone, true);
     renderGantt(filtered);       // keep Gantt in sync with filters
-    sizePanels();                // <-- keep scroll areas fitted after filter
+    sizePanels();                // keep scroll areas fitted after filter
+    updateClearAffordance();     // update "Clear" enable + styling
   }
 
   // ---------- Gantt ----------
@@ -257,7 +252,6 @@
     const ticks = [];
     for (let i=0;i<days;i++){
       const d = new Date(min.getTime() + i*DAY);
-      // show label each Monday or first day
       if (i===0 || d.getDay()===1) {
         const lab = `${d.getMonth()+1}/${d.getDate()}`;
         ticks.push({ i, label: lab });
@@ -266,7 +260,6 @@
 
     // construct DOM
     const rowsHtml = acts.map(a=>{
-      // normalize invalid/missing dates to min/max so we don’t overflow
       const ds = a.start ? new Date(a.start) : min;
       const de = a.end   ? new Date(a.end)   : (a.start ? new Date(a.start) : min);
       const left = Math.max(0, Math.min(days, Math.round((ds - min)/DAY)));
@@ -301,9 +294,8 @@
       </div>
     `;
 
-    // stretch Gantt vertically to near bottom without touching the page edge
     requestAnimationFrame(()=>{
-      const gap = 56; // match bottom page gap
+      const gap = 56;
       const rect = el.getBoundingClientRect();
       const vh = window.innerHeight || document.documentElement.clientHeight;
       const h = Math.max(220, vh - rect.top - gap);
@@ -349,7 +341,6 @@
     const sel = document.getElementById('act-owner'); if (!sel) return;
     const rows = members.filter(r => norm(r["Squad ID"]) === norm(squadId) && isTrue(r["Active"]));
 
-    // Build [{id: employeeId, name: displayName}] and de-dupe by id
     const seen = new Set();
     const opts = rows.map(r => {
         const id = String(r["Employee ID"]||"").trim();
@@ -357,12 +348,10 @@
       })
       .filter(p => p.id && !seen.has(p.id) && seen.add(p.id));
 
-    // value = display name (what the user sees/keeps), data-id = hidden Employee ID
     sel.innerHTML = opts.map(p =>
       `<option value="${esc(p.name)}" data-id="${esc(p.id)}">${esc(p.name)}</option>`
     ).join("") || `<option value="">—</option>`;
 
-    // Preselect me (by ID) if present
     if (meId) {
       const idx = opts.findIndex(p => p.id.toLowerCase() === meId.toLowerCase());
       if (idx >= 0) sel.selectedIndex = idx;
@@ -379,17 +368,16 @@
 
     const ownerSel  = document.getElementById('act-owner');
     const ownerName = ownerSel?.selectedOptions[0]?.text || ownerSel?.value || "";
-    const ownerId   = ownerSel?.selectedOptions[0]?.dataset?.id || ""; // hidden Employee ID
+    const ownerId   = ownerSel?.selectedOptions[0]?.dataset?.id || "";
 
     const desc  = document.getElementById('act-desc').value.trim();
 
     if (!title) { alert("Title is required."); return; }
-    if (!status || !/^(Not Started|In Progress|Completed|Canceled)$/i.test(status)) {
-      alert("Status must be one of: Not Started, In Progress, Completed, Canceled."); return;
+    if (!status || !/^(Not Started|In Progress|Completed|Canceled|Cancelled)$/i.test(status)) {
+      alert("Status must be one of: Not Started, In Progress, Completed, Canceled/Cancelled."); return;
     }
 
     const row = {
-      // Do NOT write Activity ID; let Smartsheet auto-number if configured
       "Squad ID": squadId,
       "Squad": squadName,
       "Activity Title": title,
@@ -400,7 +388,7 @@
       "End/Due Date": end,
       "Owner (Display Name)": ownerName,
       "Owner": ownerName,
-      "Owner ID": ownerId,            // <- hidden employee ID written here
+      "Owner ID": ownerId,
       "Description": desc,
       "Notes": desc
     };
@@ -410,13 +398,144 @@
     return true;
   }
 
+  // ---------- Log Power Hour (modal) ----------
+  function openLogHourModal(activityId) {
+    const m = document.getElementById('logHourModal');
+    if (!m) { alert("Log Power Hour modal not found on this page."); return; }
+    (document.getElementById('lh-activity-id')||{}).value = activityId || "";
+    const d = document.getElementById('lh-date');
+    if (d && !d.value) d.value = new Date().toISOString().slice(0,10);
+    showModal('logHourModal');
+  }
+
+  function parseHhMmToMinutes(str){
+    if (!str) return null;
+    const m = String(str).match(/^(\d{1,2}):(\d{2})$/);
+    if (!m) return null;
+    const hh = +m[1], mm = +m[2];
+    return (Number.isFinite(hh) && Number.isFinite(mm)) ? (hh*60 + mm) : null;
+  }
+
+  async function savePowerHour() {
+    const aid = (document.getElementById('lh-activity-id')||{}).value || "";
+    const date = toISO(document.getElementById('lh-date')?.value);
+    const start = document.getElementById('lh-start')?.value || "";
+    const end   = document.getElementById('lh-end')?.value || "";
+    const durIn = document.getElementById('lh-dur')?.value || "";
+    const scheduled = !!document.getElementById('lh-scheduled')?.checked;
+    const completed = !!document.getElementById('lh-completed')?.checked;
+    const notes     = document.getElementById('lh-notes')?.value?.trim() || "";
+
+    // derive hours if duration empty but time range provided
+    let hours = parseFloat(durIn);
+    if (!Number.isFinite(hours) || hours <= 0) {
+      const sm = parseHhMmToMinutes(start), em = parseHhMmToMinutes(end);
+      if (sm != null && em != null && em > sm) {
+        hours = (em - sm) / 60;
+      }
+    }
+    if (!Number.isFinite(hours) || hours <= 0) {
+      alert("Enter a Duration or a valid Start/End time.");
+      return;
+    }
+
+    const row = {
+      "Activity ID": aid,
+      "Date": date,
+      "Start": start,            // tolerant: your addRows will skip unknown titles
+      "Start Time": start,
+      "End": end,
+      "End Time": end,
+      "Scheduled": scheduled,
+      "Completed": completed,
+      "Completed Hours": hours,
+      "Hours": hours,
+      "Notes": notes,
+      "Description": notes
+    };
+
+    await api.addRows("POWER_HOURS", [row], { toTop: true });
+    api.clearCache(api.SHEETS.POWER_HOURS);
+  }
+
   // modal helpers
   function showModal(id){ const m = document.getElementById(id); if (m) m.classList.add('show'); }
   function hideModal(id){ const m = document.getElementById(id); if (m) m.classList.remove('show'); }
 
-  // ---------- viewport sizing (restore bottom gap + fit scroll areas) ----------
+  function wireLogHourModal() {
+    const cancel = document.getElementById('lh-cancel');
+    const save   = document.getElementById('lh-save');
+    cancel?.addEventListener('click', ()=>hideModal('logHourModal'));
+    save?.addEventListener('click', async ()=>{
+      try{
+        await savePowerHour();
+        hideModal('logHourModal');
+        // refresh rollups / activities
+        const urlId = qs("id") || qs("squadId") || qs("squad");
+        const sid = urlId ? String(urlId).trim() : "";
+        // pull current squad id/name from header
+        const squadName = document.getElementById('sqd-name')?.textContent || "";
+        const fresh = await loadActivitiesForSquad(sid, squadName);
+        renderKpis(fresh.items, fresh.hoursByActDone, fresh.hoursByActPlan);
+        renderActivities(fresh.items, fresh.hoursByActDone, true);
+        buildDependentFilters(fresh.items, fresh.hoursByActDone);
+        renderGantt(fresh.items);
+        sizePanels();
+      } catch(e){
+        console.error(e);
+        alert("Failed to log power hours.");
+      }
+    });
+  }
+
+  // ---------- Filter “chip group” affordance ----------
+  function injectFilterStyles() {
+    // only styles related to the filter group and the pill button
+    const css = `
+      .acts-tools {
+        display:flex; align-items:center; gap:8px; padding:6px;
+        border:1px solid #2d3f3f; border-radius:999px; background:#0f1a1a;
+      }
+      .acts-tools.filtered {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 1px rgba(0,255,200,.15);
+      }
+      #btn-clear-filters {
+        border-radius:999px; padding:6px 10px; font-weight:700;
+        border:1px solid #2d3f3f; color:#9ca3af; background:transparent;
+        opacity:.5; cursor:not-allowed;
+      }
+      #btn-clear-filters:not([disabled]) {
+        opacity:1; cursor:pointer;
+        border-color: var(--accent); color: var(--accent);
+      }
+      .btn.pill { border-radius:999px; }
+      .btn.accent { border:1px solid var(--accent); color: var(--accent); background: transparent; }
+      .btn.accent:hover { background: rgba(34,197,154,.12); }
+    `;
+    const tag = document.createElement('style');
+    tag.setAttribute('data-squad-details-filters', '1');
+    tag.textContent = css;
+    document.head.appendChild(tag);
+  }
+
+  function updateClearAffordance(){
+    const colSel = document.getElementById("act-col");
+    const valSel = document.getElementById("act-val");
+    const clear  = document.getElementById("btn-clear-filters");
+    const bar    = document.querySelector(".acts-tools");
+    const isDefault = (colSel?.value === 'status') && (valSel?.value === '__ALL__');
+    if (clear) {
+      clear.disabled = !!isDefault;
+    }
+    if (bar) {
+      bar.classList.toggle('filtered', !isDefault);
+    }
+  }
+
+  // ---------- viewport sizing ----------
   function sizePanels() {
-    const GAP = 56; // keep a visible gap above the page bottom
+    const GAP = 56;
     const vh = window.innerHeight || document.documentElement.clientHeight;
 
     function fit(el) {
@@ -427,10 +546,8 @@
       el.style.height = h + 'px';
     }
 
-    // Members list is always visible
     fit(document.querySelector('.members-scroll'));
 
-    // Active view in Activities: only size the visible panel
     const tablePanel = document.getElementById('view-table');
     const ganttPanel = document.getElementById('view-gantt');
     const calPanel   = document.getElementById('view-calendar');
@@ -439,7 +556,6 @@
       fit(tablePanel.querySelector('.acts-scroll'));
     }
     if (ganttPanel && !ganttPanel.hidden) {
-      // let renderGantt set minHeight; ensure container respects gap too
       const gc = document.getElementById('gantt-container');
       fit(gc);
     }
@@ -448,10 +564,25 @@
     }
   }
 
+  // ---------- seed “Type” options from Smartsheet list you sent ----------
+  function seedTypeOptions() {
+    const sel = document.getElementById('act-type');
+    if (!sel) return;
+    const TYPES = [
+      "5S","Kaizen","Training","CI Suggestion","Side Quest Project",
+      "Safety Concern","Quality Catch","Other"
+    ];
+    sel.innerHTML = TYPES.map(t=>`<option>${esc(t)}</option>`).join("");
+  }
+
   // ---------- main ----------
   document.addEventListener("DOMContentLoaded", async () => {
     layout.injectLayout?.();
     await session.initHeader?.();
+
+    injectFilterStyles();
+    wireLogHourModal();
+    seedTypeOptions();
 
     const urlId = qs("id") || qs("squadId") || qs("squad");
     if (!urlId) { layout.setPageTitle?.("Squad: (unknown)"); return; }
@@ -486,7 +617,7 @@
       const latest = await api.getRowsByTitle("SQUAD_MEMBERS", { force: true });
       renderMembers(latest, empMap, squadId, isAdmin);
       populateOwnerOptions({ members: latest, empMap, squadId, meId: norm((session.get?.() || {}).employeeId || "") });
-      sizePanels(); // refit after membership updates
+      sizePanels();
     });
 
     const me = session.get?.() || {};
@@ -518,13 +649,13 @@
       clearBtn.addEventListener('click', (e)=>{
         e.preventDefault();
         colSel.value = 'status';
-        // rebuild values for default column
         const event = new Event('change');
         colSel.dispatchEvent(event);
         valSel.value = '__ALL__';
         rerender();
       });
     }
+    updateClearAffordance();
 
     // Owner dropdown for Add Activity
     populateOwnerOptions({ members, empMap, squadId, meId: userId });
@@ -544,7 +675,8 @@
         renderActivities(fresh.items, fresh.hoursByActDone, true);
         buildDependentFilters(fresh.items, fresh.hoursByActDone);
         renderGantt(fresh.items);
-        sizePanels(); // refit after data changes
+        sizePanels();
+        updateClearAffordance();
       } catch (err){
         console.error(err);
         alert("Failed to create activity. See console for details.");
@@ -571,7 +703,7 @@
           px.hidden = !on;
         });
         if (t.panel === 'view-gantt') renderGantt(acts);
-        sizePanels(); // refit after switching views
+        sizePanels();
       });
     });
   });
