@@ -553,6 +553,7 @@ function injectTableStyles() {
 
       injectFilterStyles();
       injectGanttStyles();
+      injectTableStyles();
 
       const urlId = qs("id") || qs("squadId") || qs("squad");
       if (!urlId) { layout.setPageTitle?.("Squad: (unknown)"); return; }
