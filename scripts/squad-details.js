@@ -20,16 +20,10 @@
     if (/^\d{4}-\d{2}-\d{2}$/.test(String(v))) return v;
     const d = new Date(v); return isNaN(d) ? "" : d.toISOString().slice(0,10);
   };
-  const addDaysISO = (iso, n=1) => {
-    if (!iso) return "";
-    const d = new Date(iso+"T00:00:00");
-    d.setDate(d.getDate()+n);
-    return d.toISOString().slice(0,10);
-  };
+  const addDaysISO = (iso, n=1) => { if (!iso) return ""; const d = new Date(iso+"T00:00:00"); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); };
   const pick = (row, keys, d="") => { for (const k of keys) if (row && row[k] != null && String(row[k]).trim() !== "") return row[k]; return d; };
 
   // ---------------- constants ----------------
-  const ACTIVITY_TYPES = ["5S","Kaizen","Training","CI Suggestion","Side Quest Project","Safety Concern","Quality Catch","Other"];
   const STATUS_ALLOWED = ["Not Started","In Progress","Completed","Canceled"];
 
   // ---------------- data helpers ----------------
@@ -155,7 +149,6 @@
       `;
     }).join("");
 
-    // row button -> open modal
     tb.querySelectorAll('button[data-action="log-ph"]').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.preventDefault();
@@ -248,7 +241,7 @@
     renderGantt(filtered);
   }
 
-  // ---------------- gantt (basic + optional vis.js) ----------------
+  // ---------------- gantt (basic or vis.js if present) ----------------
   function injectGanttStyles() {
     const css = `
       .gantt2{width:100%;padding:8px 4px 10px;}
@@ -263,49 +256,22 @@
     `;
     const style = document.createElement('style'); style.textContent = css; document.head.appendChild(style);
   }
-
   let _timeline;
   function renderGanttVis(acts){
     const el = document.getElementById('gantt-container'); if (!el) return;
     el.innerHTML = "";
-
-    const groups = new vis.DataSet(
-      acts.map(a => ({ id: a.id || a.title, content: esc(a.title) }))
-    );
-
-    const items = new vis.DataSet(
-      acts.map(a => {
-        const sISO = toISO(a.start) || toISO(new Date());
-        const eISO = toISO(a.end) || sISO || toISO(new Date());
-        const s = new Date(sISO + "T00:00:00");
-        const e = new Date(addDaysISO(eISO, 1) + "T00:00:00"); // inclusive
-        return {
-          id: a.id || a.title,
-          group: a.id || a.title,
-          content: "",
-          start: s,
-          end: e,
-          type: 'range',
-          className: 'pu-vis-item'
-        };
-      })
-    );
-
+    const groups = new vis.DataSet(acts.map(a => ({ id: a.id || a.title, content: esc(a.title) })));
+    const items = new vis.DataSet(acts.map(a => {
+      const sISO = toISO(a.start) || toISO(new Date());
+      const eISO = toISO(a.end) || sISO || toISO(new Date());
+      const s = new Date(sISO + "T00:00:00");
+      const e = new Date(addDaysISO(eISO, 1) + "T00:00:00"); // inclusive
+      return { id: a.id || a.title, group: a.id || a.title, content: "", start: s, end: e, type: 'range', className: 'pu-vis-item' };
+    }));
     if (_timeline) { try { _timeline.destroy(); } catch(e){} _timeline = null; }
-
-    _timeline = new vis.Timeline(el, items, groups, {
-      stack: false,
-      selectable: false,
-      zoomable: true,
-      moveable: true,
-      orientation: 'top',
-      margin: { item: 8, axis: 12 },
-      height: '100%'
-    });
-
+    _timeline = new vis.Timeline(el, items, groups, { stack:false, selectable:false, zoomable:true, moveable:true, orientation:'top', margin:{item:8,axis:12}, height:'100%' });
     requestAnimationFrame(sizeSquadScrollers);
   }
-
   function renderGanttBasic(acts) {
     const el = document.getElementById('gantt-container'); if (!el) return;
     if (!acts?.length) { el.innerHTML = `<div style="padding:16px;opacity:.75">No activities for Gantt.</div>`; return; }
@@ -346,24 +312,15 @@
       </div>`;
     requestAnimationFrame(sizeSquadScrollers);
   }
-
-  function renderGantt(acts){
-    const hasVis = !!(window.vis && window.vis.Timeline && window.vis.DataSet);
-    if (hasVis) return renderGanttVis(acts);
-    return renderGanttBasic(acts);
-  }
+  function renderGantt(acts){ const hasVis = !!(window.vis && window.vis.Timeline && window.vis.DataSet); return hasVis ? renderGanttVis(acts) : renderGanttBasic(acts); }
 
   // ---------- table header alignment helper ----------
   function injectTableStyles() {
     const css = `
       .acts-table{ width:100%; border-collapse:separate; border-spacing:0; }
       .acts-table thead th{
-        text-align:left;
-        background:#0f1a1a;
-        border-bottom:1px solid #1e2b2b;
-        position:sticky; top:0; z-index:1;
-        font-weight:700;
-        padding:10px 12px;
+        text-align:left; background:#0f1a1a; border-bottom:1px solid #1e2b2b;
+        position:sticky; top:0; z-index:1; font-weight:700; padding:10px 12px;
       }
       .acts-table tbody td{ padding:10px 12px; vertical-align:middle; }
       .acts-table th:nth-child(1), .acts-table td:nth-child(1),
@@ -374,10 +331,7 @@
       .acts-table th:nth-child(6), .acts-table td:nth-child(6){ text-align:right; }
       .acts-table th:nth-child(7), .acts-table td:nth-child(7){ text-align:right; }
     `;
-    const style = document.createElement('style');
-    style.id = 'pu-acts-table-css';
-    style.textContent = css;
-    document.head.appendChild(style);
+    const style = document.createElement('style'); style.id = 'pu-acts-table-css'; style.textContent = css; document.head.appendChild(style);
   }
 
   // ---- modal helpers ----
@@ -395,29 +349,21 @@
     }).filter(p => p.id && !seen.has(p.id) && seen.add(p.id));
     sel.innerHTML = opts.map(p => `<option value="${esc(p.name)}" data-id="${esc(p.id)}">${esc(p.name)}</option>`).join("") || `<option value="">—</option>`;
   }
-
   function setPlaceholderSelect(sel, text){
     if (!sel) return;
     let ph = sel.querySelector('option[data-ph="1"]');
-    if (!ph) {
-      ph = document.createElement('option');
-      ph.value = ""; ph.disabled = true; ph.hidden = true;
-      ph.setAttribute('data-ph','1'); ph.textContent = text;
-      sel.insertBefore(ph, sel.firstChild);
-    }
+    if (!ph) { ph = document.createElement('option'); ph.value = ""; ph.disabled = true; ph.hidden = true; ph.setAttribute('data-ph','1'); ph.textContent = text; sel.insertBefore(ph, sel.firstChild); }
     sel.value = ""; sel.selectedIndex = 0;
   }
-
   function resetAddActivityForm() {
     const t = document.getElementById('act-title'); if (t) t.value = '';
-    const ty = document.getElementById('act-type'); if (ty) setPlaceholderSelect(ty, 'Select type…');
+    const ty = document.getElementById('act-type'); if (ty) setPlaceholderSelect(ty, 'Select type…');  // keeps YOUR list
     const st = document.getElementById('act-status-modal'); if (st) setPlaceholderSelect(st, 'Select status…');
     const s = document.getElementById('act-start'); if (s) s.value = '';
     const e = document.getElementById('act-end');   if (e) e.value = '';
     const d = document.getElementById('act-desc');  if (d) d.value = '';
     const ow = document.getElementById('act-owner'); if (ow) setPlaceholderSelect(ow, 'Select owner…');
   }
-
   async function createActivity({ squadId, squadName }) {
     const title = document.getElementById('act-title').value.trim();
     const type  = document.getElementById('act-type').value.trim() || "Other";
@@ -443,7 +389,6 @@
     api.clearCache(api.SHEETS.SQUAD_ACTIVITIES);
     return true;
   }
-
   function resetLogHourForm() {
     const nowISO = new Date().toISOString().slice(0,10);
     const d = document.getElementById('lh-date'); if (d) { d.setAttribute('value', nowISO); d.value = nowISO; }
@@ -454,10 +399,7 @@
     const comp=document.getElementById('lh-completed'); if (comp) comp.checked=true;
     const notes=document.getElementById('lh-notes'); if (notes) notes.value='';
   }
-  function openLogHourModal(activityId) {
-    const hid = document.getElementById('lh-activity-id'); if (hid) hid.value = activityId || '';
-    resetLogHourForm(); showModal('logHourModal');
-  }
+  function openLogHourModal(activityId) { const hid = document.getElementById('lh-activity-id'); if (hid) hid.value = activityId || ''; resetLogHourForm(); showModal('logHourModal'); }
   function calcHours(startStr, endStr) {
     if (!startStr || !endStr) return 0;
     const [sh, sm] = startStr.split(':').map(n=>parseInt(n,10));
@@ -497,7 +439,7 @@
     fit(document.getElementById('calendar-container'));
   }
 
-  // --- View switching helpers (re-usable by delegated clicks) ---
+  // --- View switching helpers ---
   function setView(view, acts){
     const tableBtn = document.getElementById('view-tab-table');
     const ganttBtn = document.getElementById('view-tab-gantt');
@@ -520,7 +462,7 @@
     requestAnimationFrame(sizeSquadScrollers);
   }
 
-  // ---------------- calendar renderer (FullCalendar) ----------------
+  // ---------------- calendar renderer (FullCalendar if present) ----------------
   let _fcInst;
   function renderCalendar(acts) {
     const el = document.getElementById('calendar-container') || document.getElementById('calendar');
@@ -556,39 +498,27 @@
 
   // ---------------- global delegated click handlers ----------------
   function installDelegatedHandlers(ctx){
-    // Close on backdrop click
+    // Close modals on backdrop click
     document.querySelectorAll('.modal').forEach(m => {
-      m.addEventListener('click', (e)=>{
-        if (e.target === m) hideModal(m.id);
-      });
+      m.addEventListener('click', (e)=>{ if (e.target === m) hideModal(m.id); });
     });
-
     // Esc to close
-    document.addEventListener('keydown', (e)=>{
-      if (e.key === 'Escape') {
-        hideModal('addActivityModal');
-        hideModal('logHourModal');
-      }
-    });
+    document.addEventListener('keydown', (e)=>{ if (e.key === 'Escape') { hideModal('addActivityModal'); hideModal('logHourModal'); } });
 
     document.addEventListener('click', async (e) => {
       const t = e.target;
 
-      // --- Add Activity open
-      if (t.closest && t.closest('#btn-add-activity')) {
+      // --- Add Member button
+      if (t.closest && t.closest('#btn-addmember')) {
         e.preventDefault();
-        resetAddActivityForm();
-        showModal('addActivityModal');
+        if (P.squadForm && typeof P.squadForm.open === 'function') P.squadForm.open({ squadId: ctx.squadId, squadName: ctx.squadName });
+        else showModal('addMemberModal'); // fallback to inline modal
         return;
       }
-      // --- Add Activity cancel
-      if (t.closest && t.closest('#aa-cancel')) {
-        e.preventDefault();
-        resetAddActivityForm();
-        hideModal('addActivityModal');
-        return;
-      }
-      // --- Add Activity save
+
+      // --- Add Activity open/cancel/save
+      if (t.closest && t.closest('#btn-add-activity')) { e.preventDefault(); resetAddActivityForm(); showModal('addActivityModal'); return; }
+      if (t.closest && t.closest('#aa-cancel')) { e.preventDefault(); resetAddActivityForm(); hideModal('addActivityModal'); return; }
       if (t.closest && t.closest('#aa-save')) {
         e.preventDefault();
         const modalId = 'addActivityModal';
@@ -600,30 +530,20 @@
           hideBusy(modalId); hideModal(modalId);
 
           const fresh = await loadActivitiesForSquad(ctx.squadId, ctx.squadName);
-          ctx.currentActs = fresh.items;
-          ctx.hoursDone = fresh.hoursByActDone;
-          ctx.hoursPlan = fresh.hoursByActPlan;
+          ctx.currentActs = fresh.items; ctx.hoursDone = fresh.hoursByActDone; ctx.hoursPlan = fresh.hoursByActPlan;
           renderKpis(fresh.items, ctx.hoursDone, ctx.hoursPlan);
           renderActivities(fresh.items, ctx.hoursDone, true);
           buildDependentFilters(fresh.items, ctx.hoursDone);
           renderGantt(fresh.items);
           setupFilterGroup();
         } catch (err) {
-          console.error(err);
-          hideBusy(modalId);
-          alert("Failed to create activity. See console for details.");
+          console.error(err); hideBusy(modalId); alert("Failed to create activity. See console for details.");
         }
         return;
       }
 
-      // --- Log Hour cancel
-      if (t.closest && t.closest('#lh-cancel')) {
-        e.preventDefault();
-        resetLogHourForm();
-        hideModal('logHourModal');
-        return;
-      }
-      // --- Log Hour save
+      // --- Log Hour cancel/save
+      if (t.closest && t.closest('#lh-cancel')) { e.preventDefault(); resetLogHourForm(); hideModal('logHourModal'); return; }
       if (t.closest && t.closest('#lh-save')) {
         e.preventDefault();
         const modalId = 'logHourModal';
@@ -635,18 +555,14 @@
           hideBusy(modalId); hideModal(modalId);
 
           const fresh = await loadActivitiesForSquad(ctx.squadId, ctx.squadName);
-          ctx.currentActs = fresh.items;
-          ctx.hoursDone = fresh.hoursByActDone;
-          ctx.hoursPlan = fresh.hoursByActPlan;
+          ctx.currentActs = fresh.items; ctx.hoursDone = fresh.hoursByActDone; ctx.hoursPlan = fresh.hoursByActPlan;
           renderKpis(fresh.items, ctx.hoursDone, ctx.hoursPlan);
           renderActivities(fresh.items, ctx.hoursDone, true);
           buildDependentFilters(fresh.items, ctx.hoursDone);
           renderGantt(fresh.items);
           setupFilterGroup();
         } catch (err) {
-          console.error(err);
-          hideBusy(modalId);
-          alert("Failed to log power hours. See console for details.");
+          console.error(err); hideBusy(modalId); alert("Failed to log power hours. See console for details.");
         }
         return;
       }
@@ -667,7 +583,6 @@
       injectFilterStyles();
       injectGanttStyles();
       injectTableStyles();
-
       document.getElementById('activities-tbody')?.closest('table')?.classList.add('acts-table');
 
       const urlId = qs("id") || qs("squadId") || qs("squad");
@@ -706,30 +621,27 @@
         });
       }
 
-      // members + meta
       renderMeta({ ...squadRow, id: squadId }, leaderNames);
       renderMembers(members, empMap, squadId, isAdmin);
+
       document.addEventListener("squad-member-added", async () => {
         const latest = await api.getRowsByTitle("SQUAD_MEMBERS", { force: true });
         renderMembers(latest, empMap, squadId, isAdmin);
         populateOwnerOptions({ members: latest, empMap, squadId });
       });
 
-      // permissions
       const me = session.get?.() || {};
       const userId = (me.employeeId || "").trim();
       const canAdd = isAdmin || leaderIds.some(id => id.toLowerCase() === userId.toLowerCase());
       const addBtn = document.getElementById("btn-addmember");
       if (addBtn) { addBtn.hidden = !canAdd; addBtn.disabled = !canAdd; }
 
-      // data
       const { items: acts, hoursByActDone, hoursByActPlan } = await loadActivitiesForSquad(squadId, squadName);
       renderKpis(acts, hoursByActDone, hoursByActPlan);
       renderActivities(acts, hoursByActDone, true);
       buildDependentFilters(acts, hoursByActDone);
       renderGantt(acts);
 
-      // filters UI
       setupFilterGroup();
       const colSel = document.getElementById("act-col");
       const valSel = document.getElementById("act-val");
@@ -737,30 +649,18 @@
       colSel?.addEventListener("change", rerender);
       valSel?.addEventListener("change", rerender);
       document.getElementById('btn-clear-filters')?.addEventListener('click', (e)=>{
-        e.preventDefault();
-        if (!colSel || !valSel) return;
-        colSel.value='status';
-        colSel.dispatchEvent(new Event('change'));
-        valSel.value='__ALL__';
-        updateClearBtnState();
-        rerender();
+        e.preventDefault(); if (!colSel || !valSel) return;
+        colSel.value='status'; colSel.dispatchEvent(new Event('change')); valSel.value='__ALL__'; updateClearBtnState(); rerender();
       });
 
-      // owner options for Add Activity modal
+      // DO NOT touch #act-type options here — keep your Smartsheet list from HTML
       populateOwnerOptions({ members, empMap, squadId });
 
-      // initial view sizing + default view
       sizeSquadScrollers();
       window.addEventListener('resize', sizeSquadScrollers);
       setView('table', acts);
 
-      // install robust delegated click handlers (fixes the broken interactions)
-      installDelegatedHandlers({
-        squadId, squadName,
-        currentActs: acts,
-        hoursDone: hoursByActDone,
-        hoursPlan: hoursByActPlan
-      });
+      installDelegatedHandlers({ squadId, squadName, currentActs: acts, hoursDone: hoursByActDone, hoursPlan: hoursByActPlan });
 
     } catch (err) {
       console.error("squad-details init failed:", err);
