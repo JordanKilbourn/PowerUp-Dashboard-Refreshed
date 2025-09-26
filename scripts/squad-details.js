@@ -302,68 +302,42 @@
     });
   }
 
-  
-function injectTableStyles() {
-  const css = `
-    /* scope styles to this table only */
-    .acts-table{ width:100%; border-collapse:separate; border-spacing:0; }
+  // ---------- table header alignment helper (unchanged logic) ----------
+  function injectTableStyles() {
+    const css = `
+      /* scope styles to this table only */
+      .acts-table{ width:100%; border-collapse:separate; border-spacing:0; }
 
-    /* clearly different header row */
-    .acts-table thead th{
-      text-align:left;
-      background:#0f1a1a;
-      border-bottom:1px solid #1e2b2b;
-      position:sticky; top:0; z-index:1;
-      font-weight:700;
-      padding:10px 12px;
-    }
-    .acts-table tbody td{ padding:10px 12px; vertical-align:middle; }
+      /* clearly different header row */
+      .acts-table thead th{
+        text-align:left;
+        background:#0f1a1a;
+        border-bottom:1px solid #1e2b2b;
+        position:sticky; top:0; z-index:1;
+        font-weight:700;
+        padding:10px 12px;
+      }
+      .acts-table tbody td{ padding:10px 12px; vertical-align:middle; }
 
-    /* column alignment (1=Title, 2=Status, 3=Type, 4=Start–End, 5=Owner, 6=Completed PH, 7=Actions) */
-    .acts-table th:nth-child(1), .acts-table td:nth-child(1),
-    .acts-table th:nth-child(5), .acts-table td:nth-child(5){ text-align:left; }
+      /* column alignment (1=Title, 2=Status, 3=Type, 4=Start–End, 5=Owner, 6=Completed PH, 7=Actions) */
+      .acts-table th:nth-child(1), .acts-table td:nth-child(1),
+      .acts-table th:nth-child(5), .acts-table td:nth-child(5){ text-align:left; }
 
-    .acts-table th:nth-child(2), .acts-table td:nth-child(2),
-    .acts-table th:nth-child(3), .acts-table td:nth-child(3),
-    .acts-table th:nth-child(4), .acts-table td:nth-child(4){ text-align:center; }
+      .acts-table th:nth-child(2), .acts-table td:nth-child(2),
+      .acts-table th:nth-child(3), .acts-table td:nth-child(3),
+      .acts-table th:nth-child(4), .acts-table td:nth-child(4){ text-align:center; }
 
-    .acts-table th:nth-child(6), .acts-table td:nth-child(6){ text-align:right; }   /* Completed PH */
-    .acts-table th:nth-child(7), .acts-table td:nth-child(7){ text-align:right; }   /* Log Hours */
-  `;
-  const style = document.createElement('style');
-  style.id = 'pu-acts-table-css';
-  style.textContent = css;
-  document.head.appendChild(style);
-}
-
-  
-  // ---------------- back + member button ----------------
-  function wireBackButton() {
-    const btn = document.getElementById("btn-back");
-    if (!btn || btn.dataset.bound) return;
-    btn.dataset.bound = "1";
-    btn.addEventListener("click", (e) => {
-      e.preventDefault();
-      if (history.length > 1) history.back();
-      else location.href = "squads.html";
-    });
-  }
-  function wireAddMemberButton({ canAdd, squadId, squadName }) {
-    const btn = document.getElementById("btn-addmember"); if (!btn) return;
-    btn.hidden = !canAdd; btn.disabled = !canAdd;
-    const handler = (e) => {
-      e.preventDefault();
-      if (P.squadForm && typeof P.squadForm.open === "function") P.squadForm.open({ squadId, squadName });
-      else alert("Member form not found. Please include scripts/squad-member-form.js earlier on the page.");
-    };
-    if (btn._amHandler) btn.removeEventListener("click", btn._amHandler);
-    btn._amHandler = handler; btn.addEventListener("click", handler);
+      .acts-table th:nth-child(6), .acts-table td:nth-child(6){ text-align:right; }   /* Completed PH */
+      .acts-table th:nth-child(7), .acts-table td:nth-child(7){ text-align:right; }   /* Log Hours */
+    `;
+    const style = document.createElement('style');
+    style.id = 'pu-acts-table-css';
+    style.textContent = css;
+    document.head.appendChild(style);
   }
 
   // ---------------- owner options & forms ----------------
   function populateOwnerOptions({ members, empMap, squadId/*, meId*/ }) {
-    // NOTE: honoring your new requirement for placeholders,
-    // we no longer preselect "me" here.
     const sel = document.getElementById('act-owner'); if (!sel) return;
     const rows = members.filter(r => norm(r["Squad ID"]) === norm(squadId) && isTrue(r["Active"]));
     const seen = new Set();
@@ -387,18 +361,18 @@ function injectTableStyles() {
       ph.textContent = text;
       sel.insertBefore(ph, sel.firstChild);
     }
-    sel.value = "";               // select the placeholder
+    sel.value = "";
     sel.selectedIndex = 0;
   }
 
   function resetAddActivityForm() {
     const t = document.getElementById('act-title'); if (t) t.value = '';
-    const ty = document.getElementById('act-type'); if (ty) setPlaceholderSelect(ty, 'Select type…');             // >>> changed
-    const st = document.getElementById('act-status-modal'); if (st) setPlaceholderSelect(st, 'Select status…');   // >>> changed
+    const ty = document.getElementById('act-type'); if (ty) setPlaceholderSelect(ty, 'Select type…');
+    const st = document.getElementById('act-status-modal'); if (st) setPlaceholderSelect(st, 'Select status…');
     const s = document.getElementById('act-start'); if (s) s.value = '';
     const e = document.getElementById('act-end');   if (e) e.value = '';
     const d = document.getElementById('act-desc');  if (d) d.value = '';
-    const ow = document.getElementById('act-owner'); if (ow) setPlaceholderSelect(ow, 'Select owner…');           // >>> added
+    const ow = document.getElementById('act-owner'); if (ow) setPlaceholderSelect(ow, 'Select owner…');
   }
 
   function ensureModalUX(modalId){
@@ -483,6 +457,44 @@ function injectTableStyles() {
   function showModal(id){ const m = document.getElementById(id); if (m) m.classList.add('show'); }
   function hideModal(id){ const m = document.getElementById(id); if (m) m.classList.remove('show'); }
 
+  // ---------------- calendar renderer (safe fallback) ----------------
+  let _fcInst;
+  function renderCalendar(acts) {
+    const el = document.getElementById('calendar-container') || document.getElementById('calendar');
+    if (!el) return;
+
+    // If FullCalendar isn't present yet, show a friendly message (no errors).
+    if (!(window.FullCalendar && window.FullCalendar.Calendar)) {
+      el.innerHTML = `<div style="padding:12px;opacity:.75">Calendar view unavailable (FullCalendar not loaded).</div>`;
+      return;
+    }
+
+    // Destroy previous instance if any
+    if (_fcInst) { try { _fcInst.destroy(); } catch(e){} _fcInst = null; }
+    el.innerHTML = '';
+
+    const events = acts.map(a => ({
+      id: a.id || a.title,
+      title: a.title,
+      start: toISO(a.start) || undefined,
+      end:   toISO(a.end)   || toISO(a.start) || undefined,
+      allDay: true
+    }));
+
+    const cal = new FullCalendar.Calendar(el, {
+      initialView: 'timeGridWeek',
+      headerToolbar: { left:'prev,next today', center:'title', right:'dayGridMonth,timeGridWeek,listWeek' },
+      height: '100%',
+      expandRows: true,
+      events
+    });
+
+    cal.render();
+    _fcInst = cal;
+
+    requestAnimationFrame(sizeSquadScrollers);
+  }
+
   // ---------------- viewport sizing ----------------
   function sizeSquadScrollers() {
     const gap = 24;
@@ -493,12 +505,17 @@ function injectTableStyles() {
       el.style.maxHeight = h + 'px';
       el.style.height = h + 'px';
     };
-    fit(document.querySelector('.members-scroll'));
-    fit(document.querySelector('.acts-scroll'));
+
+    // Fit ALL scroll panes, not just the first one.
+    document.querySelectorAll('.members-scroll, .acts-scroll').forEach(fit);
+
+    // Explicit containers used by Gantt/Calendar
     fit(document.getElementById('gantt-container'));
+    fit(document.getElementById('calendar-container'));
+    fit(document.getElementById('calendar'));
   }
 
-  // >>> view wiring (Table / Gantt / Calendar) — minimal & flexible
+  // >>> view wiring (Table / Gantt / Calendar)
   function wireViews(getActsRef){
     const findBtn = (ids)=> ids.map(id=>document.getElementById(id)).find(Boolean);
     const tableBtn = findBtn(['view-tab-table','btn-view-table']);
@@ -526,10 +543,13 @@ function injectTableStyles() {
       setActive(tableBtn, view==='table');
       setActive(ganttBtn, view==='gantt');
       setActive(calBtn,   view==='cal');
-      if (view === 'gantt') {
-        const acts = getActsRef();
-        renderGantt(acts);
-      }
+
+      const acts = getActsRef();
+      if (view === 'gantt') renderGantt(acts);
+      if (view === 'cal')   renderCalendar(acts);
+
+      // ensure the newly visible panel is sized
+      requestAnimationFrame(sizeSquadScrollers);
     }
 
     tableBtn && tableBtn.addEventListener('click', (e)=>{ e.preventDefault(); show('table'); });
@@ -549,9 +569,9 @@ function injectTableStyles() {
       injectFilterStyles();
       injectGanttStyles();
       injectTableStyles();
-      // tag the Activities table once so CSS can target it safely
-document.getElementById('activities-tbody')?.closest('table')?.classList.add('acts-table');
 
+      // tag the Activities table once so CSS can target it safely
+      document.getElementById('activities-tbody')?.closest('table')?.classList.add('acts-table');
 
       const urlId = qs("id") || qs("squadId") || qs("squad");
       if (!urlId) { layout.setPageTitle?.("Squad: (unknown)"); return; }
@@ -601,7 +621,7 @@ document.getElementById('activities-tbody')?.closest('table')?.classList.add('ac
 
       // filter group & events
       setupFilterGroup();
-      let currentActs = acts; // >>> keep a ref for Gantt/Calendar view switching
+      let currentActs = acts; // keep a ref for Gantt/Calendar view switching
       const colSel = document.getElementById("act-col");
       const valSel = document.getElementById("act-val");
       const rerender = () => {
@@ -629,7 +649,7 @@ document.getElementById('activities-tbody')?.closest('table')?.classList.add('ac
           resetAddActivityForm();
           hideBusy(modalAddId); hideModal(modalAddId);
           const fresh = await loadActivitiesForSquad(squadId, squadName);
-          currentActs = fresh.items; // >>> refresh acts reference
+          currentActs = fresh.items; // refresh acts reference
           renderKpis(fresh.items, fresh.hoursByActDone, fresh.hoursByActPlan);
           renderActivities(fresh.items, fresh.hoursByActDone, true);
           buildDependentFilters(fresh.items, fresh.hoursByActDone);
@@ -648,7 +668,7 @@ document.getElementById('activities-tbody')?.closest('table')?.classList.add('ac
           resetLogHourForm();
           hideBusy(modalPHId); hideModal(modalPHId);
           const fresh = await loadActivitiesForSquad(squadId, squadName);
-          currentActs = fresh.items; // >>> refresh acts reference
+          currentActs = fresh.items; // refresh acts reference
           renderKpis(fresh.items, fresh.hoursByActDone, fresh.hoursByActPlan);
           renderActivities(fresh.items, fresh.hoursByActDone, true);
           buildDependentFilters(fresh.items, fresh.hoursByActDone);
@@ -656,7 +676,7 @@ document.getElementById('activities-tbody')?.closest('table')?.classList.add('ac
         } catch(err){ console.error(err); hideBusy(modalPHId); alert("Failed to log power hours. See console for details."); }
       });
 
-      // >>> wire Table / Gantt / Calendar buttons (uses currentActs ref)
+      // wire Table / Gantt / Calendar buttons (uses currentActs ref)
       wireViews(()=>currentActs);
 
       // viewport sizing
