@@ -24,6 +24,15 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
     <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
 
+    <!-- ✅ FullCalendar CSS/JS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/main.min.css" />
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
+
+    <!-- ✅ vis-timeline (Gantt) CSS/JS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/vis-timeline@7.7.0/styles/vis-timeline-graph2d.min.css"/>
+    <script src="https://cdn.jsdelivr.net/npm/vis-data@7.1.4/peer/umd/vis-data.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vis-timeline@7.7.0/standalone/umd/vis-timeline-graph2d.min.js"></script>
+
     <style>
       :root{ --header-h:72px; --panel:var(--card-bg); --panel-2:#101617; --chip-border:rgba(255,255,255,.08); }
 
@@ -125,19 +134,11 @@
       #btn-addmember[hidden]{ display:none !important; }
 
       /* --- Gantt view --- */
-      #gantt-container{ position:relative; min-height:320px; }
-      .gantt{ position:relative; }
-      .gantt .grid{ display:grid; grid-template-columns:220px 1fr; gap:12px; }
-      .gantt .rows{ position:relative; }
-      .gantt .row{ display:grid; grid-template-columns:220px 1fr; align-items:center; height:28px; }
-      .gantt .row + .row{ border-top:1px solid rgba(255,255,255,.06); }
-      .gantt .label{ padding:0 8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:#e5e7eb; }
-      .gantt .lane{ position:relative; height:100%; }
-      .gantt .bar{ position:absolute; top:4px; height:20px; border-radius:10px; background:#5aa38e; opacity:.9; }
-      .gantt .header{ position:sticky; top:0; background:#0f1a1a; z-index:2; padding:6px 8px; border:1px solid rgba(255,255,255,.08); border-radius:8px; margin-bottom:8px; }
-      .gantt .ticks{ position:relative; height:20px; }
-      .gantt .tick{ position:absolute; top:0; height:100%; border-left:1px solid rgba(255,255,255,.08); }
-      .gantt .tick > span{ position:absolute; top:-18px; transform:translateX(-50%); font-size:11px; color:#9ca3af; white-space:nowrap; }
+      #gantt-container{ position:relative; min-height:320px; } /* vis-timeline will fill this */
+
+      /* Make calendar fill its scroll pane */
+      #calendar-container{ min-height:320px; }
+      #calendar-container .fc { height:100%; }
     </style>
   </head>
   <body>
@@ -231,14 +232,14 @@
             <!-- Gantt -->
             <div id="view-gantt" role="tabpanel" aria-labelledby="view-tab-gantt" hidden>
               <div class="acts-scroll" id="gantt-container">
-                <!-- built by JS -->
+                <!-- vis-timeline will render here -->
               </div>
             </div>
 
-            <!-- Calendar (stub for now) -->
+            <!-- Calendar -->
             <div id="view-calendar" role="tabpanel" aria-labelledby="view-tab-cal" hidden>
-              <div class="acts-scroll" id="calendar-container" style="min-height:320px; display:flex; align-items:center; justify-content:center; color:#9ca3af;">
-                Calendar view coming next.
+              <div class="acts-scroll" id="calendar-container" style="display:block;">
+                <!-- FullCalendar will render here -->
               </div>
             </div>
           </div>
@@ -309,4 +310,3 @@
     <script src="scripts/squad-details.js"></script>
   </body>
 </html>
-
