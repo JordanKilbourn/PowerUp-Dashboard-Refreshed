@@ -24,26 +24,16 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
     <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
 
-    <!-- ✅ FullCalendar CSS/JS -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/main.min.css" />
-    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
-
-    <!-- ✅ vis-timeline (Gantt) CSS/JS -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/vis-timeline@7.7.0/styles/vis-timeline-graph2d.min.css"/>
-    <script src="https://cdn.jsdelivr.net/npm/vis-data@7.1.4/peer/umd/vis-data.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/vis-timeline@7.7.0/standalone/umd/vis-timeline-graph2d.min.js"></script>
-
     <style>
       :root{ --header-h:72px; --panel:var(--card-bg); --panel-2:#101617; --chip-border:rgba(255,255,255,.08); }
 
       /* page shell + true bottom gap OUTSIDE the cards */
       html,body{ height:100%; }
       body{ min-height:100vh; }
-      /* Prevent margin-collapse: the transparent border ensures the bottom margin is “real” */
       .page-wrap{
         width:100%; margin:0; padding:14px; display:grid; gap:14px;
         border-bottom:1px solid transparent; /* anti-collapse */
-        margin-bottom:56px;                   /* ← real gap at the bottom */
+        margin-bottom:56px;                  /* ← real gap at the bottom */
       }
 
       .btn{ padding:8px 12px; border-radius:8px; border:1px solid var(--accent); background:var(--card-bg); color:var(--text); cursor:pointer;}
@@ -78,7 +68,7 @@
       .objective-wrap{ display:block; margin-top:10px; }
       .mini-kpis{
         display:grid; grid-template-columns:repeat(4, minmax(120px,1fr));
-        gap:10px; margin-top:10px; max-width:820px;  /* ← compact under objective */
+        gap:10px; margin-top:10px; max-width:820px;
       }
       .mini-kpi{ display:flex; align-items:center; justify-content:space-between; padding:10px 12px; border:1px solid var(--chip-border); border-radius:12px; background:var(--panel-2) }
       .mini-kpi .label{ font-size:12px; color:var(--info) } .mini-kpi .val{ font-size:20px; font-weight:800; color:var(--text) }
@@ -134,11 +124,19 @@
       #btn-addmember[hidden]{ display:none !important; }
 
       /* --- Gantt view --- */
-      #gantt-container{ position:relative; min-height:320px; } /* vis-timeline will fill this */
-
-      /* Make calendar fill its scroll pane */
-      #calendar-container{ min-height:320px; }
-      #calendar-container .fc { height:100%; }
+      #gantt-container{ position:relative; min-height:320px; }
+      .gantt{ position:relative; }
+      .gantt .grid{ display:grid; grid-template-columns:220px 1fr; gap:12px; }
+      .gantt .rows{ position:relative; }
+      .gantt .row{ display:grid; grid-template-columns:220px 1fr; align-items:center; height:28px; }
+      .gantt .row + .row{ border-top:1px solid rgba(255,255,255,.06); }
+      .gantt .label{ padding:0 8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:#e5e7eb; }
+      .gantt .lane{ position:relative; height:100%; }
+      .gantt .bar{ position:absolute; top:4px; height:20px; border-radius:10px; background:#5aa38e; opacity:.9; }
+      .gantt .header{ position:sticky; top:0; background:#0f1a1a; z-index:2; padding:6px 8px; border:1px solid rgba(255,255,255,.08); border-radius:8px; margin-bottom:8px; }
+      .gantt .ticks{ position:relative; height:20px; }
+      .gantt .tick{ position:absolute; top:0; height:100%; border-left:1px solid rgba(255,255,255,.08); }
+      .gantt .tick > span{ position:absolute; top:-18px; transform:translateX(-50%); font-size:11px; color:#9ca3af; white-space:nowrap; }
     </style>
   </head>
   <body>
@@ -154,7 +152,6 @@
           <div class="kv-inline"><span class="k">Created</span><span class="v"><span id="sqd-created">—</span></span></div>
         </div>
 
-        <!-- Objective only (Notes removed), KPIs compact under it -->
         <div class="objective-wrap note-tile" style="margin-top:8px;">
           <div class="h">Objective</div>
           <div id="card-objective"><div class="kv">—</div></div>
@@ -232,14 +229,14 @@
             <!-- Gantt -->
             <div id="view-gantt" role="tabpanel" aria-labelledby="view-tab-gantt" hidden>
               <div class="acts-scroll" id="gantt-container">
-                <!-- vis-timeline will render here -->
+                <!-- built by JS -->
               </div>
             </div>
 
-            <!-- Calendar -->
+            <!-- Calendar (stub for now) -->
             <div id="view-calendar" role="tabpanel" aria-labelledby="view-tab-cal" hidden>
-              <div class="acts-scroll" id="calendar-container" style="display:block;">
-                <!-- FullCalendar will render here -->
+              <div class="acts-scroll" id="calendar-container" style="min-height:320px; display:flex; align-items:center; justify-content:center; color:#9ca3af;">
+                Calendar view coming next.
               </div>
             </div>
           </div>
@@ -271,7 +268,6 @@
             <select id="act-type"><option>Training</option><option>Kaizen</option><option>Process</option><option>Audit</option><option>Safety</option><option>Quality</option><option>Other</option></select>
           </div>
           <div style="flex:1; min-width:180px"><label for="act-status-modal">Status</label>
-            <!-- exact Smartsheet list -->
             <select id="act-status-modal"><option>Not Started</option><option>In Progress</option><option>Completed</option><option>Canceled</option></select>
           </div>
         </div>
@@ -285,20 +281,44 @@
       </div>
     </div>
 
-    <!-- Log Power Hour Modal -->
+    <!-- Log Power Hour Modal (UPDATED) -->
     <div id="logHourModal" class="modal" aria-hidden="true">
       <div class="panel">
-        <h3 style="margin-bottom:8px;color:var(--accent)">Log Power Hour</h3>
+        <h3 style="margin-bottom:8px;color:var(--accent)">Log / Schedule Power Hour</h3>
+
+        <div class="row">
+          <div style="flex:1; min-width:220px">
+            <label for="lh-squad">Squad</label>
+            <input type="text" id="lh-squad" readonly />
+          </div>
+          <div style="flex:2; min-width:260px">
+            <label for="lh-activity-title">Activity</label>
+            <input type="text" id="lh-activity-title" readonly />
+          </div>
+        </div>
+
         <div class="row">
           <div style="flex:1; min-width:160px"><label for="lh-date">Date</label><input type="date" id="lh-date" /></div>
           <div style="flex:1; min-width:140px"><label for="lh-start">Start</label><input type="time" id="lh-start" /></div>
           <div style="flex:1; min-width:140px"><label for="lh-end">End</label><input type="time" id="lh-end" /></div>
-          <div style="flex:1; min-width:140px"><label for="lh-dur">Duration (hrs)</label><input type="text" id="lh-dur" placeholder="auto" /></div>
+          <div style="flex:1; min-width:140px">
+            <label for="lh-dur">Duration (hrs)</label>
+            <input type="text" id="lh-dur" placeholder="auto" readonly />
+          </div>
         </div>
-        <div class="row"><label class="chk"><input type="checkbox" id="lh-scheduled" /> Scheduled</label><label class="chk"><input type="checkbox" id="lh-completed" checked /> Completed</label></div>
-        <div class="row"><div style="flex:1"><label for="lh-notes">Activity description (optional)</label><input type="text" id="lh-notes" placeholder="e.g., Training—Module 2" /></div></div>
-        <div class="actions"><button class="btn" id="lh-cancel">Cancel</button><button class="btn primary" id="lh-save">Log Hours</button></div>
+
+        <div class="row">
+          <label class="chk"><input type="checkbox" id="lh-scheduled" /> Scheduled</label>
+          <label class="chk"><input type="checkbox" id="lh-completed" checked /> Completed</label>
+        </div>
+
+        <div class="actions">
+          <button class="btn" id="lh-cancel">Cancel</button>
+          <button class="btn primary" id="lh-save">Log Hours</button>
+        </div>
+
         <input type="hidden" id="lh-activity-id" />
+        <input type="hidden" id="lh-squad-id" />
       </div>
     </div>
 
