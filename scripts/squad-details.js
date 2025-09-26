@@ -20,6 +20,12 @@
     if (/^\d{4}-\d{2}-\d{2}$/.test(String(v))) return v;
     const d = new Date(v); return isNaN(d) ? "" : d.toISOString().slice(0,10);
   };
+  const addDaysISO = (iso, n=1) => {
+    if (!iso) return "";
+    const d = new Date(iso+"T00:00:00");
+    d.setDate(d.getDate()+n);
+    return d.toISOString().slice(0,10);
+  };
   const pick = (row, keys, d="") => { for (const k of keys) if (row && row[k] != null && String(row[k]).trim() !== "") return row[k]; return d; };
 
   // ---------------- constants ----------------
@@ -114,8 +120,8 @@
   function renderKpis(acts, hoursDone, hoursPlan) {
     const set = (id,val) => { const el = document.getElementById(id); if (el) el.textContent = String(val); };
     const total = acts.length;
-    const completed = acts.filter(a => /completed/i.test(a.status)).length;
-    const pct = total ? Math.round((completed/total)*100) : 0;
+    pushCompleted = acts.filter(a => /completed/i.test(a.status)).length;
+    const pct = total ? Math.round((pushCompleted/total)*100) : 0;
     const sum = (map) => Array.from(map.values()).reduce((a,b)=>a+b,0);
     set("kpi-total", total);
     set("kpi-planned-hrs", sum(hoursPlan));
@@ -241,9 +247,10 @@
     renderGantt(filtered);
   }
 
-  // ---------------- gantt (compact) ----------------
+  // ---------------- gantt (vis-timeline with fallback) ----------------
   function injectGanttStyles() {
     const css = `
+      /* simple header/fallback styles for basic gantt */
       .gantt2{width:100%;padding:8px 4px 10px;}
       .g2-header{display:grid;gap:2px;margin:6px 0 8px;}
       .g2-header .cell{font-size:11px;color:#a8b3be;text-align:center;padding:4px 0;background:#0f1a1a;border:1px solid #1e2b2b;border-radius:6px;}
@@ -256,7 +263,54 @@
     `;
     const style = document.createElement('style'); style.textContent = css; document.head.appendChild(style);
   }
-  function renderGantt(acts) {
+
+  let _timeline;
+  function renderGanttVis(acts){
+    const el = document.getElementById('gantt-container'); if (!el) return;
+    el.innerHTML = ""; // clear
+
+    // Build groups = each activity is its own row, so labels stay on the left
+    const groups = new vis.DataSet(
+      acts.map(a => ({ id: a.id || a.title, content: esc(a.title) }))
+    );
+
+    // Items: one per activity (range). If end missing, use start or +1 day.
+    const items = new vis.DataSet(
+      acts.map(a => {
+        const sISO = toISO(a.start) || toISO(new Date());
+        const eISO = toISO(a.end) || sISO || toISO(new Date());
+        const s = new Date(sISO + "T00:00:00");
+        const e = new Date(addDaysISO(eISO, 1) + "T00:00:00"); // inclusive visual
+        return {
+          id: a.id || a.title,
+          group: a.id || a.title,
+          content: "", // we show labels via groups; keep bars clean
+          start: s,
+          end: e,
+          type: 'range',
+          className: 'pu-vis-item'
+        };
+      })
+    );
+
+    // Destroy previous timeline if any
+    if (_timeline) { try { _timeline.destroy(); } catch(e){} _timeline = null; }
+
+    _timeline = new vis.Timeline(el, items, groups, {
+      stack: false,
+      selectable: false,
+      zoomable: true,
+      moveable: true,
+      orientation: 'top',
+      margin: { item: 8, axis: 12 },
+      height: '100%',
+      tooltip: { followMouse: true },
+    });
+
+    requestAnimationFrame(sizeSquadScrollers);
+  }
+
+  function renderGanttBasic(acts) {
     const el = document.getElementById('gantt-container'); if (!el) return;
     if (!acts?.length) { el.innerHTML = `<div style="padding:16px;opacity:.75">No activities for Gantt.</div>`; return; }
     const DAY = 24*60*60*1000;
@@ -294,21 +348,19 @@
         ${rowsHtml}
         <div class="g2-footerpad"></div>
       </div>`;
-    requestAnimationFrame(()=>{
-      const gap = 56;
-      const rect = el.getBoundingClientRect();
-      const vh = window.innerHeight || document.documentElement.clientHeight;
-      el.style.minHeight = Math.max(240, vh - rect.top - gap) + 'px';
-    });
+    requestAnimationFrame(sizeSquadScrollers);
   }
 
-  // ---------- table header alignment helper (unchanged logic) ----------
+  function renderGantt(acts){
+    const hasVis = !!(window.vis && window.vis.Timeline && window.vis.DataSet);
+    if (hasVis) return renderGanttVis(acts);
+    return renderGanttBasic(acts);
+  }
+
+  // ---------- table header alignment helper ----------
   function injectTableStyles() {
     const css = `
-      /* scope styles to this table only */
       .acts-table{ width:100%; border-collapse:separate; border-spacing:0; }
-
-      /* clearly different header row */
       .acts-table thead th{
         text-align:left;
         background:#0f1a1a;
@@ -318,17 +370,13 @@
         padding:10px 12px;
       }
       .acts-table tbody td{ padding:10px 12px; vertical-align:middle; }
-
-      /* column alignment (1=Title, 2=Status, 3=Type, 4=Start–End, 5=Owner, 6=Completed PH, 7=Actions) */
       .acts-table th:nth-child(1), .acts-table td:nth-child(1),
       .acts-table th:nth-child(5), .acts-table td:nth-child(5){ text-align:left; }
-
       .acts-table th:nth-child(2), .acts-table td:nth-child(2),
       .acts-table th:nth-child(3), .acts-table td:nth-child(3),
       .acts-table th:nth-child(4), .acts-table td:nth-child(4){ text-align:center; }
-
-      .acts-table th:nth-child(6), .acts-table td:nth-child(6){ text-align:right; }   /* Completed PH */
-      .acts-table th:nth-child(7), .acts-table td:nth-child(7){ text-align:right; }   /* Log Hours */
+      .acts-table th:nth-child(6), .acts-table td:nth-child(6){ text-align:right; }
+      .acts-table th:nth-child(7), .acts-table td:nth-child(7){ text-align:right; }
     `;
     const style = document.createElement('style');
     style.id = 'pu-acts-table-css';
@@ -337,7 +385,7 @@
   }
 
   // ---------------- owner options & forms ----------------
-  function populateOwnerOptions({ members, empMap, squadId/*, meId*/ }) {
+  function populateOwnerOptions({ members, empMap, squadId }) {
     const sel = document.getElementById('act-owner'); if (!sel) return;
     const rows = members.filter(r => norm(r["Squad ID"]) === norm(squadId) && isTrue(r["Active"]));
     const seen = new Set();
@@ -348,21 +396,17 @@
     sel.innerHTML = opts.map(p => `<option value="${esc(p.name)}" data-id="${esc(p.id)}">${esc(p.name)}</option>`).join("") || `<option value="">—</option>`;
   }
 
-  // >>> helper to enforce placeholder for selects
+  // placeholders in selects
   function setPlaceholderSelect(sel, text){
     if (!sel) return;
     let ph = sel.querySelector('option[data-ph="1"]');
     if (!ph) {
       ph = document.createElement('option');
-      ph.value = "";
-      ph.disabled = true;
-      ph.hidden = true;
-      ph.setAttribute('data-ph','1');
-      ph.textContent = text;
+      ph.value = ""; ph.disabled = true; ph.hidden = true;
+      ph.setAttribute('data-ph','1'); ph.textContent = text;
       sel.insertBefore(ph, sel.firstChild);
     }
-    sel.value = "";
-    sel.selectedIndex = 0;
+    sel.value = ""; sel.selectedIndex = 0;
   }
 
   function resetAddActivityForm() {
@@ -457,32 +501,38 @@
   function showModal(id){ const m = document.getElementById(id); if (m) m.classList.add('show'); }
   function hideModal(id){ const m = document.getElementById(id); if (m) m.classList.remove('show'); }
 
-  // ---------------- calendar renderer (safe fallback) ----------------
+  // ---------------- calendar renderer (FullCalendar) ----------------
   let _fcInst;
   function renderCalendar(acts) {
     const el = document.getElementById('calendar-container') || document.getElementById('calendar');
     if (!el) return;
 
-    // If FullCalendar isn't present yet, show a friendly message (no errors).
-    if (!(window.FullCalendar && window.FullCalendar.Calendar)) {
-      el.innerHTML = `<div style="padding:12px;opacity:.75">Calendar view unavailable (FullCalendar not loaded).</div>`;
-      return;
-    }
-
     // Destroy previous instance if any
     if (_fcInst) { try { _fcInst.destroy(); } catch(e){} _fcInst = null; }
     el.innerHTML = '';
 
-    const events = acts.map(a => ({
-      id: a.id || a.title,
-      title: a.title,
-      start: toISO(a.start) || undefined,
-      end:   toISO(a.end)   || toISO(a.start) || undefined,
-      allDay: true
-    }));
+    // Build events; treat as all-day ranges; make end exclusive (+1 day)
+    const events = acts.map(a => {
+      const s = toISO(a.start) || "";
+      const e = toISO(a.end) || s || "";
+      return {
+        id: a.id || a.title,
+        title: a.title,
+        start: s || undefined,
+        end:   e ? addDaysISO(e, 1) : undefined,
+        allDay: true
+      };
+    }).filter(ev => ev.start);
+
+    // If FullCalendar is missing (CDN blocked), show a safe message
+    if (!(window.FullCalendar && window.FullCalendar.Calendar)) {
+      el.innerHTML = `<div style="padding:12px;opacity:.75">Calendar view unavailable (FullCalendar not loaded).</div>`;
+      requestAnimationFrame(sizeSquadScrollers);
+      return;
+    }
 
     const cal = new FullCalendar.Calendar(el, {
-      initialView: 'timeGridWeek',
+      initialView: 'dayGridMonth',
       headerToolbar: { left:'prev,next today', center:'title', right:'dayGridMonth,timeGridWeek,listWeek' },
       height: '100%',
       expandRows: true,
@@ -506,13 +556,9 @@
       el.style.height = h + 'px';
     };
 
-    // Fit ALL scroll panes, not just the first one.
     document.querySelectorAll('.members-scroll, .acts-scroll').forEach(fit);
-
-    // Explicit containers used by Gantt/Calendar
     fit(document.getElementById('gantt-container'));
     fit(document.getElementById('calendar-container'));
-    fit(document.getElementById('calendar'));
   }
 
   // >>> view wiring (Table / Gantt / Calendar)
@@ -536,7 +582,6 @@
       btn.setAttribute('aria-selected', on ? 'true' : 'false');
     }
     function show(view){
-      current = view;
       tablePanel.hidden = view !== 'table';
       ganttPanel.hidden = view !== 'gantt';
       calPanel.hidden   = view !== 'cal';
@@ -548,7 +593,6 @@
       if (view === 'gantt') renderGantt(acts);
       if (view === 'cal')   renderCalendar(acts);
 
-      // ensure the newly visible panel is sized
       requestAnimationFrame(sizeSquadScrollers);
     }
 
@@ -556,11 +600,10 @@
     ganttBtn && ganttBtn.addEventListener('click', (e)=>{ e.preventDefault(); show('gantt'); });
     calBtn   && calBtn.addEventListener('click', (e)=>{ e.preventDefault(); show('cal'); });
 
-    // ensure the currently-visible one is synced
     show(current);
   }
 
-  // ---------------- MAIN (single guarded block) ----------------
+  // ---------------- MAIN ----------------
   document.addEventListener("DOMContentLoaded", async () => {
     try {
       layout.injectLayout?.();
@@ -610,23 +653,29 @@
       const me = session.get?.() || {};
       const userId = (me.employeeId || "").trim();
       const canAdd = isAdmin || leaderIds.some(id => id.toLowerCase() === userId.toLowerCase());
-      wireAddMemberButton({ canAdd, squadId, squadName });
-      wireBackButton();
+      // (add-member button wiring is in squad-member-form.js; the back button is static)
+      const btnBack = document.getElementById("btn-back");
+      if (btnBack && !btnBack.dataset.bound) {
+        btnBack.dataset.bound = "1";
+        btnBack.addEventListener("click", (e) => {
+          e.preventDefault();
+          if (history.length > 1) history.back();
+          else location.href = "squads.html";
+        });
+      }
 
       const { items: acts, hoursByActDone, hoursByActPlan } = await loadActivitiesForSquad(squadId, squadName);
       renderKpis(acts, hoursByActDone, hoursByActPlan);
       renderActivities(acts, hoursByActDone, true);
       buildDependentFilters(acts, hoursByActDone);
-      renderGantt(acts);
+      renderGantt(acts); // initial render if Gantt tab is already visible (unlikely but safe)
 
       // filter group & events
       setupFilterGroup();
-      let currentActs = acts; // keep a ref for Gantt/Calendar view switching
+      let currentActs = acts;
       const colSel = document.getElementById("act-col");
       const valSel = document.getElementById("act-val");
-      const rerender = () => {
-        applyDependentFilter(currentActs, hoursByActDone, hoursByActPlan);
-      };
+      const rerender = () => { applyDependentFilter(currentActs, hoursByActDone, hoursByActPlan); };
       colSel?.addEventListener("change", rerender);
       valSel?.addEventListener("change", rerender);
       const clearBtn = document.getElementById('btn-clear-filters');
@@ -649,7 +698,7 @@
           resetAddActivityForm();
           hideBusy(modalAddId); hideModal(modalAddId);
           const fresh = await loadActivitiesForSquad(squadId, squadName);
-          currentActs = fresh.items; // refresh acts reference
+          currentActs = fresh.items;
           renderKpis(fresh.items, fresh.hoursByActDone, fresh.hoursByActPlan);
           renderActivities(fresh.items, fresh.hoursByActDone, true);
           buildDependentFilters(fresh.items, fresh.hoursByActDone);
@@ -668,7 +717,7 @@
           resetLogHourForm();
           hideBusy(modalPHId); hideModal(modalPHId);
           const fresh = await loadActivitiesForSquad(squadId, squadName);
-          currentActs = fresh.items; // refresh acts reference
+          currentActs = fresh.items;
           renderKpis(fresh.items, fresh.hoursByActDone, fresh.hoursByActPlan);
           renderActivities(fresh.items, fresh.hoursByActDone, true);
           buildDependentFilters(fresh.items, fresh.hoursByActDone);
@@ -676,7 +725,7 @@
         } catch(err){ console.error(err); hideBusy(modalPHId); alert("Failed to log power hours. See console for details."); }
       });
 
-      // wire Table / Gantt / Calendar buttons (uses currentActs ref)
+      // wire Table / Gantt / Calendar buttons
       wireViews(()=>currentActs);
 
       // viewport sizing
