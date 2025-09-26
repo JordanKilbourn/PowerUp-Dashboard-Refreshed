@@ -120,8 +120,8 @@
   function renderKpis(acts, hoursDone, hoursPlan) {
     const set = (id,val) => { const el = document.getElementById(id); if (el) el.textContent = String(val); };
     const total = acts.length;
-    pushCompleted = acts.filter(a => /completed/i.test(a.status)).length;
-    const pct = total ? Math.round((pushCompleted/total)*100) : 0;
+    const completed = acts.filter(a => /completed/i.test(a.status)).length; // ✅ fixed
+    const pct = total ? Math.round((completed/total)*100) : 0;
     const sum = (map) => Array.from(map.values()).reduce((a,b)=>a+b,0);
     set("kpi-total", total);
     set("kpi-planned-hrs", sum(hoursPlan));
@@ -250,7 +250,6 @@
   // ---------------- gantt (vis-timeline with fallback) ----------------
   function injectGanttStyles() {
     const css = `
-      /* simple header/fallback styles for basic gantt */
       .gantt2{width:100%;padding:8px 4px 10px;}
       .g2-header{display:grid;gap:2px;margin:6px 0 8px;}
       .g2-header .cell{font-size:11px;color:#a8b3be;text-align:center;padding:4px 0;background:#0f1a1a;border:1px solid #1e2b2b;border-radius:6px;}
@@ -267,24 +266,22 @@
   let _timeline;
   function renderGanttVis(acts){
     const el = document.getElementById('gantt-container'); if (!el) return;
-    el.innerHTML = ""; // clear
+    el.innerHTML = "";
 
-    // Build groups = each activity is its own row, so labels stay on the left
     const groups = new vis.DataSet(
       acts.map(a => ({ id: a.id || a.title, content: esc(a.title) }))
     );
 
-    // Items: one per activity (range). If end missing, use start or +1 day.
     const items = new vis.DataSet(
       acts.map(a => {
         const sISO = toISO(a.start) || toISO(new Date());
         const eISO = toISO(a.end) || sISO || toISO(new Date());
         const s = new Date(sISO + "T00:00:00");
-        const e = new Date(addDaysISO(eISO, 1) + "T00:00:00"); // inclusive visual
+        const e = new Date(addDaysISO(eISO, 1) + "T00:00:00"); // inclusive
         return {
           id: a.id || a.title,
           group: a.id || a.title,
-          content: "", // we show labels via groups; keep bars clean
+          content: "",
           start: s,
           end: e,
           type: 'range',
@@ -293,7 +290,6 @@
       })
     );
 
-    // Destroy previous timeline if any
     if (_timeline) { try { _timeline.destroy(); } catch(e){} _timeline = null; }
 
     _timeline = new vis.Timeline(el, items, groups, {
@@ -384,16 +380,17 @@
     document.head.appendChild(style);
   }
 
-  // ---------------- owner options & forms ----------------
-  function populateOwnerOptions({ members, empMap, squadId }) {
-    const sel = document.getElementById('act-owner'); if (!sel) return;
-    const rows = members.filter(r => norm(r["Squad ID"]) === norm(squadId) && isTrue(r["Active"]));
-    const seen = new Set();
-    const opts = rows.map(r => {
-      const id = String(r["Employee ID"]||"").trim();
-      return { id, name: (empMap.get(id) || id) };
-    }).filter(p => p.id && !seen.has(p.id) && seen.add(p.id));
-    sel.innerHTML = opts.map(p => `<option value="${esc(p.name)}" data-id="${esc(p.id)}">${esc(p.name)}</option>`).join("") || `<option value="">—</option>`;
+  // ---------------- back + add-member button ----------------
+  function wireAddMemberButton({ canAdd, squadId, squadName }) {
+    const btn = document.getElementById("btn-addmember"); if (!btn) return;
+    btn.hidden = !canAdd; btn.disabled = !canAdd;
+    const handler = (e) => {
+      e.preventDefault();
+      if (P.squadForm && typeof P.squadForm.open === "function") P.squadForm.open({ squadId, squadName });
+      else alert("Member form not found. Please include scripts/squad-member-form.js earlier on the page.");
+    };
+    if (btn._amHandler) btn.removeEventListener("click", btn._amHandler);
+    btn._amHandler = handler; btn.addEventListener("click", handler);
   }
 
   // placeholders in selects
@@ -507,11 +504,9 @@
     const el = document.getElementById('calendar-container') || document.getElementById('calendar');
     if (!el) return;
 
-    // Destroy previous instance if any
     if (_fcInst) { try { _fcInst.destroy(); } catch(e){} _fcInst = null; }
     el.innerHTML = '';
 
-    // Build events; treat as all-day ranges; make end exclusive (+1 day)
     const events = acts.map(a => {
       const s = toISO(a.start) || "";
       const e = toISO(a.end) || s || "";
@@ -524,7 +519,6 @@
       };
     }).filter(ev => ev.start);
 
-    // If FullCalendar is missing (CDN blocked), show a safe message
     if (!(window.FullCalendar && window.FullCalendar.Calendar)) {
       el.innerHTML = `<div style="padding:12px;opacity:.75">Calendar view unavailable (FullCalendar not loaded).</div>`;
       requestAnimationFrame(sizeSquadScrollers);
@@ -613,7 +607,6 @@
       injectGanttStyles();
       injectTableStyles();
 
-      // tag the Activities table once so CSS can target it safely
       document.getElementById('activities-tbody')?.closest('table')?.classList.add('acts-table');
 
       const urlId = qs("id") || qs("squadId") || qs("squad");
@@ -653,7 +646,8 @@
       const me = session.get?.() || {};
       const userId = (me.employeeId || "").trim();
       const canAdd = isAdmin || leaderIds.some(id => id.toLowerCase() === userId.toLowerCase());
-      // (add-member button wiring is in squad-member-form.js; the back button is static)
+
+      // wire buttons
       const btnBack = document.getElementById("btn-back");
       if (btnBack && !btnBack.dataset.bound) {
         btnBack.dataset.bound = "1";
@@ -663,12 +657,13 @@
           else location.href = "squads.html";
         });
       }
+      wireAddMemberButton({ canAdd, squadId, squadName }); // ✅ restored
 
       const { items: acts, hoursByActDone, hoursByActPlan } = await loadActivitiesForSquad(squadId, squadName);
       renderKpis(acts, hoursByActDone, hoursByActPlan);
       renderActivities(acts, hoursByActDone, true);
       buildDependentFilters(acts, hoursByActDone);
-      renderGantt(acts); // initial render if Gantt tab is already visible (unlikely but safe)
+      renderGantt(acts);
 
       // filter group & events
       setupFilterGroup();
@@ -725,7 +720,7 @@
         } catch(err){ console.error(err); hideBusy(modalPHId); alert("Failed to log power hours. See console for details."); }
       });
 
-      // wire Table / Gantt / Calendar buttons
+      // wire view tabs
       wireViews(()=>currentActs);
 
       // viewport sizing
