@@ -135,7 +135,7 @@
       const statusChip = `<span class="pill" style="background:#2a3440;color:#c3d5ff">${esc(a.status)}</span>`;
       const typeChip   = `<span class="pill" style="background:#2a3a3a;color:#aee">${esc(a.type)}</span>`;
       return `
-        <tr data-act="${esc(a.id)}">
+        <tr data-act="${esc(a.id)}" data-title="${esc(a.title)}">
           <td>${esc(a.title)}</td>
           <td>${statusChip}</td>
           <td>${typeChip}</td>
@@ -152,7 +152,8 @@
     tb.querySelectorAll('button[data-action="log-ph"]').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.preventDefault();
-        const tr = btn.closest('tr'); const actId = tr?.getAttribute('data-act') || '';
+        const tr = btn.closest('tr');
+        const actId = tr?.getAttribute('data-act') || '';
         openLogHourModal(actId);
       });
     });
@@ -294,15 +295,10 @@
         ${rowsHtml}
         <div class="g2-footerpad"></div>
       </div>`;
-    requestAnimationFrame(()=>{
-      const gap = 56;
-      const rect = el.getBoundingClientRect();
-      const vh = window.innerHeight || document.documentElement.clientHeight;
-      el.style.minHeight = Math.max(240, vh - rect.top - gap) + 'px';
-    });
+    requestAnimationFrame(sizeSquadScrollers); // ensure height after render
   }
 
-  // ---------------- table header/alignments (UPDATED per your tweak) ----------------
+  // ---------------- table header/alignments (rolled back tweak) ----------------
   function injectTableStyles() {
     const css = `
       /* scope styles to this table only */
@@ -411,47 +407,11 @@
   async function flashSuccess(modalId){ const el=document.querySelector(`#${modalId} .modal-ux .msg`); if(!el) return; el.textContent='Saved!'; el.style.color='#20d3a8'; await new Promise(r=>setTimeout(r,650)); }
   function hideBusy(modalId){ const el=document.querySelector(`#${modalId} .modal-ux`); if(el) el.style.display='none'; }
 
-  async function createActivity({ squadId, squadName }) {
-    const title = document.getElementById('act-title').value.trim();
-    const type  = document.getElementById('act-type').value.trim() || "Other";
-    const status= document.getElementById('act-status-modal').value.trim();
-    const start = toISO(document.getElementById('act-start').value);
-    const end   = toISO(document.getElementById('act-end').value) || start;
-    const ownerSel  = document.getElementById('act-owner');
-    const ownerName = ownerSel?.selectedOptions[0]?.text || ownerSel?.value || "";
-    const ownerId   = ownerSel?.selectedOptions[0]?.dataset?.id || "";
-    const desc  = document.getElementById('act-desc').value.trim();
-    if (!title) { alert("Title is required."); return; }
-    if (!STATUS_ALLOWED.includes(status)) { alert("Status must be one of: Not Started, In Progress, Completed, Canceled."); return; }
-    const row = {
-      "Squad ID": squadId, "Squad": squadName,
-      "Activity Title": title, "Title": title,
-      "Type": type, "Status": status,
-      "Start Date": start, "End/Due Date": end,
-      "Owner (Display Name)": ownerName, "Owner": ownerName,
-      "Owner ID": ownerId,
-      "Description": desc, "Notes": desc
-    };
-    await api.addRows("SQUAD_ACTIVITIES", [row], { toTop: true });
-    api.clearCache(api.SHEETS.SQUAD_ACTIVITIES);
-    return true;
-  }
+  // ---- Power Hours (UPDATED) ----
+  let gSquadId = "";      // set in MAIN
+  let gSquadName = "";    // set in MAIN
+  let gActsById = new Map(); // id -> {title,...}
 
-  // ---- Power Hours ----
-  function resetLogHourForm() {
-    const nowISO = new Date().toISOString().slice(0,10);
-    const d = document.getElementById('lh-date'); if (d) { d.setAttribute('value', nowISO); d.value = nowISO; }
-    const s = document.getElementById('lh-start'); if (s) s.value='';
-    const e = document.getElementById('lh-end');   if (e) e.value='';
-    const dh= document.getElementById('lh-dur');   if (dh) dh.value='';
-    const sch=document.getElementById('lh-scheduled'); if (sch) sch.checked=false;
-    const comp=document.getElementById('lh-completed'); if (comp) comp.checked=true;
-    const notes=document.getElementById('lh-notes'); if (notes) notes.value='';
-  }
-  function openLogHourModal(activityId) {
-    const hid = document.getElementById('lh-activity-id'); if (hid) hid.value = activityId || '';
-    resetLogHourForm(); showModal('logHourModal');
-  }
   function calcHours(startStr, endStr) {
     if (!startStr || !endStr) return 0;
     const [sh, sm] = startStr.split(':').map(n=>parseInt(n,10));
@@ -460,18 +420,91 @@
     let mins = (eh*60+em) - (sh*60+sm); if (mins < 0) mins += 24*60;
     return Math.round((mins/60)*100)/100;
   }
+
+  function updateDurField(){
+    const s = document.getElementById('lh-start')?.value || '';
+    const e = document.getElementById('lh-end')?.value || '';
+    const dur = calcHours(s, e);
+    const dh = document.getElementById('lh-dur');
+    if (dh) dh.value = dur ? String(dur) : '';
+  }
+
+  function resetLogHourForm() {
+    const nowISO = new Date().toISOString().slice(0,10);
+    const d = document.getElementById('lh-date'); if (d) { d.setAttribute('value', nowISO); d.value = nowISO; }
+    const s = document.getElementById('lh-start'); if (s) s.value='';
+    const e = document.getElementById('lh-end');   if (e) e.value='';
+    const dh= document.getElementById('lh-dur');   if (dh) { dh.value=''; dh.readOnly = true; }
+    const sch=document.getElementById('lh-scheduled'); if (sch) sch.checked=false;
+    const comp=document.getElementById('lh-completed'); if (comp) comp.checked=true;
+    const sq = document.getElementById('lh-squad'); if (sq) sq.value = '';
+    const at = document.getElementById('lh-activity-title'); if (at) at.value = '';
+    const hidAid = document.getElementById('lh-activity-id'); if (hidAid) hidAid.value = '';
+    const hidSid = document.getElementById('lh-squad-id'); if (hidSid) hidSid.value = '';
+  }
+
+  function openLogHourModal(activityId) {
+    resetLogHourForm();
+    const act = gActsById.get(activityId);
+    const title = act?.title || '';
+    document.getElementById('lh-activity-id')?.setAttribute('value', activityId || '');
+    const sidEl = document.getElementById('lh-squad-id');
+    if (sidEl) sidEl.setAttribute('value', gSquadId || '');
+    const squadEl = document.getElementById('lh-squad'); if (squadEl) squadEl.value = gSquadName || '';
+    const at = document.getElementById('lh-activity-title'); if (at) at.value = title || '';
+    showModal('logHourModal');
+  }
+
   async function saveLogHours() {
     const actId = document.getElementById('lh-activity-id')?.value || '';
-    if (!actId) throw new Error("Missing Activity ID.");
-    const date = toISO(document.getElementById('lh-date')?.value || ''); if (!date) throw new Error("Date is required.");
+    const actTitle = document.getElementById('lh-activity-title')?.value || '';
+    const squadId = document.getElementById('lh-squad-id')?.value || '';
+    const squadName = document.getElementById('lh-squad')?.value || '';
+
+    const date = toISO(document.getElementById('lh-date')?.value || '');
     const start = document.getElementById('lh-start')?.value || '';
     const end   = document.getElementById('lh-end')?.value || '';
+    const sch   = !!document.getElementById('lh-scheduled')?.checked;
+    const comp  = !!document.getElementById('lh-completed')?.checked;
+
+    // Recompute duration (auto) but allow typed value if times missing
     let dur = document.getElementById('lh-dur')?.value || '';
-    const scheduled = !!document.getElementById('lh-scheduled')?.checked;
-    const completed = !!document.getElementById('lh-completed')?.checked;
-    const notes = document.getElementById('lh-notes')?.value?.trim() || '';
-    if (!dur) dur = calcHours(start, end);
-    const row = { "Activity ID": actId, "Date": date, "Start": start, "End": end, "Completed Hours": Number(dur) || 0, "Scheduled": scheduled, "Completed": completed, "Notes": notes };
+    const calc = calcHours(start, end);
+    if (calc) dur = String(calc);
+
+    // ---- Validation (prevent blank rows)
+    if (!date) { alert("Date is required."); return; }
+    if (!sch && !comp) { alert("Choose Scheduled and/or Completed."); return; }
+    if (!dur || Number(dur) <= 0) {
+      alert("Provide Start & End (to auto-calc) or a positive Duration.");
+      return;
+    }
+
+    // Session -> employee
+    const me = (session.get?.() || {});
+    const empId = (me.employeeId || me.id || "").toString().trim();
+    const empName = (me.displayName || me.name || me.fullName || "").toString().trim();
+
+    const row = {
+      "Date": date,
+      "Start": start,
+      "End": end,
+      "Completed Hours": Number(dur) || 0,
+      "Scheduled": sch,
+      "Completed": comp,
+
+      // Associations (for reporting + joins)
+      "Squad ID": squadId,
+      "Squad": squadName,
+      "Activity ID": actId,
+      "Activity": actTitle,              // keep this for lookups already in code
+      "Activity Title": actTitle,        // also store explicit title
+
+      // Who did it
+      "Employee ID": empId,
+      "Employee Name": empName
+    };
+
     await api.addRows("POWER_HOURS", [row], { toTop: true });
     api.clearCache(api.SHEETS.POWER_HOURS);
   }
@@ -480,22 +513,36 @@
   function showModal(id){ const m = document.getElementById(id); if (m) m.classList.add('show'); }
   function hideModal(id){ const m = document.getElementById(id); if (m) m.classList.remove('show'); }
 
-  // ---------------- viewport sizing ----------------
+  // ---------------- viewport sizing (UPDATED for hidden panels) ----------------
   function sizeSquadScrollers() {
     const gap = 24;
-    const fit = (el) => {
+
+    // Always fit members list
+    fitEl(document.querySelector('.members-scroll'));
+
+    // Fit only the currently-visible acts scroller
+    const visiblePanel = document.querySelector('#activities-views > [role="tabpanel"]:not([hidden]) .acts-scroll');
+    fitEl(visiblePanel);
+
+    // Also ensure gantt min height feels right when visible
+    fitEl(document.getElementById('gantt-container'));
+
+    function fitEl(el){
       if (!el) return;
+      // If hidden, skip (we size it after tab switch)
+      const style = window.getComputedStyle(el);
+      if (style.display === 'none' || el.closest('[hidden]')) return;
+
       const rect = el.getBoundingClientRect();
-      const h = Math.max(140, (window.innerHeight || document.documentElement.clientHeight) - rect.top - gap);
+      const top = rect.top || el.offsetTop || 0;
+      const vh = window.innerHeight || document.documentElement.clientHeight;
+      const h = Math.max(140, vh - top - gap);
       el.style.maxHeight = h + 'px';
       el.style.height = h + 'px';
-    };
-    fit(document.querySelector('.members-scroll'));
-    fit(document.querySelector('.acts-scroll'));
-    fit(document.getElementById('gantt-container'));
+    }
   }
 
-  // >>> view wiring (Table / Gantt / Calendar) — minimal & flexible
+  // >>> view wiring (Table / Gantt / Calendar) — ensure sizing after switch
   function wireViews(getActsRef){
     const findBtn = (ids)=> ids.map(id=>document.getElementById(id)).find(Boolean);
     const tableBtn = findBtn(['view-tab-table','btn-view-table']);
@@ -523,10 +570,13 @@
       setActive(tableBtn, view==='table');
       setActive(ganttBtn, view==='gantt');
       setActive(calBtn,   view==='cal');
+
       if (view === 'gantt') {
         const acts = getActsRef();
         renderGantt(acts);
       }
+      // Size AFTER the panel becomes visible
+      requestAnimationFrame(sizeSquadScrollers);
     }
 
     tableBtn && tableBtn.addEventListener('click', (e)=>{ e.preventDefault(); show('table'); });
@@ -568,6 +618,8 @@
 
       const squadId   = (squadRow["Squad ID"] || urlId).toString().trim();
       const squadName = (squadRow["Squad Name"] || squadRow["Name"] || "").toString().trim();
+      gSquadId = squadId; gSquadName = squadName;
+
       layout.setPageTitle?.(`Squad: ${squadName || squadId}`);
 
       const leaderIds = members
@@ -591,6 +643,9 @@
       wireBackButton();
 
       const { items: acts, hoursByActDone, hoursByActPlan } = await loadActivitiesForSquad(squadId, squadName);
+      // index activities for modal prefill
+      gActsById = new Map(acts.map(a => [a.id, a]));
+
       renderKpis(acts, hoursByActDone, hoursByActPlan);
       renderActivities(acts, hoursByActDone, true);
       buildDependentFilters(acts, hoursByActDone);
@@ -627,6 +682,7 @@
           hideBusy(modalAddId); hideModal(modalAddId);
           const fresh = await loadActivitiesForSquad(squadId, squadName);
           currentActs = fresh.items; // >>> refresh acts reference
+          gActsById = new Map(fresh.items.map(a => [a.id, a]));
           renderKpis(fresh.items, fresh.hoursByActDone, fresh.hoursByActPlan);
           renderActivities(fresh.items, fresh.hoursByActDone, true);
           buildDependentFilters(fresh.items, fresh.hoursByActDone);
@@ -637,6 +693,11 @@
       // log hours modal
       const modalPHId = 'logHourModal';
       document.getElementById('lh-cancel')?.addEventListener('click', ()=>{ resetLogHourForm(); hideModal(modalPHId); });
+
+      // auto-calc duration as user types times
+      document.getElementById('lh-start')?.addEventListener('input', updateDurField);
+      document.getElementById('lh-end')?.addEventListener('input', updateDurField);
+
       document.getElementById('lh-save')?.addEventListener('click', async ()=>{
         try {
           showBusy(modalPHId,'Saving…');
@@ -646,6 +707,7 @@
           hideBusy(modalPHId); hideModal(modalPHId);
           const fresh = await loadActivitiesForSquad(squadId, squadName);
           currentActs = fresh.items; // >>> refresh acts reference
+          gActsById = new Map(fresh.items.map(a => [a.id, a]));
           renderKpis(fresh.items, fresh.hoursByActDone, fresh.hoursByActPlan);
           renderActivities(fresh.items, fresh.hoursByActDone, true);
           buildDependentFilters(fresh.items, fresh.hoursByActDone);
@@ -656,7 +718,7 @@
       // >>> wire Table / Gantt / Calendar buttons (uses currentActs ref)
       wireViews(()=>currentActs);
 
-      // viewport sizing
+      // viewport sizing (first paint + on resize)
       sizeSquadScrollers();
       window.addEventListener('resize', sizeSquadScrollers);
     } catch (err) {
