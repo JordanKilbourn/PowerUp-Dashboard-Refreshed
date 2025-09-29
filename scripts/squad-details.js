@@ -511,8 +511,8 @@
     // Build row (skip formula columns like Duration/Completed Hours)
     const row = {
       "Date": date,
-      "Start": start,
-      "End": end,
+      "Start Time": start,
+      "End Time": end,
       "Scheduled": sch,
       "Completed": comp,
 
