@@ -1,0 +1,7 @@
+{
+  "repo": "JordanBilbourn/powerup-dashboard-refreshed",
+  "base": "main",
+  "project": "PowerUp",
+  "prefix": "PU-",
+  "apply_via_pr": true
+}
