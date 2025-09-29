@@ -22,6 +22,16 @@
   };
   const pick = (row, keys, d="") => { for (const k of keys) if (row && row[k] != null && String(row[k]).trim() !== "") return row[k]; return d; };
 
+  // Convert "HH:MM" -> "h:mm AM/PM" for Smartsheet Time columns
+  function to12h(hhmm){
+    if (!hhmm) return "";
+    const [H,M] = hhmm.split(":").map(n=>parseInt(n,10));
+    if (!Number.isFinite(H) || !Number.isFinite(M)) return "";
+    const ampm = H >= 12 ? "PM" : "AM";
+    const h12 = (H % 12) || 12;
+    return `${h12}:${String(M).padStart(2,"0")} ${ampm}`;
+  }
+
   // ---------------- constants ----------------
   const ACTIVITY_TYPES = ["5S","Kaizen","Training","CI Suggestion","Side Quest Project","Safety Concern","Quality Catch","Other"];
   const STATUS_ALLOWED = ["Not Started","In Progress","Completed","Canceled"];
@@ -178,20 +188,21 @@
     const tools = document.querySelector('.acts-tools'); if (!tools) return;
     const colSel = document.getElementById('act-col');
     const valSel = document.getElementById('act-val');
-    const clearBtn = document.getElementById('btn-clear-filters');
-    const addBtn = document.getElementById('btn-add-activity');
+    theClear(); // helper to attach styles correctly
 
-    const group = document.createElement('div');
-    group.className = 'acts-filter-group';
-    if (colSel) group.appendChild(colSel);
-    if (valSel) group.appendChild(valSel);
-    if (clearBtn) { clearBtn.classList.add('btn-clear'); group.appendChild(clearBtn); }
-
-    tools.innerHTML = '';
-    tools.appendChild(group);
-    if (addBtn) tools.appendChild(addBtn);
-
-    updateClearBtnState();
+    function theClear(){
+      const clearBtn = document.getElementById('btn-clear-filters');
+      const addBtn = document.getElementById('btn-add-activity');
+      const group = document.createElement('div');
+      group.className = 'acts-filter-group';
+      if (colSel) group.appendChild(colSel);
+      if (valSel) group.appendChild(valSel);
+      if (clearBtn) { clearBtn.classList.add('btn-clear'); group.appendChild(clearBtn); }
+      tools.innerHTML = '';
+      tools.appendChild(group);
+      if (addBtn) tools.appendChild(addBtn);
+      updateClearBtnState();
+    }
   }
   function updateClearBtnState() {
     const colSel = document.getElementById('act-col');
@@ -272,7 +283,7 @@
     const headerCells = [];
     for (let i=0;i<days;i++){
       const d = new Date(min.getTime()+i*DAY);
-      headerCells.push(`<div class="cell">${(i%every===0)?`${d.getMonth()+1}/${d.getDate()}`:""}</div>`);
+      headerCells.push(`<div class="cell">${(i%every===0)?`${d.getMonth()+1}/${d.getDate()}`:""}</div>");
     }
     const rowsHtml = acts.map(a=>{
       const ds = a.start ? new Date(a.start) : min;
@@ -462,48 +473,48 @@
     const squadName = document.getElementById('lh-squad')?.value || '';
 
     const date = toISO(document.getElementById('lh-date')?.value || '');
-    const start = document.getElementById('lh-start')?.value || '';
-    const end   = document.getElementById('lh-end')?.value || '';
+    const startRaw = document.getElementById('lh-start')?.value || '';
+    const endRaw   = document.getElementById('lh-end')?.value || '';
     const sch   = !!document.getElementById('lh-scheduled')?.checked;
     const comp  = !!document.getElementById('lh-completed')?.checked;
 
-    // Recompute duration (auto) but allow typed value if times missing
-    let dur = document.getElementById('lh-dur')?.value || '';
-    const calc = calcHours(start, end);
-    if (calc) dur = String(calc);
-
     // ---- Validation (prevent blank rows)
     if (!date) { alert("Date is required."); return; }
+    if (!startRaw || !endRaw) { alert("Start and End time are required."); return; }
     if (!sch && !comp) { alert("Choose Scheduled and/or Completed."); return; }
-    if (!dur || Number(dur) <= 0) {
-      alert("Provide Start & End (to auto-calc) or a positive Duration.");
-      return;
-    }
 
     // Session -> employee
     const me = (session.get?.() || {});
     const empId = (me.employeeId || me.id || "").toString().trim();
     const empName = (me.displayName || me.name || me.fullName || "").toString().trim();
 
+    // Convert to 12h for Smartsheet "Time" columns
+    const startTime = to12h(startRaw);
+    const endTime = to12h(endRaw);
+
     const row = {
+      // Who did it
+      "Employee Name": empName,
+      "Employee ID": empId,
+
+      // When
       "Date": date,
-      "Start": start,
-      "End": end,
-      "Completed Hours": Number(dur) || 0,
+      "Start Time": startTime,
+      "End Time": endTime,
+
+      // Status flags
       "Scheduled": sch,
       "Completed": comp,
 
       // Associations (for reporting + joins)
-      "Squad ID": squadId,
-      "Squad": squadName,
       "Activity ID": actId,
-      "Activity": actTitle,              // keep this for lookups already in code
-      "Activity Title": actTitle,        // also store explicit title
-
-      // Who did it
-      "Employee ID": empId,
-      "Employee Name": empName
+      "Activity Description": actTitle,
+      "Squad": squadName,
+      "Squad ID": squadId
     };
+
+    // NOTE: Intentionally NOT sending formula columns:
+    //  - "Duration (hrs)", "Completed Hours", "StartFloat", "EndFloat", "Power Hour ID"
 
     await api.addRows("POWER_HOURS", [row], { toTop: true });
     api.clearCache(api.SHEETS.POWER_HOURS);
@@ -517,22 +528,15 @@
   function sizeSquadScrollers() {
     const gap = 24;
 
-    // Always fit members list
     fitEl(document.querySelector('.members-scroll'));
-
-    // Fit only the currently-visible acts scroller
     const visiblePanel = document.querySelector('#activities-views > [role="tabpanel"]:not([hidden]) .acts-scroll');
     fitEl(visiblePanel);
-
-    // Also ensure gantt min height feels right when visible
     fitEl(document.getElementById('gantt-container'));
 
     function fitEl(el){
       if (!el) return;
-      // If hidden, skip (we size it after tab switch)
       const style = window.getComputedStyle(el);
       if (style.display === 'none' || el.closest('[hidden]')) return;
-
       const rect = el.getBoundingClientRect();
       const top = rect.top || el.offsetTop || 0;
       const vh = window.innerHeight || document.documentElement.clientHeight;
@@ -575,7 +579,6 @@
         const acts = getActsRef();
         renderGantt(acts);
       }
-      // Size AFTER the panel becomes visible
       requestAnimationFrame(sizeSquadScrollers);
     }
 
@@ -583,7 +586,6 @@
     ganttBtn && ganttBtn.addEventListener('click', (e)=>{ e.preventDefault(); show('gantt'); });
     calBtn   && calBtn.addEventListener('click', (e)=>{ e.preventDefault(); show('cal'); });
 
-    // ensure the currently-visible one is synced
     show(current);
   }
 
@@ -643,8 +645,7 @@
       wireBackButton();
 
       const { items: acts, hoursByActDone, hoursByActPlan } = await loadActivitiesForSquad(squadId, squadName);
-      // index activities for modal prefill
-      gActsById = new Map(acts.map(a => [a.id, a]));
+      gActsById = new Map(acts.map(a => [a.id, a])); // index for modal prefill
 
       renderKpis(acts, hoursByActDone, hoursByActPlan);
       renderActivities(acts, hoursByActDone, true);
@@ -653,7 +654,7 @@
 
       // filter group & events
       setupFilterGroup();
-      let currentActs = acts; // >>> keep a ref for Gantt/Calendar view switching
+      let currentActs = acts;
       const colSel = document.getElementById("act-col");
       const valSel = document.getElementById("act-val");
       const rerender = () => {
@@ -681,7 +682,7 @@
           resetAddActivityForm();
           hideBusy(modalAddId); hideModal(modalAddId);
           const fresh = await loadActivitiesForSquad(squadId, squadName);
-          currentActs = fresh.items; // >>> refresh acts reference
+          currentActs = fresh.items;
           gActsById = new Map(fresh.items.map(a => [a.id, a]));
           renderKpis(fresh.items, fresh.hoursByActDone, fresh.hoursByActPlan);
           renderActivities(fresh.items, fresh.hoursByActDone, true);
@@ -694,7 +695,7 @@
       const modalPHId = 'logHourModal';
       document.getElementById('lh-cancel')?.addEventListener('click', ()=>{ resetLogHourForm(); hideModal(modalPHId); });
 
-      // auto-calc duration as user types times
+      // auto-calc duration as user types times (preview only)
       document.getElementById('lh-start')?.addEventListener('input', updateDurField);
       document.getElementById('lh-end')?.addEventListener('input', updateDurField);
 
@@ -706,7 +707,7 @@
           resetLogHourForm();
           hideBusy(modalPHId); hideModal(modalPHId);
           const fresh = await loadActivitiesForSquad(squadId, squadName);
-          currentActs = fresh.items; // >>> refresh acts reference
+          currentActs = fresh.items;
           gActsById = new Map(fresh.items.map(a => [a.id, a]));
           renderKpis(fresh.items, fresh.hoursByActDone, fresh.hoursByActPlan);
           renderActivities(fresh.items, fresh.hoursByActDone, true);
