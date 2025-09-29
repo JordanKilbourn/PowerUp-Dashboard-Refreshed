@@ -22,6 +22,15 @@
   };
   const pick = (row, keys, d="") => { for (const k of keys) if (row && row[k] != null && String(row[k]).trim() !== "") return row[k]; return d; };
 
+  // format "HH:MM" -> "h:mm AM/PM" for Smartsheet
+  function toSmartsheetTime(t){
+    if (!t || !/^\d{2}:\d{2}$/.test(t)) return "";
+    let [h, m] = t.split(":").map(n=>parseInt(n,10));
+    const ampm = h >= 12 ? "PM" : "AM";
+    h = h % 12; if (h === 0) h = 12;
+    return `${h}:${String(m).padStart(2,"0")} ${ampm}`;
+  }
+
   // ---------------- constants ----------------
   const ACTIVITY_TYPES = ["5S","Kaizen","Training","CI Suggestion","Side Quest Project","Safety Concern","Quality Catch","Other"];
   const STATUS_ALLOWED = ["Not Started","In Progress","Completed","Canceled"];
@@ -152,8 +161,8 @@
     tb.querySelectorAll('button[data-action="log-ph"]').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.preventDefault();
-        const tr = btn.closest('tr'); const actId = tr?.getAttribute('data-act') || '';
-        openLogHourModal(actId);
+        const tr = btn.closest('tr');
+        openLogHourModal(tr?.getAttribute('data-act') || '', tr?.getAttribute('data-title') || '');
       });
     });
   }
@@ -179,17 +188,14 @@
     const valSel = document.getElementById('act-val');
     const clearBtn = document.getElementById('btn-clear-filters');
     const addBtn = document.getElementById('btn-add-activity');
-
     const group = document.createElement('div');
     group.className = 'acts-filter-group';
     if (colSel) group.appendChild(colSel);
     if (valSel) group.appendChild(valSel);
     if (clearBtn) { clearBtn.classList.add('btn-clear'); group.appendChild(clearBtn); }
-
     tools.innerHTML = '';
     tools.appendChild(group);
     if (addBtn) tools.appendChild(addBtn);
-
     updateClearBtnState();
   }
   function updateClearBtnState() {
@@ -294,36 +300,25 @@
         ${rowsHtml}
         <div class="g2-footerpad"></div>
       </div>`;
-    requestAnimationFrame(sizeSquadScrollers); // re-fit after render
+    requestAnimationFrame(sizeSquadScrollers); // height after render
   }
 
-  // ---------------- table header/alignments (UPDATED per your tweak) ----------------
+  // ---------------- table header/alignments ----------------
   function injectTableStyles() {
     const css = `
-      /* scope styles to this table only */
       .acts-table{ width:100%; border-collapse:separate; border-spacing:0; }
-
-      /* clearly different header row */
       .acts-table thead th{
-        text-align:left;
-        background:#0f1a1a;
-        border-bottom:1px solid #1e2b2b;
-        position:sticky; top:0; z-index:1;
-        font-weight:700;
-        padding:10px 12px;
+        text-align:left; background:#0f1a1a; border-bottom:1px solid #1e2b2b;
+        position:sticky; top:0; z-index:1; font-weight:700; padding:10px 12px;
       }
       .acts-table tbody td{ padding:10px 12px; vertical-align:middle; }
-
-      /* column alignment (1=Title, 2=Status, 3=Type, 4=Start–End, 5=Owner, 6=Completed PH, 7=Actions) */
       .acts-table th:nth-child(1), .acts-table td:nth-child(1),
       .acts-table th:nth-child(5), .acts-table td:nth-child(5){ text-align:left; }
-
       .acts-table th:nth-child(2), .acts-table td:nth-child(2),
       .acts-table th:nth-child(3), .acts-table td:nth-child(3),
       .acts-table th:nth-child(4), .acts-table td:nth-child(4){ text-align:center; }
-
-      .acts-table th:nth-child(6), .acts-table td:nth-child(6){ text-align:right; }   /* Completed PH */
-      .acts-table th:nth-child(7), .acts-table td:nth-child(7){ text-align:right; }   /* Log Hours */
+      .acts-table th:nth-child(6), .acts-table td:nth-child(6){ text-align:right; }
+      .acts-table th:nth-child(7), .acts-table td:nth-child(7){ text-align:right; }
     `;
     const style = document.createElement('style');
     style.id = 'pu-acts-table-css';
@@ -379,8 +374,7 @@
       ph.textContent = text;
       sel.insertBefore(ph, sel.firstChild);
     }
-    sel.value = "";               // select the placeholder
-    sel.selectedIndex = 0;
+    sel.value = ""; sel.selectedIndex = 0;
   }
 
   function resetAddActivityForm() {
@@ -432,11 +426,8 @@
     return true;
   }
 
-  // ---- Power Hours (UPDATED) ----
-  let gSquadId = "";      // set in MAIN
-  let gSquadName = "";    // set in MAIN
-  let gActsById = new Map(); // id -> {title,...}
-
+  // ---- Power Hours ----
+  let gSquadId = "", gSquadName = "";
   function calcHours(startStr, endStr) {
     if (!startStr || !endStr) return 0;
     const [sh, sm] = startStr.split(':').map(n=>parseInt(n,10));
@@ -449,81 +440,68 @@
     const s = document.getElementById('lh-start')?.value || '';
     const e = document.getElementById('lh-end')?.value || '';
     const dur = calcHours(s, e);
-    const dh = document.getElementById('lh-dur');
-    if (dh) dh.value = dur ? String(dur) : '';
+    const dh = document.getElementById('lh-dur'); if (dh) { dh.readOnly = true; dh.value = dur ? String(dur) : ''; }
   }
-
   function resetLogHourForm() {
     const nowISO = new Date().toISOString().slice(0,10);
     const d = document.getElementById('lh-date'); if (d) { d.setAttribute('value', nowISO); d.value = nowISO; }
     const s = document.getElementById('lh-start'); if (s) s.value='';
     const e = document.getElementById('lh-end');   if (e) e.value='';
-    const dh= document.getElementById('lh-dur');   if (dh) { dh.value=''; dh.readOnly = true; }
+    const dh= document.getElementById('lh-dur');   if (dh) { dh.value=''; dh.readOnly=true; }
     const sch=document.getElementById('lh-scheduled'); if (sch) sch.checked=false;
     const comp=document.getElementById('lh-completed'); if (comp) comp.checked=true;
-
     const sq = document.getElementById('lh-squad'); if (sq) sq.value = '';
     const at = document.getElementById('lh-activity-title'); if (at) at.value = '';
     const hidAid = document.getElementById('lh-activity-id'); if (hidAid) hidAid.value = '';
     const hidSid = document.getElementById('lh-squad-id'); if (hidSid) hidSid.value = '';
   }
-
-  function openLogHourModal(activityId) {
+  function openLogHourModal(activityId, activityTitle) {
     resetLogHourForm();
-    const act = gActsById.get(activityId);
-    const title = act?.title || '';
     document.getElementById('lh-activity-id')?.setAttribute('value', activityId || '');
-    const sidEl = document.getElementById('lh-squad-id'); if (sidEl) sidEl.setAttribute('value', gSquadId || '');
+    document.getElementById('lh-squad-id')?.setAttribute('value', gSquadId || '');
     const squadEl = document.getElementById('lh-squad'); if (squadEl) squadEl.value = gSquadName || '';
-    const at = document.getElementById('lh-activity-title'); if (at) at.value = title || '';
-
+    const at = document.getElementById('lh-activity-title'); if (at) at.value = activityTitle || '';
     showModal('logHourModal');
   }
-
   async function saveLogHours() {
+    // required fields
+    const date = toISO(document.getElementById('lh-date')?.value || '');
+    const start24 = document.getElementById('lh-start')?.value || '';
+    const end24   = document.getElementById('lh-end')?.value || '';
+    const scheduled = !!document.getElementById('lh-scheduled')?.checked;
+    const completed = !!document.getElementById('lh-completed')?.checked;
     const actId = document.getElementById('lh-activity-id')?.value || '';
     const actTitle = document.getElementById('lh-activity-title')?.value || '';
     const squadId = document.getElementById('lh-squad-id')?.value || '';
     const squadName = document.getElementById('lh-squad')?.value || '';
 
-    const date = toISO(document.getElementById('lh-date')?.value || '');
-    const start = document.getElementById('lh-start')?.value || '';
-    const end   = document.getElementById('lh-end')?.value || '';
-    const sch   = !!document.getElementById('lh-scheduled')?.checked;
-    const comp  = !!document.getElementById('lh-completed')?.checked;
-
-    // auto-calc duration; display-only; DO NOT send to Smartsheet (formula column)
-    const dur = calcHours(start, end);
-
-    // ---- Validation
     if (!date) { alert("Date is required."); return; }
-    if (!sch && !comp) { alert("Choose Scheduled and/or Completed."); return; }
-    if (!start || !end || dur <= 0) {
-      alert("Start and End times are required and must produce a positive duration.");
-      return;
-    }
+    if (!start24 || !end24) { alert("Start and End time are required."); return; }
+    if (!scheduled && !completed) { alert("Choose Scheduled and/or Completed."); return; }
 
-    // Session -> employee
+    // Who did it
     const me = (session.get?.() || {});
     const empId = (me.employeeId || me.id || "").toString().trim();
     const empName = (me.displayName || me.name || me.fullName || "").toString().trim();
 
-    // Build row (skip formula columns like Duration/Completed Hours)
+    // convert to Smartsheet time strings
+    const start = toSmartsheetTime(start24);
+    const end   = toSmartsheetTime(end24);
+
     const row = {
       "Date": date,
       "Start Time": start,
       "End Time": end,
-      "Scheduled": sch,
-      "Completed": comp,
+      "Scheduled": scheduled,
+      "Completed": completed,
 
-      // Associations
-      "Squad ID": squadId,
-      "Squad": squadName,
+      // associations
       "Activity ID": actId,
-      "Activity": actTitle,
-      "Activity Title": actTitle,
+      "Activity Description": actTitle,
+      "Squad": squadName,
+      "Squad ID": squadId,
 
-      // Who
+      // who
       "Employee ID": empId,
       "Employee Name": empName
     };
@@ -534,30 +512,21 @@
 
   // ---- modal helpers ----
   function showModal(id){
-    const m = document.getElementById(id); if (!m) return;
-    m.classList.add('show');
-    m.setAttribute('aria-hidden','false');
-    const first = m.querySelector('input, select, textarea, button'); first && first.focus();
+    const m = document.getElementById(id);
+    if (m){ m.classList.add('show'); m.setAttribute('aria-hidden','false'); }
   }
   function hideModal(id){
-    const m = document.getElementById(id); if (!m) return;
-    m.classList.remove('show');
-    m.setAttribute('aria-hidden','true');
+    const m = document.getElementById(id);
+    if (m){ m.classList.remove('show'); m.setAttribute('aria-hidden','true'); }
   }
 
-  // ---------------- viewport sizing (VISIBLE panel only) ----------------
+  // ---------------- viewport sizing (visible panel aware) ----------------
   function sizeSquadScrollers() {
     const gap = 24;
 
-    // Always fit members list
-    fitEl(document.querySelector('.members-scroll'));
-
-    // Fit only the currently-visible acts scroller
-    const visiblePanel = document.querySelector('#activities-views > [role="tabpanel"]:not([hidden]) .acts-scroll');
-    fitEl(visiblePanel);
-
-    // Also ensure gantt min height feels right when visible
-    fitEl(document.getElementById('gantt-container'));
+    fitEl(document.querySelector('.members-scroll')); // always
+    fitEl(document.querySelector('#activities-views > [role="tabpanel"]:not([hidden]) .acts-scroll'));
+    fitEl(document.getElementById('gantt-container')); // when visible
 
     function fitEl(el){
       if (!el) return;
@@ -582,7 +551,6 @@
     const tablePanel = document.getElementById('view-table');
     const ganttPanel = document.getElementById('view-gantt');
     const calPanel   = document.getElementById('view-calendar');
-
     if (!tablePanel || !ganttPanel || !calPanel) return;
 
     let current = !ganttPanel.hidden ? 'gantt' : (!calPanel.hidden ? 'cal' : 'table');
@@ -593,19 +561,16 @@
       btn.setAttribute('aria-selected', on ? 'true' : 'false');
     }
     function show(view){
-      current = view;
       tablePanel.hidden = view !== 'table';
       ganttPanel.hidden = view !== 'gantt';
       calPanel.hidden   = view !== 'cal';
       setActive(tableBtn, view==='table');
       setActive(ganttBtn, view==='gantt');
       setActive(calBtn,   view==='cal');
-
       if (view === 'gantt') {
         const acts = getActsRef();
         renderGantt(acts);
       }
-      // Size AFTER the panel becomes visible
       requestAnimationFrame(sizeSquadScrollers);
     }
 
@@ -613,11 +578,10 @@
     ganttBtn && ganttBtn.addEventListener('click', (e)=>{ e.preventDefault(); show('gantt'); });
     calBtn   && calBtn.addEventListener('click', (e)=>{ e.preventDefault(); show('cal'); });
 
-    // ensure the currently-visible one is synced
     show(current);
   }
 
-  // ---------------- MAIN (single guarded block) ----------------
+  // ---------------- MAIN ----------------
   document.addEventListener("DOMContentLoaded", async () => {
     try {
       layout.injectLayout?.();
@@ -673,9 +637,6 @@
       wireBackButton();
 
       const { items: acts, hoursByActDone, hoursByActPlan } = await loadActivitiesForSquad(squadId, squadName);
-      // index activities for modal prefill
-      gActsById = new Map(acts.map(a => [a.id, a]));
-
       renderKpis(acts, hoursByActDone, hoursByActPlan);
       renderActivities(acts, hoursByActDone, true);
       buildDependentFilters(acts, hoursByActDone);
@@ -683,7 +644,7 @@
 
       // filter group & events
       setupFilterGroup();
-      let currentActs = acts; // >>> keep a ref for Gantt/Calendar view switching
+      let currentActs = acts;
       const colSel = document.getElementById("act-col");
       const valSel = document.getElementById("act-val");
       const rerender = () => { applyDependentFilter(currentActs, hoursByActDone, hoursByActPlan); };
@@ -709,8 +670,7 @@
           resetAddActivityForm();
           hideBusy(modalAddId); hideModal(modalAddId);
           const fresh = await loadActivitiesForSquad(squadId, squadName);
-          currentActs = fresh.items; // >>> refresh acts reference
-          gActsById = new Map(fresh.items.map(a => [a.id, a]));
+          currentActs = fresh.items;
           renderKpis(fresh.items, fresh.hoursByActDone, fresh.hoursByActPlan);
           renderActivities(fresh.items, fresh.hoursByActDone, true);
           buildDependentFilters(fresh.items, fresh.hoursByActDone);
@@ -721,11 +681,8 @@
       // log hours modal
       const modalPHId = 'logHourModal';
       document.getElementById('lh-cancel')?.addEventListener('click', ()=>{ resetLogHourForm(); hideModal(modalPHId); });
-
-      // auto-calc duration as user types times
       document.getElementById('lh-start')?.addEventListener('input', updateDurField);
       document.getElementById('lh-end')?.addEventListener('input', updateDurField);
-
       document.getElementById('lh-save')?.addEventListener('click', async ()=>{
         try {
           showBusy(modalPHId,'Saving…');
@@ -734,8 +691,7 @@
           resetLogHourForm();
           hideBusy(modalPHId); hideModal(modalPHId);
           const fresh = await loadActivitiesForSquad(squadId, squadName);
-          currentActs = fresh.items; // >>> refresh acts reference
-          gActsById = new Map(fresh.items.map(a => [a.id, a]));
+          currentActs = fresh.items;
           renderKpis(fresh.items, fresh.hoursByActDone, fresh.hoursByActPlan);
           renderActivities(fresh.items, fresh.hoursByActDone, true);
           buildDependentFilters(fresh.items, fresh.hoursByActDone);
@@ -743,10 +699,8 @@
         } catch(err){ console.error(err); hideBusy(modalPHId); alert("Failed to log power hours. See console for details."); }
       });
 
-      // >>> wire Table / Gantt / Calendar buttons (uses currentActs ref)
+      // views + sizing
       wireViews(()=>currentActs);
-
-      // viewport sizing (first paint + on resize)
       sizeSquadScrollers();
       window.addEventListener('resize', sizeSquadScrollers);
     } catch (err) {
