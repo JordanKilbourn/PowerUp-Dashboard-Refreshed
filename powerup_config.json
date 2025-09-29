@@ -1,7 +1,8 @@
 {
-  "repo": "JordanBilbourn/powerup-dashboard-refreshed",
+  "owner": "JordanKilbourn",
+  "repo": "PowerUp-Dashboard-Refreshed",
   "base": "main",
   "project": "PowerUp",
   "prefix": "PU-",
-  "apply_via_pr": true
+  "netlify_site": "poweruppreviews"
 }
