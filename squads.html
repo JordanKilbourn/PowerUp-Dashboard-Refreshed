@@ -9,7 +9,7 @@
     var onNetlify = /\.netlify\.app$/.test(location.hostname);
     if (onNetlify) {
       try {
-        var seed = { employeeId: "preview-user", name: "Preview", role: "admin" };
+        var seed = { employeeId: "IX7992604", name: "Preview User", role: "Admin" };
         sessionStorage.setItem("pu.session", JSON.stringify(seed));
         localStorage.setItem("powerup_session", JSON.stringify(seed));
       } catch {}
