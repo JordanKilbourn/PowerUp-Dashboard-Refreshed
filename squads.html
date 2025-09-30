@@ -7,9 +7,11 @@
 <script>
 !function () {
   try {
+    // Prefer the real session key; fall back to legacy only if present
     const s = JSON.parse(sessionStorage.getItem('pu.session') || 'null')
            || JSON.parse(localStorage.getItem('powerup_session') || 'null');
     if (!s || !s.employeeId) {
+      // block paint, then bounce to login
       document.documentElement.style.visibility = 'hidden';
       location.replace('login.html');
     }
@@ -28,11 +30,14 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
   <link rel="preconnect" href="https://powerup-proxy.onrender.com" crossorigin>
+  <!-- Favicon (SVG + PNG fallback) -->
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
 
   <style>
+  /* Filter toolbar (non-sticky; sits right under the header divider) */
   .filter-toolbar {
     position: relative;
+    top: auto;
     z-index: 1;
     background: var(--card-bg);
     border: 1px solid #2d3f3f;
@@ -81,6 +86,8 @@
   .squads-scroll {
     flex: 1;
     overflow-y: auto;
+    overflow-x: hidden;
+    min-height: 0; /* required for flexbox scrolling */
     padding-right: 6px; /* avoid scrollbar overlap */
   }
 
@@ -89,6 +96,7 @@
     margin: 2px 0 10px 0;
   }
 
+  /* Left-aligned card grid with fixed max width per card */
   .cards-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(360px, 420px));
@@ -109,11 +117,8 @@
   .status-off { background: #3a4e4e; color:#fff; }
 
   .empty {
-    background: var(--card-bg);
-    border: 1px dashed #2d3f3f;
-    border-radius: 8px;
-    padding: 16px;
-    color: var(--info);
+    background: var(--card-bg); border: 1px dashed #2d3f3f; border-radius: 8px;
+    padding: 16px; color: var(--info);
   }
 
   @media (max-width: 860px) {
@@ -123,11 +128,12 @@
   </style>
 </head>
 <body>
-  <!-- layout.js injects the shell -->
+  <!-- layout.js injects the shell; everything below becomes .content -->
 
   <!-- Top filter stripe -->
   <div class="filter-toolbar">
     <div class="ft-left">
+      <!-- Category filters are rendered by JS into this container -->
       <div class="cat-pills" id="cat-pills"></div>
 
       <label class="toggle"><input type="checkbox" id="myOnly" checked /> My squads</label>
@@ -154,21 +160,29 @@
     </div>
   </main>
 
-  <script src="scripts/api.js"></script>
-  <script src="scripts/session.js"></script>
-  <script src="scripts/roles.js"></script>
-  <script src="scripts/layout.js"></script>
-  <script src="scripts/squads-cards.js"></script>
+<script src="scripts/api.js"></script>
+<script src="scripts/session.js"></script>
+<script src="scripts/roles.js"></script>
+<script src="scripts/layout.js"></script>
+<script src="scripts/squads-cards.js"></script>
 
   <script>
+  // Minimal, safe: set the header title using the shared layout shell
   document.addEventListener('DOMContentLoaded', async () => {
+    // Ensure user is logged in
     PowerUp.session.requireLogin();
+
+    // Inject the shared shell (sidebar + header) only if it isn’t already there
     if (!document.getElementById('pu-header')) {
       PowerUp.layout.injectLayout();
     }
+
+    // Set the in-header page title
     PowerUp.layout.setPageTitle('PowerUp — Squads');
+
+    // Fill in the “Welcome, <name> / Level” bits in the header
     await PowerUp.session.initHeader();
   });
-  </script>
+</script>
 </body>
 </html>
