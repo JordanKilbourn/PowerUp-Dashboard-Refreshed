@@ -3,22 +3,22 @@
 <head>
   <meta charset="UTF-8" />
 
-<!-- EARLY AUTH GUARD — must be the first thing in <head> -->
-<script>
-!function () {
-  try {
-    const s = JSON.parse(sessionStorage.getItem('pu.session') || 'null')
-           || JSON.parse(localStorage.getItem('powerup_session') || 'null');
-    if (!s || !s.employeeId) {
+  <!-- EARLY AUTH GUARD -->
+  <script>
+  !function () {
+    try {
+      const s = JSON.parse(sessionStorage.getItem('pu.session') || 'null')
+             || JSON.parse(localStorage.getItem('powerup_session') || 'null');
+      if (!s || !s.employeeId) {
+        document.documentElement.style.visibility = 'hidden';
+        location.replace('login.html');
+      }
+    } catch {
       document.documentElement.style.visibility = 'hidden';
       location.replace('login.html');
     }
-  } catch {
-    document.documentElement.style.visibility = 'hidden';
-    location.replace('login.html');
-  }
-}();
-</script>
+  }();
+  </script>
 
   <title>PowerUp — Squads</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -28,13 +28,12 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
   <link rel="preconnect" href="https://powerup-proxy.onrender.com" crossorigin>
-  <!-- Favicon -->
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
 
   <style>
-  /* Filter toolbar */
   .filter-toolbar {
     position: relative;
+    top: auto;
     z-index: 1;
     background: var(--card-bg);
     border: 1px solid #2d3f3f;
@@ -46,7 +45,6 @@
     gap: 12px;
     flex-wrap: wrap;
   }
-
   .ft-left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .ft-right { margin-left: auto; display:flex; gap:10px; }
   .toggle { display:flex; align-items:center; gap:6px; font-size:13px; }
@@ -64,24 +62,24 @@
 
   /* ---------- Main content ---------- */
   .squads-main {
-    padding: 0 14px 14px;
     display: flex;
     flex-direction: column;
-    height: calc(100vh - 120px); /* matches header gap logic */
+    padding: 0 14px 14px;
+    height: calc(100vh - 140px); /* adjust header offset as needed */
     box-sizing: border-box;
   }
-
   .section-h {
     font-size: 18px; font-weight: 700; color: var(--accent);
     margin: 2px 0 10px 0;
-    flex: 0 0 auto;
+    flex-shrink: 0;
   }
 
-  /* Scrollable card area (like squad details tables) */
-  #cards {
-    flex: 1 1 auto;
+  /* Scrollable viewport for cards */
+  .squads-viewport {
+    flex: 1;
+    min-height: 0;
     overflow-y: auto;
-    padding-bottom: 12px; /* keep gap at bottom */
+    padding-bottom: 12px;
   }
 
   .cards-grid {
@@ -89,6 +87,7 @@
     grid-template-columns: repeat(auto-fill, minmax(360px, 420px));
     gap: 16px;
     justify-content: start;
+    margin-top: 4px;
   }
 
   .squad-card.card { padding: 12px 14px; }
@@ -114,8 +113,6 @@
   </style>
 </head>
 <body>
-  <!-- layout.js injects the shell -->
-
   <!-- Top filter stripe -->
   <div class="filter-toolbar">
     <div class="ft-left">
@@ -136,15 +133,17 @@
   <!-- Main grid -->
   <main class="squads-main">
     <h2 class="section-h">Squads Overview</h2>
-    <div id="cards" class="cards-grid"></div>
-    <div id="s-msg" class="empty" style="display:none;"></div>
+    <div class="squads-viewport">
+      <div id="cards" class="cards-grid"></div>
+      <div id="s-msg" class="empty" style="display:none;"></div>
+    </div>
   </main>
 
-<script src="scripts/api.js"></script>
-<script src="scripts/session.js"></script>
-<script src="scripts/roles.js"></script>
-<script src="scripts/layout.js"></script>
-<script src="scripts/squads-cards.js"></script>
+  <script src="scripts/api.js"></script>
+  <script src="scripts/session.js"></script>
+  <script src="scripts/roles.js"></script>
+  <script src="scripts/layout.js"></script>
+  <script src="scripts/squads-cards.js"></script>
 
   <script>
   document.addEventListener('DOMContentLoaded', async () => {
