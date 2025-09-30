@@ -3,19 +3,25 @@
 <head>
   <meta charset="UTF-8" />
 
-  <!-- Netlify Deploy Preview auth seed (preview branch only) -->
-  <script>
+<script>
+  // Netlify Deploy Preview auth seed (preview branch only)
   (function () {
     var onNetlify = /\.netlify\.app$/.test(location.hostname);
     if (onNetlify) {
       try {
-        var seed = { employeeId: "IX7992604", name: "Preview User", role: "Admin" };
+        var seed = {
+          employeeId: "IX7992604",
+          displayName: "Teag Britton",
+          level: "LVL 2",
+          levelText: "LVL 2"
+        };
         sessionStorage.setItem("pu.session", JSON.stringify(seed));
         localStorage.setItem("powerup_session", JSON.stringify(seed));
       } catch {}
     }
   })();
-  </script>
+</script>
+
 
   <!-- EARLY AUTH GUARD — must be the first thing in <head> -->
   <script>
@@ -180,3 +186,4 @@
   </script>
 </body>
 </html>
+
