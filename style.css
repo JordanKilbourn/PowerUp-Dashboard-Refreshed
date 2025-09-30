@@ -712,12 +712,13 @@ th[data-sort="none"]::after { content: " ⇅"; opacity: .35; }
 .squads-card {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 210px); /* adjust offset for header/filter height */
+  flex: 1;
+  min-height: 0; /* allows flexbox child to shrink properly */
   margin: 0;
   padding: 0;
   background: var(--card-bg);
   border: 1px solid #2d3f3f;
-  border-radius: 8px;
+  border-radius: 9px;
 }
 
 .squads-scroll {
@@ -726,12 +727,14 @@ th[data-sort="none"]::after { content: " ⇅"; opacity: .35; }
   padding: 12px;
 }
 
+
 .cards-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(360px, 420px));
   gap: 16px;
   justify-content: start;
 }
+
 
 
 
