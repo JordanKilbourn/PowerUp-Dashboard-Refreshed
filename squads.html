@@ -3,126 +3,86 @@
 <head>
   <meta charset="UTF-8" />
 
-<!-- EARLY AUTH GUARD — must be the first thing in <head> -->
-<script>
-!function () {
-  try {
-    // Prefer the real session key; fall back to legacy only if present
-    const s = JSON.parse(sessionStorage.getItem('pu.session') || 'null')
-           || JSON.parse(localStorage.getItem('powerup_session') || 'null');
-    if (!s || !s.employeeId) {
-      // block paint, then bounce to login
-      document.documentElement.style.visibility = 'hidden';
-      location.replace('login.html');
+  <script>
+  // Netlify Deploy Preview auth seed (preview branch only)
+  (function () {
+    var onNetlify = /\.netlify\.app$/.test(location.hostname);
+    if (onNetlify) {
+      try {
+        var seed = { employeeId: "preview-user", name: "Preview", role: "admin" };
+        sessionStorage.setItem("pu.session", JSON.stringify(seed));
+        localStorage.setItem("powerup_session", JSON.stringify(seed));
+      } catch {}
     }
-  } catch {
-    document.documentElement.style.visibility = 'hidden';
-    location.replace('login.html');
-  }
-}();
-</script>
+  })();
+  </script>
 
+  <script>
+  !(function () {
+    try {
+      const s =
+        JSON.parse(sessionStorage.getItem("pu.session") || "null") ||
+        JSON.parse(localStorage.getItem("powerup_session") || "null");
+      if (!s || !s.employeeId) {
+        document.documentElement.style.visibility = "hidden";
+        location.replace("login.html");
+      }
+    } catch {
+      document.documentElement.style.visibility = "hidden";
+      location.replace("login.html");
+    }
+  })();
+  </script>
 
-  <title>PowerUp — Squads</title>
+  <title>PowerUp – Squads</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link href="style.css" rel="stylesheet" />
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
-  <link rel="preconnect" href="https://powerup-proxy.onrender.com" crossorigin>
-  <!-- Favicon (SVG + PNG fallback) -->
-<link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
-
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
 
   <style>
-  /* Filter toolbar (non-sticky; sits right under the header divider) */
-  .filter-toolbar {
-    position: relative;
-    top: auto;
-    z-index: 1;
-    background: var(--card-bg);
-    border: 1px solid #2d3f3f;
-    border-radius: 8px;
-    margin: 6px 14px 12px 14px;
-    padding: 10px 12px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    flex-wrap: wrap;
-  }
+    .squads-main {
+      padding: 0 14px 14px;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+    .section-h {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--accent);
+      margin: 2px 0 10px 0;
+      flex-shrink: 0;
+    }
+    /* New scroll container for cards */
+    #cards-scroll {
+      overflow: auto;
+      max-height: calc(100vh - var(--header-h) - 40px);
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+    #cards-scroll::-webkit-scrollbar { display: none; }
 
-  .ft-left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  .ft-right { margin-left: auto; display:flex; gap:10px; }
-
-  .toggle { display:flex; align-items:center; gap:6px; font-size:13px; }
-  .toggle input { width:18px; height:18px; }
-
-  .ft-search input {
-    width: 260px; max-width: 100%;
-    padding: 8px 10px; border-radius: 6px; border: 1px solid #2d3f3f;
-    background: #122; color: var(--text);
-  }
-
-  .btn {
-    padding:8px 12px; border-radius:6px; border:1px solid var(--accent);
-    background:var(--card-bg); color:var(--text); cursor:pointer;
-  }
-  .btn:hover { background: var(--card-bg-hover); }
-
-  /* ---------- Main content ---------- */
-  .squads-main { padding: 0 14px 14px; }
-
-  .section-h {
-    font-size: 18px; font-weight: 700; color: var(--accent);
-    margin: 2px 0 10px 0;
-  }
-
-  /* Left-aligned card grid with fixed max width per card */
-  .cards-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(360px, 420px));
-    gap: 16px;
-    justify-content: start;
-    margin-top: 4px;
-  }
-
-  .squad-card.card { padding: 12px 14px; }
-  .squad-card h4 { font-size: 16px; color: #9ffbe6; margin-bottom: 6px; }
-  .squad-meta { font-size: 13px; color: var(--text); }
-  .squad-meta b { color: var(--info); font-weight: 600; }
-  .squad-foot { display:flex; justify-content:flex-end; margin-top: 6px; }
-  .squad-link { font-size: 13px; color: var(--accent); text-decoration: none; }
-  .squad-link:hover { text-decoration: underline; }
-  .status-pill { display:inline-block; padding:3px 8px; border-radius:999px; font-size:12px; font-weight:700; }
-  .status-on  { background: var(--success); color:#000; }
-  .status-off { background: #3a4e4e; color:#fff; }
-
-  .empty {
-    background: var(--card-bg); border: 1px dashed #2d3f3f; border-radius: 8px;
-    padding: 16px; color: var(--info);
-  }
-
-  @media (max-width: 860px) {
-    .ft-right { width: 100%; justify-content: flex-end; }
-    .ft-search input { width: 100%; }
-  }
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 16px;
+    }
+    .squad-card {
+      background: var(--card-bg);
+      border: 1px solid #2d3f3f;
+      border-radius: 8px;
+      padding: 16px;
+    }
   </style>
 </head>
 <body>
-  <!-- layout.js injects the shell; everything below becomes .content -->
-
-  <!-- Top filter stripe -->
   <div class="filter-toolbar">
     <div class="ft-left">
-      <!-- Category filters are rendered by JS into this container -->
       <div class="cat-pills" id="cat-pills"></div>
-
       <label class="toggle"><input type="checkbox" id="myOnly" checked /> My squads</label>
       <label class="toggle"><input type="checkbox" id="activeOnly" /> Active only</label>
-      <div class="ft-search">
-        <input id="search" type="search" placeholder="Search name, leader, focus…" />
-      </div>
+      <div class="ft-search"><input id="search" type="search" placeholder="Search name, leader, focus…" /></div>
     </div>
     <div class="ft-right">
       <button id="btn-add" class="btn"><i class="fa fa-plus"></i> Add New Squad</button>
@@ -131,47 +91,30 @@
     </div>
   </div>
 
-  <!-- Main grid -->
   <main class="squads-main">
     <h2 class="section-h">Squads Overview</h2>
-    <div id="cards" class="cards-grid"></div>
+    <div id="cards-scroll">
+      <div id="cards" class="cards-grid">
+        <!-- Squad cards injected here -->
+      </div>
+    </div>
     <div id="s-msg" class="empty" style="display:none;"></div>
   </main>
 
-<script src="scripts/api.js"></script>
-<script src="scripts/session.js"></script>
-<script src="scripts/roles.js"></script>
-<script src="scripts/layout.js"></script>
-<script src="scripts/squads-cards.js"></script>
-
+  <script src="scripts/api.js"></script>
+  <script src="scripts/session.js"></script>
+  <script src="scripts/roles.js"></script>
+  <script src="scripts/layout.js"></script>
+  <script src="scripts/squads-cards.js"></script>
   <script>
-  // Minimal, safe: set the header title using the shared layout shell
-  document.addEventListener('DOMContentLoaded', async () => {
-    // Ensure user is logged in
-    PowerUp.session.requireLogin();
-
-    // Inject the shared shell (sidebar + header) only if it isn’t already there
-    if (!document.getElementById('pu-header')) {
-      PowerUp.layout.injectLayout();
-    }
-
-    // Set the in-header page title (the tab <title> tag you already have is fine)
-    PowerUp.layout.setPageTitle('PowerUp — Squads');
-
-    // Fill in the “Welcome, <name> / Level” bits in the header
-    await PowerUp.session.initHeader();
-  });
-</script>
-
-
+    document.addEventListener('DOMContentLoaded', async () => {
+      PowerUp.session.requireLogin();
+      if (!document.getElementById('pu-header')) {
+        PowerUp.layout.injectLayout();
+      }
+      PowerUp.layout.setPageTitle('PowerUp – Squads');
+      await PowerUp.session.initHeader();
+    });
+  </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
