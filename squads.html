@@ -3,22 +3,22 @@
 <head>
   <meta charset="UTF-8" />
 
-  <!-- EARLY AUTH GUARD -->
-  <script>
-  !function () {
-    try {
-      const s = JSON.parse(sessionStorage.getItem('pu.session') || 'null')
-             || JSON.parse(localStorage.getItem('powerup_session') || 'null');
-      if (!s || !s.employeeId) {
-        document.documentElement.style.visibility = 'hidden';
-        location.replace('login.html');
-      }
-    } catch {
+<!-- EARLY AUTH GUARD — must be the first thing in <head> -->
+<script>
+!function () {
+  try {
+    const s = JSON.parse(sessionStorage.getItem('pu.session') || 'null')
+           || JSON.parse(localStorage.getItem('powerup_session') || 'null');
+    if (!s || !s.employeeId) {
       document.documentElement.style.visibility = 'hidden';
       location.replace('login.html');
     }
-  }();
-  </script>
+  } catch {
+    document.documentElement.style.visibility = 'hidden';
+    location.replace('login.html');
+  }
+}();
+</script>
 
   <title>PowerUp — Squads</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -33,7 +33,6 @@
   <style>
   .filter-toolbar {
     position: relative;
-    top: auto;
     z-index: 1;
     background: var(--card-bg);
     border: 1px solid #2d3f3f;
@@ -45,15 +44,19 @@
     gap: 12px;
     flex-wrap: wrap;
   }
+
   .ft-left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .ft-right { margin-left: auto; display:flex; gap:10px; }
+
   .toggle { display:flex; align-items:center; gap:6px; font-size:13px; }
   .toggle input { width:18px; height:18px; }
+
   .ft-search input {
     width: 260px; max-width: 100%;
     padding: 8px 10px; border-radius: 6px; border: 1px solid #2d3f3f;
     background: #122; color: var(--text);
   }
+
   .btn {
     padding:8px 12px; border-radius:6px; border:1px solid var(--accent);
     background:var(--card-bg); color:var(--text); cursor:pointer;
@@ -62,24 +65,28 @@
 
   /* ---------- Main content ---------- */
   .squads-main {
+    padding: 0 14px 14px;
+    height: calc(100vh - 140px); /* matches header + toolbar offset */
     display: flex;
     flex-direction: column;
-    padding: 0 14px 14px;
-    height: calc(100vh - 140px); /* adjust header offset as needed */
-    box-sizing: border-box;
   }
+
+  .squads-main .card {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 12px 14px;
+  }
+
+  .squads-scroll {
+    flex: 1;
+    overflow-y: auto;
+    padding-right: 6px; /* avoid scrollbar overlap */
+  }
+
   .section-h {
     font-size: 18px; font-weight: 700; color: var(--accent);
     margin: 2px 0 10px 0;
-    flex-shrink: 0;
-  }
-
-  /* Scrollable viewport for cards */
-  .squads-viewport {
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
-    padding-bottom: 12px;
   }
 
   .cards-grid {
@@ -102,8 +109,11 @@
   .status-off { background: #3a4e4e; color:#fff; }
 
   .empty {
-    background: var(--card-bg); border: 1px dashed #2d3f3f; border-radius: 8px;
-    padding: 16px; color: var(--info);
+    background: var(--card-bg);
+    border: 1px dashed #2d3f3f;
+    border-radius: 8px;
+    padding: 16px;
+    color: var(--info);
   }
 
   @media (max-width: 860px) {
@@ -113,10 +123,13 @@
   </style>
 </head>
 <body>
+  <!-- layout.js injects the shell -->
+
   <!-- Top filter stripe -->
   <div class="filter-toolbar">
     <div class="ft-left">
       <div class="cat-pills" id="cat-pills"></div>
+
       <label class="toggle"><input type="checkbox" id="myOnly" checked /> My squads</label>
       <label class="toggle"><input type="checkbox" id="activeOnly" /> Active only</label>
       <div class="ft-search">
@@ -132,10 +145,12 @@
 
   <!-- Main grid -->
   <main class="squads-main">
-    <h2 class="section-h">Squads Overview</h2>
-    <div class="squads-viewport">
-      <div id="cards" class="cards-grid"></div>
-      <div id="s-msg" class="empty" style="display:none;"></div>
+    <div class="card">
+      <h2 class="section-h">Squads Overview</h2>
+      <div class="squads-scroll">
+        <div id="cards" class="cards-grid"></div>
+        <div id="s-msg" class="empty" style="display:none;"></div>
+      </div>
     </div>
   </main>
 
