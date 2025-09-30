@@ -64,6 +64,7 @@
   }
   .btn:hover { background: var(--card-bg-hover); }
 
+  /* ---------- Main content ---------- */
   .squads-main { padding: 0 14px 14px; }
 
   .section-h {
@@ -100,10 +101,19 @@
     .ft-search input { width: 100%; }
   }
 
-  /* NEW: Scroll wrapper for squad cards */
+  /* NEW: page-wrap ensures bottom gap like squad-details */
+  .page-wrap {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    margin-bottom: 56px; /* keep safe gap at bottom */
+  }
+
+  /* NEW: scroll wrapper for squad cards */
   #cards-scroll {
     overflow-y: auto;
-    max-height: calc(100vh - 220px); /* adjust offset for header+toolbar+heading */
+    flex: 1;
+    max-height: calc(100vh - 220px); /* header+filters+heading */
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
@@ -130,14 +140,17 @@
     </div>
   </div>
 
-  <main class="squads-main">
-    <h2 class="section-h">Squads Overview</h2>
-    <!-- NEW scroll wrapper -->
-    <div id="cards-scroll">
-      <div id="cards" class="cards-grid"></div>
-    </div>
-    <div id="s-msg" class="empty" style="display:none;"></div>
-  </main>
+  <!-- NEW: page-wrap applied here -->
+  <div class="page-wrap">
+    <main class="squads-main">
+      <h2 class="section-h">Squads Overview</h2>
+      <!-- NEW scroll wrapper -->
+      <div id="cards-scroll">
+        <div id="cards" class="cards-grid"></div>
+      </div>
+      <div id="s-msg" class="empty" style="display:none;"></div>
+    </main>
+  </div>
 
 <script src="scripts/api.js"></script>
 <script src="scripts/session.js"></script>
