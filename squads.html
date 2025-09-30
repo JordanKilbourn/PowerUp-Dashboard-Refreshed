@@ -34,10 +34,9 @@
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
 
   <style>
-  /* Filter toolbar (non-sticky; sits right under the header divider) */
+  /* Filter toolbar */
   .filter-toolbar {
     position: relative;
-    top: auto;
     z-index: 1;
     background: var(--card-bg);
     border: 1px solid #2d3f3f;
@@ -69,34 +68,14 @@
   .btn:hover { background: var(--card-bg-hover); }
 
   /* ---------- Main content ---------- */
-  .squads-main {
-    padding: 0 14px 14px;
-    height: calc(100vh - 140px); /* matches header + toolbar offset */
-    display: flex;
-    flex-direction: column;
-  }
-
-  .squads-main .card {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    padding: 12px 14px;
-  }
-
-  .squads-scroll {
-    flex: 1;
-    overflow-y: auto;
-    overflow-x: hidden;
-    min-height: 0; /* required for flexbox scrolling */
-    padding-right: 6px; /* avoid scrollbar overlap */
-  }
+  .squads-main { padding: 0 14px 14px; }
 
   .section-h {
     font-size: 18px; font-weight: 700; color: var(--accent);
     margin: 2px 0 10px 0;
   }
 
-  /* Left-aligned card grid with fixed max width per card */
+  /* Cards grid */
   .cards-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(360px, 420px));
@@ -151,8 +130,8 @@
 
   <!-- Main grid -->
   <main class="squads-main">
+    <h2 class="section-h">Squads Overview</h2>
     <div class="card">
-      <h2 class="section-h">Squads Overview</h2>
       <div class="squads-scroll">
         <div id="cards" class="cards-grid"></div>
         <div id="s-msg" class="empty" style="display:none;"></div>
@@ -169,20 +148,16 @@
   <script>
   // Minimal, safe: set the header title using the shared layout shell
   document.addEventListener('DOMContentLoaded', async () => {
-    // Ensure user is logged in
     PowerUp.session.requireLogin();
 
-    // Inject the shared shell (sidebar + header) only if it isn’t already there
     if (!document.getElementById('pu-header')) {
       PowerUp.layout.injectLayout();
     }
 
-    // Set the in-header page title
     PowerUp.layout.setPageTitle('PowerUp — Squads');
-
-    // Fill in the “Welcome, <name> / Level” bits in the header
     await PowerUp.session.initHeader();
   });
-</script>
+  </script>
+
 </body>
 </html>
