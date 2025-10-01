@@ -68,12 +68,18 @@
     }
     .btn:hover { background:var(--card-bg-hover); }
 
-    /* ---- Main content ---- */
-    .squads-main { padding:0 14px 14px; }
 
     .section-h { font-size:18px; font-weight:700; color:var(--accent); margin:2px 0 10px 0; }
 
+.squads-main {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - var(--header-h) - 60px); /* leave gap for header + filters */
+  min-height: 0; /* allow flex children to shrink */
+}
+
 .squads-card {
+  flex: 1;
   display: flex;
   flex-direction: column;
   margin: 0;
@@ -81,14 +87,12 @@
   background: var(--card-bg);
   border: 1px solid #2d3f3f;
   border-radius: 9px;
-
-  /* Critical fix: cap height relative to viewport */
-  max-height: calc(100vh - 200px); /* adjust 200px for header + filters */
   overflow: hidden;
 }
 
 .squads-scroll {
   flex: 1;
+  min-height: 0; /* critical to prevent overflow */
   overflow-y: auto;
   padding: 12px;
 }
@@ -197,5 +201,6 @@
   </script>
 </body>
 </html>
+
 
 
