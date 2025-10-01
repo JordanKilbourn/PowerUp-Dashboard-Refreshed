@@ -69,35 +69,36 @@
     .btn:hover { background:var(--card-bg-hover); }
     .section-h { font-size:18px; font-weight:700; color:var(--accent); margin:2px 0 10px 0; }
 
-/* Make the squads-main itself act like the PU content container */
+/* Main container: align content with header/filter */
 .squads-main {
+  padding: 0 14px 14px;   /* left/right + bottom gap */
   display: flex;
   flex-direction: column;
-  flex: 1;                /* take available height */
-  min-height: 0;          /* allow flex children to shrink */
-  padding: 0 14px 14px;   /* restore the side/bottom gap */
-  box-sizing: border-box; /* important for padding + flex height */
+  gap: 10px;              /* space between section title and container */
+  height: 100%;           /* inherit from #pu-content */
+  box-sizing: border-box; 
 }
 
-/* Squads container behaves like the members/activities box */
+/* Card wrapper: acts like members/activities boxes */
 .squads-card {
   display: flex;
   flex-direction: column;
-  flex: 1;
-  min-height: 0;
+  flex: 1;                /* fill remaining height of squads-main */
+  min-height: 0;          /* critical for flex children */
   background: var(--card-bg);
   border: 1px solid #2d3f3f;
   border-radius: 9px;
   overflow: hidden;
 }
 
-/* Inner scroll region */
+/* Scroll region for squad cards */
 .squads-scroll {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   padding: 12px;
 }
+
 
     .squads-scroll::-webkit-scrollbar { width: 8px; }
     .squads-scroll::-webkit-scrollbar-thumb {
@@ -202,6 +203,7 @@
   </script>
 </body>
 </html>
+
 
 
 
