@@ -72,13 +72,13 @@
 .squads-main {
   display: flex;
   flex-direction: column;
-  height: 100%; /* let it fill parent (#pu-content) */
-  padding: 0 14px 14px; /* restores the left/right/bottom gap */
+  height: 100%; /* Fill parent (#pu-content) */
+  padding: 0 14px 14px; /* Left, right, and bottom gaps */
   box-sizing: border-box;
 }
 
 .squads-card {
-  flex: 1; /* take up available vertical space */
+  flex: 1;
   display: flex;
   flex-direction: column;
   background: var(--card-bg);
@@ -86,16 +86,17 @@
   border-radius: 9px;
   overflow: hidden;
 
-  /* Ensure the green box respects viewport like pu-content */
-  min-height: 0;
+  /* REMOVE this, it was overriding the bottom gap */
+  /* margin-bottom: 14px; */
 }
 
 .squads-scroll {
   flex: 1;
   overflow-y: auto;
   padding: 12px;
-  min-height: 0; /* critical for flex children */
+  min-height: 0;
 }
+
     
     .squads-scroll::-webkit-scrollbar { width: 8px; }
     .squads-scroll::-webkit-scrollbar-thumb {
@@ -200,6 +201,7 @@
   </script>
 </body>
 </html>
+
 
 
 
