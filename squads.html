@@ -34,47 +34,69 @@
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
 
   <style>
-    /* Filter toolbar (non-sticky; sits right under the header divider) */
-    .filter-toolbar {
-      position: relative;
-      top: auto;
-      z-index: 1;
-      background: var(--card-bg);
-      border: 1px solid #2d3f3f;
-      border-radius: 8px;
-      margin: 6px 14px 12px 14px;
-      padding: 10px 12px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      flex-wrap: wrap;
-    }
+   /* Filter toolbar (non-sticky; sits right under the header divider) */
+.filter-toolbar {
+  position: relative;
+  top: auto;
+  z-index: 1;
+  background: var(--card-bg);
+  border: 1px solid #2d3f3f;
+  border-radius: 8px;
+  margin: 6px 14px 12px 14px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
 
-    .ft-left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-    .ft-right { margin-left: auto; display:flex; gap:10px; }
+.ft-left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ft-right { margin-left: auto; display: flex; gap: 10px; }
 
-    .toggle { display:flex; align-items:center; gap:6px; font-size:13px; }
-    .toggle input { width:18px; height:18px; }
+.toggle { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.toggle input { width: 18px; height: 18px; }
 
-    .ft-search input {
-      width:260px; max-width:100%;
-      padding:8px 10px; border-radius:6px; border:1px solid #2d3f3f;
-      background:#122; color:var(--text);
-    }
+.ft-search input {
+  width: 260px; max-width: 100%;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid #2d3f3f;
+  background: #122;
+  color: var(--text);
+}
 
-    .btn {
-      padding:8px 12px; border-radius:6px; border:1px solid var(--accent);
-      background:var(--card-bg); color:var(--text); cursor:pointer;
-    }
-    .btn:hover { background:var(--card-bg-hover); }
-    .section-h { font-size:18px; font-weight:700; color:var(--accent); margin:2px 0 10px 0; }
+.btn {
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--accent);
+  background: var(--card-bg);
+  color: var(--text);
+  cursor: pointer;
+}
+.btn:hover { background: var(--card-bg-hover); }
+
+.section-h {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--accent);
+  margin: 2px 0 10px 0;
+}
+
+/* Main container for squads page */
+#pu-content {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  padding: 10px 16px 10px 72px; /* global page gap */
+  box-sizing: border-box;
+}
 
 .squads-main {
   display: flex;
   flex-direction: column;
   flex: 1;
   min-height: 0;
-  padding: 0 14px 14px; /* restore consistent page padding */
+  padding-bottom: 14px; /* bottom gap only */
 }
 
 .squads-card {
@@ -86,7 +108,7 @@
   background: var(--card-bg);
   border: 1px solid #2d3f3f;
   border-radius: 9px;
-  margin-bottom: 8px; /* actual bottom gap */
+  margin-bottom: 8px; /* slim bottom spacing */
 }
 
 .squads-scroll {
@@ -96,53 +118,59 @@
   min-height: 0;
 }
 
-    #pu-content {
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-  padding: 10px 16px 10px 72px; /* this is where the page gap comes from */
-  box-sizing: border-box;
+/* Custom scrollbar styling */
+.squads-scroll::-webkit-scrollbar { width: 8px; }
+.squads-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.2);
+  border-radius: 4px;
 }
-    
-    .squads-scroll::-webkit-scrollbar { width: 8px; }
-    .squads-scroll::-webkit-scrollbar-thumb {
-      background: rgba(255,255,255,0.2);
-      border-radius: 4px;
-    }
-    .squads-scroll::-webkit-scrollbar-thumb:hover {
-      background: rgba(255,255,255,0.35);
-    }
+.squads-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(255,255,255,0.35);
+}
 
-    .cards-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(360px, 420px));
-      gap: 16px;
-      justify-content: start;
-      margin-top: 4px;
-    }
-    .squad-card.card { padding: 12px 14px; }
-    .squad-card h4 { font-size:16px; color:#9ffbe6; margin-bottom:6px; }
-    .squad-meta { font-size:13px; color:var(--text); }
-    .squad-meta b { color:var(--info); font-weight:600; }
-    .squad-foot { display:flex; justify-content:flex-end; margin-top:6px; }
-    .squad-link { font-size:13px; color:var(--accent); text-decoration:none; }
-    .squad-link:hover { text-decoration:underline; }
-    .status-pill { display:inline-block; padding:3px 8px; border-radius:999px; font-size:12px; font-weight:700; }
-    .status-on  { background: var(--success); color:#000; }
-    .status-off { background: #3a4e4e; color:#fff; }
+/* Squad cards grid */
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 420px));
+  gap: 16px;
+  justify-content: start;
+  margin-top: 4px;
+}
 
-    .empty {
-      background: var(--card-bg);
-      border: 1px dashed #2d3f3f;
-      border-radius: 8px;
-      padding: 16px;
-      color: var(--info);
-    }
+.squad-card.card { padding: 12px 14px; }
+.squad-card h4 { font-size: 16px; color: #9ffbe6; margin-bottom: 6px; }
 
-    @media (max-width: 860px) {
-      .ft-right { width:100%; justify-content:flex-end; }
-      .ft-search input { width:100%; }
-    }
+.squad-meta { font-size: 13px; color: var(--text); }
+.squad-meta b { color: var(--info); font-weight: 600; }
+
+.squad-foot { display: flex; justify-content: flex-end; margin-top: 6px; }
+.squad-link { font-size: 13px; color: var(--accent); text-decoration: none; }
+.squad-link:hover { text-decoration: underline; }
+
+.status-pill {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.status-on  { background: var(--success); color: #000; }
+.status-off { background: #3a4e4e; color: #fff; }
+
+.empty {
+  background: var(--card-bg);
+  border: 1px dashed #2d3f3f;
+  border-radius: 8px;
+  padding: 16px;
+  color: var(--info);
+}
+
+/* Responsive tweaks */
+@media (max-width: 860px) {
+  .ft-right { width: 100%; justify-content: flex-end; }
+  .ft-search input { width: 100%; }
+}
+
   </style>
 </head>
 <body>
@@ -207,6 +235,7 @@
   </script>
 </body>
 </html>
+
 
 
 
