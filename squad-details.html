@@ -27,14 +27,29 @@
     <style>
       :root{ --header-h:72px; --panel:var(--card-bg); --panel-2:#101617; --chip-border:rgba(255,255,255,.08); }
 
-      /* page shell + true bottom gap OUTSIDE the cards */
-      html,body{ height:100%; }
-      body{ min-height:100vh; }
-      .page-wrap{
-        width:100%; margin:0; padding:14px; display:grid; gap:14px;
-        border-bottom:1px solid transparent; /* anti-collapse */
-        margin-bottom:56px;                  /* ← real gap at the bottom */
-      }
+/* Fix root sizing */
+html, body {
+  height: auto;       /* instead of 100% */
+  min-height: 100vh;  /* ensures full-viewport baseline */
+  overflow-y: auto;   /* allow page scroll when needed */
+}
+
+/* Page wrapper should flex naturally */
+.page-wrap {
+  width: 100%;
+  margin: 0;
+  padding: 14px;
+  display: grid;
+  gap: 14px;
+
+  /* Keep your bottom spacing */
+  border-bottom: 1px solid transparent; /* anti-collapse */
+  margin-bottom: 56px;
+
+  /* REMOVE any hard height constraints (important!) */
+  min-height: auto;
+  height: auto;
+}
 
       .btn{ padding:8px 12px; border-radius:8px; border:1px solid var(--accent); background:var(--card-bg); color:var(--text); cursor:pointer;}
       .btn:hover{ background:var(--card-bg-hover); }
@@ -330,3 +345,4 @@
     <script src="scripts/squad-details.js"></script>
   </body>
 </html>
+
