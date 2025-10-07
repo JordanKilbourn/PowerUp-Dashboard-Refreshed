@@ -196,6 +196,38 @@
       overflow: visible !important;
     }
   }
+
+   /* --- Unlock scrolling when browser height is smaller than content --- */
+@media (max-width: 1100px) {
+  #pu-content.content {
+    height: auto !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important; /* still prevent sideways scroll */
+  }
+
+  html, body {
+    overflow-y: auto !important;
+  }
+
+  .page-wrap {
+    min-height: auto !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .work {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 18px !important;
+  }
+
+  .members-scroll,
+  .acts-scroll {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+}
+
 </style>
 
 
@@ -391,6 +423,7 @@
     <script src="scripts/squad-details.js"></script>
   </body>
 </html>
+
 
 
 
