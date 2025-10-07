@@ -32,23 +32,36 @@
     --chip-border: rgba(255,255,255,.08); 
   }
 
-  /* === ROOT + PAGE STRUCTURE === */
+  /* === BASE STRUCTURE === */
   html, body {
-    min-height: 100vh;           /* base viewport coverage */
-    height: auto;                /* allow full natural height */
-    overflow-y: auto;            /* page scroll when needed */
+    height: 100%;
+    overflow: hidden; /* prevent double scroll */
   }
 
+  /* Scrollable main content (below header) */
+  #pu-content.content {
+    position: relative;
+    margin-left: var(--sidebar-w);
+    height: calc(100vh - var(--header-h));
+    overflow-y: auto;
+    overflow-x: hidden;
+    scroll-behavior: smooth;
+    padding: 10px 16px 10px 2px;
+    box-sizing: border-box;
+  }
+
+  /* Page wrap inside content */
   .page-wrap {
     width: 100%;
     margin: 0;
     padding: 14px;
     display: grid;
     gap: 14px;
-    border-bottom: 1px solid transparent; /* anti-collapse */
+    border-bottom: 1px solid transparent;
     margin-bottom: 56px;
     min-height: auto;
     height: auto;
+    overflow: visible;
   }
 
   /* === UI ELEMENTS === */
@@ -93,13 +106,12 @@
 
   .hero-bar { position:absolute; top:10px; right:12px; display:flex; align-items:center; }
   .hero-bar .btn { line-height:1; }
-
   @media (max-width:700px) {
     .info-row { padding-right:80px; } 
     .hero-bar { top:8px; right:8px; }
   }
 
-  /* === WORK GRID (Members + Activities) === */
+  /* === MAIN LAYOUT GRID === */
   .work { display:grid; grid-template-columns:360px 1fr; gap:12px; align-items:start; }
   @media (max-width:1100px){ .work { grid-template-columns:1fr; } }
 
@@ -119,7 +131,7 @@
 
   .acts-scroll { overflow:auto; border:1px solid #263636; border-radius:8px; }
 
-  /* === Activities Table === */
+  /* === ACTIVITIES TABLE === */
   #activities-table { width:100%; border-collapse:separate; border-spacing:0 10px; font-size:13px; table-layout:fixed; }
   #activities-table col.title { width:34%; } 
   #activities-table col.status { width:12%; } 
@@ -134,12 +146,7 @@
   #activities-table tbody td:last-child { border-right:1px solid var(--chip-border); border-top-right-radius:12px; border-bottom-right-radius:12px; }
   #activities-table .row-actions { display:flex; justify-content:flex-end; gap:8px; }
 
-  /* === Scrollbars === */
-  .members-scroll::-webkit-scrollbar, .acts-scroll::-webkit-scrollbar { width:10px; height:10px; }
-  .members-scroll::-webkit-scrollbar-thumb, .acts-scroll::-webkit-scrollbar-thumb { background:#223035; border-radius:8px; border:2px solid #0b1328; }
-  .members-scroll::-webkit-scrollbar-track, .acts-scroll::-webkit-scrollbar-track { background:#0b1328; }
-
-  /* === Modal === */
+  /* === MODAL === */
   .modal { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.5); z-index:50; }
   .modal.show { display:flex; }
   .modal .panel { width:min(520px,92vw); background:var(--card-bg); border:1px solid var(--accent); border-radius:10px; padding:16px; box-shadow:0 10px 30px rgba(0,0,0,.45); }
@@ -152,7 +159,7 @@
 
   #btn-addmember[hidden] { display:none !important; }
 
-  /* === Gantt View === */
+  /* === GANTT VIEW === */
   #gantt-container { position:relative; min-height:320px; }
   .gantt { position:relative; }
   .gantt .grid { display:grid; grid-template-columns:220px 1fr; gap:12px; }
@@ -167,69 +174,48 @@
   .gantt .tick { position:absolute; top:0; height:100%; border-left:1px solid rgba(255,255,255,.08); }
   .gantt .tick > span { position:absolute; top:-18px; transform:translateX(-50%); font-size:11px; color:#9ca3af; white-space:nowrap; }
 
-  /* === RESPONSIVE SCROLL FIX (clean version) === */
+  /* === THEMED SCROLLBARS === */
+  #pu-content.content::-webkit-scrollbar,
+  .members-scroll::-webkit-scrollbar,
+  .acts-scroll::-webkit-scrollbar {
+    width: 10px;
+  }
+
+  #pu-content.content::-webkit-scrollbar-thumb,
+  .members-scroll::-webkit-scrollbar-thumb,
+  .acts-scroll::-webkit-scrollbar-thumb {
+    background: rgba(65, 94, 94, 0.6);
+    border-radius: 10px;
+    border: 2px solid #0b1328;
+  }
+
+  #pu-content.content::-webkit-scrollbar-thumb:hover,
+  .members-scroll::-webkit-scrollbar-thumb:hover,
+  .acts-scroll::-webkit-scrollbar-thumb:hover {
+    background: rgba(120, 220, 200, 0.7);
+  }
+
+  #pu-content.content::-webkit-scrollbar-track,
+  .members-scroll::-webkit-scrollbar-track,
+  .acts-scroll::-webkit-scrollbar-track {
+    background: #0b1328;
+  }
+
+  /* === RESPONSIVE ADJUSTMENTS === */
   @media (max-width: 1100px) {
-    html, body {
-      overflow-y: auto !important;
-      height: auto !important;
-      min-height: 100vh !important;
-    }
-
-    .page-wrap {
-      display: flex !important;
-      flex-direction: column !important;
-      height: auto !important;
-      min-height: auto !important;
-      overflow: visible !important;
-      padding-bottom: 24px !important; /* restore bottom spacing */
-    }
-
     .work {
-      display: flex !important;
-      flex-direction: column !important;
-      gap: 18px !important; /* restore vertical gap between sections */
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
     }
 
     .members-scroll,
     .acts-scroll {
-      max-height: none !important;
-      overflow: visible !important;
+      max-height: none;
+      overflow: auto;
     }
   }
-
-   /* --- Unlock scrolling when browser height is smaller than content --- */
-@media (max-width: 1100px) {
-  #pu-content.content {
-    height: auto !important;
-    overflow-y: auto !important;
-    overflow-x: hidden !important; /* still prevent sideways scroll */
-  }
-
-  html, body {
-    overflow-y: auto !important;
-  }
-
-  .page-wrap {
-    min-height: auto !important;
-    height: auto !important;
-    overflow: visible !important;
-  }
-
-  .work {
-    display: flex !important;
-    flex-direction: column !important;
-    gap: 18px !important;
-  }
-
-  .members-scroll,
-  .acts-scroll {
-    max-height: none !important;
-    overflow: visible !important;
-  }
-}
-
 </style>
-
 
   </head>
   <body>
@@ -423,6 +409,7 @@
     <script src="scripts/squad-details.js"></script>
   </body>
 </html>
+
 
 
 
