@@ -167,6 +167,24 @@
   .gantt .ticks { position:relative; height:20px; }
   .gantt .tick { position:absolute; top:0; height:100%; border-left:1px solid rgba(255,255,255,.08); }
   .gantt .tick > span { position:absolute; top:-18px; transform:translateX(-50%); font-size:11px; color:#9ca3af; white-space:nowrap; }
+
+    /* --- Safe fix: allow full-page scroll when .work stacks vertically --- */
+@media (max-width: 1100px) {
+  body {
+    overflow-y: auto !important; /* ensure document scrolls */
+  }
+
+  .page-wrap {
+    display: block !important;   /* grid + auto height can conflict */
+    min-height: auto !important;
+    height: auto !important;
+  }
+
+  .work {
+    display: block !important;   /* stack vertically without clipping */
+  }
+}
+
 </style>
 
   </head>
@@ -361,5 +379,6 @@
     <script src="scripts/squad-details.js"></script>
   </body>
 </html>
+
 
 
