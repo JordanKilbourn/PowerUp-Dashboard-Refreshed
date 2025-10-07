@@ -380,5 +380,77 @@
     activities,
     addRows, // 👈 restored
   };
+
+    // =====================================================
+  // ✅ Squad & Employee Helper Functions for Dashboard
+  // =====================================================
+
+  // Fetch all employees (used to populate leader/member lists)
+  P.getEmployees = async function () {
+    try {
+      const rows = await P.api.getRowsByTitle(P.api.SHEETS.EMPLOYEE_MASTER);
+      return rows.map(r => ({
+        id: r["Employee ID"] || r["ID"] || "",
+        name: r["Name"] || r["Employee Name"] || "",
+        level: r["Level"] || "",
+        dept: r["Department"] || ""
+      })).filter(e => e.name);
+    } catch (err) {
+      console.error("getEmployees error:", err);
+      return [];
+    }
+  };
+
+  // Lookup one employee by name (case-insensitive)
+  P.findEmployeeByName = async function (name) {
+    if (!name) return null;
+    const employees = await P.getEmployees();
+    const n = String(name).trim().toLowerCase();
+    return employees.find(e => e.name.trim().toLowerCase() === n) || null;
+  };
+
+  // Fetch all squads (used for ID auto-increment and reload)
+  P.getSquads = async function () {
+    try {
+      const rows = await P.api.getRowsByTitle(P.api.SHEETS.SQUADS);
+      return rows.map(r => ({
+        id: r["Squad ID"] || "",
+        name: r["Squad Name"] || "",
+        category: r["Category"] || "",
+        objective: r["Objective"] || "",
+        active: r["Active"] === true || String(r["Active"]).toLowerCase() === "true"
+      }));
+    } catch (err) {
+      console.error("getSquads error:", err);
+      return [];
+    }
+  };
+
+  // Write a new Squad record
+  P.addSquad = async function (rowData) {
+    try {
+      const res = await P.api.addRows(P.api.SHEETS.SQUADS, [rowData]);
+      console.info("✅ Squad added:", res);
+      return res;
+    } catch (err) {
+      console.error("addSquad error:", err);
+      alert("Error creating squad. Check console for details.");
+      throw err;
+    }
+  };
+
+  // Write a new Squad Member record
+  P.addSquadMember = async function (rowData) {
+    try {
+      const res = await P.api.addRows(P.api.SHEETS.SQUAD_MEMBERS, [rowData]);
+      console.info("✅ Squad member added:", res);
+      return res;
+    } catch (err) {
+      console.error("addSquadMember error:", err);
+      alert("Error adding squad member. Check console for details.");
+      throw err;
+    }
+  };
+
   window.PowerUp = P;
 })(window.PowerUp || {});
