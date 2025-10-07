@@ -24,7 +24,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
     <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
 
-  <style>
+ <style>
   :root { 
     --header-h: 72px; 
     --panel: var(--card-bg); 
@@ -32,11 +32,11 @@
     --chip-border: rgba(255,255,255,.08); 
   }
 
-  /* --- SAFE SCROLL FIX --- */
+  /* === ROOT + PAGE STRUCTURE === */
   html, body {
-    min-height: 100vh;            /* ensures base viewport coverage */
-    height: auto !important;       /* allow content to expand naturally */
-    overflow-y: auto !important;   /* enable full-page scroll when needed */
+    min-height: 100vh;           /* base viewport coverage */
+    height: auto;                /* allow full natural height */
+    overflow-y: auto;            /* page scroll when needed */
   }
 
   .page-wrap {
@@ -45,17 +45,13 @@
     padding: 14px;
     display: grid;
     gap: 14px;
-
     border-bottom: 1px solid transparent; /* anti-collapse */
     margin-bottom: 56px;
-
-    /* remove height locks */
-    min-height: auto !important;
-    height: auto !important;
+    min-height: auto;
+    height: auto;
   }
 
-  /* --- existing layout + UI rules below --- */
-
+  /* === UI ELEMENTS === */
   .btn { padding:8px 12px; border-radius:8px; border:1px solid var(--accent); background:var(--card-bg); color:var(--text); cursor:pointer; }
   .btn:hover { background:var(--card-bg-hover); }
   .btn.primary { background:var(--accent); color:#000; border-color:var(--accent); }
@@ -85,7 +81,7 @@
   .note-tile { background:var(--panel-2); border:1px solid var(--chip-border); border-radius:10px; padding:10px; }
   .note-tile .h { font-size:12px; color:var(--info); font-weight:600; margin-bottom:4px; }
 
-  /* Objective full-width; KPIs compact directly under it */
+  /* === OBJECTIVE + KPI GRID === */
   .objective-wrap { display:block; margin-top:10px; }
   .mini-kpis {
     display:grid; grid-template-columns:repeat(4, minmax(120px,1fr));
@@ -97,11 +93,13 @@
 
   .hero-bar { position:absolute; top:10px; right:12px; display:flex; align-items:center; }
   .hero-bar .btn { line-height:1; }
+
   @media (max-width:700px) {
     .info-row { padding-right:80px; } 
     .hero-bar { top:8px; right:8px; }
   }
 
+  /* === WORK GRID (Members + Activities) === */
   .work { display:grid; grid-template-columns:360px 1fr; gap:12px; align-items:start; }
   @media (max-width:1100px){ .work { grid-template-columns:1fr; } }
 
@@ -121,7 +119,7 @@
 
   .acts-scroll { overflow:auto; border:1px solid #263636; border-radius:8px; }
 
-  /* Activities table as “row cards” */
+  /* === Activities Table === */
   #activities-table { width:100%; border-collapse:separate; border-spacing:0 10px; font-size:13px; table-layout:fixed; }
   #activities-table col.title { width:34%; } 
   #activities-table col.status { width:12%; } 
@@ -136,11 +134,12 @@
   #activities-table tbody td:last-child { border-right:1px solid var(--chip-border); border-top-right-radius:12px; border-bottom-right-radius:12px; }
   #activities-table .row-actions { display:flex; justify-content:flex-end; gap:8px; }
 
-  /* Scrollbars (restored) */
+  /* === Scrollbars === */
   .members-scroll::-webkit-scrollbar, .acts-scroll::-webkit-scrollbar { width:10px; height:10px; }
   .members-scroll::-webkit-scrollbar-thumb, .acts-scroll::-webkit-scrollbar-thumb { background:#223035; border-radius:8px; border:2px solid #0b1328; }
   .members-scroll::-webkit-scrollbar-track, .acts-scroll::-webkit-scrollbar-track { background:#0b1328; }
 
+  /* === Modal === */
   .modal { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.5); z-index:50; }
   .modal.show { display:flex; }
   .modal .panel { width:min(520px,92vw); background:var(--card-bg); border:1px solid var(--accent); border-radius:10px; padding:16px; box-shadow:0 10px 30px rgba(0,0,0,.45); }
@@ -153,7 +152,7 @@
 
   #btn-addmember[hidden] { display:none !important; }
 
-  /* --- Gantt view --- */
+  /* === Gantt View === */
   #gantt-container { position:relative; min-height:320px; }
   .gantt { position:relative; }
   .gantt .grid { display:grid; grid-template-columns:220px 1fr; gap:12px; }
@@ -168,24 +167,37 @@
   .gantt .tick { position:absolute; top:0; height:100%; border-left:1px solid rgba(255,255,255,.08); }
   .gantt .tick > span { position:absolute; top:-18px; transform:translateX(-50%); font-size:11px; color:#9ca3af; white-space:nowrap; }
 
-    /* --- Safe fix: allow full-page scroll when .work stacks vertically --- */
-@media (max-width: 1100px) {
-  body {
-    overflow-y: auto !important; /* ensure document scrolls */
-  }
+  /* === RESPONSIVE SCROLL FIX (clean version) === */
+  @media (max-width: 1100px) {
+    html, body {
+      overflow-y: auto !important;
+      height: auto !important;
+      min-height: 100vh !important;
+    }
 
-  .page-wrap {
-    display: block !important;   /* grid + auto height can conflict */
-    min-height: auto !important;
-    height: auto !important;
-  }
+    .page-wrap {
+      display: flex !important;
+      flex-direction: column !important;
+      height: auto !important;
+      min-height: auto !important;
+      overflow: visible !important;
+      padding-bottom: 24px !important; /* restore bottom spacing */
+    }
 
-  .work {
-    display: block !important;   /* stack vertically without clipping */
-  }
-}
+    .work {
+      display: flex !important;
+      flex-direction: column !important;
+      gap: 18px !important; /* restore vertical gap between sections */
+    }
 
+    .members-scroll,
+    .acts-scroll {
+      max-height: none !important;
+      overflow: visible !important;
+    }
+  }
 </style>
+
 
   </head>
   <body>
@@ -379,6 +391,7 @@
     <script src="scripts/squad-details.js"></script>
   </body>
 </html>
+
 
 
 
