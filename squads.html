@@ -31,7 +31,7 @@
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
 
   <style>
-/* — your original styling untouched — */
+/* === ORIGINAL PAGE STYLING (UNTOUCHED) === */
 .filter-toolbar {
   position: relative;
   top: auto;
@@ -46,13 +46,10 @@
   gap: 12px;
   flex-wrap: wrap;
 }
-
 .ft-left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .ft-right { margin-left: auto; display: flex; gap: 10px; }
-
 .toggle { display: flex; align-items: center; gap: 6px; font-size: 13px; }
 .toggle input { width: 18px; height: 18px; }
-
 .ft-search input {
   width: 260px; max-width: 100%;
   padding: 8px 10px;
@@ -61,7 +58,6 @@
   background: #122;
   color: var(--text);
 }
-
 .btn {
   padding: 8px 12px;
   border-radius: 6px;
@@ -71,14 +67,12 @@
   cursor: pointer;
 }
 .btn:hover { background: var(--card-bg-hover); }
-
 .section-h {
   font-size: 18px;
   font-weight: 700;
   color: var(--accent);
   margin: 2px 0 10px 0;
 }
-
 #pu-content {
   display: flex;
   flex-direction: column;
@@ -86,7 +80,6 @@
   padding: 10px 16px 10px 72px;
   box-sizing: border-box;
 }
-
 .squads-main {
   display: flex;
   flex-direction: column;
@@ -94,7 +87,6 @@
   min-height: 0;
   margin: 0 8px 12px 8px;
 }
-
 .squads-card {
   display: flex;
   flex-direction: column;
@@ -106,14 +98,12 @@
   border-radius: 9px;
   margin-bottom: 4px;
 }
-
 .squads-scroll {
   flex: 1;
   overflow-y: auto;
   padding: 10px;
   min-height: 0;
 }
-
 .cards-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(360px, 420px));
@@ -121,17 +111,13 @@
   justify-content: start;
   margin-top: 4px;
 }
-
 .squad-card.card { padding: 12px 14px; }
 .squad-card h4 { font-size: 16px; color: #9ffbe6; margin-bottom: 6px; }
-
 .squad-meta { font-size: 13px; color: var(--text); }
 .squad-meta b { color: var(--info); font-weight: 600; }
-
 .squad-foot { display: flex; justify-content: flex-end; margin-top: 6px; }
 .squad-link { font-size: 13px; color: var(--accent); text-decoration: none; }
 .squad-link:hover { text-decoration: underline; }
-
 .status-pill {
   display: inline-block;
   padding: 3px 8px;
@@ -141,7 +127,6 @@
 }
 .status-on  { background: var(--success); color: #000; }
 .status-off { background: #3a4e4e; color: #fff; }
-
 .empty {
   background: var(--card-bg);
   border: 1px dashed #2d3f3f;
@@ -150,7 +135,7 @@
   color: var(--info);
 }
 
-/* === Add Squad Modal === */
+/* === POLISHED ADD SQUAD MODAL === */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -163,28 +148,120 @@
 .modal {
   background: var(--card-bg);
   border: 1px solid var(--accent);
-  border-radius: 12px;
-  padding: 20px 24px;
-  width: 420px;
+  border-radius: 14px;
+  padding: 24px 28px;
+  width: 460px;
   color: var(--text);
-  box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 0 22px rgba(0, 0, 0, 0.6);
+  font-family: 'Inter', sans-serif;
+  animation: fadeInModal 0.25s ease;
+  position: relative;
 }
-.modal h3 { color: var(--accent); margin-bottom: 12px; }
-.modal label { display: block; font-weight: 600; margin-top: 10px; font-size: 14px; }
-.modal input, .modal select, .modal textarea {
-  width: 100%;
-  margin-top: 4px;
-  border-radius: 6px;
-  border: 1px solid #2d3f3f;
-  padding: 8px;
-  background: #122;
+@keyframes fadeInModal {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+.modal h3 {
+  color: var(--accent);
+  font-size: 18px;
+  margin-bottom: 16px;
+  text-align: center;
+  border-bottom: 1px solid #2d3f3f;
+  padding-bottom: 8px;
+}
+.modal label {
+  display: block;
+  font-weight: 600;
+  margin-top: 14px;
+  font-size: 14px;
   color: var(--text);
+}
+.modal input[type="text"],
+.modal select,
+.modal textarea {
+  width: 100%;
+  margin-top: 6px;
+  border-radius: 8px;
+  border: 1px solid #2d3f3f;
+  padding: 9px 10px;
+  background: #0f1b1b;
+  color: var(--text);
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+.modal input[type="text"]:focus,
+.modal select:focus,
+.modal textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 6px var(--accent);
+}
+.modal select[multiple] {
+  height: 110px;
+  background: #0f1b1b;
+  color: var(--text);
+  overflow-y: auto;
+}
+.modal select[multiple] option {
+  padding: 6px 8px;
+  border-radius: 5px;
+  margin: 1px 0;
+  transition: background 0.15s;
+}
+.modal select[multiple] option:hover { background: rgba(0,255,200,0.1); }
+.modal select[multiple]:focus option:checked {
+  background: var(--accent);
+  color: #000;
+}
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+.checkbox-row input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
 }
 .modal-actions {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
-  margin-top: 16px;
+  margin-top: 20px;
+}
+.modal-actions .btn {
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+.modal-actions .btn:hover {
+  background: var(--accent);
+  color: #000;
+}
+
+/* === Toast inside modal === */
+.toast {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.9);
+  background: rgba(0, 0, 0, 0.85);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  padding: 14px 20px;
+  border-radius: 10px;
+  text-align: center;
+  font-weight: 600;
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.25s ease;
+  z-index: 3000;
+}
+.toast.show {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
 }
   </style>
 </head>
@@ -208,13 +285,12 @@
 
   <main class="squads-main">
     <h2 class="section-h">Squads Overview</h2>
-<div class="squads-card">
-  <div class="squads-scroll">
-    <div id="cards" class="cards-grid"></div>
-    <div id="s-msg" class="empty" style="display:none;"></div>
-  </div>
-</div>
-
+    <div class="squads-card">
+      <div class="squads-scroll">
+        <div id="cards" class="cards-grid"></div>
+        <div id="s-msg" class="empty" style="display:none;"></div>
+      </div>
+    </div>
   </main>
 
   <!-- === Add Squad Modal === -->
@@ -242,12 +318,17 @@
       <label>Members</label>
       <select id="squad-members" multiple></select>
 
-      <label><input type="checkbox" id="squad-active" checked /> Active</label>
+      <div class="checkbox-row">
+        <input type="checkbox" id="squad-active" checked />
+        <label for="squad-active">Active</label>
+      </div>
 
       <div class="modal-actions">
         <button class="btn" onclick="closeAddSquad()">Cancel</button>
         <button class="btn" onclick="saveNewSquad()">Create Squad</button>
       </div>
+
+      <div id="modal-toast" class="toast"></div>
     </div>
   </div>
 
@@ -284,6 +365,15 @@
     document.getElementById('addSquadModal').style.display = 'none';
   }
 
+  function showModalToast(msg, success = true) {
+    const toast = document.getElementById('modal-toast');
+    toast.textContent = msg;
+    toast.style.borderColor = success ? 'var(--accent)' : '#ff6060';
+    toast.style.color = success ? 'var(--accent)' : '#ff8080';
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2200);
+  }
+
   async function saveNewSquad() {
     const name = document.getElementById('squad-name').value.trim();
     const category = document.getElementById('squad-category').value;
@@ -292,51 +382,57 @@
     const members = Array.from(document.getElementById('squad-members').selectedOptions).map(o => o.value);
     const active = document.getElementById('squad-active').checked;
 
-    if (!name) { alert("Please enter a squad name."); return; }
+    if (!name) { showModalToast("Please enter a squad name.", false); return; }
 
-    const squads = await PowerUp.getSquads() || [];
-    const ids = squads.map(s => parseInt(s.id?.replace('SQ-', '')) || 0);
-    const newId = 'SQ-' + String(Math.max(...ids, 0) + 1).padStart(3, '0');
-    const today = new Date().toLocaleDateString();
+    try {
+      const squads = await PowerUp.getSquads() || [];
+      const ids = squads.map(s => parseInt(s.id?.replace('SQ-', '')) || 0);
+      const newId = 'SQ-' + String(Math.max(...ids, 0) + 1).padStart(3, '0');
+      const today = new Date().toLocaleDateString();
 
-    await PowerUp.addSquad({
-      "Squad ID": newId,
-      "Squad Name": name,
-      "Category": category,
-      "Objective": objective,
-      "Active": active,
-      "Created Date": today
-    });
-
-    for (const leader of leaders) {
-      const emp = await PowerUp.findEmployeeByName(leader);
-      await PowerUp.addSquadMember({
+      await PowerUp.addSquad({
         "Squad ID": newId,
         "Squad Name": name,
-        "Employee ID": emp?.id || "",
-        "Employee Name": leader,
-        "Role": "Leader",
-        "Active": true
+        "Category": category,
+        "Objective": objective,
+        "Active": active,
+        "Created Date": today
       });
-    }
 
-    for (const member of members) {
-      const emp = await PowerUp.findEmployeeByName(member);
-      await PowerUp.addSquadMember({
-        "Squad ID": newId,
-        "Squad Name": name,
-        "Employee ID": emp?.id || "",
-        "Employee Name": member,
-        "Role": "Member",
-        "Active": true
-      });
-    }
+      for (const leader of leaders) {
+        const emp = await PowerUp.findEmployeeByName(leader);
+        await PowerUp.addSquadMember({
+          "Squad ID": newId,
+          "Squad Name": name,
+          "Employee ID": emp?.id || "",
+          "Employee Name": leader,
+          "Role": "Leader",
+          "Active": true
+        });
+      }
 
-    alert(`✅ Squad "${name}" created successfully!`);
-    closeAddSquad();
-    setTimeout(() => location.reload(), 1000);
+      for (const member of members) {
+        const emp = await PowerUp.findEmployeeByName(member);
+        await PowerUp.addSquadMember({
+          "Squad ID": newId,
+          "Squad Name": name,
+          "Employee ID": emp?.id || "",
+          "Employee Name": member,
+          "Role": "Member",
+          "Active": true
+        });
+      }
+
+      showModalToast(`✅ Squad "${name}" created successfully!`);
+      setTimeout(() => {
+        closeAddSquad();
+        location.reload();
+      }, 2200);
+    } catch (err) {
+      console.error(err);
+      showModalToast("Error creating squad.", false);
+    }
   }
   </script>
 </body>
 </html>
-
