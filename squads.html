@@ -302,6 +302,77 @@
   z-index: 3000;
 }
 .toast.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+
+    /* === PowerUp Multi-Select Dropdown === */
+.pu-multi-select {
+  position: relative;
+  background: #0f1b1b;
+  border: 1px solid #2d3f3f;
+  border-radius: 8px;
+  padding: 6px 8px;
+  cursor: text;
+  transition: all 0.2s ease;
+}
+.pu-ms-input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  padding: 6px 0;
+  font-size: 14px;
+  outline: none;
+}
+.pu-ms-dropdown {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: #132121;
+  border: 1px solid #2d3f3f;
+  border-radius: 8px;
+  max-height: 180px;
+  overflow-y: auto;
+  margin-top: 4px;
+  z-index: 3000;
+  opacity: 0;
+  transform: translateY(-4px);
+  pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+.pu-ms-dropdown:not(.hidden) {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.pu-ms-option {
+  padding: 6px 10px;
+  font-size: 14px;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.pu-ms-option:hover {
+  background: rgba(0,255,200,0.08);
+}
+.pu-ms-option.selected {
+  background: var(--accent);
+  color: #000;
+  font-weight: 600;
+}
+.pu-ms-selected {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.pu-ms-tag {
+  background: var(--accent);
+  color: #000;
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
   </style>
 </head>
 
@@ -332,45 +403,45 @@
     </div>
   </main>
 
-  <!-- === Add Squad Modal === -->
-  <div id="addSquadModal" class="modal-overlay">
-    <div class="modal">
-      <h3>Add New Squad</h3>
-      <label>Squad Name</label>
-      <input type="text" id="squad-name" />
+<!-- === Add Squad Modal === -->
+<div id="addSquadModal" class="modal-overlay">
+  <div class="modal">
+    <h3>Add New Squad</h3>
 
-      <label>Category</label>
-      <select id="squad-category">
-        <option value="CI">CI</option>
-        <option value="Quality">Quality</option>
-        <option value="Safety">Safety</option>
-        <option value="Training">Training</option>
-        <option value="Other">Other</option>
-      </select>
+    <label>Squad Name</label>
+    <input type="text" id="squad-name" placeholder="Enter squad name" />
 
-      <label>Objective</label>
-      <textarea id="squad-objective" rows="2"></textarea>
+    <label>Category</label>
+    <select id="squad-category">
+      <option value="CI">CI</option>
+      <option value="Quality">Quality</option>
+      <option value="Safety">Safety</option>
+      <option value="Training">Training</option>
+      <option value="Other">Other</option>
+    </select>
 
-<label>Leaders</label>
-<div id="leader-select" class="smart-select-container"></div>
+    <label>Objective</label>
+    <textarea id="squad-objective" rows="2" placeholder="Brief squad objective..."></textarea>
 
-<label>Members</label>
-<div id="member-select" class="smart-select-container"></div>
+    <label>Leaders</label>
+    <div id="leader-select"></div>
 
+    <label>Members</label>
+    <div id="member-select"></div>
 
-      <div class="checkbox-row">
-        <input type="checkbox" id="squad-active" checked />
-        <label for="squad-active">Active</label>
-      </div>
-
-      <div class="modal-actions">
-        <button class="btn" onclick="closeAddSquad()">Cancel</button>
-        <button class="btn" onclick="saveNewSquad()">Create Squad</button>
-      </div>
-
-      <div id="modal-toast" class="toast"></div>
+    <div class="checkbox-row">
+      <input type="checkbox" id="squad-active" checked />
+      <label for="squad-active">Active</label>
     </div>
+
+    <div class="modal-actions">
+      <button class="btn" onclick="closeAddSquad()">Cancel</button>
+      <button class="btn" onclick="saveNewSquad()">Create Squad</button>
+    </div>
+
+    <div id="modal-toast" class="toast"></div>
   </div>
+</div>
 
   <script src="scripts/api.js"></script>
   <script src="scripts/session.js"></script>
@@ -379,67 +450,37 @@
   <script src="scripts/select-helper.js"></script>
   <script src="scripts/squads-cards.js"></script>
 
- <script>
+<script>
 document.addEventListener('DOMContentLoaded', async () => {
   PowerUp.session.requireLogin();
   if (!document.getElementById('pu-header')) PowerUp.layout.injectLayout();
   PowerUp.layout.setPageTitle('PowerUp — Squads');
   await PowerUp.session.initHeader();
 
-  // Button to open Add Squad modal
   document.getElementById('btn-add').addEventListener('click', openAddSquad);
 
-  try {
-    // Load employee list for SmartSelect dropdowns
-    const employees = await PowerUp.getEmployees();
-    if (!employees || !employees.length) {
-      console.warn("⚠️ No employees found — SmartSelects will not populate.");
-      return;
-    }
-
-    // Extract clean list of names
-    const names = employees.map(e => e.name).filter(Boolean);
-
-    // Clear any previous dropdown containers before injecting new SmartSelects
-    document.getElementById('leader-select').innerHTML = '';
-    document.getElementById('member-select').innerHTML = '';
-
-    // Initialize SmartSelect fields
-    window.leaderSelect = new PowerUp.SmartSelect(
-      document.getElementById('leader-select'),
-      names,
-      { placeholder: "Select squad leaders" }
-    );
-
-    window.memberSelect = new PowerUp.SmartSelect(
-      document.getElementById('member-select'),
-      names,
-      { placeholder: "Select squad members" }
-    );
-
-  } catch (err) {
-    console.error("Error initializing SmartSelects:", err);
-  }
+  // Build dropdowns using helper
+  const employees = await PowerUp.getEmployees();
+  window.leaderSelect = await PowerUp.buildEmployeeMultiSelect('leader-select', [], { placeholder: "Select squad leaders" });
+  window.memberSelect = await PowerUp.buildEmployeeMultiSelect('member-select', [], { placeholder: "Select squad members" });
 });
 
-function openAddSquad() {
-  resetAddSquadForm();
-  document.getElementById('addSquadModal').style.display = 'flex';
+async function openAddSquad() {
+  const modal = document.getElementById('addSquadModal');
+  modal.style.display = 'flex';
+  // Reset form fields
+  document.getElementById('squad-name').value = "";
+  document.getElementById('squad-category').selectedIndex = 0;
+  document.getElementById('squad-objective').value = "";
+  document.getElementById('squad-active').checked = true;
+  
+  // Rebuild dropdowns cleanly
+  window.leaderSelect = await PowerUp.buildEmployeeMultiSelect('leader-select', [], { placeholder: "Select squad leaders" });
+  window.memberSelect = await PowerUp.buildEmployeeMultiSelect('member-select', [], { placeholder: "Select squad members" });
 }
 
 function closeAddSquad() {
   document.getElementById('addSquadModal').style.display = 'none';
-}
-
-function resetAddSquadForm() {
-  document.getElementById('squad-name').value = '';
-  document.getElementById('squad-category').selectedIndex = 0;
-  document.getElementById('squad-objective').value = '';
-  document.getElementById('squad-active').checked = true;
-
-  // Clear SmartSelect selections if already initialized
-  if (window.leaderSelect?.clear) leaderSelect.clear();
-  if (window.memberSelect?.clear) memberSelect.clear();
 }
 
 function showModalToast(msg, success = true) {
@@ -455,27 +496,19 @@ async function saveNewSquad() {
   const name = document.getElementById('squad-name').value.trim();
   const category = document.getElementById('squad-category').value;
   const objective = document.getElementById('squad-objective').value.trim();
-  const leaders = leaderSelect?.getSelected?.() || [];
-  const members = memberSelect?.getSelected?.() || [];
+  const leaders = leaderSelect?.getSelected() || [];
+  const members = memberSelect?.getSelected() || [];
   const active = document.getElementById('squad-active').checked;
 
-  if (!name) {
-    showModalToast("Please enter a squad name.", false);
-    return;
-  }
+  if (!name) return showModalToast("Please enter a squad name.", false);
 
   try {
-    // Generate new Squad ID
     const squads = await PowerUp.getSquads() || [];
     const ids = squads.map(s => parseInt(s.id?.replace('SQ-', '')) || 0);
     const newId = 'SQ-' + String(Math.max(...ids, 0) + 1).padStart(3, '0');
     const today = new Date().toLocaleDateString();
+    const createdBy = PowerUp.session.user?.name || "Unknown";
 
-    // Capture the current logged-in user
-    const user = PowerUp.session?.user || {};
-    const createdBy = user.displayName || user.name || user.fullName || "Unknown User";
-
-    // Add main squad row
     await PowerUp.addSquad({
       "Squad ID": newId,
       "Squad Name": name,
@@ -486,7 +519,6 @@ async function saveNewSquad() {
       "Created By": createdBy
     });
 
-    // Add leaders to Squad Members sheet
     for (const leader of leaders) {
       const emp = await PowerUp.findEmployeeByName(leader);
       await PowerUp.addSquadMember({
@@ -500,7 +532,6 @@ async function saveNewSquad() {
       });
     }
 
-    // Add members to Squad Members sheet
     for (const member of members) {
       const emp = await PowerUp.findEmployeeByName(member);
       await PowerUp.addSquadMember({
@@ -514,13 +545,11 @@ async function saveNewSquad() {
       });
     }
 
-    // Success notification
     showModalToast(`✅ Squad "${name}" created successfully!`);
     setTimeout(() => {
       closeAddSquad();
       location.reload();
     }, 2200);
-
   } catch (err) {
     console.error(err);
     showModalToast("Error creating squad.", false);
@@ -528,7 +557,9 @@ async function saveNewSquad() {
 }
 </script>
 
+
 </body>
 </html>
+
 
 
