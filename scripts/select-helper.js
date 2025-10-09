@@ -108,5 +108,86 @@
     }
   };
 
+// =====================================================
+// PowerUp Multi-Select Dropdown (Extended from Add Member)
+// =====================================================
+PowerUp.buildEmployeeMultiSelect = async function (elementId, selectedNames = [], options = {}) {
+  const container = document.getElementById(elementId);
+  if (!container) return;
+
+  const employees = await PowerUp.getEmployees();
+  container.innerHTML = "";
+
+  // Create the wrapper
+  const wrap = document.createElement("div");
+  wrap.className = "pu-multi-select";
+
+  // Create the search input
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "pu-ms-input";
+  input.placeholder = options.placeholder || "Search employees...";
+
+  // Create dropdown list
+  const list = document.createElement("div");
+  list.className = "pu-ms-dropdown hidden";
+
+  // Build options
+  employees.forEach(emp => {
+    const item = document.createElement("div");
+    item.className = "pu-ms-option";
+    item.textContent = emp.name;
+    if (selectedNames.includes(emp.name)) item.classList.add("selected");
+    item.addEventListener("click", () => {
+      item.classList.toggle("selected");
+      rebuildSelected();
+    });
+    list.appendChild(item);
+  });
+
+  // Rebuild tag-style display
+  const selectedWrap = document.createElement("div");
+  selectedWrap.className = "pu-ms-selected";
+
+  function rebuildSelected() {
+    const selected = Array.from(list.querySelectorAll(".pu-ms-option.selected")).map(i => i.textContent);
+    selectedWrap.innerHTML = "";
+    selected.forEach(name => {
+      const tag = document.createElement("span");
+      tag.className = "pu-ms-tag";
+      tag.textContent = name;
+      tag.addEventListener("click", () => {
+        const opt = Array.from(list.children).find(i => i.textContent === name);
+        if (opt) opt.classList.remove("selected");
+        rebuildSelected();
+      });
+      selectedWrap.appendChild(tag);
+    });
+  }
+
+  // Input interactions
+  input.addEventListener("focus", () => list.classList.remove("hidden"));
+  input.addEventListener("input", () => {
+    const val = input.value.toLowerCase();
+    Array.from(list.children).forEach(opt => {
+      opt.style.display = opt.textContent.toLowerCase().includes(val) ? "block" : "none";
+    });
+  });
+  document.addEventListener("click", e => {
+    if (!wrap.contains(e.target)) list.classList.add("hidden");
+  });
+
+  wrap.appendChild(selectedWrap);
+  wrap.appendChild(input);
+  wrap.appendChild(list);
+  container.appendChild(wrap);
+
+  rebuildSelected();
+
+  return {
+    getSelected: () => Array.from(list.querySelectorAll(".pu-ms-option.selected")).map(i => i.textContent)
+  };
+};
+
   window.PowerUp = P;
 })(window.PowerUp || {});
