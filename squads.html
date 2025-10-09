@@ -31,7 +31,7 @@
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
 
   <style>
-/* === ORIGINAL PAGE STYLING (UNTOUCHED) === */
+/* === ORIGINAL PAGE STYLING (UNCHANGED) === */
 .filter-toolbar {
   position: relative;
   top: auto;
@@ -135,7 +135,7 @@
   color: var(--info);
 }
 
-/* === POLISHED ADD SQUAD MODAL === */
+/* === ADD SQUAD MODAL === */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -149,13 +149,13 @@
   background: var(--card-bg);
   border: 1px solid var(--accent);
   border-radius: 14px;
-  padding: 24px 28px;
+  padding: 22px 26px;
   width: 460px;
   color: var(--text);
   box-shadow: 0 0 22px rgba(0, 0, 0, 0.6);
   font-family: 'Inter', sans-serif;
-  animation: fadeInModal 0.25s ease;
   position: relative;
+  animation: fadeInModal 0.25s ease;
 }
 @keyframes fadeInModal {
   from { opacity: 0; transform: scale(0.96); }
@@ -196,56 +196,54 @@
   border-color: var(--accent);
   box-shadow: 0 0 6px var(--accent);
 }
-.modal select[multiple] {
-  height: 110px;
-  background: #0f1b1b;
-  color: var(--text);
-  overflow-y: auto;
+
+/* SmartSelect styling */
+.pu-smartselect { position: relative; margin-top: 6px; }
+.pu-ss-field {
+  display: flex; align-items: center; flex-wrap: wrap;
+  background: #0f1b1b; border: 1px solid #2d3f3f;
+  border-radius: 8px; padding: 6px 8px; cursor: pointer;
 }
-.modal select[multiple] option {
-  padding: 6px 8px;
-  border-radius: 5px;
-  margin: 1px 0;
-  transition: background 0.15s;
+.pu-ss-input { border: none; outline: none; background: transparent; flex: 1; color: var(--text); font-size: 14px; }
+.pu-ss-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.pu-ss-tag {
+  background: var(--accent); color: #000; border-radius: 999px;
+  padding: 4px 8px; font-size: 12px; display: flex; align-items: center; gap: 4px;
 }
-.modal select[multiple] option:hover { background: rgba(0,255,200,0.1); }
-.modal select[multiple]:focus option:checked {
-  background: var(--accent);
-  color: #000;
+.pu-ss-tag i { cursor: pointer; opacity: 0.8; }
+.pu-ss-dropdown {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+  background: var(--panel-2); border: 1px solid #2d3f3f; border-radius: 8px;
+  max-height: 220px; overflow-y: auto; z-index: 3000;
 }
+.pu-ss-search {
+  width: 100%; padding: 6px 8px; border: none;
+  border-bottom: 1px solid #263636; background: #0f1a1a; color: var(--text);
+}
+.pu-ss-item { padding: 6px 10px; cursor: pointer; font-size: 13px; }
+.pu-ss-item:hover { background: rgba(255,255,255,0.05); }
+.pu-ss-item.disabled { opacity: .4; pointer-events: none; }
+
 .checkbox-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 14px;
+  display: flex; align-items: center; gap: 8px; margin-top: 14px;
 }
 .checkbox-row input[type="checkbox"] {
-  width: 18px;
-  height: 18px;
-  accent-color: var(--accent);
+  width: 18px; height: 18px; accent-color: var(--accent);
 }
 .modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-top: 20px;
+  display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;
 }
 .modal-actions .btn {
-  font-weight: 600;
-  padding: 8px 16px;
-  border-radius: 8px;
+  font-weight: 600; padding: 8px 16px; border-radius: 8px;
   transition: all 0.2s ease;
 }
 .modal-actions .btn:hover {
-  background: var(--accent);
-  color: #000;
+  background: var(--accent); color: #000;
 }
 
-/* === Toast inside modal === */
+/* Toast inside modal */
 .toast {
-  position: absolute;
-  top: 50%;
-  left: 50%;
+  position: absolute; top: 50%; left: 50%;
   transform: translate(-50%, -50%) scale(0.9);
   background: rgba(0, 0, 0, 0.85);
   border: 1px solid var(--accent);
@@ -259,10 +257,7 @@
   transition: all 0.25s ease;
   z-index: 3000;
 }
-.toast.show {
-  opacity: 1;
-  transform: translate(-50%, -50%) scale(1);
-}
+.toast.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
   </style>
 </head>
 
@@ -313,10 +308,10 @@
       <textarea id="squad-objective" rows="2"></textarea>
 
       <label>Leaders</label>
-      <select id="squad-leaders" multiple></select>
+      <div id="leader-select"></div>
 
       <label>Members</label>
-      <select id="squad-members" multiple></select>
+      <div id="member-select"></div>
 
       <div class="checkbox-row">
         <input type="checkbox" id="squad-active" checked />
@@ -336,6 +331,7 @@
   <script src="scripts/session.js"></script>
   <script src="scripts/roles.js"></script>
   <script src="scripts/layout.js"></script>
+  <script src="scripts/select-helper.js"></script>
   <script src="scripts/squads-cards.js"></script>
 
   <script>
@@ -348,14 +344,10 @@
     document.getElementById('btn-add').addEventListener('click', openAddSquad);
 
     const employees = await PowerUp.getEmployees();
-    const leaders = document.getElementById('squad-leaders');
-    const members = document.getElementById('squad-members');
-    for (const e of employees) {
-      const opt1 = new Option(e.name, e.name);
-      const opt2 = new Option(e.name, e.name);
-      leaders.add(opt1);
-      members.add(opt2);
-    }
+    window.leaderSelect = new PowerUp.SmartSelect(document.getElementById('leader-select'),
+      employees.map(e => e.name), { placeholder: "Select squad leaders" });
+    window.memberSelect = new PowerUp.SmartSelect(document.getElementById('member-select'),
+      employees.map(e => e.name), { placeholder: "Select squad members" });
   });
 
   function openAddSquad() {
@@ -378,8 +370,8 @@
     const name = document.getElementById('squad-name').value.trim();
     const category = document.getElementById('squad-category').value;
     const objective = document.getElementById('squad-objective').value.trim();
-    const leaders = Array.from(document.getElementById('squad-leaders').selectedOptions).map(o => o.value);
-    const members = Array.from(document.getElementById('squad-members').selectedOptions).map(o => o.value);
+    const leaders = leaderSelect.getSelected();
+    const members = memberSelect.getSelected();
     const active = document.getElementById('squad-active').checked;
 
     if (!name) { showModalToast("Please enter a squad name.", false); return; }
