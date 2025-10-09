@@ -373,6 +373,27 @@
   cursor: pointer;
 }
 
+    /* Fix input focus brightness */
+.modal input[type="text"]:focus {
+  background: #0f1b1b !important;
+  color: var(--text);
+}
+
+/* Align checkbox and label perfectly */
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.checkbox-row input[type="checkbox"] {
+  vertical-align: middle;
+  margin-top: 0;
+}
+    .pu-ms-input::placeholder {
+  color: #888;
+  font-style: italic;
+}
+
   </style>
 </head>
 
@@ -457,27 +478,38 @@ document.addEventListener('DOMContentLoaded', async () => {
   PowerUp.layout.setPageTitle('PowerUp — Squads');
   await PowerUp.session.initHeader();
 
-  document.getElementById('btn-add').addEventListener('click', openAddSquad);
-
-  // Build dropdowns using helper
-  const employees = await PowerUp.getEmployees();
-  window.leaderSelect = await PowerUp.buildEmployeeMultiSelect('leader-select', [], { placeholder: "Select squad leaders" });
-  window.memberSelect = await PowerUp.buildEmployeeMultiSelect('member-select', [], { placeholder: "Select squad members" });
+  document.getElementById('btn-add').addEventListener('click', async () => {
+    await openAddSquad();
+  });
 });
 
 async function openAddSquad() {
   const modal = document.getElementById('addSquadModal');
   modal.style.display = 'flex';
-  // Reset form fields
+
+  // Reset fields
   document.getElementById('squad-name').value = "";
   document.getElementById('squad-category').selectedIndex = 0;
   document.getElementById('squad-objective').value = "";
   document.getElementById('squad-active').checked = true;
-  
-  // Rebuild dropdowns cleanly
-  window.leaderSelect = await PowerUp.buildEmployeeMultiSelect('leader-select', [], { placeholder: "Select squad leaders" });
-  window.memberSelect = await PowerUp.buildEmployeeMultiSelect('member-select', [], { placeholder: "Select squad members" });
+
+  // Clear and rebuild dropdowns fresh each time
+  const leaderContainer = document.getElementById('leader-select');
+  const memberContainer = document.getElementById('member-select');
+  leaderContainer.innerHTML = "";
+  memberContainer.innerHTML = "";
+
+  const employees = await PowerUp.getEmployees();
+  window.leaderSelect = await PowerUp.buildEmployeeMultiSelect('leader-select', [], {
+    placeholder: "Select squad leaders",
+    employees
+  });
+  window.memberSelect = await PowerUp.buildEmployeeMultiSelect('member-select', [], {
+    placeholder: "Select squad members",
+    employees
+  });
 }
+
 
 function closeAddSquad() {
   document.getElementById('addSquadModal').style.display = 'none';
@@ -560,6 +592,7 @@ async function saveNewSquad() {
 
 </body>
 </html>
+
 
 
 
