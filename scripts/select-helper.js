@@ -115,8 +115,7 @@ PowerUp.buildEmployeeMultiSelect = async function (elementId, selectedNames = []
   const container = document.getElementById(elementId);
   if (!container) return;
 
-  const employees = await PowerUp.getEmployees();
-  container.innerHTML = "";
+  const employees = options.employees || await PowerUp.getEmployees();
 
   // Create the wrapper
   const wrap = document.createElement("div");
