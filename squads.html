@@ -211,10 +211,29 @@
   padding: 4px 8px; font-size: 12px; display: flex; align-items: center; gap: 4px;
 }
 .pu-ss-tag i { cursor: pointer; opacity: 0.8; }
+    
+/* SmartSelect dropdown list */
 .pu-ss-dropdown {
-  position: absolute; top: calc(100% + 4px); left: 0; right: 0;
-  background: var(--panel-2); border: 1px solid #2d3f3f; border-radius: 8px;
-  max-height: 220px; overflow-y: auto; z-index: 3000;
+  position: absolute;
+  top: 100%; /* tighter connection to field */
+  left: 0;
+  right: 0;
+  background: var(--panel-2);
+  border: 1px solid #2d3f3f;
+  border-radius: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+  z-index: 3000;
+  opacity: 0;
+  transform: translateY(-4px);
+  pointer-events: none;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.pu-ss-dropdown.show {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
 }
 .pu-ss-search {
   width: 100%; padding: 6px 8px; border: none;
@@ -334,97 +353,143 @@
   <script src="scripts/select-helper.js"></script>
   <script src="scripts/squads-cards.js"></script>
 
-  <script>
-  document.addEventListener('DOMContentLoaded', async () => {
-    PowerUp.session.requireLogin();
-    if (!document.getElementById('pu-header')) PowerUp.layout.injectLayout();
-    PowerUp.layout.setPageTitle('PowerUp — Squads');
-    await PowerUp.session.initHeader();
+ <script>
+document.addEventListener('DOMContentLoaded', async () => {
+  PowerUp.session.requireLogin();
+  if (!document.getElementById('pu-header')) PowerUp.layout.injectLayout();
+  PowerUp.layout.setPageTitle('PowerUp — Squads');
+  await PowerUp.session.initHeader();
 
-    document.getElementById('btn-add').addEventListener('click', openAddSquad);
+  // Button to open Add Squad modal
+  document.getElementById('btn-add').addEventListener('click', openAddSquad);
 
+  try {
+    // Load employee list for SmartSelect dropdowns
     const employees = await PowerUp.getEmployees();
-    window.leaderSelect = new PowerUp.SmartSelect(document.getElementById('leader-select'),
-      employees.map(e => e.name), { placeholder: "Select squad leaders" });
-    window.memberSelect = new PowerUp.SmartSelect(document.getElementById('member-select'),
-      employees.map(e => e.name), { placeholder: "Select squad members" });
-  });
+    if (!employees || !employees.length) {
+      console.warn("⚠️ No employees found — SmartSelects will not populate.");
+      return;
+    }
 
-  function openAddSquad() {
-    document.getElementById('addSquadModal').style.display = 'flex';
+    // Extract clean list of names
+    const names = employees.map(e => e.name).filter(Boolean);
+
+    // Clear any previous dropdown containers before injecting new SmartSelects
+    document.getElementById('leader-select').innerHTML = '';
+    document.getElementById('member-select').innerHTML = '';
+
+    // Initialize SmartSelect fields
+    window.leaderSelect = new PowerUp.SmartSelect(
+      document.getElementById('leader-select'),
+      names,
+      { placeholder: "Select squad leaders" }
+    );
+
+    window.memberSelect = new PowerUp.SmartSelect(
+      document.getElementById('member-select'),
+      names,
+      { placeholder: "Select squad members" }
+    );
+
+  } catch (err) {
+    console.error("Error initializing SmartSelects:", err);
   }
-  function closeAddSquad() {
-    document.getElementById('addSquadModal').style.display = 'none';
+});
+
+function openAddSquad() {
+  document.getElementById('addSquadModal').style.display = 'flex';
+}
+
+function closeAddSquad() {
+  document.getElementById('addSquadModal').style.display = 'none';
+}
+
+function showModalToast(msg, success = true) {
+  const toast = document.getElementById('modal-toast');
+  toast.textContent = msg;
+  toast.style.borderColor = success ? 'var(--accent)' : '#ff6060';
+  toast.style.color = success ? 'var(--accent)' : '#ff8080';
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 2200);
+}
+
+async function saveNewSquad() {
+  const name = document.getElementById('squad-name').value.trim();
+  const category = document.getElementById('squad-category').value;
+  const objective = document.getElementById('squad-objective').value.trim();
+  const leaders = leaderSelect?.getSelected?.() || [];
+  const members = memberSelect?.getSelected?.() || [];
+  const active = document.getElementById('squad-active').checked;
+
+  if (!name) {
+    showModalToast("Please enter a squad name.", false);
+    return;
   }
 
-  function showModalToast(msg, success = true) {
-    const toast = document.getElementById('modal-toast');
-    toast.textContent = msg;
-    toast.style.borderColor = success ? 'var(--accent)' : '#ff6060';
-    toast.style.color = success ? 'var(--accent)' : '#ff8080';
-    toast.classList.add('show');
-    setTimeout(() => toast.classList.remove('show'), 2200);
-  }
+  try {
+    // Generate new Squad ID
+    const squads = await PowerUp.getSquads() || [];
+    const ids = squads.map(s => parseInt(s.id?.replace('SQ-', '')) || 0);
+    const newId = 'SQ-' + String(Math.max(...ids, 0) + 1).padStart(3, '0');
+    const today = new Date().toLocaleDateString();
 
-  async function saveNewSquad() {
-    const name = document.getElementById('squad-name').value.trim();
-    const category = document.getElementById('squad-category').value;
-    const objective = document.getElementById('squad-objective').value.trim();
-    const leaders = leaderSelect.getSelected();
-    const members = memberSelect.getSelected();
-    const active = document.getElementById('squad-active').checked;
+    // Capture the current logged-in user
+    const user = PowerUp.session?.user || {};
+    const createdBy = user.displayName || user.name || user.fullName || "Unknown User";
 
-    if (!name) { showModalToast("Please enter a squad name.", false); return; }
+    // Add main squad row
+    await PowerUp.addSquad({
+      "Squad ID": newId,
+      "Squad Name": name,
+      "Category": category,
+      "Objective": objective,
+      "Active": active,
+      "Created Date": today,
+      "Created By": createdBy
+    });
 
-    try {
-      const squads = await PowerUp.getSquads() || [];
-      const ids = squads.map(s => parseInt(s.id?.replace('SQ-', '')) || 0);
-      const newId = 'SQ-' + String(Math.max(...ids, 0) + 1).padStart(3, '0');
-      const today = new Date().toLocaleDateString();
-
-      await PowerUp.addSquad({
+    // Add leaders to Squad Members sheet
+    for (const leader of leaders) {
+      const emp = await PowerUp.findEmployeeByName(leader);
+      await PowerUp.addSquadMember({
         "Squad ID": newId,
         "Squad Name": name,
-        "Category": category,
-        "Objective": objective,
-        "Active": active,
-        "Created Date": today
+        "Employee ID": emp?.id || "",
+        "Employee Name": leader,
+        "Role": "Leader",
+        "Active": true,
+        "Added By": createdBy
       });
-
-      for (const leader of leaders) {
-        const emp = await PowerUp.findEmployeeByName(leader);
-        await PowerUp.addSquadMember({
-          "Squad ID": newId,
-          "Squad Name": name,
-          "Employee ID": emp?.id || "",
-          "Employee Name": leader,
-          "Role": "Leader",
-          "Active": true
-        });
-      }
-
-      for (const member of members) {
-        const emp = await PowerUp.findEmployeeByName(member);
-        await PowerUp.addSquadMember({
-          "Squad ID": newId,
-          "Squad Name": name,
-          "Employee ID": emp?.id || "",
-          "Employee Name": member,
-          "Role": "Member",
-          "Active": true
-        });
-      }
-
-      showModalToast(`✅ Squad "${name}" created successfully!`);
-      setTimeout(() => {
-        closeAddSquad();
-        location.reload();
-      }, 2200);
-    } catch (err) {
-      console.error(err);
-      showModalToast("Error creating squad.", false);
     }
+
+    // Add members to Squad Members sheet
+    for (const member of members) {
+      const emp = await PowerUp.findEmployeeByName(member);
+      await PowerUp.addSquadMember({
+        "Squad ID": newId,
+        "Squad Name": name,
+        "Employee ID": emp?.id || "",
+        "Employee Name": member,
+        "Role": "Member",
+        "Active": true,
+        "Added By": createdBy
+      });
+    }
+
+    // Success notification
+    showModalToast(`✅ Squad "${name}" created successfully!`);
+    setTimeout(() => {
+      closeAddSquad();
+      location.reload();
+    }, 2200);
+
+  } catch (err) {
+    console.error(err);
+    showModalToast("Error creating squad.", false);
   }
-  </script>
+}
+</script>
+
 </body>
 </html>
+
