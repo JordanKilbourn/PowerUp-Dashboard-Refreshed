@@ -260,6 +260,31 @@
   background: var(--accent); color: #000;
 }
 
+    /* Fix bright input color on focus */
+.modal input[type="text"]:focus,
+.modal select:focus,
+.modal textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 6px var(--accent);
+  background: #0f1b1b !important;
+}
+
+/* Ensure all fields use the same font */
+.modal input,
+.modal select,
+.modal textarea {
+  font-family: 'Inter', sans-serif;
+}
+
+/* SmartSelect containers must be relatively positioned for dropdowns */
+.smart-select-container {
+  position: relative;
+  width: 100%;
+  margin-top: 6px;
+  overflow: visible;
+}
+
 /* Toast inside modal */
 .toast {
   position: absolute; top: 50%; left: 50%;
@@ -326,11 +351,12 @@
       <label>Objective</label>
       <textarea id="squad-objective" rows="2"></textarea>
 
-      <label>Leaders</label>
-      <div id="leader-select"></div>
+<label>Leaders</label>
+<div id="leader-select" class="smart-select-container"></div>
 
-      <label>Members</label>
-      <div id="member-select"></div>
+<label>Members</label>
+<div id="member-select" class="smart-select-container"></div>
+
 
       <div class="checkbox-row">
         <input type="checkbox" id="squad-active" checked />
@@ -397,11 +423,23 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 function openAddSquad() {
+  resetAddSquadForm();
   document.getElementById('addSquadModal').style.display = 'flex';
 }
 
 function closeAddSquad() {
   document.getElementById('addSquadModal').style.display = 'none';
+}
+
+function resetAddSquadForm() {
+  document.getElementById('squad-name').value = '';
+  document.getElementById('squad-category').selectedIndex = 0;
+  document.getElementById('squad-objective').value = '';
+  document.getElementById('squad-active').checked = true;
+
+  // Clear SmartSelect selections if already initialized
+  if (window.leaderSelect?.clear) leaderSelect.clear();
+  if (window.memberSelect?.clear) memberSelect.clear();
 }
 
 function showModalToast(msg, success = true) {
@@ -492,4 +530,5 @@ async function saveNewSquad() {
 
 </body>
 </html>
+
 
