@@ -233,6 +233,34 @@
   opacity: 1;
   transform: translate(-50%, -50%) scale(1);
 }
+
+    /* Fix checkbox and button layout */
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 18px;
+  margin-bottom: 14px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.modal-actions .btn {
+  min-width: 110px;
+  text-align: center;
+}
+
+/* Ensure consistent input font across fields */
+.modal input,
+.modal select,
+.modal textarea {
+  font-family: 'Inter', sans-serif;
+}
+
   </style>
 </head>
 
@@ -308,93 +336,104 @@
   <script src="scripts/layout.js"></script>
   <script src="scripts/squads-cards.js"></script>
 
-  <script>
-  document.addEventListener('DOMContentLoaded', async () => {
-    PowerUp.session.requireLogin();
-    if (!document.getElementById('pu-header')) PowerUp.layout.injectLayout();
-    PowerUp.layout.setPageTitle('PowerUp — Squads');
-    await PowerUp.session.initHeader();
+ <script>
+document.addEventListener('DOMContentLoaded', async () => {
+  PowerUp.session.requireLogin();
+  if (!document.getElementById('pu-header')) PowerUp.layout.injectLayout();
+  PowerUp.layout.setPageTitle('PowerUp — Squads');
+  await PowerUp.session.initHeader();
 
-    document.getElementById('btn-add').addEventListener('click', openAddSquad);
+  document.getElementById('btn-add').addEventListener('click', openAddSquad);
 
-    const employees = await PowerUp.getEmployees();
-    const leaderSelect = document.getElementById('squad-leader');
-    for (const e of employees) {
-      const opt = new Option(e.name, e.name);
-      leaderSelect.add(opt);
-    }
-  });
-
-  function openAddSquad() {
-    document.getElementById('addSquadModal').style.display = 'flex';
-    document.getElementById('squad-name').value = "";
-    document.getElementById('squad-category').selectedIndex = 0;
-    document.getElementById('squad-objective').value = "";
-    document.getElementById('squad-leader').selectedIndex = 0;
-    document.getElementById('squad-active').checked = true;
+  // Populate the Squad Leader dropdown with employees
+  const employees = await PowerUp.getEmployees();
+  const leaderDropdown = document.getElementById('squad-leader');
+  leaderDropdown.innerHTML = '<option value="">Select a leader...</option>';
+  for (const e of employees) {
+    const opt = document.createElement('option');
+    opt.value = e.name;
+    opt.textContent = e.name;
+    leaderDropdown.appendChild(opt);
   }
+});
 
-  function closeAddSquad() {
-    document.getElementById('addSquadModal').style.display = 'none';
+function openAddSquad() {
+  const modal = document.getElementById('addSquadModal');
+  modal.style.display = 'flex';
+
+  // Reset form fields
+  document.getElementById('squad-name').value = "";
+  document.getElementById('squad-category').selectedIndex = 0;
+  document.getElementById('squad-objective').value = "";
+  document.getElementById('squad-leader').selectedIndex = 0;
+  document.getElementById('squad-active').checked = true;
+}
+
+function closeAddSquad() {
+  document.getElementById('addSquadModal').style.display = 'none';
+}
+
+function showModalToast(msg, success = true) {
+  const toast = document.getElementById('modal-toast');
+  toast.textContent = msg;
+  toast.style.borderColor = success ? 'var(--accent)' : '#ff6060';
+  toast.style.color = success ? 'var(--accent)' : '#ff8080';
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 2200);
+}
+
+async function saveNewSquad() {
+  const name = document.getElementById('squad-name').value.trim();
+  const category = document.getElementById('squad-category').value;
+  const objective = document.getElementById('squad-objective').value.trim();
+  const leader = document.getElementById('squad-leader').value;
+  const active = document.getElementById('squad-active').checked;
+
+  if (!name) return showModalToast("Please enter a squad name.", false);
+  if (!leader) return showModalToast("Please select a squad leader.", false);
+
+  try {
+    const squads = await PowerUp.getSquads() || [];
+    const ids = squads.map(s => parseInt(s.id?.replace('SQ-', '')) || 0);
+    const newId = 'SQ-' + String(Math.max(...ids, 0) + 1).padStart(3, '0');
+    const today = new Date().toLocaleDateString();
+    const createdBy = PowerUp.session.user?.name || "Unknown";
+
+    // Create the squad
+    await PowerUp.addSquad({
+      "Squad ID": newId,
+      "Squad Name": name,
+      "Category": category,
+      "Objective": objective,
+      "Active": active,
+      "Created Date": today,
+      "Created By": createdBy
+    });
+
+    // Add the leader
+    const emp = await PowerUp.findEmployeeByName(leader);
+    await PowerUp.addSquadMember({
+      "Squad ID": newId,
+      "Squad Name": name,
+      "Employee ID": emp?.id || "",
+      "Employee Name": leader,
+      "Role": "Leader",
+      "Active": true,
+      "Added By": createdBy
+    });
+
+    showModalToast(`✅ Squad "${name}" created successfully!`);
+    setTimeout(() => {
+      closeAddSquad();
+      location.reload();
+    }, 2200);
+  } catch (err) {
+    console.error(err);
+    showModalToast("Error creating squad.", false);
   }
+}
+</script>
 
-  function showModalToast(msg, success = true) {
-    const toast = document.getElementById('modal-toast');
-    toast.textContent = msg;
-    toast.style.borderColor = success ? 'var(--accent)' : '#ff6060';
-    toast.style.color = success ? 'var(--accent)' : '#ff8080';
-    toast.classList.add('show');
-    setTimeout(() => toast.classList.remove('show'), 2200);
-  }
-
-  async function saveNewSquad() {
-    const name = document.getElementById('squad-name').value.trim();
-    const category = document.getElementById('squad-category').value;
-    const objective = document.getElementById('squad-objective').value.trim();
-    const leader = document.getElementById('squad-leader').value;
-    const active = document.getElementById('squad-active').checked;
-
-    if (!name) return showModalToast("Please enter a squad name.", false);
-    if (!leader) return showModalToast("Please select a squad leader.", false);
-
-    try {
-      const squads = await PowerUp.getSquads() || [];
-      const ids = squads.map(s => parseInt(s.id?.replace('SQ-', '')) || 0);
-      const newId = 'SQ-' + String(Math.max(...ids, 0) + 1).padStart(3, '0');
-      const today = new Date().toLocaleDateString();
-      const createdBy = PowerUp.session.user?.name || "Unknown";
-
-      await PowerUp.addSquad({
-        "Squad ID": newId,
-        "Squad Name": name,
-        "Category": category,
-        "Objective": objective,
-        "Active": active,
-        "Created Date": today,
-        "Created By": createdBy
-      });
-
-      const emp = await PowerUp.findEmployeeByName(leader);
-      await PowerUp.addSquadMember({
-        "Squad ID": newId,
-        "Squad Name": name,
-        "Employee ID": emp?.id || "",
-        "Employee Name": leader,
-        "Role": "Leader",
-        "Active": true,
-        "Added By": createdBy
-      });
-
-      showModalToast(`✅ Squad "${name}" created successfully!`);
-      setTimeout(() => {
-        closeAddSquad();
-        location.reload();
-      }, 2200);
-    } catch (err) {
-      console.error(err);
-      showModalToast("Error creating squad.", false);
-    }
-  }
-  </script>
 </body>
 </html>
+
