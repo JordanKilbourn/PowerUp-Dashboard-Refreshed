@@ -41,98 +41,104 @@
     </div>
   </div>
 
-  <script>
-    document.addEventListener("DOMContentLoaded", async () => {
-      const modal = document.getElementById("addSquadModal");
-      const closeBtn = document.getElementById("closeModal");
-      const form = document.getElementById("addSquadForm");
-      const leaderSelect = document.getElementById("squadLeader");
-      let employees = [];
+ <script>
+  document.addEventListener("DOMContentLoaded", async () => {
+    const modal = document.getElementById("addSquadModal");
+    const closeBtn = document.getElementById("closeModal");
+    const form = document.getElementById("addSquadForm");
+    const leaderSelect = document.getElementById("squadLeader");
 
-      // --- open modal helper (for future integration with button click)
-      window.openAddSquadModal = async function() {
-        modal.style.display = "block";
-        await populateLeaderDropdown();
-      };
+    const P = window.PowerUp || {};
+    const { api, squadForm } = P;
 
-      closeBtn.onclick = () => (modal.style.display = "none");
-
-      async function populateLeaderDropdown() {
+    async function ensureEmployeesForSquad() {
+      // Use the same ensureEmployees from squad-member-form.js if available
+      if (P.squadForm && typeof P.squadForm.open === "function") {
+        // Extract its internal state if already loaded
         try {
-          const rows = await PowerUp.api.getRowsByTitle("EMPLOYEE_MASTER");
-          employees = rows
-            .map(r => ({
-              id: r["Employee ID"] || r["Position ID"] || "",
-              name: r["Display Name"] || r["Employee Name"] || ""
-            }))
-            .filter(e => e.id && e.name)
+          const rows = await api.getRowsByTitle('EMPLOYEE_MASTER');
+          const employees = rows.map(r => ({
+            id: r["Employee ID"] || r["Position ID"] || r["ID"] || "",
+            name: r["Display Name"] || r["Employee Name"] || r["Name"] || ""
+          })).filter(e => e.id && e.name)
             .sort((a, b) => a.name.localeCompare(b.name));
 
           leaderSelect.innerHTML =
             '<option value="">Select a leader...</option>' +
             employees.map(e => `<option value="${e.id}">${e.name}</option>`).join("");
+          return employees;
         } catch (err) {
-          console.error("Error loading employees:", err);
-          leaderSelect.innerHTML = '<option value="">Error loading list</option>';
+          console.error("Failed to load employees:", err);
+          leaderSelect.innerHTML = '<option value="">Error loading employees</option>';
+          return [];
         }
       }
+    }
 
-      form.addEventListener("submit", async (e) => {
-        e.preventDefault();
+    // Wait until PowerUp API is ready
+    try {
+      await P.api.ready();
+    } catch {
+      console.warn("PowerUp API not ready yet, continuing anyway");
+    }
 
-        const formData = {
-          squadName: form.squadName.value.trim(),
-          category: form.category.value.trim(),
-          objective: form.objective.value.trim(),
-          leaderId: form.squadLeader.value,
-          active: form.activeStatus.value === "true"
+    let employees = await ensureEmployeesForSquad();
+
+    closeBtn.onclick = () => (modal.style.display = "none");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const formData = {
+        squadName: form.squadName.value.trim(),
+        category: form.category.value.trim(),
+        objective: form.objective.value.trim(),
+        leaderId: form.squadLeader.value,
+        active: form.activeStatus.value === "true"
+      };
+
+      if (!formData.leaderId) {
+        alert("Please select a squad leader before creating the squad.");
+        return;
+      }
+
+      const leader = employees.find(e => e.id === formData.leaderId);
+      const session = JSON.parse(sessionStorage.getItem("pu.session") || "{}");
+
+      try {
+        const squadRow = {
+          "Squad Name": formData.squadName,
+          "Category": formData.category,
+          "Objective": formData.objective,
+          "Active": formData.active,
+          "Created Date": new Date().toISOString(),
+          "Created By": session.name || "Preview User"
         };
+        const squadRes = await P.addSquad(squadRow);
+        const newSquadId = squadRes?.[0]?.id || squadRes?.[0]?.rowNumber || "Unknown";
 
-        if (!formData.leaderId) {
-          alert("Please select a squad leader before creating the squad.");
-          return;
-        }
+        const leaderRow = {
+          "Squad ID": newSquadId,
+          "Employee ID": leader.id,
+          "Employee Name": leader.name,
+          "Role": "Leader",
+          "Active": true,
+          "Start Date": new Date().toISOString(),
+          "Created By": session.name || "Preview User"
+        };
+        await P.addSquadMember(leaderRow);
 
-        const leader = employees.find(e => e.id === formData.leaderId);
-        const session = JSON.parse(sessionStorage.getItem("pu.session") || "{}");
-
-        try {
-          // --- 1️⃣ Add the Squad row
-          const squadRow = {
-            "Squad Name": formData.squadName,
-            "Category": formData.category,
-            "Objective": formData.objective,
-            "Active": formData.active,
-            "Created Date": new Date().toISOString(),
-            "Created By": session.name || "Preview User"
-          };
-          const squadRes = await PowerUp.api.addRows(PowerUp.api.SHEETS.SQUADS, [squadRow]);
-          const newSquadId =
-            squadRes?.[0]?.id || squadRes?.[0]?.rowNumber || squadRes?.result?.[0]?.id || "Unknown";
-
-          // --- 2️⃣ Add the Leader as a Squad Member
-          const leaderRow = {
-            "Squad ID": newSquadId,
-            "Employee ID": leader.id,
-            "Role": "Leader",
-            "Active": true,
-            "Start Date": new Date().toISOString(),
-            "Created By": session.name || "Preview User"
-          };
-          await PowerUp.api.addRows(PowerUp.api.SHEETS.SQUAD_MEMBERS, [leaderRow]);
-
-          alert("✅ Squad and leader successfully created!");
-          modal.style.display = "none";
-          form.reset();
-        } catch (err) {
-          console.error("Error creating squad:", err);
-          alert("❌ Error creating squad. Check console for details.");
-        }
-      });
-
-      // preload once on page load for smoother UX
-      await populateLeaderDropdown();
+        alert("✅ Squad and leader successfully created!");
+        modal.style.display = "none";
+        form.reset();
+      } catch (err) {
+        console.error("Error creating squad:", err);
+        alert("❌ Error creating squad. Check console for details.");
+      }
     });
-  </script>
+  });
+</script>
+
 </body>
 </html>
+
