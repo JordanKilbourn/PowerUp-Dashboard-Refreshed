@@ -1,255 +1,138 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <!-- Favicon (SVG + PNG fallback) -->
-<link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
-
-
- <!-- EARLY AUTH GUARD — must be the first thing in <head> -->
-<script>
-!function () {
-  try {
-    // Prefer the real session key; fall back to legacy only if present
-    const s = JSON.parse(sessionStorage.getItem('pu.session') || 'null')
-           || JSON.parse(localStorage.getItem('powerup_session') || 'null');
-    if (!s || !s.employeeId) {
-      // block paint, then bounce to login
-      document.documentElement.style.visibility = 'hidden';
-      location.replace('login.html');
-    }
-  } catch {
-    document.documentElement.style.visibility = 'hidden';
-    location.replace('login.html');
-  }
-}();
-</script>
-
-
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PowerUp - Add New Squad</title>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap');
-
-        body {
-            font-family: 'Montserrat', sans-serif;
-            background-color: #1a1a2e; /* Dark background from dashboard */
-            color: #e0e0e0; /* Light text color */
-            margin: 0;
-            padding: 0;
-            min-height: 100vh;
-        }
-
-        .main-content {
-            padding: 30px;
-            box-sizing: border-box;
-            max-width: 800px; /* Limit content width for form focus */
-            margin: 0 auto; /* Center the content */
-        }
-
-        .page-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 30px;
-            border-bottom: 2px solid rgba(255, 255, 255, 0.1);
-            padding-bottom: 15px;
-        }
-
-        .page-header h1 {
-            color: #00f08e; /* Green for main titles */
-            font-size: 28px;
-            font-weight: 700;
-            margin: 0;
-        }
-
-        .form-panel {
-            background-color: #16213e; /* Card background */
-            padding: 25px;
-            border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-        }
-
-        .form-group {
-            margin-bottom: 20px;
-        }
-
-        .form-group label {
-            display: block;
-            margin-bottom: 8px;
-            color: #b0b0b0; /* Label color */
-            font-size: 15px;
-            font-weight: 600;
-        }
-
-        .form-group input[type="text"],
-        .form-group select,
-        .form-group textarea {
-            width: calc(100% - 20px); /* Adjust for padding */
-            padding: 10px;
-            background-color: #2a3b5b; /* Darker input background */
-            border: 1px solid #0f4c75; /* Blue border */
-            border-radius: 5px;
-            color: #e0e0e0; /* Input text color */
-            font-size: 16px;
-            box-sizing: border-box; /* Include padding in width */
-        }
-
-        .form-group textarea {
-            resize: vertical; /* Allow vertical resizing */
-            min-height: 80px;
-        }
-
-        .form-group input[type="text"]:focus,
-        .form-group select:focus,
-        .form-group textarea:focus {
-            outline: none;
-            border-color: #00f08e; /* Green focus highlight */
-            box-shadow: 0 0 0 3px rgba(0, 240, 142, 0.2);
-        }
-
-        .button-group {
-            display: flex;
-            justify-content: flex-end; /* Align buttons to the right */
-            gap: 15px;
-            margin-top: 30px;
-        }
-
-        .submit-button, .cancel-button {
-            padding: 12px 25px;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 16px;
-            font-weight: 600;
-            transition: background-color 0.3s ease;
-        }
-
-        .submit-button {
-            background-color: #00f08e; /* Green for submit */
-            color: #1a1a2e; /* Dark text for contrast */
-        }
-
-        .submit-button:hover {
-            background-color: #99ffcc;
-        }
-
-        .cancel-button {
-            background-color: #555; /* Grey for cancel */
-            color: white;
-        }
-
-        .cancel-button:hover {
-            background-color: #777;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <title>Add Squad</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="scripts/api.js"></script>
+  <script src="scripts/session.js"></script>
+  <script src="scripts/squad-member-form.js"></script>
 </head>
+
 <body>
-    <div class="main-content">
-        <div class="page-header">
-            <h1>Add New Squad</h1>
-            <a href="squads.html" class="cancel-button">Back to Squads</a>
-        </div>
+  <div id="addSquadModal" class="modal">
+    <div class="modal-content">
+      <span id="closeModal" class="close">&times;</span>
+      <h2>Create New Squad</h2>
 
-        <div class="form-panel">
-            <form id="addSquadForm">
-                <div class="form-group">
-                    <label for="squadName">Squad Name</label>
-                    <input type="text" id="squadName" name="squadName" placeholder="e.g., CI Automation Team" required>
-                </div>
+      <form id="addSquadForm">
+        <label for="squadName">Squad Name</label>
+        <input type="text" id="squadName" name="squadName" placeholder="e.g., Power Innovators" required />
 
-                <div class="form-group">
-                    <label for="squadCategory">Squad Category</label>
-                    <select id="squadCategory" name="squadCategory" required>
-                        <option value="">-- Select Category --</option>
-                        <option value="ci">Continuous Improvement (CI)</option>
-                        <option value="quality">Quality</option>
-                        <option value="safety">Safety</option>
-                    </select>
-                </div>
+        <label for="category">Category</label>
+        <input type="text" id="category" name="category" placeholder="e.g., Engineering" required />
 
-                <div class="form-group">
-                    <label for="squadLeader">Squad Leader</label>
-                    <input type="text" id="squadLeader" name="squadLeader" placeholder="e.g., John Doe" required>
-                </div>
+        <label for="objective">Objective</label>
+        <textarea id="objective" name="objective" placeholder="Squad mission or focus" required></textarea>
 
-                <div class="form-group">
-                    <label for="squadStatus">Squad Status</label>
-                    <select id="squadStatus" name="squadStatus">
-                        <option value="active">Active</option>
-                        <option value="in_progress">In Progress</option>
-                        <option value="pending_setup">Pending Setup</option>
-                        <option value="completed">Completed</option>
-                    </select>
-                </div>
+        <label for="squadLeader">Squad Leader</label>
+        <select id="squadLeader" name="squadLeader" required>
+          <option value="">Loading employees...</option>
+        </select>
 
-                <div class="form-group">
-                    <label for="squadObjective">Squad Objective/Focus</label>
-                    <textarea id="squadObjective" name="squadObjective" placeholder="Briefly describe the squad's primary objective or focus." required></textarea>
-                </div>
+        <label for="activeStatus">Active Status</label>
+        <select id="activeStatus" name="activeStatus" required>
+          <option value="true" selected>Active</option>
+          <option value="false">Inactive</option>
+        </select>
 
-                <div class="form-group">
-                    <label for="initialMembers">Initial Members (Optional)</label>
-                    <input type="text" id="initialMembers" name="initialMembers" placeholder="e.g., Jane Smith, Alex Green (comma-separated)">
-                    <small style="color: #999; display: block; margin-top: 5px;">Enter names separated by commas.</small>
-                </div>
-
-                <div class="button-group">
-                    <button type="button" class="cancel-button" onclick="location.href='squads.html'">Cancel</button>
-                    <button type="submit" class="submit-button">Create Squad</button>
-                </div>
-            </form>
-        </div>
+        <button type="submit" id="createSquadBtn">Create Squad</button>
+      </form>
     </div>
+  </div>
 
-    
-    <script>
-  document.addEventListener('DOMContentLoaded', async () => {
-    PowerUp.session.requireLogin();     // redirect to login.html if not logged in
-    await PowerUp.session.initHeader(); // fill user name & level; wire logout
-  });
-</script>
+  <script>
+    document.addEventListener("DOMContentLoaded", async () => {
+      const modal = document.getElementById("addSquadModal");
+      const closeBtn = document.getElementById("closeModal");
+      const form = document.getElementById("addSquadForm");
+      const leaderSelect = document.getElementById("squadLeader");
+      let employees = [];
 
-    
-    <script>
-        document.getElementById('addSquadForm').addEventListener('submit', function(event) {
-            event.preventDefault(); // Prevent default form submission
+      // --- open modal helper (for future integration with button click)
+      window.openAddSquadModal = async function() {
+        modal.style.display = "block";
+        await populateLeaderDropdown();
+      };
 
-            const squadData = {
-                name: document.getElementById('squadName').value,
-                category: document.getElementById('squadCategory').value,
-                leader: document.getElementById('squadLeader').value,
-                status: document.getElementById('squadStatus').value,
-                objective: document.getElementById('squadObjective').value,
-                members: document.getElementById('initialMembers').value.split(',').map(m => m.trim()).filter(m => m)
-            };
+      closeBtn.onclick = () => (modal.style.display = "none");
 
-            console.log('New Squad Data:', squadData);
-            alert('Squad created successfully! (Data logged to console)');
-            // In a real application, you would send this data to a backend API
-            // fetch('/api/squads', {
-            //     method: 'POST',
-            //     headers: { 'Content-Type': 'application/json' },
-            //     body: JSON.stringify(squadData)
-            // })
-            // .then(response => response.json())
-            // .then(data => {
-            //     console.log('Success:', data);
-            //     alert('Squad created successfully!');
-            //     window.location.href = 'squads.html'; // Redirect to squads overview
-            // })
-            // .catch((error) => {
-            //     console.error('Error:', error);
-            //     alert('Failed to create squad.');
-            // });
-        });
-    </script>
+      async function populateLeaderDropdown() {
+        try {
+          const rows = await PowerUp.api.getRowsByTitle("EMPLOYEE_MASTER");
+          employees = rows
+            .map(r => ({
+              id: r["Employee ID"] || r["Position ID"] || "",
+              name: r["Display Name"] || r["Employee Name"] || ""
+            }))
+            .filter(e => e.id && e.name)
+            .sort((a, b) => a.name.localeCompare(b.name));
+
+          leaderSelect.innerHTML =
+            '<option value="">Select a leader...</option>' +
+            employees.map(e => `<option value="${e.id}">${e.name}</option>`).join("");
+        } catch (err) {
+          console.error("Error loading employees:", err);
+          leaderSelect.innerHTML = '<option value="">Error loading list</option>';
+        }
+      }
+
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+
+        const formData = {
+          squadName: form.squadName.value.trim(),
+          category: form.category.value.trim(),
+          objective: form.objective.value.trim(),
+          leaderId: form.squadLeader.value,
+          active: form.activeStatus.value === "true"
+        };
+
+        if (!formData.leaderId) {
+          alert("Please select a squad leader before creating the squad.");
+          return;
+        }
+
+        const leader = employees.find(e => e.id === formData.leaderId);
+        const session = JSON.parse(sessionStorage.getItem("pu.session") || "{}");
+
+        try {
+          // --- 1️⃣ Add the Squad row
+          const squadRow = {
+            "Squad Name": formData.squadName,
+            "Category": formData.category,
+            "Objective": formData.objective,
+            "Active": formData.active,
+            "Created Date": new Date().toISOString(),
+            "Created By": session.name || "Preview User"
+          };
+          const squadRes = await PowerUp.api.addRows(PowerUp.api.SHEETS.SQUADS, [squadRow]);
+          const newSquadId =
+            squadRes?.[0]?.id || squadRes?.[0]?.rowNumber || squadRes?.result?.[0]?.id || "Unknown";
+
+          // --- 2️⃣ Add the Leader as a Squad Member
+          const leaderRow = {
+            "Squad ID": newSquadId,
+            "Employee ID": leader.id,
+            "Role": "Leader",
+            "Active": true,
+            "Start Date": new Date().toISOString(),
+            "Created By": session.name || "Preview User"
+          };
+          await PowerUp.api.addRows(PowerUp.api.SHEETS.SQUAD_MEMBERS, [leaderRow]);
+
+          alert("✅ Squad and leader successfully created!");
+          modal.style.display = "none";
+          form.reset();
+        } catch (err) {
+          console.error("Error creating squad:", err);
+          alert("❌ Error creating squad. Check console for details.");
+        }
+      });
+
+      // preload once on page load for smoother UX
+      await populateLeaderDropdown();
+    });
+  </script>
 </body>
 </html>
-
-
-
-
-
-
-
