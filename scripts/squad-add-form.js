@@ -121,3 +121,6 @@
 
   document.addEventListener("DOMContentLoaded", init);
 })(window.PowerUp || (window.PowerUp = {}));
+
+console.log("✅ squad-add-form.js loaded and PowerUp.squadAddForm defined:", !!PowerUp.squadAddForm);
+
