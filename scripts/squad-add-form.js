@@ -35,7 +35,7 @@
     const select = document.getElementById("squadLeaderSelect");
     if (!select) return;
     select.innerHTML = `<option value="">Loading employees...</option>`;
-    const rows = await api.getRowsByTitle("EMPLOYEES").catch(() => []);
+    const rows = await api.getRowsByTitle("EMPLOYEE_MASTER").catch(() => []);
     const options = rows.map(r => {
       const id = (r["Position ID"] || r["Employee ID"] || "").toString().trim();
       const name = (r["Display Name"] || r["Employee Name"] || r["Name"] || "").toString().trim();
