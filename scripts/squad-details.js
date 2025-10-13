@@ -142,11 +142,18 @@ if (completed) {
   }
 
   function renderKpis(acts, hoursDone, hoursPlan) {
+    console.log("RenderKpis override check!");
     const set = (id,val) => { const el = document.getElementById(id); if (el) el.textContent = String(val); };
     const total = acts.length;
     const completed = acts.filter(a => /completed/i.test(a.status)).length;
     const pct = total ? Math.round((completed/total)*100) : 0;
     const sum = (map) => Array.from(map.values()).reduce((a,b)=>a+b,0);
+    console.log("renderKpis data:", {
+  total,
+  planned: Array.from(hoursPlan.entries()),
+  completed: Array.from(hoursDone.entries())
+});
+
     set("kpi-total", total);
     set("kpi-planned-hrs", sum(hoursPlan));
     set("kpi-completed-hrs", sum(hoursDone));
