@@ -75,82 +75,107 @@
     }
   }
 
-  // === Handle Form Submission ===
   async function handleSubmit(e) {
-    e.preventDefault();
+  e.preventDefault();
 
-    const name = document.getElementById("squadName")?.value.trim();
-    const category = document.getElementById("squadCategory")?.value.trim();
-    const leaderId = document.getElementById("squadLeaderSelect")?.value.trim();
-    const leaderName = document.getElementById("squadLeaderSelect")?.selectedOptions[0]?.text || "";
-    const objective = document.getElementById("squadObjective")?.value.trim();
-    const active = document.getElementById("squadActive")?.checked ?? true;
+  const name = document.getElementById("squadName")?.value.trim();
+  const category = document.getElementById("squadCategory")?.value.trim();
+  const leaderId = document.getElementById("squadLeaderSelect")?.value.trim();
+  const leaderName = document.getElementById("squadLeaderSelect")?.selectedOptions[0]?.text || "";
+  const objective = document.getElementById("squadObjective")?.value.trim();
+  const active = document.getElementById("squadActive")?.checked ?? true;
 
-    if (!name || !category || !leaderId || !objective) {
-      showToast("⚠️ Please complete all required fields.", "error");
-      return;
-    }
+  if (!name || !category || !leaderId || !objective) {
+    alert("Please complete all required fields.");
+    return;
+  }
 
-    // Normalize category to valid Smartsheet Picklist values
-    const categoryMap = {
-      ci: "CI",
-      "continuous improvement": "CI",
-      quality: "Quality",
-      safety: "Safety",
-      training: "Training",
-      other: "Other"
-    };
-    const categoryFixed = categoryMap[category.toLowerCase()] || "Other";
+  // Normalize category values to match picklist exactly
+  const categoryMap = {
+    ci: "CI",
+    "continuous improvement": "CI",
+    quality: "Quality",
+    safety: "Safety",
+    training: "Training",
+    other: "Other"
+  };
+  const categoryFixed = categoryMap[category.toLowerCase()] || "Other";
 
-    showOverlay("Saving…");
+  showOverlay("Saving…");
 
-    try {
-      const createdBy = (P.session?.get()?.displayName || "System");
-      const createdDate = new Date().toISOString().slice(0, 10);
+  try {
+    const createdBy = (P.session?.get()?.displayName || "System");
+    const createdDate = new Date().toISOString().slice(0, 10);
 
-      // Step 1: Create the new Squad
-      const squadRow = [{
-        "Squad Name": name,
-        "Category": categoryFixed,
-        "Objective": objective,
-        "Active": active,
-        "Created Date": createdDate,
-        "Created By": createdBy
-      }];
-      await api.addRows("SQUADS", squadRow, { toTop: true });
+    // === Step 1: Create the Squad ===
+    const squadRow = [{
+      "Squad Name": name,
+      "Category": categoryFixed,
+      "Objective": objective,
+      "Active": active,
+      "Created Date": createdDate,
+      "Created By": createdBy
+    }];
+    await api.addRows("SQUADS", squadRow, { toTop: true });
 
-      // Step 2: Wait briefly to ensure Smartsheet updates (prevent race condition)
-      await new Promise(r => setTimeout(r, 1500));
+    // === Step 2: Wait for Smartsheet to assign Auto-Number ID ===
+    let newSquadId = "";
+    const maxTries = 6;
 
-      // Step 3: Fetch fresh SQUADS data
+    for (let i = 0; i < maxTries; i++) {
+      await new Promise(r => setTimeout(r, 1500)); // wait 1.5s
+
       const updatedSquads = await api.getRowsByTitle("SQUADS", { force: true });
       const newSquad = updatedSquads.find(r =>
         (r["Squad Name"] || "").trim().toLowerCase() === name.toLowerCase()
       );
 
-      const newSquadId = (newSquad?.["Squad ID"] || newSquad?.["ID"] || "").toString().trim();
+      newSquadId = (newSquad?.["Squad ID"] || newSquad?.["ID"] || "").toString().trim();
 
-      if (!newSquadId) {
-        console.warn("⚠️ Could not find new Squad ID — skipping leader creation.");
-        showToast("Squad created, but missing ID link for leader.", "error");
-        hideOverlay();
-        return;
+      if (newSquadId) {
+        console.log(`✅ Squad ID found after ${i + 1} attempt(s): ${newSquadId}`);
+        break;
+      } else {
+        console.log(`⏳ Waiting for Squad ID... (${i + 1}/${maxTries})`);
       }
+    }
 
-      // Step 4: Add the Leader to Squad Members sheet
-      const memberRow = [{
-        "Squad ID": newSquadId,
-        "Squad Name": name,
-        "Employee ID": leaderId,
-        "Employee Name": leaderName,
-        "Role": "Leader",
-        "Active": true,
-        "Added By": createdBy,
-        "Start Date": createdDate
-      }];
-      await api.addRows("SQUAD_MEMBERS", memberRow, { toTop: true });
-      api.clearCache(api.SHEETS.SQUAD_MEMBERS);
+    if (!newSquadId) {
+      hideOverlay();
+      alert("Squad was created, but no ID was retrieved yet. Please refresh.");
+      return;
+    }
 
+    // === Step 3: Add the Leader to the Squad Members sheet ===
+    const memberRow = [{
+      "Squad ID": newSquadId,
+      "Squad Name": name,
+      "Employee ID": leaderId,
+      "Employee Name": leaderName,
+      "Role": "Leader",
+      "Active": true,
+      "Added By": createdBy,
+      "Start Date": createdDate
+    }];
+    await api.addRows("SQUAD_MEMBERS", memberRow, { toTop: true });
+
+    api.clearCache(api.SHEETS.SQUADS);
+    api.clearCache(api.SHEETS.SQUAD_MEMBERS);
+
+    // === Step 4: UX feedback ===
+    await flashSuccess();
+    hideOverlay();
+    hideModal();
+    document.getElementById("addSquadForm").reset();
+
+    showToast(`✅ Squad "${name}" created successfully!`);
+    document.dispatchEvent(new Event("squad-added"));
+  } catch (err) {
+    console.error("❌ Error creating squad:", err);
+    hideOverlay();
+    showToast("Failed to create squad. See console for details.", "error");
+  }
+}
       // Step 5: UX feedback + cleanup
       await flashSuccess();
       hideOverlay();
