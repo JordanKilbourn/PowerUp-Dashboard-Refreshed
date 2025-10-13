@@ -260,11 +260,24 @@
 .modal textarea {
   font-family: 'Inter', sans-serif;
 }
+
     .modal select {
-  max-height: 180px;
+  max-height: 140px;
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #00f08e #0f1b1b;
 }
 
+.modal select::-webkit-scrollbar {
+  width: 8px;
+}
+.modal select::-webkit-scrollbar-thumb {
+  background-color: #00f08e;
+  border-radius: 6px;
+}
+.modal select::-webkit-scrollbar-track {
+  background: #0f1b1b;
+}
 
   </style>
 </head>
@@ -297,35 +310,46 @@
   </main>
 
 <!-- Add Squad Modal -->
-<div id="addSquadModal" class="modal" aria-hidden="true" style="display:none;">
-  <div class="panel" style="max-width: 520px; margin: auto; background: #16213e; border-radius: 10px; padding: 20px; position: relative;">
-    <h2 style="color: #00f08e; text-align: center;">Add New Squad</h2>
-    <form id="addSquadForm" style="display: flex; flex-direction: column; gap: 14px; margin-top: 15px;">
-      
-      <label for="squadName" style="font-weight: 600; color: #e0e0e0;">Squad Name</label>
-      <input type="text" id="squadName" required placeholder="e.g., Automation Team" style="padding: 8px; border-radius: 6px; background: #2a3b5b; border: 1px solid #0f4c75; color: #e0e0e0;">
-      
-      <label for="squadCategory" style="font-weight: 600; color: #e0e0e0;">Category</label>
-      <select id="squadCategory" required style="padding: 8px; border-radius: 6px; background: #2a3b5b; border: 1px solid #0f4c75; color: #e0e0e0;">
+<div id="addSquadModalOverlay" class="modal-overlay" style="display:none;">
+  <div id="addSquadModal" class="modal" aria-hidden="true">
+    <h3>Add New Squad</h3>
+    <form id="addSquadForm">
+      <label for="squadName">Squad Name</label>
+      <input type="text" id="squadName" required placeholder="e.g., Automation Team">
+
+      <label for="squadCategory">Category</label>
+      <select id="squadCategory" required>
         <option value="">-- Select Category --</option>
-        <option value="ci">Continuous Improvement (CI)</option>
-        <option value="quality">Quality</option>
-        <option value="safety">Safety</option>
+        <option value="CI">Continuous Improvement (CI)</option>
+        <option value="Quality">Quality</option>
+        <option value="Safety">Safety</option>
       </select>
 
-      <label for="squadLeaderSelect" style="font-weight: 600; color: #e0e0e0;">Squad Leader</label>
-      <select id="squadLeaderSelect" required style="padding: 8px; border-radius: 6px; background: #2a3b5b; border: 1px solid #0f4c75; color: #e0e0e0;">
-        <option value="">Loading employees...</option>
-      </select>
+      <label for="squadLeaderSelect">Squad Leader</label>
+      <select id="squadLeaderSelect" required></select>
 
-      <label for="squadObjective" style="font-weight: 600; color: #e0e0e0;">Objective / Focus</label>
-      <textarea id="squadObjective" required placeholder="Briefly describe the squad's focus" style="padding: 8px; border-radius: 6px; background: #2a3b5b; border: 1px solid #0f4c75; color: #e0e0e0; resize: vertical;"></textarea>
+      <label for="squadObjective">Objective / Focus</label>
+      <textarea id="squadObjective" required placeholder="Briefly describe the squad's focus"></textarea>
 
-      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
-        <button type="button" id="cancelAddSquad" class="btn cancel">Cancel</button>
-        <button type="submit" id="saveAddSquad" class="btn save" style="background-color: #00f08e; color: #1a1a2e; font-weight: 600;">Create Squad</button>
+      <div class="checkbox-row">
+        <input type="checkbox" id="squadActive" checked>
+        <label for="squadActive">Active</label>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" id="cancelAddSquad" class="btn">Cancel</button>
+        <button type="submit" id="saveAddSquad" class="btn" style="background-color:#00f08e;color:#1a1a2e;font-weight:600;">Create Squad</button>
       </div>
     </form>
+
+    <div id="addSquadOverlay" class="modal-ux" style="display:none;">
+      <div class="box">
+        <div class="msg" id="addSquadOverlayMsg">Saving…</div>
+      </div>
+    </div>
+  </div>
+</div>
+
 
     <!-- Overlay -->
     <div id="addSquadOverlay" class="modal-ux" style="position:absolute; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.45); border-radius:10px;">
@@ -345,6 +369,7 @@
 
 </body>
 </html>
+
 
 
 
