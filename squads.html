@@ -30,34 +30,53 @@
   <link rel="preconnect" href="https://powerup-proxy.onrender.com" crossorigin>
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
 
-  <style>
-/* === ORIGINAL PAGE STYLING (UNCHANGED) === */
+<style>
+/* === GENERAL PAGE STYLING === */
 .filter-toolbar {
   position: relative;
-  top: auto;
   z-index: 1;
   background: var(--card-bg);
   border: 1px solid #2d3f3f;
   border-radius: 8px;
-  margin: 6px 8px 12px 8px;
+  margin: 6px 8px 12px;
   padding: 10px 12px;
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 12px;
+}
+.ft-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   flex-wrap: wrap;
 }
-.ft-left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.ft-right { margin-left: auto; display: flex; gap: 10px; }
-.toggle { display: flex; align-items: center; gap: 6px; font-size: 13px; }
-.toggle input { width: 18px; height: 18px; }
+.ft-right {
+  margin-left: auto;
+  display: flex;
+  gap: 10px;
+}
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+.toggle input {
+  width: 18px;
+  height: 18px;
+}
 .ft-search input {
-  width: 260px; max-width: 100%;
+  width: 260px;
+  max-width: 100%;
   padding: 8px 10px;
   border-radius: 6px;
   border: 1px solid #2d3f3f;
   background: #122;
   color: var(--text);
 }
+
+/* === BUTTONS === */
 .btn {
   padding: 8px 12px;
   border-radius: 6px;
@@ -65,14 +84,20 @@
   background: var(--card-bg);
   color: var(--text);
   cursor: pointer;
+  transition: background 0.2s ease, transform 0.15s ease;
 }
-.btn:hover { background: var(--card-bg-hover); }
+.btn:hover {
+  background: var(--card-bg-hover);
+  transform: translateY(-1px);
+}
 .section-h {
   font-size: 18px;
   font-weight: 700;
   color: var(--accent);
-  margin: 2px 0 10px 0;
+  margin: 2px 0 10px;
 }
+
+/* === LAYOUT STRUCTURE === */
 #pu-content {
   display: flex;
   flex-direction: column;
@@ -85,11 +110,9 @@
   flex-direction: column;
   flex: 1;
   min-height: 0;
-  margin: 0 8px 12px 8px;
+  margin: 0 8px 12px;
 }
 .squads-card {
-  display: flex;
-  flex-direction: column;
   flex: 1;
   min-height: 0;
   overflow: hidden;
@@ -97,6 +120,8 @@
   border: 1px solid #2d3f3f;
   border-radius: 9px;
   margin-bottom: 4px;
+  display: flex;
+  flex-direction: column;
 }
 .squads-scroll {
   flex: 1;
@@ -108,16 +133,38 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(360px, 420px));
   gap: 16px;
-  justify-content: start;
   margin-top: 4px;
 }
-.squad-card.card { padding: 12px 14px; }
-.squad-card h4 { font-size: 16px; color: #9ffbe6; margin-bottom: 6px; }
-.squad-meta { font-size: 13px; color: var(--text); }
-.squad-meta b { color: var(--info); font-weight: 600; }
-.squad-foot { display: flex; justify-content: flex-end; margin-top: 6px; }
-.squad-link { font-size: 13px; color: var(--accent); text-decoration: none; }
-.squad-link:hover { text-decoration: underline; }
+.squad-card.card {
+  padding: 12px 14px;
+  border-radius: 8px;
+}
+.squad-card h4 {
+  font-size: 16px;
+  color: #9ffbe6;
+  margin-bottom: 6px;
+}
+.squad-meta {
+  font-size: 13px;
+  color: var(--text);
+}
+.squad-meta b {
+  color: var(--info);
+  font-weight: 600;
+}
+.squad-foot {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+.squad-link {
+  font-size: 13px;
+  color: var(--accent);
+  text-decoration: none;
+}
+.squad-link:hover {
+  text-decoration: underline;
+}
 .status-pill {
   display: inline-block;
   padding: 3px 8px;
@@ -125,8 +172,14 @@
   font-size: 12px;
   font-weight: 700;
 }
-.status-on  { background: var(--success); color: #000; }
-.status-off { background: #3a4e4e; color: #fff; }
+.status-on {
+  background: var(--success);
+  color: #000;
+}
+.status-off {
+  background: #3a4e4e;
+  color: #fff;
+}
 .empty {
   background: var(--card-bg);
   border: 1px dashed #2d3f3f;
@@ -135,7 +188,7 @@
   color: var(--info);
 }
 
-/* === CLEAN ADD SQUAD MODAL === */
+/* === ADD SQUAD MODAL === */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -145,6 +198,7 @@
   justify-content: center;
   z-index: 2000;
 }
+
 .modal {
   background: var(--card-bg);
   border: 1px solid var(--accent);
@@ -161,7 +215,8 @@
   from { opacity: 0; transform: scale(0.96); }
   to { opacity: 1; transform: scale(1); }
 }
-.modal h3 {
+
+.modal h2 {
   color: var(--accent);
   font-size: 18px;
   margin-bottom: 16px;
@@ -184,9 +239,10 @@
   border-radius: 8px;
   border: 1px solid #2d3f3f;
   padding: 9px 10px;
-  background: #0f1b1b;
+  background: #1a2b2b;
   color: var(--text);
   font-size: 14px;
+  font-family: 'Inter', sans-serif;
   transition: all 0.2s ease;
 }
 .modal input[type="text"]:focus,
@@ -195,46 +251,10 @@
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 6px var(--accent);
-  background: #0f1b1b !important;
+  background: #1a2b2b !important;
 }
 
-/* Checkbox alignment */
-.checkbox-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 14px;
-}
-.checkbox-row input[type="checkbox"] {
-  vertical-align: middle;
-  margin-top: 0;
-  accent-color: var(--accent);
-}
-
-/* Toast inside modal */
-.toast {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%) scale(0.9);
-  background: rgba(0, 0, 0, 0.85);
-  border: 1px solid var(--accent);
-  color: var(--accent);
-  padding: 14px 20px;
-  border-radius: 10px;
-  text-align: center;
-  font-weight: 600;
-  opacity: 0;
-  pointer-events: none;
-  transition: all 0.25s ease;
-  z-index: 3000;
-}
-.toast.show {
-  opacity: 1;
-  transform: translate(-50%, -50%) scale(1);
-}
-
-    /* Fix checkbox and button layout */
+/* Checkbox and Buttons */
 .checkbox-row {
   display: flex;
   align-items: center;
@@ -242,32 +262,31 @@
   margin-top: 18px;
   margin-bottom: 14px;
 }
+.checkbox-row input[type="checkbox"] {
+  accent-color: var(--accent);
+}
 
 .modal-actions {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
 }
-
 .modal-actions .btn {
   min-width: 110px;
   text-align: center;
 }
 
-/* Ensure consistent input font across fields */
-.modal input,
-.modal select,
-.modal textarea {
-  font-family: 'Inter', sans-serif;
-}
-
-    .modal select {
-  max-height: 140px;
+/* === DROPDOWN SCROLL + APPEARANCE === */
+.modal select {
+  max-height: 160px;
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: #00f08e #0f1b1b;
 }
-
+.modal select option {
+  background-color: #0f1a1a;
+  color: #e0e0e0;
+}
 .modal select::-webkit-scrollbar {
   width: 8px;
 }
@@ -279,7 +298,40 @@
   background: #0f1b1b;
 }
 
-  </style>
+/* === SAVING OVERLAY === */
+.modal-ux {
+  position: absolute;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  border-radius: 10px;
+  transition: opacity 0.25s ease;
+}
+
+/* === TOAST NOTIFICATION === */
+#pu-toast {
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  background: rgba(0, 0, 0, 0.85);
+  border: 1px solid var(--accent, #00f08e);
+  border-radius: 10px;
+  padding: 14px 18px;
+  color: #9ffbe6;
+  font-weight: 600;
+  z-index: 4000;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: all 0.3s ease;
+}
+#pu-toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+</style>
+
 </head>
 
 <body>
@@ -371,6 +423,7 @@
 
 </body>
 </html>
+
 
 
 
