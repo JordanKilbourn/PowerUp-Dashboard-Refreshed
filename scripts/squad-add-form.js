@@ -76,8 +76,17 @@
       return;
     }
 
-    // ✅ FIX: Capitalize category to match Smartsheet picklist
-    const categoryFixed = category.charAt(0).toUpperCase() + category.slice(1).toLowerCase();
+// Map to valid Smartsheet picklist values
+const categoryMap = {
+  ci: "CI",
+  "continuous improvement": "CI",
+  quality: "Quality",
+  safety: "Safety",
+  training: "Training",
+  other: "Other"
+};
+const categoryFixed = categoryMap[category.toLowerCase()] || "Other";
+
 
     showOverlay("Saving…");
 
