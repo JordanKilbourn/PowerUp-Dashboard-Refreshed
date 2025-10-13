@@ -327,5 +327,20 @@
     applyFilters();
   });
 
+// Wire Add Squad Modal
+document.getElementById("btn-add-squad")?.addEventListener("click", () => {
+  PowerUp.squadAddForm.open();
+});
+
+document.addEventListener("squad-added", async () => {
+  // Re-render squad list after a new squad is created
+  if (typeof PowerUp.squads?.refresh === "function") {
+    await PowerUp.squads.refresh();
+  } else {
+    location.reload();
+  }
+});
+
+
   window.PowerUp = P;
 })(window.PowerUp || {});
