@@ -77,18 +77,19 @@
         const completed = isTrue(r["Completed"]);
         const scheduled = isTrue(r["Scheduled"]);
 
-        const dur = Number(String(r["Duration (hrs)"] || r["Hours"] || 0).replace(/[^0-9.\-]/g,"") || 0);
-        const doneHrs = Number(String(r["Completed Hours"] || 0).replace(/[^0-9.\-]/g,"") || 0);
+      const dur = Number(String(r["Duration (hrs)"] || r["Hours"] || 0).replace(/[^0-9.\-]/g,"") || 0);
+      const compHrs = Number(String(r["Completed Hours"] || 0).replace(/[^0-9.\-]/g,"") || 0);
 
-        if (completed) {
-          // Completed trumps everything
-          const add = doneHrs > 0 ? doneHrs : dur;
-          hoursByActDone.set(aid, (hoursByActDone.get(aid) || 0) + add);
-        } else {
-          // If scheduled or neither box checked → treat as planned
-          const add = dur > 0 ? dur : doneHrs;
-          hoursByActPlan.set(aid, (hoursByActPlan.get(aid) || 0) + add);
-        }
+// Completed trumps everything
+if (completed) {
+  const add = compHrs > 0 ? compHrs : dur;
+  hoursByActDone.set(aid, (hoursByActDone.get(aid) || 0) + add);
+} else {
+  // if Scheduled is checked OR both unchecked → treat as planned
+  const add = dur > 0 ? dur : compHrs;
+  hoursByActPlan.set(aid, (hoursByActPlan.get(aid) || 0) + add);
+}
+
       });
 
       console.log("✅ Hours loaded for squad:", squadName, {
