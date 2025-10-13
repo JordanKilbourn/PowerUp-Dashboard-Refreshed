@@ -64,21 +64,41 @@
       return { id: actId || title, title, type, status, start, end, owner };
     }).filter(Boolean);
 
+    // --- UPDATED LOGIC BELOW ---
     const hoursByActDone = new Map();
     const hoursByActPlan = new Map();
+
     try {
       const ph = await api.getRowsByTitle(api.SHEETS.POWER_HOURS);
       ph.forEach(r => {
         const aid = (r["Activity ID"] || r["Activity"] || "").toString().trim();
         if (!aid) return;
+
         const completed = isTrue(r["Completed"]);
         const scheduled = isTrue(r["Scheduled"]);
-        const hrs = Number(String(r["Completed Hours"] ?? r["Hours"] ?? "0").replace(/[^0-9.\-]/g,"") || 0);
-        if (!Number.isFinite(hrs)) return;
-        if (completed) hoursByActDone.set(aid, (hoursByActDone.get(aid) || 0) + hrs);
-        else if (scheduled) hoursByActPlan.set(aid, (hoursByActPlan.get(aid) || 0) + hrs);
+
+        const dur = Number(String(r["Duration (hrs)"] || r["Hours"] || 0).replace(/[^0-9.\-]/g,"") || 0);
+        const doneHrs = Number(String(r["Completed Hours"] || 0).replace(/[^0-9.\-]/g,"") || 0);
+
+        if (completed) {
+          // Completed trumps everything
+          const add = doneHrs > 0 ? doneHrs : dur;
+          hoursByActDone.set(aid, (hoursByActDone.get(aid) || 0) + add);
+        } else {
+          // If scheduled or neither box checked → treat as planned
+          const add = dur > 0 ? dur : doneHrs;
+          hoursByActPlan.set(aid, (hoursByActPlan.get(aid) || 0) + add);
+        }
       });
-    } catch {}
+
+      console.log("✅ Hours loaded for squad:", squadName, {
+        planned: Array.from(hoursByActPlan.values()).reduce((a,b)=>a+b,0),
+        completed: Array.from(hoursByActDone.values()).reduce((a,b)=>a+b,0)
+      });
+    } catch (err) {
+      console.error("⚠️ Error reading Power Hours:", err);
+    }
+    // --- END UPDATED LOGIC ---
 
     return { items, hoursByActDone, hoursByActPlan };
   }
