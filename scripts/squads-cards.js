@@ -332,9 +332,10 @@ document.getElementById("btn-add-squad")?.addEventListener("click", () => {
   if (PowerUp.squadAddForm && typeof PowerUp.squadAddForm.open === "function") {
     PowerUp.squadAddForm.open();
   } else {
-    alert("Add Squad form not found. Please ensure scripts/squad-add-form.js is loaded.");
+    console.warn("⚠️ PowerUp.squadAddForm not ready");
   }
 });
+
 
 document.addEventListener("squad-added", async () => {
   // Re-render squad list after a new squad is created
