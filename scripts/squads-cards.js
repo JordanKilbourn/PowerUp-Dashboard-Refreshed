@@ -329,7 +329,11 @@
 
 // Wire Add Squad Modal
 document.getElementById("btn-add-squad")?.addEventListener("click", () => {
-  PowerUp.squadAddForm.open();
+  if (PowerUp.squadAddForm && typeof PowerUp.squadAddForm.open === "function") {
+    PowerUp.squadAddForm.open();
+  } else {
+    alert("Add Squad form not found. Please ensure scripts/squad-add-form.js is loaded.");
+  }
 });
 
 document.addEventListener("squad-added", async () => {
