@@ -5,7 +5,7 @@
   const overlayMsgId = "addSquadOverlayMsg";
   const modalOverlayId = "addSquadModalOverlay"; // outer wrapper
 
-  // === Utility Functions ===
+  // === Utility: Modal Control ===
   function showModal() {
     const overlay = document.getElementById(modalOverlayId);
     if (overlay) overlay.style.display = "flex";
@@ -15,6 +15,7 @@
     if (overlay) overlay.style.display = "none";
   }
 
+  // === Overlay Loader ===
   function showOverlay(text = "Saving…") {
     const overlay = document.getElementById(overlayId);
     const msg = document.getElementById(overlayMsgId);
@@ -29,11 +30,26 @@
     if (!msg) return;
     msg.textContent = "Saved!";
     msg.style.color = "#00f08e";
-    await new Promise(r => setTimeout(r, 700));
+    await new Promise(r => setTimeout(r, 650));
   }
   function hideOverlay() {
     const overlay = document.getElementById(overlayId);
     if (overlay) overlay.style.display = "none";
+  }
+
+  // === Toast System (non-blocking notifications) ===
+  function showToast(message, type = "info") {
+    let toast = document.getElementById("pu-toast");
+    if (!toast) {
+      toast = document.createElement("div");
+      toast.id = "pu-toast";
+      document.body.appendChild(toast);
+    }
+    toast.textContent = message;
+    toast.style.borderColor = type === "error" ? "#ff6060" : "var(--accent)";
+    toast.style.color = type === "error" ? "#ff8080" : "#9ffbe6";
+    toast.classList.add("show");
+    setTimeout(() => toast.classList.remove("show"), 2800);
   }
 
   // === Load Employee List for Leader Select ===
@@ -49,18 +65,17 @@
         return id && name ? { id, name } : null;
       }).filter(Boolean);
 
-      // Sort alphabetically
       options.sort((a, b) => a.name.localeCompare(b.name));
-
-      select.innerHTML = `<option value="">-- Select Leader --</option>` +
+      select.innerHTML =
+        `<option value="">-- Select Leader --</option>` +
         options.map(o => `<option value="${o.id}">${o.name}</option>`).join("");
     } catch (err) {
-      console.error("Error loading employees:", err);
+      console.error("❌ Error loading employees:", err);
       select.innerHTML = `<option value="">Failed to load employees</option>`;
     }
   }
 
-  // === Handle Form Submit ===
+  // === Handle Form Submission ===
   async function handleSubmit(e) {
     e.preventDefault();
 
@@ -72,21 +87,20 @@
     const active = document.getElementById("squadActive")?.checked ?? true;
 
     if (!name || !category || !leaderId || !objective) {
-      alert("Please complete all required fields.");
+      showToast("⚠️ Please complete all required fields.", "error");
       return;
     }
 
-// Map to valid Smartsheet picklist values
-const categoryMap = {
-  ci: "CI",
-  "continuous improvement": "CI",
-  quality: "Quality",
-  safety: "Safety",
-  training: "Training",
-  other: "Other"
-};
-const categoryFixed = categoryMap[category.toLowerCase()] || "Other";
-
+    // Normalize category to valid Smartsheet Picklist values
+    const categoryMap = {
+      ci: "CI",
+      "continuous improvement": "CI",
+      quality: "Quality",
+      safety: "Safety",
+      training: "Training",
+      other: "Other"
+    };
+    const categoryFixed = categoryMap[category.toLowerCase()] || "Other";
 
     showOverlay("Saving…");
 
@@ -94,7 +108,7 @@ const categoryFixed = categoryMap[category.toLowerCase()] || "Other";
       const createdBy = (P.session?.get()?.displayName || "System");
       const createdDate = new Date().toISOString().slice(0, 10);
 
-      // Create the new Squad
+      // Step 1: Create the new Squad
       const squadRow = [{
         "Squad Name": name,
         "Category": categoryFixed,
@@ -103,11 +117,27 @@ const categoryFixed = categoryMap[category.toLowerCase()] || "Other";
         "Created Date": createdDate,
         "Created By": createdBy
       }];
+      await api.addRows("SQUADS", squadRow, { toTop: true });
 
-      const addResult = await api.addRows("SQUADS", squadRow, { toTop: true });
-      const newSquadId = (addResult?.[0]?.["Squad ID"] || addResult?.[0]?.["ID"] || "").toString().trim();
+      // Step 2: Wait briefly to ensure Smartsheet updates (prevent race condition)
+      await new Promise(r => setTimeout(r, 1500));
 
-      // Add the leader as a member row
+      // Step 3: Fetch fresh SQUADS data
+      const updatedSquads = await api.getRowsByTitle("SQUADS", { force: true });
+      const newSquad = updatedSquads.find(r =>
+        (r["Squad Name"] || "").trim().toLowerCase() === name.toLowerCase()
+      );
+
+      const newSquadId = (newSquad?.["Squad ID"] || newSquad?.["ID"] || "").toString().trim();
+
+      if (!newSquadId) {
+        console.warn("⚠️ Could not find new Squad ID — skipping leader creation.");
+        showToast("Squad created, but missing ID link for leader.", "error");
+        hideOverlay();
+        return;
+      }
+
+      // Step 4: Add the Leader to Squad Members sheet
       const memberRow = [{
         "Squad ID": newSquadId,
         "Squad Name": name,
@@ -119,20 +149,20 @@ const categoryFixed = categoryMap[category.toLowerCase()] || "Other";
         "Start Date": createdDate
       }];
       await api.addRows("SQUAD_MEMBERS", memberRow, { toTop: true });
-
       api.clearCache(api.SHEETS.SQUAD_MEMBERS);
 
+      // Step 5: UX feedback + cleanup
       await flashSuccess();
       hideOverlay();
       hideModal();
       document.getElementById("addSquadForm").reset();
 
-      // Fire event to refresh list
+      showToast(`✅ Squad "${name}" created successfully!`);
       document.dispatchEvent(new Event("squad-added"));
     } catch (err) {
       console.error("❌ Error creating squad:", err);
       hideOverlay();
-      alert("Failed to create squad. See console for details.");
+      showToast("Failed to create squad. See console for details.", "error");
     }
   }
 
