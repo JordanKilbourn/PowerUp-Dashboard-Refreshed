@@ -3,7 +3,7 @@
   const { api } = P;
 
   // === Utility Functions ===
-  const modalId = "addSquadModal";
+  const modalId = "addSquadModalOverlay";
 
   function showModal() {
     const overlay = document.getElementById(modalId);
