@@ -71,6 +71,16 @@
 try {
   const ph = await api.getRowsByTitle(api.SHEETS.POWER_HOURS);
   ph.forEach(r => {
+    const phSquadId = (r["Squad ID"] || "").toString().trim();
+    const phSquadName = (r["Squad"] || "").toString().trim();
+
+    // 🔒 Only include rows that match the current squad
+    const belongsToSquad =
+      norm(phSquadId) === norm(squadId) ||
+      norm(phSquadName) === norm(squadName);
+
+    if (!belongsToSquad) return; // skip unrelated hours
+
     const aid = (r["Activity ID"] || "").toString().trim();
     if (!aid) return;
 
