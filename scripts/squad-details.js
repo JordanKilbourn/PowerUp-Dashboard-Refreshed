@@ -68,37 +68,36 @@
     const hoursByActDone = new Map();
     const hoursByActPlan = new Map();
 
-    try {
-      const ph = await api.getRowsByTitle(api.SHEETS.POWER_HOURS);
-      ph.forEach(r => {
-        const aid = (r["Activity ID"] || r["Activity"] || "").toString().trim();
-        if (!aid) return;
+try {
+  const ph = await api.getRowsByTitle(api.SHEETS.POWER_HOURS);
+  ph.forEach(r => {
+    const aid = (r["Activity ID"] || "").toString().trim();
+    if (!aid) return;
 
-        const completed = isTrue(r["Completed"]);
-        const scheduled = isTrue(r["Scheduled"]);
+    const completed = isTrue(r["Completed"]);
+    const scheduled = isTrue(r["Scheduled"]);
+    const dur = Number(String(r["Duration (hrs)"] || "0").replace(/[^0-9.\-]/g, "")) || 0;
+    const compHrs = Number(String(r["Completed Hours"] || "0").replace(/[^0-9.\-]/g, "")) || 0;
 
-      const dur = Number(String(r["Duration (hrs)"] || r["Hours"] || 0).replace(/[^0-9.\-]/g,"") || 0);
-      const compHrs = Number(String(r["Completed Hours"] || 0).replace(/[^0-9.\-]/g,"") || 0);
+    let plannedAdd = 0, completedAdd = 0;
 
-// Completed trumps everything
-if (completed) {
-  const add = compHrs > 0 ? compHrs : dur;
-  hoursByActDone.set(aid, (hoursByActDone.get(aid) || 0) + add);
-} else {
-  // if Scheduled is checked OR both unchecked → treat as planned
-  const add = dur > 0 ? dur : compHrs;
-  hoursByActPlan.set(aid, (hoursByActPlan.get(aid) || 0) + add);
+    if (completed) completedAdd = compHrs > 0 ? compHrs : dur;
+    else if (scheduled) plannedAdd = dur > 0 ? dur : compHrs;
+    else plannedAdd = dur > 0 ? dur : compHrs;
+
+    if (plannedAdd > 0)
+      hoursByActPlan.set(aid, (hoursByActPlan.get(aid) || 0) + plannedAdd);
+    if (completedAdd > 0)
+      hoursByActDone.set(aid, (hoursByActDone.get(aid) || 0) + completedAdd);
+  });
+
+  console.log("✅ Hours loaded for squad:", squadName, {
+    planned: Array.from(hoursByActPlan.values()).reduce((a,b)=>a+b,0),
+    completed: Array.from(hoursByActDone.values()).reduce((a,b)=>a+b,0)
+  });
+} catch (err) {
+  console.error("Error loading Power Hours:", err);
 }
-
-      });
-
-      console.log("✅ Hours loaded for squad:", squadName, {
-        planned: Array.from(hoursByActPlan.values()).reduce((a,b)=>a+b,0),
-        completed: Array.from(hoursByActDone.values()).reduce((a,b)=>a+b,0)
-      });
-    } catch (err) {
-      console.error("⚠️ Error reading Power Hours:", err);
-    }
     // --- END UPDATED LOGIC ---
 
     return { items, hoursByActDone, hoursByActPlan };
@@ -514,53 +513,65 @@ async function createActivity({ squadId, squadName }) {
     const at = document.getElementById('lh-activity-title'); if (at) at.value = activityTitle || '';
     showModal('logHourModal');
   }
-  async function saveLogHours() {
-    // required fields
-    const date = toISO(document.getElementById('lh-date')?.value || '');
-    const start24 = document.getElementById('lh-start')?.value || '';
-    const end24   = document.getElementById('lh-end')?.value || '';
-    const scheduled = !!document.getElementById('lh-scheduled')?.checked;
-    const completed = !!document.getElementById('lh-completed')?.checked;
-    const actId = document.getElementById('lh-activity-id')?.value || '';
-    const actTitle = document.getElementById('lh-activity-title')?.value || '';
-    const squadId = document.getElementById('lh-squad-id')?.value || '';
-    const squadName = document.getElementById('lh-squad')?.value || '';
+  
+async function saveLogHours() {
+  const date = toISO(document.getElementById('lh-date')?.value || '');
+  const start24 = document.getElementById('lh-start')?.value || '';
+  const end24   = document.getElementById('lh-end')?.value || '';
+  const scheduled = !!document.getElementById('lh-scheduled')?.checked;
+  const completed = !!document.getElementById('lh-completed')?.checked;
+  const actId = document.getElementById('lh-activity-id')?.value || '';
+  const actTitle = document.getElementById('lh-activity-title')?.value || '';
+  const squadId = document.getElementById('lh-squad-id')?.value || '';
+  const squadName = document.getElementById('lh-squad')?.value || '';
 
-    if (!date) { alert("Date is required."); return; }
-    if (!start24 || !end24) { alert("Start and End time are required."); return; }
-    if (!scheduled && !completed) { alert("Choose Scheduled and/or Completed."); return; }
+  if (!date) { alert("Date is required."); return; }
+  if (!start24 || !end24) { alert("Start and End time are required."); return; }
+  if (!scheduled && !completed) { alert("Choose Scheduled and/or Completed."); return; }
 
-    // Who did it
-    const me = (session.get?.() || {});
-    const empId = (me.employeeId || me.id || "").toString().trim();
-    const empName = (me.displayName || me.name || me.fullName || "").toString().trim();
+  const me = (session.get?.() || {});
+  const empId = (me.employeeId || me.id || "").toString().trim();
+  const empName = (me.displayName || me.name || me.fullName || "").toString().trim();
 
-    // convert to Smartsheet time strings
-    const start = toSmartsheetTime(start24);
-    const end   = toSmartsheetTime(end24);
+  // Convert to Smartsheet-friendly time format
+  const start = toSmartsheetTime(start24);
+  const end   = toSmartsheetTime(end24);
+  const duration = calcHours(start24, end24);
 
-    const row = {
-      "Date": date,
-      "Start Time": start,
-      "End Time": end,
-      "Scheduled": scheduled,
-      "Completed": completed,
+  let realActivityId = actId;
 
-      // associations
-      "Activity ID": actId,
-      "Activity Description": actTitle,
-      "Squad": squadName,
-      "Squad ID": squadId,
-
-      // who
-      "Employee ID": empId,
-      "Employee Name": empName
-    };
-
-    await api.addRows("POWER_HOURS", [row], { toTop: true });
-    api.clearCache(api.SHEETS.POWER_HOURS);
+  // If missing (older entries), look up by title
+  if (!realActivityId && actTitle) {
+    const acts = await api.getRowsByTitle("SQUAD_ACTIVITIES", { force: true });
+    const match = acts.find(a =>
+      (a["Activity Title"] || "").trim().toLowerCase() === actTitle.toLowerCase() &&
+      (a["Squad ID"] || "").trim().toLowerCase() === squadId.toLowerCase()
+    );
+    realActivityId = (match?.["Activity ID"] || "").toString().trim();
   }
 
+  const row = {
+    "Date": date,
+    "Start Time": start,
+    "End Time": end,
+    "Duration (hrs)": duration,
+    "Scheduled": scheduled,
+    "Completed": completed,
+    "Activity ID": realActivityId,
+    "Activity Description": actTitle,
+    "Squad": squadName,
+    "Squad ID": squadId,
+    "Employee ID": empId,
+    "Employee Name": empName
+  };
+
+  await api.addRows("POWER_HOURS", [row], { toTop: true });
+  api.clearCache(api.SHEETS.POWER_HOURS);
+
+  console.log("💾 Logged Power Hour:", { squadId, realActivityId, actTitle, duration, completed, scheduled });
+}
+
+  
   // ---- modal helpers ----
   function showModal(id){
     const m = document.getElementById(id);
