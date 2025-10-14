@@ -428,31 +428,54 @@ if (completed) {
   async function flashSuccess(modalId){ const el=document.querySelector(`#${modalId} .modal-ux .msg`); if(!el) return; el.textContent='Saved!'; el.style.color='#20d3a8'; await new Promise(r=>setTimeout(r,650)); }
   function hideBusy(modalId){ const el=document.querySelector(`#${modalId} .modal-ux`); if(el) el.style.display='none'; }
 
-  async function createActivity({ squadId, squadName }) {
-    const title = document.getElementById('act-title').value.trim();
-    const type  = document.getElementById('act-type').value.trim() || "Other";
-    const status= document.getElementById('act-status-modal').value.trim();
-    const start = toISO(document.getElementById('act-start').value);
-    const end   = toISO(document.getElementById('act-end').value) || start;
-    const ownerSel  = document.getElementById('act-owner');
-    const ownerName = ownerSel?.selectedOptions[0]?.text || ownerSel?.value || "";
-    const ownerId   = ownerSel?.selectedOptions[0]?.dataset?.id || "";
-    const desc  = document.getElementById('act-desc').value.trim();
-    if (!title) { alert("Title is required."); return; }
-    if (!STATUS_ALLOWED.includes(status)) { alert("Status must be one of: Not Started, In Progress, Completed, Canceled."); return; }
-    const row = {
-      "Squad ID": squadId, "Squad": squadName,
-      "Activity Title": title, "Title": title,
-      "Type": type, "Status": status,
-      "Start Date": start, "End/Due Date": end,
-      "Owner (Display Name)": ownerName, "Owner": ownerName,
-      "Owner ID": ownerId,
-      "Description": desc, "Notes": desc
-    };
-    await api.addRows("SQUAD_ACTIVITIES", [row], { toTop: true });
-    api.clearCache(api.SHEETS.SQUAD_ACTIVITIES);
-    return true;
-  }
+async function createActivity({ squadId, squadName }) {
+  const title = document.getElementById('act-title').value.trim();
+  const type  = document.getElementById('act-type').value.trim() || "Other";
+  const status= document.getElementById('act-status-modal').value.trim();
+  const start = toISO(document.getElementById('act-start').value);
+  const end   = toISO(document.getElementById('act-end').value) || start;
+  const ownerSel  = document.getElementById('act-owner');
+  const ownerName = ownerSel?.selectedOptions[0]?.text || ownerSel?.value || "";
+  const ownerId   = ownerSel?.selectedOptions[0]?.dataset?.id || "";
+  const desc  = document.getElementById('act-desc').value.trim();
+
+  if (!title) { alert("Title is required."); return; }
+  if (!STATUS_ALLOWED.includes(status)) { alert("Status must be one of: Not Started, In Progress, Completed, Canceled."); return; }
+
+  const row = {
+    "Squad ID": squadId,
+    "Squad": squadName,
+    "Activity Title": title,
+    "Title": title,
+    "Type": type,
+    "Status": status,
+    "Start Date": start,
+    "End/Due Date": end,
+    "Owner (Display Name)": ownerName,
+    "Owner": ownerName,
+    "Owner ID": ownerId,
+    "Description": desc,
+    "Notes": desc
+  };
+
+  // Add the activity row
+  await api.addRows("SQUAD_ACTIVITIES", [row], { toTop: true });
+
+  // Clear cache and re-fetch to get the auto-generated Activity ID
+  api.clearCache(api.SHEETS.SQUAD_ACTIVITIES);
+  const allActs = await api.getRowsByTitle("SQUAD_ACTIVITIES", { force: true });
+
+  const newAct = allActs.find(a =>
+    (a["Activity Title"] || "").trim().toLowerCase() === title.toLowerCase() &&
+    (a["Squad ID"] || "").trim().toLowerCase() === squadId.toLowerCase()
+  );
+
+  const newActId = (newAct?.["Activity ID"] || "").toString().trim();
+  console.log("✅ New activity created:", { newActId, title });
+
+  // Return Activity ID so we can use it when logging power hours
+  return newActId;
+}
 
   // ---- Power Hours ----
   let gSquadId = "", gSquadName = "";
