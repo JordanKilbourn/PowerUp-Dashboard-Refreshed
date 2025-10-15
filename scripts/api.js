@@ -452,5 +452,76 @@
     }
   };
 
+// =====================================================
+  // ✅ NEW: Update an existing row by its Smartsheet rowId
+  // =====================================================
+  P.api.updateRowById = async function (sheetIdOrKey, rowId, data) {
+    const id = P.api.resolveSheetId(sheetIdOrKey);
+    if (!id) throw new Error("updateRowById: Missing sheetIdOrKey");
+    if (!rowId) throw new Error("updateRowById: Missing rowId");
+
+    // Fetch sheet columns
+    let columns;
+    try {
+      columns = await fetchJSONRetry(`${API_BASE}/sheet/${id}/columns`, { method: "GET" });
+      if (!Array.isArray(columns)) columns = columns?.data || columns?.columns;
+    } catch {
+      const sheet = await fetchSheet(id, { force: true });
+      columns = sheet.columns || [];
+    }
+
+    const titleToCol = {};
+    (columns || []).forEach(c => {
+      const k = String(c.title).replace(/\s+/g, " ").trim().toLowerCase();
+      titleToCol[k] = c;
+    });
+
+    const isFormulaCol = (col) => !!(col && (col.formula || col.systemColumnType));
+
+    function coerceValue(title, value, col) {
+      const t = String(title).toLowerCase();
+      let v = value;
+
+      // date columns → YYYY-MM-DD
+      if (t.includes("date") || (col && String(col.type).toUpperCase() === "DATE")) {
+        if (v instanceof Date) v = v.toISOString().slice(0, 10);
+        else if (typeof v === "string" && !/^\d{4}-\d{2}-\d{2}$/.test(v)) {
+          const d = new Date(v);
+          if (!isNaN(d)) v = d.toISOString().slice(0, 10);
+        }
+      }
+
+      // checkbox → boolean
+      if (typeof v === "string" && (t.includes("active") || t.includes("checkbox") || (col && String(col.type).toUpperCase() === "CHECKBOX"))) {
+        const s = v.trim().toLowerCase();
+        if (["true","yes","1","y","on"].includes(s)) v = true;
+        else if (["false","no","0","n","off",""].includes(s)) v = false;
+      }
+      return v;
+    }
+
+    // Build cell updates
+    const cells = Object.entries(data || {}).map(([title, value]) => {
+      const key = String(title).replace(/\s+/g, " ").trim().toLowerCase();
+      const col = titleToCol[key];
+      if (!col || isFormulaCol(col)) return null;
+      return { columnId: col.id, value: coerceValue(title, value, col) };
+    }).filter(Boolean);
+
+    if (!cells.length) throw new Error("updateRowById: No valid writable columns found");
+
+    const payload = { id: rowId, cells };
+    const res = await fetchJSONRetry(`${API_BASE}/sheet/${id}/rows`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rows: [payload] }),
+    });
+
+    // Invalidate cache so fresh data appears next time
+    P.api.clearCache(id);
+
+    return res;
+  };
+
   window.PowerUp = P;
 })(window.PowerUp || {});
