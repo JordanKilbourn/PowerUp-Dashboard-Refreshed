@@ -351,12 +351,11 @@
   manageView.id = "squad-management-view";
   manageView.style.display = "none";
   manageView.style.overflowY = "auto";
-  manageView.style.maxHeight = "70vh"; // Keeps header from overlapping on scroll
+  manageView.style.maxHeight = "70vh";
   cardsView.parentNode.insertBefore(manageView, cardsView.nextSibling);
 
   let isTableView = false;
 
-  // Handle toggle between card view and table view
   manageBtn?.addEventListener("click", async () => {
     if (!window.PowerUp.auth?.isAdmin?.()) {
       window.PowerUp.ui?.toast?.("You do not have permission to manage squads.", "error");
@@ -426,35 +425,31 @@
         </tr>
       </thead>
       <tbody>
-        ${squads
-          .map(
-            (r) => `
-          <tr data-id="${r["Squad ID"] || ""}">
+        ${squads.map(r => `
+          <tr data-id="${r["Squad ID"] || ""}" data-rowid="${r.id || ""}">
             <td>${r["Squad ID"] || "-"}</td>
-            <td contenteditable="true">${r["Squad Name"] || ""}</td>
-            <td contenteditable="true">${r["Category"] || ""}</td>
-            <td contenteditable="true">${r["Leader"] || "-"}</td>
-            <td><input type="checkbox" ${r["Active"] ? "checked" : ""}></td>
-            <td contenteditable="true">${r["Objective"] || ""}</td>
-            <td contenteditable="true">${r["Created By"] || ""}</td>
+            <td contenteditable="true" data-original="${r["Squad Name"] || ""}">${r["Squad Name"] || ""}</td>
+            <td contenteditable="true" data-original="${r["Category"] || ""}">${r["Category"] || ""}</td>
+            <td contenteditable="true" data-original="${r["Leader"] || ""}">${r["Leader"] || ""}</td>
+            <td><input type="checkbox" ${r["Active"] ? "checked" : ""} data-original="${r["Active"] ? "true" : "false"}"></td>
+            <td contenteditable="true" data-original="${r["Objective"] || ""}">${r["Objective"] || ""}</td>
+            <td contenteditable="true" data-original="${r["Created By"] || ""}">${r["Created By"] || ""}</td>
             <td>${r["Created Date"] || "-"}</td>
             <td class="actions-cell">
               <button class="btn save-btn">Save</button>
               <button class="btn cancel-btn">Cancel</button>
             </td>
-          </tr>`
-          )
-          .join("")}
+          </tr>`).join("")}
       </tbody>
     `;
     manageView.innerHTML = "";
     manageView.appendChild(table);
 
-    // Wire up Save buttons
-    manageView.querySelectorAll(".save-btn").forEach((btn) => {
+    // === Save logic ===
+    manageView.querySelectorAll(".save-btn").forEach(btn => {
       btn.addEventListener("click", async (e) => {
         const tr = e.target.closest("tr");
-        const squadId = tr.dataset.id;
+        const rowId = tr.dataset.rowid;
         const name = tr.children[1].textContent.trim();
         const category = tr.children[2].textContent.trim();
         const leader = tr.children[3].textContent.trim();
@@ -462,8 +457,9 @@
         const objective = tr.children[5].textContent.trim();
         const createdBy = tr.children[6].textContent.trim();
 
+        const overlay = showOverlay("Saving changes...");
         try {
-          await PowerUp.api.updateRow("SQUADS", squadId, {
+          await PowerUp.api.updateRowById("SQUADS", rowId, {
             "Squad Name": name,
             "Category": category,
             "Leader": leader,
@@ -471,11 +467,38 @@
             "Objective": objective,
             "Created By": createdBy,
           });
+
+          // update the "original" data values after save
+          tr.querySelectorAll("[data-original]").forEach(cell => {
+            cell.dataset.original = cell.textContent.trim();
+          });
+          const chk = tr.querySelector("input[type=checkbox]");
+          if (chk) chk.dataset.original = chk.checked ? "true" : "false";
+
+          tr.style.background = "rgba(0,255,128,0.1)";
           PowerUp.ui?.toast?.(`✅ Squad "${name}" updated successfully.`);
         } catch (err) {
           console.error("Update failed:", err);
           PowerUp.ui?.toast?.("Error updating squad. See console.", "error");
+        } finally {
+          hideOverlay();
+          setTimeout(() => (tr.style.background = ""), 1200);
         }
+      });
+    });
+
+    // === Cancel logic ===
+    manageView.querySelectorAll(".cancel-btn").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        const tr = e.target.closest("tr");
+        tr.querySelectorAll("[data-original]").forEach(cell => {
+          cell.textContent = cell.dataset.original;
+        });
+        const chk = tr.querySelector("input[type=checkbox]");
+        if (chk) chk.checked = chk.dataset.original === "true";
+        tr.style.transition = "background-color 0.4s ease";
+        tr.style.backgroundColor = "rgba(255,255,0,0.1)";
+        setTimeout(() => (tr.style.backgroundColor = ""), 800);
       });
     });
   }
@@ -512,11 +535,7 @@
       border-radius: 50%;
       animation: spin 1s linear infinite;
     }
-    @keyframes spin {
-      to {
-        transform: rotate(360deg);
-      }
-    }
+    @keyframes spin { to { transform: rotate(360deg); } }
 
     .manage-table {
       width: 100%;
@@ -538,18 +557,10 @@
       position: sticky;
       top: 0;
       z-index: 10;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.6);
     }
     .manage-table td[contenteditable="true"] {
       background: #101f1f;
-    }
-    .manage-table select,
-    .manage-table input[type="checkbox"] {
-      background: #101f1f;
-      color: #e5e7eb;
-      border: 1px solid #2d3f3f;
-      border-radius: 6px;
-      padding: 4px;
     }
     .actions-cell {
       display: flex;
@@ -560,20 +571,10 @@
       min-width: 70px;
       padding: 4px 10px;
     }
-    .manage-table .btn {
-      border-radius: 6px;
-      cursor: pointer;
-      border: 1px solid var(--accent, #00f08e);
-      background: #0f1a1a;
-      color: #d9e6e6;
-    }
-    .manage-table .btn:hover {
-      background: #152525;
-    }
   `;
   document.head.appendChild(style);
 })();
 
-window.PowerUp = P;
-})(window.PowerUp || {});
 
+  window.PowerUp = P;
+})(window.PowerUp || {});
