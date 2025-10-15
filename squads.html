@@ -333,6 +333,40 @@
   transform: translateY(0);
 }
 
+  .manage-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+}
+.manage-table th, .manage-table td {
+  padding: 10px 12px;
+  border: 1px solid #2d3f3f;
+  text-align: left;
+  color: var(--text);
+}
+.manage-table th {
+  background: #0f1a1a;
+  color: var(--accent);
+  text-transform: uppercase;
+  font-size: 13px;
+}
+.manage-table td[contenteditable="true"] {
+  background: #0b1414;
+  border: 1px solid #223;
+}
+.manage-table .save-btn {
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--accent);
+  background: var(--card-bg);
+  color: var(--accent);
+  cursor: pointer;
+}
+.manage-table .save-btn:hover {
+  background: var(--card-bg-hover);
+}
+
+
 </style>
 
 </head>
@@ -427,6 +461,7 @@
 
 </body>
 </html>
+
 
 
 
