@@ -343,20 +343,31 @@
     }
   });
 
-// === MANAGE SQUADS FEATURE ===
-(function manageSquadsFeature() {
-  console.log("✅ ManageSquadsFeature loaded, waiting for #btn-manage");
-  const manageBtn = document.getElementById("btn-manage");
-  console.log("🔍 manageBtn found?", !!manageBtn);
-  const cardsView = document.getElementById("cards");
-  const manageView = document.createElement("div");
-  manageView.id = "squad-management-view";
-  manageView.style.display = "none";
-  manageView.style.overflowY = "auto";
-  manageView.style.maxHeight = "70vh";
-  cardsView.parentNode.insertBefore(manageView, cardsView.nextSibling);
 
-  let isTableView = false;
+
+  
+// === MANAGE SQUADS FEATURE ===
+document.addEventListener("DOMContentLoaded", () => {
+  // Wait for layout to fully inject before binding
+  const waitForManageBtn = setInterval(() => {
+    const manageBtn = document.getElementById("btn-manage");
+    if (manageBtn) {
+      clearInterval(waitForManageBtn);
+      console.log("✅ ManageSquadsFeature initialized after layout load");
+      initManageSquadsFeature(manageBtn);
+    }
+  }, 300);
+
+  function initManageSquadsFeature(manageBtn) {
+    const cardsView = document.getElementById("cards");
+    const manageView = document.createElement("div");
+    manageView.id = "squad-management-view";
+    manageView.style.display = "none";
+    manageView.style.overflowY = "auto";
+    manageView.style.maxHeight = "70vh";
+    cardsView.parentNode.insertBefore(manageView, cardsView.nextSibling);
+
+    let isTableView = false;
 
   manageBtn?.addEventListener("click", async () => {
     if (!window.PowerUp.auth?.isAdmin?.()) {
