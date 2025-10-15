@@ -346,6 +346,93 @@ document.addEventListener("squad-added", async () => {
   }
 });
 
+// === MANAGE SQUADS FEATURE ===
+(function manageSquadsFeature() {
+  const manageBtn = document.getElementById("btn-manage");
+  const cardsView = document.getElementById("cards");
+  const manageView = document.createElement("div");
+  manageView.id = "squad-management-view";
+  manageView.style.display = "none";
+  cardsView.parentNode.insertBefore(manageView, cardsView.nextSibling);
+
+  let isTableView = false;
+
+  // Handle toggle
+  manageBtn?.addEventListener("click", async () => {
+    if (!window.PowerUp.auth?.isAdmin?.()) {
+      window.PowerUp.ui?.toast?.("You do not have permission to manage squads.", "error");
+      return;
+    }
+
+    isTableView = !isTableView;
+    manageBtn.textContent = isTableView ? "Back to Cards" : "Manage Squads";
+    cardsView.style.display = isTableView ? "none" : "grid";
+    manageView.style.display = isTableView ? "block" : "none";
+
+    if (isTableView) {
+      const squads = await PowerUp.api.getRowsByTitle("SQUADS", { force: true });
+      renderSquadTable(squads);
+    }
+  });
+
+  async function renderSquadTable(squads) {
+    if (!Array.isArray(squads) || squads.length === 0) {
+      manageView.innerHTML = `<div style="padding:16px;opacity:.7;">No squads available.</div>`;
+      return;
+    }
+
+    const table = document.createElement("table");
+    table.className = "manage-table";
+    table.innerHTML = `
+      <thead>
+        <tr>
+          <th>Squad ID</th>
+          <th>Squad Name</th>
+          <th>Category</th>
+          <th>Leader</th>
+          <th>Active</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${squads.map(r => `
+          <tr data-id="${r["Squad ID"] || ""}">
+            <td>${r["Squad ID"] || "-"}</td>
+            <td contenteditable="true">${r["Squad Name"] || ""}</td>
+            <td contenteditable="true">${r["Category"] || ""}</td>
+            <td>${r["Leader"] || "-"}</td>
+            <td><input type="checkbox" ${r["Active"] ? "checked" : ""}></td>
+            <td><button class="btn save-btn">Save</button></td>
+          </tr>`).join("")}
+      </tbody>
+    `;
+    manageView.innerHTML = "";
+    manageView.appendChild(table);
+
+    // Wire up Save buttons
+    manageView.querySelectorAll(".save-btn").forEach(btn => {
+      btn.addEventListener("click", async (e) => {
+        const tr = e.target.closest("tr");
+        const squadId = tr.dataset.id;
+        const name = tr.children[1].textContent.trim();
+        const category = tr.children[2].textContent.trim();
+        const active = tr.children[4].querySelector("input").checked;
+
+        try {
+          await PowerUp.api.updateRow("SQUADS", squadId, {
+            "Squad Name": name,
+            "Category": category,
+            "Active": active
+          });
+          PowerUp.ui?.toast?.(`✅ Squad "${name}" updated successfully.`);
+        } catch (err) {
+          console.error("Update failed:", err);
+          PowerUp.ui?.toast?.("Error updating squad. See console.", "error");
+        }
+      });
+    });
+  }
+})();
 
   window.PowerUp = P;
 })(window.PowerUp || {});
