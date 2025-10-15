@@ -345,7 +345,9 @@
 
 // === MANAGE SQUADS FEATURE ===
 (function manageSquadsFeature() {
+  console.log("✅ ManageSquadsFeature loaded, waiting for #btn-manage");
   const manageBtn = document.getElementById("btn-manage");
+  console.log("🔍 manageBtn found?", !!manageBtn);
   const cardsView = document.getElementById("cards");
   const manageView = document.createElement("div");
   manageView.id = "squad-management-view";
