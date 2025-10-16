@@ -444,7 +444,7 @@ document.addEventListener("DOMContentLoaded", () => {
             <td contenteditable="true" data-original="${r["Squad Name"] || ""}">${r["Squad Name"] || ""}</td>
             <td contenteditable="true" data-original="${r["Category"] || ""}">${r["Category"] || ""}</td>
             <td contenteditable="true" data-original="${r["Leader"] || ""}">${r["Leader"] || ""}</td>
-            <td><input type="checkbox" ${r["Active"] ? "checked" : ""} data-original="${r["Active"] ? "true" : "false"}"></td>
+            <td><input type="checkbox" ${r['Active'] ? 'checked' : ''} data-original="${r['Active'] ? 'true' : 'false'}"></td>
             <td contenteditable="true" data-original="${r["Objective"] || ""}">${r["Objective"] || ""}</td>
             <td contenteditable="true" data-original="${r["Created By"] || ""}">${r["Created By"] || ""}</td>
             <td>${r["Created Date"] || "-"}</td>
