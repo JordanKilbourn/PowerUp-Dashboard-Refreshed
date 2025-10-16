@@ -241,7 +241,6 @@
     LEADERS_BY_SQUAD.clear();
     try {
       if (SHEETS.SQUAD_MEMBERS) {
-        const smRows = await getRowsByTitle(SHEETS.SQUAD_MEMBERS);
 const smRows = await getRowsByTitle(SHEETS.SQUAD_MEMBERS);
 smRows.forEach(r => {
   const active = isTrue(pick(r, SM_COL.active, 'true'));
