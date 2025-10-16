@@ -232,36 +232,38 @@
   // ===============================
   // Main Page Init
   // ===============================
-  document.addEventListener('DOMContentLoaded', async () => {
-    await P.session.requireLogin();
-    await P.layout.injectLayout();
-    IS_ADMIN = !!(P.auth && P.auth.isAdmin && P.auth.isAdmin());
-    P.layout.setPageTitle(IS_ADMIN ? 'Squads (Admin)' : 'Squads');
-    await P.session.initHeader();
-    wireUI();
-    document.getElementById('activeOnly')?.checked=false;
-    await load();
-    applyFilters();
+document.addEventListener('DOMContentLoaded', async () => {
+  await P.session.requireLogin();
+  P.layout.injectLayout(); // ✅ removed await here
+  IS_ADMIN = !!(P.auth && P.auth.isAdmin && P.auth.isAdmin());
+  P.layout.setPageTitle(IS_ADMIN ? 'Squads (Admin)' : 'Squads');
+  await P.session.initHeader();
+  wireUI();
+  document.getElementById('activeOnly')?.checked = false;
+  await load();
+  applyFilters();
 
-    // Add Squad button
-    document.getElementById("btn-add-squad")?.addEventListener("click", () => {
-      if (PowerUp.squadAddForm?.open) PowerUp.squadAddForm.open();
-      else console.warn("⚠️ PowerUp.squadAddForm not ready");
-    });
-
-    document.addEventListener("squad-added", async () => {
-      if (PowerUp.squads?.refresh) await PowerUp.squads.refresh(); else location.reload();
-    });
-
-    // === MANAGE SQUADS FEATURE (layout-safe) ===
-    const waitForManageBtn = setInterval(() => {
-      const manageBtn = document.getElementById("btn-manage");
-      if (manageBtn) {
-        clearInterval(waitForManageBtn);
-        initManageSquadsFeature(manageBtn);
-      }
-    }, 300);
+  // Add Squad button
+  document.getElementById("btn-add-squad")?.addEventListener("click", () => {
+    if (PowerUp.squadAddForm?.open) PowerUp.squadAddForm.open();
+    else console.warn("⚠️ PowerUp.squadAddForm not ready");
   });
+
+  document.addEventListener("squad-added", async () => {
+    if (PowerUp.squads?.refresh) await PowerUp.squads.refresh();
+    else location.reload();
+  });
+
+  // === MANAGE SQUADS FEATURE (layout-safe) ===
+  const waitForManageBtn = setInterval(() => {
+    const manageBtn = document.getElementById("btn-manage");
+    if (manageBtn) {
+      clearInterval(waitForManageBtn);
+      initManageSquadsFeature(manageBtn);
+    }
+  }, 300);
+});
+
 
   // ===============================
   // Manage Squads Feature Function
