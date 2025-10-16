@@ -252,7 +252,11 @@
           const role = String(r['Role'] || '').toLowerCase();
 
           let entry = MEMBERS_BY_SQUAD.get(sid);
-          if (!entry) entry = { ids: new Set(), names: new Set() }, MEMBERS_BY_SQUAD.set(sid, entry);
+          if (!entry) {
+  entry = { ids: new Set(), names: new Set() };
+  MEMBERS_BY_SQUAD.set(sid, entry);
+}
+);
           if (eid) entry.ids.add(eid.toLowerCase());
           if (enm) entry.names.add(enm.toLowerCase());
           if (role === 'leader') {
