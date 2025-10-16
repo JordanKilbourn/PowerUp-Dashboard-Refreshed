@@ -350,9 +350,16 @@ const pick = (row, list, d = '') => {
     const msg = document.getElementById('s-msg');
     if (msg) msg.style.display = 'none';
 
-    // FIX: show nicer loading modal spinner
-    PowerUp.ui.showLoading('Loading Manage View…');
-
+// FIX: restore baseline inline loader
+const container = document.getElementById('cards');
+const msg = document.getElementById('s-msg');
+if (msg) msg.style.display = 'none';
+container.innerHTML = `
+  <div class="loading-spinner">
+    <div class="spinner"></div>
+    <p>Loading Manage View…</p>
+  </div>
+`;
 
       // FIX: Load all 3 sheets when Manage mode activates
       const [squads, members, employees] = await Promise.all([
@@ -429,8 +436,6 @@ const pick = (row, list, d = '') => {
       container.innerHTML = '';
       container.appendChild(table);
 
-      // FIX: hide loading modal once table is ready
-      PowerUp.ui.hideLoading();
 
       // FIX: Apply sticky header + column styling
       const style = document.createElement('style');
