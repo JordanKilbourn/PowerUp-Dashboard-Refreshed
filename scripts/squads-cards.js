@@ -35,10 +35,16 @@
     Other: 'cat-other'
   };
 
-  const pick = (row, list, d='') => {
-    for (const k of list) if (row[k]!=null && row[k]!=='') return row[k];
-    return d;
-  };
+// FIX: make pick() accept string or array safely
+const pick = (row, list, d = '') => {
+  if (!row) return d;
+  const keys = Array.isArray(list) ? list : [list];
+  for (const k of keys) {
+    if (row[k] != null && row[k] !== '') return row[k];
+  }
+  return d;
+};
+  
   const dash = v => (v==null || String(v).trim()==='' ? '-' : String(v));
   const isTrue = v => v===true || /^(true|yes|y|checked|1)$/i.test(String(v||'').trim());
 
@@ -340,10 +346,13 @@
     // --- Manage Squads Feature (Admin Mode) ---
   async function initManageSquadsFeature(btn) {
     btn.addEventListener('click', async () => {
-      const container = document.getElementById('cards');
-      const msg = document.getElementById('s-msg');
-      if (msg) msg.style.display = 'none';
-      container.innerHTML = '<div class="loading">Loading Manage View...</div>';
+    const container = document.getElementById('cards');
+    const msg = document.getElementById('s-msg');
+    if (msg) msg.style.display = 'none';
+
+    // FIX: show nicer loading modal spinner
+    PowerUp.ui.showLoading('Loading Manage View…');
+
 
       // FIX: Load all 3 sheets when Manage mode activates
       const [squads, members, employees] = await Promise.all([
@@ -419,6 +428,9 @@
       `;
       container.innerHTML = '';
       container.appendChild(table);
+
+      // FIX: hide loading modal once table is ready
+      PowerUp.ui.hideLoading();
 
       // FIX: Apply sticky header + column styling
       const style = document.createElement('style');
