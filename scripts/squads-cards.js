@@ -402,12 +402,21 @@
                 <td><input type="checkbox" class="active" ${isTrue(row['Active']) ? 'checked' : ''}></td>
                 <td contenteditable class="editable objective">${dash(row['Objective'])}</td>
                 <td>
-                  <select multiple class="leader-select">
-                    ${ALL_EMPLOYEES.map(emp => {
-                      const selected = leaders.includes(emp.name) ? 'selected' : '';
-                      return `<option value="${emp.name}" ${selected}>${emp.name}</option>`;
-                    }).join('')}
-                  </select>
+<div class="leader-multiselect" tabindex="0">
+  <div class="leader-tags">
+    ${leaders.map(name => `<span class="tag">${name}</span>`).join('')}
+  </div>
+  <div class="dropdown-arrow">▼</div>
+  <div class="leader-dropdown">
+    ${ALL_EMPLOYEES.map(emp => `
+      <label>
+        <input type="checkbox" value="${emp.name}" ${leaders.includes(emp.name) ? 'checked' : ''}>
+        ${emp.name}
+      </label>
+    `).join('')}
+  </div>
+</div>
+
                 </td>
                 <td contenteditable class="editable created-by">${dash(row['Created By'])}</td>
                 <td class="actions-cell"><button class="save">Save</button><button class="cancel">Cancel</button></td>
@@ -426,7 +435,87 @@
         .manage-table th:nth-child(2){min-width:160px}
         .manage-table th:nth-child(8){min-width:140px}
         .manage-table th:nth-child(9){min-width:120px}`;
-      document.head.appendChild(style);
+style.textContent += `
+.leader-multiselect {
+  position: relative;
+  background: #0f1a1a;
+  border: 1px solid #1e2a2a;
+  border-radius: 6px;
+  padding: 4px 8px;
+  min-width: 180px;
+  cursor: pointer;
+}
+.leader-multiselect .leader-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.leader-multiselect .tag {
+  background: #1f3f3f;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 0.8em;
+  color: #9ff;
+}
+.leader-multiselect .dropdown-arrow {
+  position: absolute;
+  right: 6px;
+  top: 6px;
+  font-size: 0.7em;
+  opacity: 0.6;
+}
+.leader-dropdown {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  right: 0;
+  background: #0d1717;
+  border: 1px solid #1e2a2a;
+  border-radius: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 6px;
+  display: none;
+  z-index: 9999;
+}
+.leader-dropdown label {
+  display: block;
+  font-size: 0.85em;
+  padding: 4px;
+  cursor: pointer;
+}
+.leader-dropdown input {
+  margin-right: 6px;
+}
+.leader-dropdown.show {
+  display: block;
+}
+`;
+
+     document.head.appendChild(style);
+
+// Initialize dropdown behavior
+document.addEventListener('click', e => {
+  const multiselect = e.target.closest('.leader-multiselect');
+  document.querySelectorAll('.leader-dropdown').forEach(d => {
+    if (!multiselect || !d.closest('.leader-multiselect').isSameNode(multiselect)) {
+      d.classList.remove('show');
+    }
+  });
+  if (multiselect) {
+    const dropdown = multiselect.querySelector('.leader-dropdown');
+    dropdown.classList.toggle('show');
+  }
+});
+
+document.addEventListener('change', e => {
+  if (!e.target.closest('.leader-dropdown')) return;
+  const dropdown = e.target.closest('.leader-dropdown');
+  const multiselect = dropdown.closest('.leader-multiselect');
+  const tagsDiv = multiselect.querySelector('.leader-tags');
+  const selected = Array.from(dropdown.querySelectorAll('input:checked')).map(i => i.value);
+  tagsDiv.innerHTML = selected.map(v => `<span class="tag">${v}</span>`).join('');
+});
 
       table.querySelectorAll('tr[data-rowid]').forEach(tr => {
         const data = {
@@ -451,7 +540,7 @@
           const active = tr.querySelector('.active')?.checked;
           const objective = tr.querySelector('.objective')?.textContent.trim();
           const createdBy = tr.querySelector('.created-by')?.textContent.trim();
-          const leaders = Array.from(tr.querySelector('.leader-select')?.selectedOptions || []).map(o => o.value);
+          const leaders = Array.from(tr.querySelectorAll('.leader-dropdown input:checked')).map(i => i.value);
           if (!leaders.length) return PowerUp.ui.toast('Each squad must have at least one leader.', 'warn');
 
           await PowerUp.api.updateRowById('SQUADS', rowId, {
@@ -493,8 +582,15 @@
           tr.querySelector('.active').checked = !!orig.active;
           tr.querySelector('.objective').textContent = orig.objective || '';
           tr.querySelector('.created-by').textContent = orig.createdBy || '';
-          const sel = tr.querySelector('.leader-select');
-          if (sel) Array.from(sel.options).forEach(opt => opt.selected = orig.leaders.includes(opt.value));
+const dropdown = tr.querySelector('.leader-dropdown');
+const tagsDiv = tr.querySelector('.leader-tags');
+if (dropdown && tagsDiv) {
+  Array.from(dropdown.querySelectorAll('input')).forEach(input => {
+    input.checked = orig.leaders.includes(input.value);
+  });
+  tagsDiv.innerHTML = orig.leaders.map(v => `<span class="tag">${v}</span>`).join('');
+}
+
           tr.style.backgroundColor = 'rgba(255,255,0,0.1)';
           setTimeout(() => tr.style.backgroundColor = '', 800);
         }
