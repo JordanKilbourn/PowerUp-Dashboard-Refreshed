@@ -242,30 +242,34 @@
     try {
       if (SHEETS.SQUAD_MEMBERS) {
         const smRows = await getRowsByTitle(SHEETS.SQUAD_MEMBERS);
-        smRows.forEach(r => {
-          const active = isTrue(pick(r, SM_COL.active, 'true'));
-          if (!active) return;
-          const sid = pick(r, SM_COL.squadId, '').trim();
-          if (!sid) return;
-          const eid = pick(r, SM_COL.empId, '').trim();
-          const enm = (pick(r, SM_COL.empName, '') || idToName.get(eid) || '').toString().trim();
-          const role = String(r['Role'] || '').toLowerCase();
+const smRows = await getRowsByTitle(SHEETS.SQUAD_MEMBERS);
+smRows.forEach(r => {
+  const active = isTrue(pick(r, SM_COL.active, 'true'));
+  if (!active) return;
 
-          let entry = MEMBERS_BY_SQUAD.get(sid);
-          if (!entry) {
-  entry = { ids: new Set(), names: new Set() };
-  MEMBERS_BY_SQUAD.set(sid, entry);
-}
-);
-          if (eid) entry.ids.add(eid.toLowerCase());
-          if (enm) entry.names.add(enm.toLowerCase());
-          if (role === 'leader') {
-            const arr = LEADERS_BY_SQUAD.get(sid) || [];
-            arr.push({ id: eid, name: enm });
-            LEADERS_BY_SQUAD.set(sid, arr);
-          }
-        });
-      }
+  const sid = pick(r, SM_COL.squadId, '').trim();
+  if (!sid) return;
+
+  const eid = pick(r, SM_COL.empId, '').trim();
+  const enm = (pick(r, SM_COL.empName, '') || idToName.get(eid) || '').toString().trim();
+  const role = String(r['Role'] || '').toLowerCase();
+
+  let entry = MEMBERS_BY_SQUAD.get(sid);
+  if (!entry) {
+    entry = { ids: new Set(), names: new Set() };
+    MEMBERS_BY_SQUAD.set(sid, entry);
+  }
+
+  if (eid) entry.ids.add(eid.toLowerCase());
+  if (enm) entry.names.add(enm.toLowerCase());
+
+  if (role === 'leader') {
+    const arr = LEADERS_BY_SQUAD.get(sid) || [];
+    arr.push({ id: eid, name: enm });
+    LEADERS_BY_SQUAD.set(sid, arr);
+  }
+});
+
     } catch {}
 
     const rows = await getRowsByTitle(SHEETS.SQUADS);
