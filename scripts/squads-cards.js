@@ -315,23 +315,27 @@
         manageView.innerHTML=`<div style="padding:16px;opacity:.7;">No squads available.</div>`;
         return;
       }
-      const table=document.createElement("table");
-      table.className="manage-table";
-      table.innerHTML=`<thead><tr>
-        <th>Squad ID</th><th>Squad Name</th><th>Category</th><th>Leader</th>
-        <th>Active</th><th>Objective</th><th>Created By</th><th>Created Date</th><th>Actions</th>
-      </tr></thead><tbody>${squads.map(r=>`
-        <tr data-id="${r["Squad ID"]||""}" data-rowid="${r.id||""}">
-          <td>${r["Squad ID"]||"-"}</td>
-          <td contenteditable data-original="${r["Squad Name"]||""}">${r["Squad Name"]||""}</td>
-          <td contenteditable data-original="${r["Category"]||""}">${r["Category"]||""}</td>
-          <td contenteditable data-original="${r["Leader"]||""}">${r["Leader"]||""}</td>
-          <td><input type="checkbox" ${r["Active"]?"checked":""} data-original="${r["Active"]?"true":"false"}"></td>
-          <td contenteditable data-original="${r["Objective"]||""}">${r["Objective"]||""}</td>
-          <td contenteditable data-original="${r["Created By"]||""}">${r["Created By"]||""}</td>
-          <td>${r["Created Date"]||"-"}</td>
-          <td class="actions-cell"><button class="btn save-btn">Save</button><button class="btn cancel-btn">Cancel</button></td>
-        </tr>`).join("")}</tbody>`;
+const table = document.createElement("table");
+table.className = "manage-table";
+table.innerHTML = `<thead><tr>
+  <th>Squad ID</th><th>Squad Name</th><th>Category</th><th>Leader</th>
+  <th>Active</th><th>Objective</th><th>Created By</th><th>Created Date</th><th>Actions</th>
+</tr></thead><tbody>${squads.map(r => `
+  <tr data-id="${r["Squad ID"] || ""}" data-rowid="${r.id || ""}">
+    <td>${r["Squad ID"] || "-"}</td>
+    <td contenteditable data-original="${r["Squad Name"] || ""}">${r["Squad Name"] || ""}</td>
+    <td contenteditable data-original="${r["Category"] || ""}">${r["Category"] || ""}</td>
+    <td contenteditable data-original="${r["Leader"] || ""}">${r["Leader"] || ""}</td>
+    <td><input type="checkbox" ${r["Active"] ? "checked" : ""} data-original="${r["Active"] ? "true" : "false"}"></td>
+    <td contenteditable data-original="${r["Objective"] || ""}">${r["Objective"] || ""}</td>
+    <td contenteditable data-original="${r["Created By"] || ""}">${r["Created By"] || ""}</td>
+    <td>${r["Created Date"] || "-"}</td>
+    <td class="actions-cell">
+      <button class="btn save-btn">Save</button>
+      <button class="btn cancel-btn">Cancel</button>
+    </td>
+  </tr>`).join("")}</tbody>`;
+      
       manageView.innerHTML=""; manageView.appendChild(table);
 
       manageView.querySelectorAll(".save-btn").forEach(btn=>{
