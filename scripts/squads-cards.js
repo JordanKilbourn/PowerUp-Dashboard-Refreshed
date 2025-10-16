@@ -319,10 +319,15 @@
     P.layout.setPageTitle(IS_ADMIN ? 'Squads (Admin)' : 'Squads');
     await P.session.initHeader();
     wireUI();
-    document.getElementById('activeOnly')?.checked = false;
+
+    // ✅ FIXED: optional chaining cannot appear on left-hand side of assignment
+    const chk = document.getElementById('activeOnly');
+    if (chk) chk.checked = false;
+
     await load();
     applyFilters();
   });
+
 
   const waitForManageBtn = setInterval(() => {
     const manageBtn = document.getElementById('btn-manage');
