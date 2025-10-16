@@ -381,6 +381,8 @@
         }
       });
 
+
+      
       const table = document.createElement('table');
       table.className = 'manage-table';
       table.innerHTML = `
@@ -414,6 +416,8 @@
         </tbody>`;
       cardsContainer.innerHTML = '';
       cardsContainer.appendChild(table);
+
+      
 
       const style = document.createElement('style');
       style.textContent = `
