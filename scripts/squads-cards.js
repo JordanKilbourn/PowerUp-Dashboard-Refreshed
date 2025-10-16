@@ -4,7 +4,10 @@
   const { SHEETS, getRowsByTitle } = P.api;
 
   // Column maps
-  const EMP_COL = { id: ['Position ID','Employee ID'], name: ['Display Name','Employee Name','Name'] };
+  const EMP_COL = {
+    id: ['Position ID','Employee ID'],
+    name: ['Display Name','Employee Name','Name']
+  };
   const SQUAD_COL = {
     id: ['Squad ID','ID'],
     name: ['Squad Name','Squad','Name','Team'],
@@ -17,10 +20,10 @@
     notes: ['Notes','Description']
   };
   const SM_COL = {
-    squadId:   ['Squad ID','SquadID','Squad'],
+    squadId:   ['Squad ID','SquadId','Squad'],
     empId:     ['Employee ID','EmployeeID','Position ID'],
     empName:   ['Employee Name','Name','Display Name'],
-    active:    ['Active','Is Active?'],
+    active:    ['Active','Is Active?']
   };
 
   const CATS = ['All','CI','Quality','Safety','Training','Other'];
@@ -32,30 +35,34 @@
     Other: 'cat-other'
   };
 
-  const pick = (row, list, d='') => { for (const k of list) if (row[k]!=null && row[k]!=='') return row[k]; return d; };
-  const dash = (v) => (v==null || String(v).trim()==='') ? '-' : String(v);
-  const isTrue = (v) => v === true || /^(true|yes|y|checked|1)$/i.test(String(v ?? "").trim());
+  const pick = (row, list, d='') => {
+    for (const k of list) if (row[k]!=null && row[k]!=='') return row[k];
+    return d;
+  };
+  const dash = v => (v==null || String(v).trim()==='' ? '-' : String(v));
+  const isTrue = v => v===true || /^(true|yes|y|checked|1)$/i.test(String(v||'').trim());
 
   function normCategory(v) {
-    const t = String(v || '').toLowerCase();
-    if (/^ci|improve/.test(t))     return 'CI';
-    if (/^quality/.test(t))        return 'Quality';
-    if (/^safety/.test(t))         return 'Safety';
-    if (/^training/.test(t))       return 'Training';
+    const t = String(v||'').toLowerCase();
+    if (/^ci|improve/.test(t)) return 'CI';
+    if (/^quality/.test(t)) return 'Quality';
+    if (/^safety/.test(t)) return 'Safety';
+    if (/^training/.test(t)) return 'Training';
     return 'Other';
   }
+
   function parseMemberTokens(text) {
-    return String(text || '').split(/[,;\n]+/).map(s => s.trim()).filter(Boolean);
+    return String(text||'').split(/[;,\\n]+/).map(s=>s.trim()).filter(Boolean);
   }
 
   function catVar(cat) {
     switch (cat) {
-      case 'CI':       return 'var(--sq-ci)';
-      case 'Quality':  return 'var(--sq-quality)';
-      case 'Safety':   return 'var(--sq-safety)';
-      case 'Training': return 'var(--sq-training)';
-      case 'Other':    return 'var(--sq-other)';
-      default:         return 'var(--accent)';
+      case 'CI':        return 'var(--sq-ci)';
+      case 'Quality':   return 'var(--sq-quality)';
+      case 'Safety':    return 'var(--sq-safety)';
+      case 'Training':  return 'var(--sq-training)';
+      case 'Other':     return 'var(--sq-other)';
+      default:          return 'var(--accent)';
     }
   }
 
@@ -63,18 +70,18 @@
   const LEADERS_BY_SQUAD = new Map();
 
   function userIsMemberOrLeader(squad, session) {
-    const myId   = String(session.employeeId || '').trim().toLowerCase();
+    const myId = String(session.employeeId || '').trim().toLowerCase();
     const myName = String(session.displayName || '').trim().toLowerCase();
 
-    if (myId && String(squad.leaderId || '').trim().toLowerCase() === myId) return true;
+    if (myId && String(squad.leaderId||'').trim().toLowerCase()===myId) return true;
 
-    const sid = String(squad.id || '').trim();
+    const sid = String(squad.id||'').trim();
     const entry = MEMBERS_BY_SQUAD.get(sid);
     if (entry) {
       if (myId && entry.ids.has(myId)) return true;
       if (myName && entry.names.has(myName)) return true;
     } else {
-      const tokensLC = parseMemberTokens(squad.members).map(t => t.toLowerCase());
+      const tokensLC = parseMemberTokens(squad.members).map(t=>t.toLowerCase());
       if (myId && tokensLC.includes(myId)) return true;
       if (myName && tokensLC.includes(myName)) return true;
     }
@@ -91,10 +98,9 @@
     wrap.innerHTML = CATS.map(cat => {
       const style = `--cat:${catVar(cat)};`;
       return `
-        <button class="pill-cat${cat===activeCat ? ' active':''}" data-cat="${cat}" style="${style}">
+        <button class="pill-cat${cat===activeCat?' active':''}" data-cat="${cat}" style="${style}">
           <span class="dot"></span>${cat}
-        </button>
-      `;
+        </button>`;
     }).join('');
   }
 
@@ -119,19 +125,16 @@
         : `<span class="status-pill status-off">Inactive</span>`;
 
       let leaderLine = dash(sq.leaderName || sq.leaderId);
-      const leaders = LEADERS_BY_SQUAD.get(String(sq.id || '').trim());
+      const leaders = LEADERS_BY_SQUAD.get(String(sq.id||'').trim());
       if (leaders && leaders.length) {
-        const names = leaders
-          .map(x => (x.name || idToName.get(x.id) || x.id || '').toString().trim())
+        const names = leaders.map(x => (x.name || idToName.get(x.id) || x.id || '').toString().trim())
           .filter(Boolean)
-          .sort((a,b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
-        if (names.length === 1) {
-          leaderLine = names[0];
-        } else if (names.length === 2) {
-          leaderLine = `${names[0]}, ${names[1]}`;
-        } else if (names.length > 2) {
-          leaderLine = `${names[0]}, ${names[1]} +${names.length - 2} more`;
-        }
+          .sort((a,b)=>a.localeCompare(b));
+        leaderLine = names.length === 1
+          ? names[0]
+          : names.length === 2
+            ? `${names[0]}, ${names[1]}`
+            : `${names[0]}, ${names[1]} +${names.length-2} more`;
       }
 
       const detailsHref = sq.id
@@ -142,80 +145,82 @@
       return `
         <div class="squad-card card ${catCls}">
           <h4>${dash(sq.name)}</h4>
-          <div class="squad-meta"><b>${(leaders && leaders.length > 1) ? 'Leaders' : 'Leader'}:</b> ${leaderLine}</div>
+          <div class="squad-meta"><b>${(leaders && leaders.length>1)?'Leaders':'Leader'}:</b> ${leaderLine}</div>
           <div class="squad-meta"><b>Status:</b> ${status}</div>
           <div class="squad-meta"><b>Focus:</b> ${dash(sq.objective)}</div>
           <div class="squad-foot"><a class="squad-link" href="${detailsHref}">View Details →</a></div>
-        </div>
-      `;
+        </div>`;
     }).join('');
   }
 
   async function getAdminTargetFromFilter() {
     try {
-      const sel = (sessionStorage.getItem('pu.adminEmployeeFilter') || '').trim();
-      if (!sel || sel === '__ALL__') return null;
+      const sel = (sessionStorage.getItem('pu.adminEmployeeFilter')||'').trim();
+      if (!sel || sel==='__ALL__') return null;
 
       if (!idToName.size) {
         const em = await getRowsByTitle(SHEETS.EMPLOYEE_MASTER);
-        em.forEach(r => {
-          const id = String(r['Position ID'] || r['Employee ID'] || '').trim();
-          const nm = String(r['Display Name'] || r['Employee Name'] || r['Name'] || '').trim();
+        em.forEach(r=>{
+          const id = String(r['Position ID']||r['Employee ID']||'').trim();
+          const nm = String(r['Display Name']||r['Employee Name']||r['Name']||'').trim();
           if (id) idToName.set(id, nm);
         });
       }
-      const norm = s => String(s||'').trim().toLowerCase();
+      const norm = s=>String(s||'').trim().toLowerCase();
       let targetId = '';
-      for (const [id, nm] of idToName.entries()) {
-        if (norm(nm) === norm(sel)) { targetId = id; break; }
+      for (const [id,nm] of idToName.entries()) {
+        if (norm(nm)===norm(sel)) { targetId=id; break; }
       }
-      return { id: targetId, name: sel };
-    } catch { return null; }
+      return {id:targetId, name:sel};
+    } catch {
+      return null;
+    }
   }
 
   async function applyFilters() {
-    const session   = P.session.get();
-    const cat       = document.querySelector('.pill-cat.active')?.dataset.cat || 'All';
-    let   myOnly    = document.getElementById('myOnly')?.checked;
-    const activeOnly= document.getElementById('activeOnly')?.checked;
-    const q         = (document.getElementById('search')?.value || '').trim().toLowerCase();
+    const session = P.session.get();
+    const cat = document.querySelector('.pill-cat.active')?.dataset.cat || 'All';
+    let myOnly = document.getElementById('myOnly')?.checked;
+    const activeOnly = document.getElementById('activeOnly')?.checked;
+    const q = (document.getElementById('search')?.value || '').trim().toLowerCase();
 
     let list = ALL.slice();
 
     if (myOnly) {
       if (IS_ADMIN) {
         let target = await getAdminTargetFromFilter();
-        if (!target) target = { id: String(session.employeeId||'').trim(), name: String(session.displayName||'').trim() };
+        if (!target) target = {
+          id: String(session.employeeId||'').trim(),
+          name: String(session.displayName||'').trim()
+        };
 
-        const norm = s => String(s||'').trim().toLowerCase();
+        const norm = s=>String(s||'').trim().toLowerCase();
         const tgtId = norm(target.id);
         const tgtName = norm(target.name);
 
-        list = list.filter(s => {
+        list = list.filter(s=>{
           const leaders = LEADERS_BY_SQUAD.get(String(s.id||'').trim()) || [];
-          const leaderHit = leaders.some(x => norm(x.id) === tgtId || norm(x.name) === tgtName);
-
+          const leaderHit = leaders.some(x=>norm(x.id)===tgtId || norm(x.name)===tgtName);
           const m = MEMBERS_BY_SQUAD.get(String(s.id||'').trim());
-          const memberHit = m ? (m.ids.has(tgtId) || m.names.has(tgtName)) : false;
-
+          const memberHit = m ? (m.ids.has(tgtId)||m.names.has(tgtName)) : false;
           let fallbackHit = false;
           if (!m && s.members) {
-            const toks = String(s.members).split(/[,;\n]+/).map(t => norm(t));
+            const toks = String(s.members).split(/[;,\\n]+/).map(t=>norm(t));
             fallbackHit = (!!tgtId && toks.includes(tgtId)) || (!!tgtName && toks.includes(tgtName));
           }
           return leaderHit || memberHit || fallbackHit;
         });
       } else {
-        list = list.filter(s => userIsMemberOrLeader(s, session));
+        list = list.filter(s=>userIsMemberOrLeader(s, session));
       }
     }
 
-    if (activeOnly)  list = list.filter(s => isTrue(s.active));
-    if (cat !== 'All') list = list.filter(s => s.category === cat);
+    if (activeOnly) list = list.filter(s=>isTrue(s.active));
+    if (cat!=='All') list = list.filter(s=>s.category===cat);
 
     if (q) {
-      list = list.filter(s => {
-        const hay = [s.name, s.leaderName, s.leaderId, s.objective, s.notes].join(' ').toLowerCase();
+      list = list.filter(s=>{
+        const hay = [s.name,s.leaderName,s.leaderId,s.objective,s.notes].join(' ').toLowerCase();
         return hay.includes(q);
       });
     }
@@ -226,8 +231,8 @@
   async function load() {
     const emRows = await getRowsByTitle(SHEETS.EMPLOYEE_MASTER);
     idToName = new Map();
-    emRows.forEach(r => {
-      const id   = pick(r, EMP_COL.id, '').toString().trim();
+    emRows.forEach(r=>{
+      const id = pick(r, EMP_COL.id, '').toString().trim();
       const name = pick(r, EMP_COL.name, '').toString().trim();
       if (id) idToName.set(id, name);
     });
@@ -237,50 +242,49 @@
     try {
       if (SHEETS.SQUAD_MEMBERS) {
         const smRows = await getRowsByTitle(SHEETS.SQUAD_MEMBERS);
-        smRows.forEach(r => {
+        smRows.forEach(r=>{
           const active = isTrue(pick(r, SM_COL.active, 'true'));
           if (!active) return;
-          const sid  = pick(r, SM_COL.squadId, '').toString().trim();
+          const sid = pick(r, SM_COL.squadId, '').trim();
           if (!sid) return;
-
-          const eid  = pick(r, SM_COL.empId, '').toString().trim();
-          const enm  = (pick(r, SM_COL.empName, '') || idToName.get(eid) || '').toString().trim();
-          const role = String(r['Role'] || '').trim().toLowerCase();
+          const eid = pick(r, SM_COL.empId, '').trim();
+          const enm = (pick(r, SM_COL.empName, '') || idToName.get(eid) || '').toString().trim();
+          const role = String(r['Role']||'').toLowerCase();
 
           let entry = MEMBERS_BY_SQUAD.get(sid);
           if (!entry) {
-            entry = { ids: new Set(), names: new Set() };
+            entry = { ids:new Set(), names:new Set() };
             MEMBERS_BY_SQUAD.set(sid, entry);
           }
           if (eid) entry.ids.add(eid.toLowerCase());
           if (enm) entry.names.add(enm.toLowerCase());
 
-          if (role === 'leader') {
-            const arr = LEADERS_BY_SQUAD.get(sid) || [];
-            arr.push({ id: eid, name: enm });
-            LEADERS_BY_SQUAD.set(sid, arr);
+          if (role==='leader') {
+            const arr = LEADERS_BY_SQUAD.get(sid)||[];
+            arr.push({id:eid,name:enm});
+            LEADERS_BY_SQUAD.set(sid,arr);
           }
         });
       }
-    } catch (_) {}
+    } catch {}
 
     const rows = await getRowsByTitle(SHEETS.SQUADS);
     ALL = rows
-      .map(r => {
-        const name = pick(r, SQUAD_COL.name, '').toString().trim();
+      .map(r=>{
+        const name = pick(r,SQUAD_COL.name,'').toString().trim();
         if (!name) return null;
-        const leaderId = pick(r, SQUAD_COL.leaderId, '').toString().trim();
+        const leaderId = pick(r,SQUAD_COL.leaderId,'').toString().trim();
         return {
-          id:        pick(r, SQUAD_COL.id, ''),
+          id: pick(r,SQUAD_COL.id,''),
           name,
-          category:  normCategory(pick(r, SQUAD_COL.category, 'Other')),
+          category: normCategory(pick(r,SQUAD_COL.category,'Other')),
           leaderId,
-          leaderName: idToName.get(leaderId) || '',
-          members:   pick(r, SQUAD_COL.members, ''),
-          objective: pick(r, SQUAD_COL.objective, ''),
-          active:    pick(r, SQUAD_COL.active, ''),
-          created:   pick(r, SQUAD_COL.created, ''),
-          notes:     pick(r, SQUAD_COL.notes, '')
+          leaderName: idToName.get(leaderId)||'',
+          members: pick(r,SQUAD_COL.members,''),
+          objective: pick(r,SQUAD_COL.objective,''),
+          active: pick(r,SQUAD_COL.active,''),
+          created: pick(r,SQUAD_COL.created,''),
+          notes: pick(r,SQUAD_COL.notes,'')
         };
       })
       .filter(Boolean);
@@ -288,25 +292,23 @@
 
   function wireUI() {
     renderCategoryPills('All');
-
     const pills = document.getElementById('cat-pills');
     if (pills) {
-      pills.addEventListener('click', (e) => {
+      pills.addEventListener('click', e=>{
         const btn = e.target.closest('[data-cat]');
         if (!btn) return;
-        pills.querySelectorAll('.pill-cat').forEach(p => p.classList.remove('active'));
+        pills.querySelectorAll('.pill-cat').forEach(p=>p.classList.remove('active'));
         btn.classList.add('active');
         applyFilters();
       });
     }
-
     document.getElementById('myOnly')?.addEventListener('change', applyFilters);
     document.getElementById('activeOnly')?.addEventListener('change', applyFilters);
     document.getElementById('search')?.addEventListener('input', applyFilters);
     document.addEventListener('powerup-admin-filter-change', applyFilters);
   }
 
-  document.addEventListener('DOMContentLoaded', async () => {
+  document.addEventListener('DOMContentLoaded', async ()=>{
     P.session.requireLogin();
     P.layout.injectLayout();
 
@@ -324,259 +326,231 @@
     applyFilters();
   });
 
-  // ==============================
-  // Add Squad Button (existing)
-  // ==============================
-  document.getElementById("btn-add-squad")?.addEventListener("click", () => {
-    if (PowerUp.squadAddForm && typeof PowerUp.squadAddForm.open === "function") {
-      PowerUp.squadAddForm.open();
-    } else {
-      console.warn("⚠️ PowerUp.squadAddForm not ready");
+  // --- FIX 1: Manage Squads Button Initialization ---
+  // Wait until layout injects Manage button safely before binding
+  const waitForManageBtn = setInterval(() => {
+    const manageBtn = document.getElementById('btn-manage');
+    if (manageBtn) {
+      clearInterval(waitForManageBtn);
+      initManageSquadsFeature(manageBtn); // safely initialize once available
     }
-  });
+  }, 300);
+  // FIX: End Fix #1
 
-  document.addEventListener("squad-added", async () => {
-    if (typeof PowerUp.squads?.refresh === "function") {
-      await PowerUp.squads.refresh();
-    } else {
-      location.reload();
-    }
-  });
+    // --- Manage Squads Feature (Admin Mode) ---
+  async function initManageSquadsFeature(btn) {
+    btn.addEventListener('click', async () => {
+      const container = document.getElementById('cards');
+      const msg = document.getElementById('s-msg');
+      if (msg) msg.style.display = 'none';
+      container.innerHTML = '<div class="loading">Loading Manage View...</div>';
 
-  
-  // ==============================
-  // Manage Squads Feature
-  // ==============================
+      // FIX: Load all 3 sheets when Manage mode activates
+      const [squads, members, employees] = await Promise.all([
+        PowerUp.api.getRowsByTitle('SQUADS', { force: true }),
+        PowerUp.api.getRowsByTitle('SQUAD_MEMBERS', { force: true }),
+        PowerUp.getEmployees()
+      ]);
 
-(function manageSquadsFeature() {
-  const manageBtn = document.getElementById("btn-manage");
-  const cardsView = document.getElementById("cards");
-  const manageView = document.createElement("div");
-  manageView.id = "squad-management-view";
-  manageView.style.display = "none";
-  manageView.style.overflowY = "auto";
-  manageView.style.maxHeight = "70vh"; // Keeps header from overlapping on scroll
-  cardsView.parentNode.insertBefore(manageView, cardsView.nextSibling);
+      const ALL_EMPLOYEES = employees.map(e => ({
+        id: e['Employee ID'] || e['Position ID'],
+        name: e['Employee Name'] || e['Display Name']
+      }));
 
-  let isTableView = false;
+      // FIX: Build LEADERS_BY_SQUAD from members
+      const LEADERS_BY_SQUAD = new Map();
+      members.forEach(r => {
+        if (!isTrue(pick(r, SM_COL.active, 'true'))) return;
+        const sid = pick(r, SM_COL.squadId, '').trim();
+        const role = (pick(r, SM_COL.role, '') || '').toLowerCase();
+        const eid = pick(r, SM_COL.empId, '').trim();
+        const name = pick(r, SM_COL.empName, '').trim();
+        if (role === 'leader') {
+          const arr = LEADERS_BY_SQUAD.get(sid) || [];
+          arr.push({ id: eid, name });
+          LEADERS_BY_SQUAD.set(sid, arr);
+        }
+      });
 
-  // Handle toggle between card view and table view
-  manageBtn?.addEventListener("click", async () => {
-    if (!window.PowerUp.auth?.isAdmin?.()) {
-      window.PowerUp.ui?.toast?.("You do not have permission to manage squads.", "error");
-      return;
-    }
+      // Build Manage Table
+      const table = document.createElement('table');
+      table.className = 'manage-table';
+      table.innerHTML = `
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Squad Name</th>
+            <th>Category</th>
+            <th>Active</th>
+            <th>Objective</th>
+            <th>Leaders</th>
+            <th>Created By</th>
+            <th class="actions-cell">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${squads.map(row => {
+            const sid = row.id;
+            const leaders = (LEADERS_BY_SQUAD.get(sid) || []).map(x => x.name);
+            return `
+              <tr data-rowid="${row.id}">
+                <td>${row.id}</td>
+                <td contenteditable="true" class="editable name">${dash(row['Squad Name'])}</td>
+                <td contenteditable="true" class="editable category">${dash(row['Category'])}</td>
+                <td><input type="checkbox" class="active" ${isTrue(row['Active']) ? 'checked' : ''}></td>
+                <td contenteditable="true" class="editable objective">${dash(row['Objective'])}</td>
+                <td>
+                  <!-- FIX: Populate multi-leader dropdown -->
+                  <select multiple class="leader-select">
+                    ${ALL_EMPLOYEES.map(emp => {
+                      const selected = leaders.includes(emp.name) ? 'selected' : '';
+                      return `<option value="${emp.name}" ${selected}>${emp.name}</option>`;
+                    }).join('')}
+                  </select>
+                </td>
+                <td contenteditable="true" class="editable created-by">${dash(row['Created By'])}</td>
+                <td class="actions-cell">
+                  <button class="save">Save</button>
+                  <button class="cancel">Cancel</button>
+                </td>
+              </tr>`;
+          }).join('')}
+        </tbody>
+      `;
+      container.innerHTML = '';
+      container.appendChild(table);
 
-    isTableView = !isTableView;
-    manageBtn.textContent = isTableView ? "Back to Cards" : "Manage Squads";
-    cardsView.style.display = isTableView ? "none" : "grid";
-    manageView.style.display = isTableView ? "block" : "none";
+      // FIX: Apply sticky header + column styling
+      const style = document.createElement('style');
+      style.textContent = `
+        .manage-table th {
+          position: sticky;
+          top: 0;
+          background: #0f1a1a;
+          z-index: 10;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.6);
+        }
+        .actions-cell {
+          display: flex;
+          gap: 10px;
+          justify-content: center;
+        }
+        .manage-table th:nth-child(2) { min-width: 160px; }
+        .manage-table th:nth-child(8) { min-width: 140px; }
+        .manage-table th:nth-child(9) { min-width: 120px; }
+      `;
+      document.head.appendChild(style);
 
-    if (isTableView) {
-      const overlay = showOverlay("Loading squads...");
-      try {
-        const squads = await PowerUp.api.getRowsByTitle("SQUADS", { force: true });
-        renderSquadTable(squads);
-      } catch (err) {
-        console.error("Error loading squads:", err);
-        PowerUp.ui?.toast?.("Failed to load squads.", "error");
-      } finally {
-        hideOverlay();
-      }
-    }
-  });
+      // Cache original row values for cancel behavior
+      table.querySelectorAll('tr[data-rowid]').forEach(tr => {
+        const data = {
+          name: tr.querySelector('.name')?.textContent.trim(),
+          category: tr.querySelector('.category')?.textContent.trim(),
+          active: tr.querySelector('.active')?.checked,
+          objective: tr.querySelector('.objective')?.textContent.trim(),
+          createdBy: tr.querySelector('.created-by')?.textContent.trim(),
+          leaders: Array.from(tr.querySelector('.leader-select')?.selectedOptions || []).map(o=>o.value)
+        };
+        tr.dataset.original = JSON.stringify(data);
+      });
 
-  function showOverlay(text = "Loading...") {
-    let overlay = document.getElementById("manageOverlay");
-    if (!overlay) {
-      overlay = document.createElement("div");
-      overlay.id = "manageOverlay";
-      overlay.innerHTML = `
-        <div class="manage-overlay-spinner">
-          <div class="spinner"></div>
-          <div>${text}</div>
-        </div>`;
-      document.body.appendChild(overlay);
-    }
-    overlay.style.display = "flex";
-    return overlay;
-  }
+      // FIX: Save button uses updateRowById and proper leader overwrite logic
+      table.addEventListener('click', async e => {
+        const tr = e.target.closest('tr[data-rowid]');
+        if (!tr) return;
+        const rowId = tr.dataset.rowid;
 
-  function hideOverlay() {
-    const overlay = document.getElementById("manageOverlay");
-    if (overlay) overlay.style.display = "none";
-  }
+        if (e.target.classList.contains('save')) {
+          const name = tr.querySelector('.name')?.textContent.trim();
+          const category = tr.querySelector('.category')?.textContent.trim();
+          const active = tr.querySelector('.active')?.checked;
+          const objective = tr.querySelector('.objective')?.textContent.trim();
+          const createdBy = tr.querySelector('.created-by')?.textContent.trim();
+          const leaders = Array.from(tr.querySelector('.leader-select')?.selectedOptions || []).map(o=>o.value);
 
-  async function renderSquadTable(squads) {
-    if (!Array.isArray(squads) || squads.length === 0) {
-      manageView.innerHTML = `<div style="padding:16px;opacity:.7;">No squads available.</div>`;
-      return;
-    }
+          if (!leaders.length) {
+            PowerUp.ui.toast('Each squad must have at least one leader.', 'warn');
+            return;
+          }
 
-    const table = document.createElement("table");
-    table.className = "manage-table";
-    table.innerHTML = `
-      <thead>
-        <tr>
-          <th>Squad ID</th>
-          <th>Squad Name</th>
-          <th>Category</th>
-          <th>Leader</th>
-          <th>Active</th>
-          <th>Objective</th>
-          <th>Created By</th>
-          <th>Created Date</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${squads
-          .map(
-            (r) => `
-          <tr data-id="${r["Squad ID"] || ""}">
-            <td>${r["Squad ID"] || "-"}</td>
-            <td contenteditable="true">${r["Squad Name"] || ""}</td>
-            <td contenteditable="true">${r["Category"] || ""}</td>
-            <td contenteditable="true">${r["Leader"] || "-"}</td>
-            <td><input type="checkbox" ${r["Active"] ? "checked" : ""}></td>
-            <td contenteditable="true">${r["Objective"] || ""}</td>
-            <td contenteditable="true">${r["Created By"] || ""}</td>
-            <td>${r["Created Date"] || "-"}</td>
-            <td class="actions-cell">
-              <button class="btn save-btn">Save</button>
-              <button class="btn cancel-btn">Cancel</button>
-            </td>
-          </tr>`
-          )
-          .join("")}
-      </tbody>
-    `;
-    manageView.innerHTML = "";
-    manageView.appendChild(table);
-
-    // Wire up Save buttons
-    manageView.querySelectorAll(".save-btn").forEach((btn) => {
-      btn.addEventListener("click", async (e) => {
-        const tr = e.target.closest("tr");
-        const squadId = tr.dataset.id;
-        const name = tr.children[1].textContent.trim();
-        const category = tr.children[2].textContent.trim();
-        const leader = tr.children[3].textContent.trim();
-        const active = tr.children[4].querySelector("input").checked;
-        const objective = tr.children[5].textContent.trim();
-        const createdBy = tr.children[6].textContent.trim();
-
-        try {
-          await PowerUp.api.updateRow("SQUADS", squadId, {
-            "Squad Name": name,
-            "Category": category,
-            "Leader": leader,
-            "Active": active,
-            "Objective": objective,
-            "Created By": createdBy,
+          // FIX: Update existing squad row
+          await PowerUp.api.updateRowById('SQUADS', rowId, {
+            'Squad Name': name,
+            'Category': category,
+            'Active': active,
+            'Objective': objective,
+            'Created By': createdBy
           });
-          PowerUp.ui?.toast?.(`✅ Squad "${name}" updated successfully.`);
-        } catch (err) {
-          console.error("Update failed:", err);
-          PowerUp.ui?.toast?.("Error updating squad. See console.", "error");
+
+          // FIX: Multi-leader overwrite logic (update, add, delete)
+          const sid = rowId;
+          const existing = members.filter(r => r['Squad ID'] === sid && r['Role'] === 'Leader');
+          const existingNames = existing.map(r => r['Employee Name']);
+          const toRemove = existing.filter(r => !leaders.includes(r['Employee Name']));
+          const toAdd = leaders.filter(l => !existingNames.includes(l));
+          const toUpdate = existing.filter(r => leaders.includes(r['Employee Name']));
+
+          // delete removed
+          for (const row of toRemove) {
+            await PowerUp.api.deleteRowById('SQUAD_MEMBERS', row.id);
+          }
+
+          // update existing leader rows
+          for (const row of toUpdate) {
+            const emp = ALL_EMPLOYEES.find(e => e.name === row['Employee Name']);
+            if (emp && (emp.id !== row['Employee ID'])) {
+              await PowerUp.api.updateRowById('SQUAD_MEMBERS', row.id, {
+                'Employee ID': emp.id,
+                'Employee Name': emp.name
+              });
+            }
+          }
+
+          // add new leaders
+          for (const leaderName of toAdd) {
+            const emp = ALL_EMPLOYEES.find(e => e.name === leaderName);
+            if (emp) {
+              await PowerUp.addSquadMember({
+                'Squad ID': sid,
+                'Employee ID': emp.id,
+                'Employee Name': emp.name,
+                'Role': 'Leader',
+                'Active': true,
+                'Added By': createdBy
+              });
+            }
+          }
+
+          PowerUp.ui.toast(`Saved updates for ${name}`, 'success');
+          // refresh cache
+          const data = {
+            name, category, active, objective, createdBy, leaders
+          };
+          tr.dataset.original = JSON.stringify(data);
+        }
+
+        // FIX: Cancel button restores original values + highlight feedback
+        if (e.target.classList.contains('cancel')) {
+          const orig = JSON.parse(tr.dataset.original || '{}');
+          if (!orig) return;
+          tr.querySelector('.name').textContent = orig.name || '';
+          tr.querySelector('.category').textContent = orig.category || '';
+          tr.querySelector('.active').checked = !!orig.active;
+          tr.querySelector('.objective').textContent = orig.objective || '';
+          tr.querySelector('.created-by').textContent = orig.createdBy || '';
+          const sel = tr.querySelector('.leader-select');
+          if (sel) {
+            Array.from(sel.options).forEach(opt => {
+              opt.selected = orig.leaders.includes(opt.value);
+            });
+          }
+
+          tr.style.backgroundColor = 'rgba(255,255,0,0.1)';
+          setTimeout(() => tr.style.backgroundColor = '', 800);
         }
       });
     });
   }
 
-  // === Styles for Manage Table & Overlay ===
-  const style = document.createElement("style");
-  style.textContent = `
-    #manageOverlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.6);
-      display: none;
-      align-items: center;
-      justify-content: center;
-      z-index: 3000;
-    }
-    .manage-overlay-spinner {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 12px;
-      background: #0f1b1b;
-      border: 1px solid var(--accent, #00f08e);
-      padding: 22px 26px;
-      border-radius: 12px;
-      color: #d9e6e6;
-      font-weight: 600;
-    }
-    .spinner {
-      width: 28px;
-      height: 28px;
-      border: 3px solid #00f08e;
-      border-top-color: transparent;
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
-    }
-    @keyframes spin {
-      to {
-        transform: rotate(360deg);
-      }
-    }
+})(window.PowerUp);
 
-    .manage-table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 12px;
-      font-size: 13px;
-    }
-    .manage-table th,
-    .manage-table td {
-      border: 1px solid #2d3f3f;
-      padding: 8px 10px;
-    }
-    .manage-table th {
-      background: #0f1a1a;
-      color: #9ffbe6;
-      font-weight: 600;
-      text-transform: uppercase;
-      font-size: 12px;
-      position: sticky;
-      top: 0;
-      z-index: 10;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
-    }
-    .manage-table td[contenteditable="true"] {
-      background: #101f1f;
-    }
-    .manage-table select,
-    .manage-table input[type="checkbox"] {
-      background: #101f1f;
-      color: #e5e7eb;
-      border: 1px solid #2d3f3f;
-      border-radius: 6px;
-      padding: 4px;
-    }
-    .actions-cell {
-      display: flex;
-      gap: 8px;
-      justify-content: center;
-    }
-    .actions-cell .btn {
-      min-width: 70px;
-      padding: 4px 10px;
-    }
-    .manage-table .btn {
-      border-radius: 6px;
-      cursor: pointer;
-      border: 1px solid var(--accent, #00f08e);
-      background: #0f1a1a;
-      color: #d9e6e6;
-    }
-    .manage-table .btn:hover {
-      background: #152525;
-    }
-  `;
-  document.head.appendChild(style);
-})();
-
-window.PowerUp = P;
-})(window.PowerUp || {});
