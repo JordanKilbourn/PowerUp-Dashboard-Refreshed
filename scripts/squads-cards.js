@@ -5,29 +5,29 @@
 
   // Column maps
   const EMP_COL = {
-    id: ['Position ID','Employee ID'],
-    name: ['Display Name','Employee Name','Name']
+    id: ['Position ID', 'Employee ID'],
+    name: ['Display Name', 'Employee Name', 'Name']
   };
   const SQUAD_COL = {
-    id: ['Squad ID','ID'],
-    name: ['Squad Name','Squad','Name','Team'],
-    category: ['Category','Squad Category'],
-    leaderId: ['Squad Leader','Leader Employee ID','Leader Position ID'],
-    members: ['Members','Member List'],
-    objective: ['Objective','Focus','Purpose'],
-    active: ['Active','Is Active?'],
-    created: ['Created Date','Start Date','Started'],
-    notes: ['Notes','Description']
+    id: ['Squad ID', 'ID'],
+    name: ['Squad Name', 'Squad', 'Name', 'Team'],
+    category: ['Category', 'Squad Category'],
+    leaderId: ['Squad Leader', 'Leader Employee ID', 'Leader Position ID'],
+    members: ['Members', 'Member List'],
+    objective: ['Objective', 'Focus', 'Purpose'],
+    active: ['Active', 'Is Active?'],
+    created: ['Created Date', 'Start Date', 'Started'],
+    notes: ['Notes', 'Description']
   };
   const SM_COL = {
-    squadId: ['Squad ID','SquadId','Squad'],
-    empId: ['Employee ID','EmployeeID','Position ID'],
-    empName: ['Employee Name','Name','Display Name'],
-    active: ['Active','Is Active?'],
+    squadId: ['Squad ID', 'SquadId', 'Squad'],
+    empId: ['Employee ID', 'EmployeeID', 'Position ID'],
+    empName: ['Employee Name', 'Name', 'Display Name'],
+    active: ['Active', 'Is Active?'],
     role: ['Role']
   };
 
-  const CATS = ['All','CI','Quality','Safety','Training','Other'];
+  const CATS = ['All', 'CI', 'Quality', 'Safety', 'Training', 'Other'];
   const CAT_CLASS = {
     CI: 'cat-ci',
     Quality: 'cat-quality',
@@ -36,7 +36,6 @@
     Other: 'cat-other'
   };
 
-  // FIX: make pick() accept string or array safely
   const pick = (row, list, d = '') => {
     if (!row) return d;
     const keys = Array.isArray(list) ? list : [list];
@@ -158,6 +157,7 @@
         </div>`;
     }).join('');
   }
+
   async function getAdminTargetFromFilter() {
     try {
       const sel = (sessionStorage.getItem('pu.adminEmployeeFilter') || '').trim();
@@ -239,39 +239,41 @@
 
     MEMBERS_BY_SQUAD.clear();
     LEADERS_BY_SQUAD.clear();
+
     try {
       if (SHEETS.SQUAD_MEMBERS) {
-const smRows = await getRowsByTitle(SHEETS.SQUAD_MEMBERS);
-smRows.forEach(r => {
-  const active = isTrue(pick(r, SM_COL.active, 'true'));
-  if (!active) return;
+        const smRows = await getRowsByTitle(SHEETS.SQUAD_MEMBERS);
+        smRows.forEach(r => {
+          const active = isTrue(pick(r, SM_COL.active, 'true'));
+          if (!active) return;
 
-  const sid = pick(r, SM_COL.squadId, '').trim();
-  if (!sid) return;
+          const sid = pick(r, SM_COL.squadId, '').trim();
+          if (!sid) return;
 
-  const eid = pick(r, SM_COL.empId, '').trim();
-  const enm = (pick(r, SM_COL.empName, '') || idToName.get(eid) || '').toString().trim();
-  const role = String(r['Role'] || '').toLowerCase();
+          const eid = pick(r, SM_COL.empId, '').trim();
+          const enm = (pick(r, SM_COL.empName, '') || idToName.get(eid) || '').toString().trim();
+          const role = String(r['Role'] || '').toLowerCase();
 
-  let entry = MEMBERS_BY_SQUAD.get(sid);
-  if (!entry) {
-    entry = { ids: new Set(), names: new Set() };
-    MEMBERS_BY_SQUAD.set(sid, entry);
-  }
+          let entry = MEMBERS_BY_SQUAD.get(sid);
+          if (!entry) {
+            entry = { ids: new Set(), names: new Set() };
+            MEMBERS_BY_SQUAD.set(sid, entry);
+          }
 
-  if (eid) entry.ids.add(eid.toLowerCase());
-  if (enm) entry.names.add(enm.toLowerCase());
+          if (eid) entry.ids.add(eid.toLowerCase());
+          if (enm) entry.names.add(enm.toLowerCase());
 
-  if (role === 'leader') {
-    const arr = LEADERS_BY_SQUAD.get(sid) || [];
-    arr.push({ id: eid, name: enm });
-    LEADERS_BY_SQUAD.set(sid, arr);
-  }
-});
+          if (role === 'leader') {
+            const arr = LEADERS_BY_SQUAD.get(sid) || [];
+            arr.push({ id: eid, name: enm });
+            LEADERS_BY_SQUAD.set(sid, arr);
+          }
+        });
+      }
+    } catch (err) {
+      console.error('Error loading squad members:', err);
+    }
 
-  } catch (err) {
-  console.error('Error loading squad members:', err);
-}
     const rows = await getRowsByTitle(SHEETS.SQUADS);
     ALL = rows.map(r => {
       const name = pick(r, SQUAD_COL.name, '').toString().trim();
@@ -310,19 +312,18 @@ smRows.forEach(r => {
     document.addEventListener('powerup-admin-filter-change', applyFilters);
   }
 
-document.addEventListener('DOMContentLoaded', async () => {
-  P.session.requireLogin();
-  P.layout.injectLayout();
-  IS_ADMIN = !!(P.auth && P.auth.isAdmin && P.auth.isAdmin());
-  P.layout.setPageTitle(IS_ADMIN ? 'Squads (Admin)' : 'Squads');
-  await P.session.initHeader();
-  wireUI();
-  document.getElementById('activeOnly')?.checked = false; // <- fixed here
-  await load();
-  applyFilters();
-});
+  document.addEventListener('DOMContentLoaded', async () => {
+    P.session.requireLogin();
+    P.layout.injectLayout();
+    IS_ADMIN = !!(P.auth && P.auth.isAdmin && P.auth.isAdmin());
+    P.layout.setPageTitle(IS_ADMIN ? 'Squads (Admin)' : 'Squads');
+    await P.session.initHeader();
+    wireUI();
+    document.getElementById('activeOnly')?.checked = false;
+    await load();
+    applyFilters();
+  });
 
-  // --- FIX 1: Manage Squads Button Initialization ---
   const waitForManageBtn = setInterval(() => {
     const manageBtn = document.getElementById('btn-manage');
     if (manageBtn) {
@@ -330,16 +331,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       initManageSquadsFeature(manageBtn);
     }
   }, 300);
-  // FIX 1 end
 
-  // --- Manage Squads Feature (Admin Mode) ---
   async function initManageSquadsFeature(btn) {
     btn.addEventListener('click', async () => {
       const cardsContainer = document.getElementById('cards');
       const msg = document.getElementById('s-msg');
       if (msg) msg.style.display = 'none';
 
-      // FIX: restored + enhanced loading spinner
       cardsContainer.innerHTML = `
         <div class="loading-spinner" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:200px;color:#9ff;">
           <div class="spinner" style="width:36px;height:36px;border:4px solid #0b0;border-top-color:transparent;border-radius:50%;animation:spin 1s linear infinite;"></div>
@@ -353,7 +351,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       `;
       document.head.appendChild(anim);
 
-      // FIX 2: load all three Smartsheets
       const [squads, members, employees] = await Promise.all([
         PowerUp.api.getRowsByTitle('SQUADS', { force: true }),
         PowerUp.api.getRowsByTitle('SQUAD_MEMBERS', { force: true }),
@@ -365,7 +362,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         name: e['Employee Name'] || e['Display Name']
       }));
 
-      // FIX 3: build leaders map
       const LEADERS_BY_SQUAD = new Map();
       members.forEach(r => {
         if (!isTrue(pick(r, SM_COL.active, 'true'))) return;
@@ -380,7 +376,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
       });
 
-      // Build Manage Table
       const table = document.createElement('table');
       table.className = 'manage-table';
       table.innerHTML = `
@@ -415,7 +410,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       cardsContainer.innerHTML = '';
       cardsContainer.appendChild(table);
 
-      // FIX 4: table CSS
       const style = document.createElement('style');
       style.textContent = `
         .manage-table th{position:sticky;top:0;background:#0f1a1a;z-index:10;box-shadow:0 2px 6px rgba(0,0,0,.6)}
@@ -425,7 +419,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         .manage-table th:nth-child(9){min-width:120px}`;
       document.head.appendChild(style);
 
-      // cache originals
       table.querySelectorAll('tr[data-rowid]').forEach(tr => {
         const data = {
           name: tr.querySelector('.name')?.textContent.trim(),
@@ -438,7 +431,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         tr.dataset.original = JSON.stringify(data);
       });
 
-      // FIX 5–7: save / cancel logic
       table.addEventListener('click', async e => {
         const tr = e.target.closest('tr[data-rowid]');
         if (!tr) return;
@@ -451,7 +443,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           const objective = tr.querySelector('.objective')?.textContent.trim();
           const createdBy = tr.querySelector('.created-by')?.textContent.trim();
           const leaders = Array.from(tr.querySelector('.leader-select')?.selectedOptions || []).map(o => o.value);
-          if (!leaders.length) return PowerUp.ui.toast('Each squad must have at least one leader.','warn');
+          if (!leaders.length) return PowerUp.ui.toast('Each squad must have at least one leader.', 'warn');
 
           await PowerUp.api.updateRowById('SQUADS', rowId, {
             'Squad Name': name, 'Category': category, 'Active': active,
@@ -481,7 +473,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
           }
 
-          PowerUp.ui.toast(`Saved updates for ${name}`,'success');
+          PowerUp.ui.toast(`Saved updates for ${name}`, 'success');
           tr.dataset.original = JSON.stringify({ name, category, active, objective, createdBy, leaders });
         }
 
