@@ -586,7 +586,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   `;
   document.head.appendChild(style);
-})();
+});
 
 
   window.PowerUp = P;
