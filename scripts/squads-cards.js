@@ -269,8 +269,9 @@ smRows.forEach(r => {
   }
 });
 
-    } catch {}
-
+  } catch (err) {
+  console.error('Error loading squad members:', err);
+}
     const rows = await getRowsByTitle(SHEETS.SQUADS);
     ALL = rows.map(r => {
       const name = pick(r, SQUAD_COL.name, '').toString().trim();
