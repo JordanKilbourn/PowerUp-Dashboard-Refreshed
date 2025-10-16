@@ -343,139 +343,240 @@
     }
   });
 
+  
   // ==============================
   // Manage Squads Feature
   // ==============================
-  (function manageSquadsFeature() {
-    const manageBtn = document.getElementById("btn-manage");
-    const cardsView = document.getElementById("cards");
-    if (!manageBtn || !cardsView) return;
 
-    let manageMode = false;
-    let overlay;
+(function manageSquadsFeature() {
+  const manageBtn = document.getElementById("btn-manage");
+  const cardsView = document.getElementById("cards");
+  const manageView = document.createElement("div");
+  manageView.id = "squad-management-view";
+  manageView.style.display = "none";
+  manageView.style.overflowY = "auto";
+  manageView.style.maxHeight = "70vh"; // Keeps header from overlapping on scroll
+  cardsView.parentNode.insertBefore(manageView, cardsView.nextSibling);
 
-    function showOverlay(text = "Loading…") {
-      if (!overlay) {
-        overlay = document.createElement("div");
-        overlay.id = "manageOverlay";
-        overlay.innerHTML = `
-          <div class="manage-overlay-spinner">
-            <div class="spinner"></div>
-            <div class="msg">${text}</div>
-          </div>`;
-        document.body.appendChild(overlay);
-      }
-      overlay.querySelector(".msg").textContent = text;
-      overlay.style.display = "flex";
-    }
-    function hideOverlay() { if (overlay) overlay.style.display = "none"; }
+  let isTableView = false;
 
-    function showToast(msg, type = "success") {
-      let t = document.getElementById("pu-toast");
-      if (!t) {
-        t = document.createElement("div");
-        t.id = "pu-toast";
-        document.body.appendChild(t);
-      }
-      t.textContent = msg;
-      t.style.borderColor = type === "error" ? "#ff7070" : "var(--accent,#00f08e)";
-      t.style.color = type === "error" ? "#ff7070" : "#9ffbe6";
-      t.classList.add("show");
-      setTimeout(() => t.classList.remove("show"), 3500);
+  // Handle toggle between card view and table view
+  manageBtn?.addEventListener("click", async () => {
+    if (!window.PowerUp.auth?.isAdmin?.()) {
+      window.PowerUp.ui?.toast?.("You do not have permission to manage squads.", "error");
+      return;
     }
 
-    manageBtn.addEventListener("click", async () => {
-      manageMode = !manageMode;
-      manageBtn.innerHTML = manageMode
-        ? `<i class="fa fa-cards-blank"></i> View Cards`
-        : `<i class="fa fa-table-list"></i> Manage Squads`;
+    isTableView = !isTableView;
+    manageBtn.textContent = isTableView ? "Back to Cards" : "Manage Squads";
+    cardsView.style.display = isTableView ? "none" : "grid";
+    manageView.style.display = isTableView ? "block" : "none";
 
-      if (manageMode) {
-        showOverlay("Loading Squads…");
-        try {
-          const squads = await PowerUp.api.getRowsByTitle("SQUADS", { force: true });
-          const empRows = await PowerUp.api.getRowsByTitle("EMPLOYEE_MASTER").catch(() => []);
-          const leaders = empRows.map(r => ({
-            id: (r["Employee ID"] || r["Position ID"] || "").toString().trim(),
-            name: (r["Display Name"] || r["Employee Name"] || "").toString().trim()
-          })).filter(l => l.id && l.name);
-
-          const catOpts = ["CI","Quality","Safety","Training","Other"];
-          const tableHTML = `
-            <div class="manage-table-wrapper">
-              <table class="manage-table">
-                <thead><tr>
-                  <th>Squad ID</th><th>Squad Name</th><th>Category</th><th>Leader</th>
-                  <th>Active</th><th>Objective</th><th>Created By</th><th>Created Date</th><th>Actions</th>
-                </tr></thead>
-                <tbody>
-                  ${squads.map(r=>`
-                    <tr data-id="${r["Squad ID"]||""}">
-                      <td>${r["Squad ID"]||"-"}</td>
-                      <td contenteditable="true" data-field="Squad Name">${r["Squad Name"]||""}</td>
-                      <td><select data-field="Category">${catOpts.map(c=>`<option ${r["Category"]===c?"selected":""}>${c}</option>`).join("")}</select></td>
-                      <td><select data-field="Leader"><option value="">--</option>${leaders.map(l=>`<option ${r["Leader"]===l.name?"selected":""}>${l.name}</option>`).join("")}</select></td>
-                      <td><input type="checkbox" data-field="Active" ${r["Active"]?"checked":""}></td>
-                      <td contenteditable="true" data-field="Objective">${r["Objective"]||""}</td>
-                      <td><select data-field="Created By"><option value="">--</option>${leaders.map(l=>`<option ${r["Created By"]===l.name?"selected":""}>${l.name}</option>`).join("")}</select></td>
-                      <td>${r["Created Date"]||"-"}</td>
-                      <td><button class="btn btn-save">Save</button><button class="btn btn-cancel">Cancel</button></td>
-                    </tr>`).join("")}
-                </tbody>
-              </table>
-            </div>`;
-          cardsView.innerHTML = tableHTML;
-
-          cardsView.querySelectorAll(".btn-save").forEach(btn=>{
-            btn.addEventListener("click",async(e)=>{
-              const tr=e.target.closest("tr");
-              const id=tr.dataset.id;
-              const updated={};
-              tr.querySelectorAll("[data-field]").forEach(el=>{
-                const field=el.dataset.field;
-                if(el.tagName==="SELECT")updated[field]=el.value;
-                else if(el.type==="checkbox")updated[field]=el.checked;
-                else updated[field]=el.textContent.trim();
-              });
-              showOverlay("Saving…");
-              try {
-                await PowerUp.api.addRows("SQUADS", [{ "Squad ID": id, ...updated }]);
-                showToast(`✅ Squad ${id} updated.`);
-              } catch(err){
-                console.error(err); showToast("Error saving.", "error");
-              } finally { hideOverlay(); }
-            });
-          });
-          cardsView.querySelectorAll(".btn-cancel").forEach(btn=>{
-            btn.addEventListener("click",()=>manageBtn.click());
-          });
-        } catch(err){
-          console.error("Error loading Manage Squads:",err);
-          showToast("Failed to load manage view.","error");
-        } finally { hideOverlay(); }
-      } else {
-        await load();
-        applyFilters();
+    if (isTableView) {
+      const overlay = showOverlay("Loading squads...");
+      try {
+        const squads = await PowerUp.api.getRowsByTitle("SQUADS", { force: true });
+        renderSquadTable(squads);
+      } catch (err) {
+        console.error("Error loading squads:", err);
+        PowerUp.ui?.toast?.("Failed to load squads.", "error");
+      } finally {
+        hideOverlay();
       }
-    });
+    }
+  });
 
-    // Add overlay CSS
-    const style=document.createElement("style");
-    style.textContent=`
-      #manageOverlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:3000;}
-      .manage-overlay-spinner{display:flex;flex-direction:column;align-items:center;gap:12px;background:#0f1b1b;border:1px solid var(--accent,#00f08e);padding:22px 26px;border-radius:12px;color:#d9e6e6;font-weight:600;}
-      .spinner{width:28px;height:28px;border:3px solid #00f08e;border-top-color:transparent;border-radius:50%;animation:spin 1s linear infinite;}
-      @keyframes spin{to{transform:rotate(360deg);}}
-      .manage-table{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px;}
-      .manage-table th,.manage-table td{border:1px solid #2d3f3f;padding:8px 10px;}
-      .manage-table th{background:#0f1a1a;color:#9ffbe6;}
-      .manage-table td[contenteditable="true"]{background:#101f1f;}
-      .manage-table select,.manage-table input[type="checkbox"]{background:#101f1f;color:#e5e7eb;border:1px solid #2d3f3f;border-radius:6px;padding:4px;}
-      .manage-table .btn{padding:4px 8px;border-radius:6px;cursor:pointer;border:1px solid var(--accent,#00f08e);background:#0f1a1a;color:#d9e6e6;}
-      .manage-table .btn:hover{background:#152525;}
+  function showOverlay(text = "Loading...") {
+    let overlay = document.getElementById("manageOverlay");
+    if (!overlay) {
+      overlay = document.createElement("div");
+      overlay.id = "manageOverlay";
+      overlay.innerHTML = `
+        <div class="manage-overlay-spinner">
+          <div class="spinner"></div>
+          <div>${text}</div>
+        </div>`;
+      document.body.appendChild(overlay);
+    }
+    overlay.style.display = "flex";
+    return overlay;
+  }
+
+  function hideOverlay() {
+    const overlay = document.getElementById("manageOverlay");
+    if (overlay) overlay.style.display = "none";
+  }
+
+  async function renderSquadTable(squads) {
+    if (!Array.isArray(squads) || squads.length === 0) {
+      manageView.innerHTML = `<div style="padding:16px;opacity:.7;">No squads available.</div>`;
+      return;
+    }
+
+    const table = document.createElement("table");
+    table.className = "manage-table";
+    table.innerHTML = `
+      <thead>
+        <tr>
+          <th>Squad ID</th>
+          <th>Squad Name</th>
+          <th>Category</th>
+          <th>Leader</th>
+          <th>Active</th>
+          <th>Objective</th>
+          <th>Created By</th>
+          <th>Created Date</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${squads
+          .map(
+            (r) => `
+          <tr data-id="${r["Squad ID"] || ""}">
+            <td>${r["Squad ID"] || "-"}</td>
+            <td contenteditable="true">${r["Squad Name"] || ""}</td>
+            <td contenteditable="true">${r["Category"] || ""}</td>
+            <td contenteditable="true">${r["Leader"] || "-"}</td>
+            <td><input type="checkbox" ${r["Active"] ? "checked" : ""}></td>
+            <td contenteditable="true">${r["Objective"] || ""}</td>
+            <td contenteditable="true">${r["Created By"] || ""}</td>
+            <td>${r["Created Date"] || "-"}</td>
+            <td class="actions-cell">
+              <button class="btn save-btn">Save</button>
+              <button class="btn cancel-btn">Cancel</button>
+            </td>
+          </tr>`
+          )
+          .join("")}
+      </tbody>
     `;
-    document.head.appendChild(style);
-  })();
+    manageView.innerHTML = "";
+    manageView.appendChild(table);
 
-  window.PowerUp = P;
+    // Wire up Save buttons
+    manageView.querySelectorAll(".save-btn").forEach((btn) => {
+      btn.addEventListener("click", async (e) => {
+        const tr = e.target.closest("tr");
+        const squadId = tr.dataset.id;
+        const name = tr.children[1].textContent.trim();
+        const category = tr.children[2].textContent.trim();
+        const leader = tr.children[3].textContent.trim();
+        const active = tr.children[4].querySelector("input").checked;
+        const objective = tr.children[5].textContent.trim();
+        const createdBy = tr.children[6].textContent.trim();
+
+        try {
+          await PowerUp.api.updateRow("SQUADS", squadId, {
+            "Squad Name": name,
+            "Category": category,
+            "Leader": leader,
+            "Active": active,
+            "Objective": objective,
+            "Created By": createdBy,
+          });
+          PowerUp.ui?.toast?.(`✅ Squad "${name}" updated successfully.`);
+        } catch (err) {
+          console.error("Update failed:", err);
+          PowerUp.ui?.toast?.("Error updating squad. See console.", "error");
+        }
+      });
+    });
+  }
+
+  // === Styles for Manage Table & Overlay ===
+  const style = document.createElement("style");
+  style.textContent = `
+    #manageOverlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 3000;
+    }
+    .manage-overlay-spinner {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      background: #0f1b1b;
+      border: 1px solid var(--accent, #00f08e);
+      padding: 22px 26px;
+      border-radius: 12px;
+      color: #d9e6e6;
+      font-weight: 600;
+    }
+    .spinner {
+      width: 28px;
+      height: 28px;
+      border: 3px solid #00f08e;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .manage-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+      font-size: 13px;
+    }
+    .manage-table th,
+    .manage-table td {
+      border: 1px solid #2d3f3f;
+      padding: 8px 10px;
+    }
+    .manage-table th {
+      background: #0f1a1a;
+      color: #9ffbe6;
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+    }
+    .manage-table td[contenteditable="true"] {
+      background: #101f1f;
+    }
+    .manage-table select,
+    .manage-table input[type="checkbox"] {
+      background: #101f1f;
+      color: #e5e7eb;
+      border: 1px solid #2d3f3f;
+      border-radius: 6px;
+      padding: 4px;
+    }
+    .actions-cell {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+    }
+    .actions-cell .btn {
+      min-width: 70px;
+      padding: 4px 10px;
+    }
+    .manage-table .btn {
+      border-radius: 6px;
+      cursor: pointer;
+      border: 1px solid var(--accent, #00f08e);
+      background: #0f1a1a;
+      color: #d9e6e6;
+    }
+    .manage-table .btn:hover {
+      background: #152525;
+    }
+  `;
+  document.head.appendChild(style);
+})();
+
+window.PowerUp = P;
 })(window.PowerUp || {});
