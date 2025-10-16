@@ -306,17 +306,17 @@
     document.addEventListener('powerup-admin-filter-change', applyFilters);
   }
 
-  document.addEventListener('DOMContentLoaded', async () => {
-    P.session.requireLogin();
-    P.layout.injectLayout();
-    IS_ADMIN = !!(P.auth && P.auth.isAdmin && P.auth.isAdmin());
-    P.layout.setPageTitle(IS_ADMIN ? 'Squads (Admin)' : 'Squads');
-    await P.session.initHeader();
-    wireUI();
-    document.getElementById('activeOnly')?.checked = false;
-    await load();
-    applyFilters();
-  });
+document.addEventListener('DOMContentLoaded', async () => {
+  P.session.requireLogin();
+  P.layout.injectLayout();
+  IS_ADMIN = !!(P.auth && P.auth.isAdmin && P.auth.isAdmin());
+  P.layout.setPageTitle(IS_ADMIN ? 'Squads (Admin)' : 'Squads');
+  await P.session.initHeader();
+  wireUI();
+  document.getElementById('activeOnly')?.checked = false; // <- fixed here
+  await load();
+  applyFilters();
+});
 
   // --- FIX 1: Manage Squads Button Initialization ---
   const waitForManageBtn = setInterval(() => {
