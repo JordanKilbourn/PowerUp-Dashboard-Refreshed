@@ -63,22 +63,26 @@
   }
 
   // ---------------- DOMContentLoaded ----------------
-  document.addEventListener('DOMContentLoaded', async () => {
-    // require login + inject standard PowerUp layout
-    await P.session.requireLogin();
-    await P.layout.injectLayout();
+document.addEventListener('DOMContentLoaded', async () => {
+  // require login + inject standard PowerUp layout
+  await P.session.requireLogin();
+  await P.layout.injectLayout();
 
-    // determine admin page title
-    const IS_ADMIN = !!(P.auth && P.auth.isAdmin);
-    P.layout.setPageTitle(IS_ADMIN ? 'Squads (Admin)' : 'Squads');
+  // determine admin page title
+  const isAdminFn = P.auth && P.auth.isAdmin;
+  const IS_ADMIN  = !!(isAdminFn && isAdminFn());
+  P.layout.setPageTitle(IS_ADMIN ? 'Squads (Admin)' : 'Squads');
 
-    // initialize header + filters + cards
-    await P.session.initHeader();
-    wireUI();
-    document.getElementById('activeOnly')?.checked = false;
-    await load();
-    await applyFilters();
-  });
+  // initialize header + filters + cards
+  await P.session.initHeader();
+  wireUI();
+
+  const activeOnlyEl = document.getElementById('activeOnly');
+  if (activeOnlyEl) activeOnlyEl.checked = false;
+
+  await load();
+  await applyFilters();
+});
 
   // simple placeholder for extra UI filter wiring
   function wireUI(){}
