@@ -11,6 +11,7 @@
   // ---------------- Helpers ----------------
   const EMP_COL = {
     id: ['Position ID','Employee ID'],
+    
     name: ['Display Name','Employee Name','Name']
   };
   const SQUAD_COL = {
@@ -36,12 +37,18 @@
     if(!container) return;
     container.innerHTML='<div class="loading">Loading squads…</div>';
     try{
-      const [squads,members,employees]=await Promise.all([
-        getRowsByTitle('SQUADS'),
-        getRowsByTitle('SQUAD_MEMBERS'),
-        P.getEmployees()
-      ]);
-      renderSquadCards(container,squads,members,employees);
+const results = await Promise.allSettled([
+  getRowsByTitle('SQUADS'),
+  getRowsByTitle('SQUAD_MEMBERS'),
+  P.getEmployees()
+]);
+      
+const squads   = results[0].status === 'fulfilled' ? results[0].value : [];
+const members  = results[1].status === 'fulfilled' ? results[1].value : [];
+const employees = results[2].status === 'fulfilled' ? results[2].value : [];
+
+renderSquadCards(container, squads, members, employees);
+
     }catch(e){
       console.error(e);
       safeToast('Error loading squads','error');
