@@ -221,10 +221,6 @@ if (api.layout && typeof api.layout.injectLayout === 'function') {
     }).join('');
   }
 
-     } catch (err) {
-    console.error("[Squads] Failed to initialize:", err);
-  }
-
 })();
 
   //────────────────────────────────────────────
@@ -486,6 +482,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadData();
   applyFilters();
 });
+  } catch (err) {
+    console.error("[Squads] Failed to initialize:", err);
+  }
 
-})();  // ✅ END OF FILE — no more braces after this line
+})();  // END OF FILE
 
