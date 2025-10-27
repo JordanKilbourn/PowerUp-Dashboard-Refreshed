@@ -1,4 +1,4 @@
-<script>
+
 // ======================================================================
 // PowerUp — Squads Cards + Manage View  (Stabilized Merge)
 // Fixes in this build:
@@ -654,4 +654,3 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 
 })(window.PowerUp || {});
-</script>
