@@ -221,8 +221,6 @@ if (api.layout && typeof api.layout.injectLayout === 'function') {
     }).join('');
   }
 
-})();
-
   //────────────────────────────────────────────
   // Load Data (Employees + Members + Squads)
   //────────────────────────────────────────────
