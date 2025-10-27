@@ -1,5 +1,5 @@
 // =============================================
-// PowerUp: Squads Page – Stable Reconciled Build 4 (SRB4)
+// PowerUp: Squads Page – Stable Reconciled Build 5 (SRB5-Clean)
 // =============================================
 (function (PowerUp) {
   const P = PowerUp || (window.PowerUp = {});
@@ -57,7 +57,7 @@
   }
 
   // =======================
-  // UI rendering functions
+  // UI rendering
   // =======================
   function renderCategoryPills(activeCat) {
     const wrap = document.getElementById('cat-pills');
@@ -93,6 +93,7 @@
       return;
     }
     msg.style.display = 'none';
+
     cards.innerHTML = list.map(sq => {
       const status = isTrue(sq.active)
         ? `<span class="status-pill status-on">Active</span>`
@@ -137,7 +138,7 @@
   }
 
   // =======================
-  // Data loading
+  // Data load
   // =======================
   async function load() {
     const emRows = await getRowsByTitle(SHEETS.EMPLOYEE_MASTER);
@@ -167,7 +168,6 @@
       }
       if (eid) entry.ids.add(eid.toLowerCase());
       if (enm) entry.names.add(enm.toLowerCase());
-
       if (role === 'leader') {
         const arr = LEADERS_BY_SQUAD.get(sid) || [];
         arr.push({ id: eid, name: enm });
@@ -190,307 +190,241 @@
     }));
   }
 
- // =======================
-// Filters (SRB5 logic revision)
-// =======================
-let activeCategory = 'All';
-let activeOnly = false;
-let mySquadsOnly = false;
+  // =======================
+  // Filters + Manage Table
+  // =======================
+  let activeCategory = 'All';
+  let activeOnly = false;
+  let mySquadsOnly = false;
 
-function applyFilters() {
-  const searchBox = document.getElementById('search');
-  const q = (searchBox?.value || '').trim().toLowerCase();
-
-  let list = [...ALL];
-
-  if (activeCategory !== 'All')
-    list = list.filter(x => x.category === activeCategory);
-  if (activeOnly)
-    list = list.filter(x => isTrue(x.active));
-  if (mySquadsOnly) {
-    const sessionUser = P.session.get?.() || {};
-    const myId = (sessionUser.employeeId || '').toLowerCase();
-    const myName = (sessionUser.displayName || '').toLowerCase();
-
-    list = list.filter(x => {
-      const sid = String(x.id || '').trim().toLowerCase();
-      const members = MEMBERS_BY_SQUAD.get(sid);
-      const leaders = LEADERS_BY_SQUAD.get(sid) || [];
-      const isMember = members && (members.ids.has(myId) || members.names.has(myName));
-      const isLeader = leaders.some(l =>
-        (l.id || '').toLowerCase() === myId ||
-        (l.name || '').toLowerCase() === myName
-      );
-      return isMember || isLeader;
-    });
-  }
-
-  if (q) {
-    list = list.filter(x => {
-      const sid = String(x.id || '').trim().toLowerCase();
-      const leaders = LEADERS_BY_SQUAD.get(sid) || [];
-      const leaderNames = leaders.map(l => l.name).join(' ').toLowerCase();
-      const haystack = [x.name, leaderNames, x.objective, x.notes].join(' ').toLowerCase();
-      return haystack.includes(q);
-    });
-  }
-
-  renderCards(list);
-}
-
-// =======================
-// Manage Table Rendering (SRB5)
-// =======================
-async function renderManageTable() {
-  const cardsContainer = document.getElementById('cards');
-  const msg = document.getElementById('s-msg');
-  if (msg) msg.style.display = 'none';
-
-  // centered overlay spinner
-  cardsContainer.innerHTML = `
-    <div class="overlay active">
-      <div class="spinner"></div>
-      <div class="overlay-text">Loading Manage View...</div>
-    </div>`;
-
-  const [squads, members, employees] = await Promise.all([
-    P.api.getRowsByTitle(SHEETS.SQUADS, { force: true }),
-    P.api.getRowsByTitle(SHEETS.SQUAD_MEMBERS, { force: true }),
-    P.getEmployees()
-  ]);
-
-  const allEmps = employees.map(e => ({
-    id: e['Employee ID'] || e['Position ID'],
-    name: e['Employee Name'] || e['Display Name']
-  }));
-
-  const leadersBySquad = new Map();
-  members.forEach(r => {
-    if (!isTrue(pick(r, SM_COL.active, 'true'))) return;
-    const sid = String(pick(r, SM_COL.squadId, '')).trim().toLowerCase();
-    const role = (pick(r, SM_COL.role, '') || '').toLowerCase();
-    if (role === 'leader') {
-      const eid = pick(r, SM_COL.empId, '').trim();
-      const name = pick(r, SM_COL.empName, '').trim();
-      leadersBySquad.set(sid, { id: eid, name });
+  function applyFilters() {
+    const searchBox = document.getElementById('search');
+    const q = (searchBox?.value || '').trim().toLowerCase();
+    let list = [...ALL];
+    if (activeCategory !== 'All') list = list.filter(x => x.category === activeCategory);
+    if (activeOnly) list = list.filter(x => isTrue(x.active));
+    if (mySquadsOnly) {
+      const sessionUser = P.session.get?.() || {};
+      const myId = (sessionUser.employeeId || '').toLowerCase();
+      const myName = (sessionUser.displayName || '').toLowerCase();
+      list = list.filter(x => {
+        const sid = String(x.id || '').trim().toLowerCase();
+        const members = MEMBERS_BY_SQUAD.get(sid);
+        const leaders = LEADERS_BY_SQUAD.get(sid) || [];
+        const isMember = members && (members.ids.has(myId) || members.names.has(myName));
+        const isLeader = leaders.some(l =>
+          (l.id || '').toLowerCase() === myId ||
+          (l.name || '').toLowerCase() === myName
+        );
+        return isMember || isLeader;
+      });
     }
-  });
+    if (q) {
+      list = list.filter(x => {
+        const sid = String(x.id || '').trim().toLowerCase();
+        const leaders = LEADERS_BY_SQUAD.get(sid) || [];
+        const leaderNames = leaders.map(l => l.name).join(' ').toLowerCase();
+        const haystack = [x.name, leaderNames, x.objective, x.notes].join(' ').toLowerCase();
+        return haystack.includes(q);
+      });
+    }
+    renderCards(list);
+  }
 
-  const table = document.createElement('table');
-  table.className = 'manage-table';
-  table.innerHTML = `
-    <thead>
-      <tr>
-        <th style="width:7%">ID</th>
-        <th style="width:18%">Squad Name</th>
-        <th style="width:12%">Category</th>
-        <th style="width:7%">Active</th>
-        <th style="width:25%">Objective</th>
-        <th style="width:18%">Leader</th>
-        <th style="width:8%">Created By</th>
-        <th style="width:5%">Actions</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${squads.map(r => {
-        const sid = String(r['Squad ID'] || r.id || '').trim();
-        const leader = leadersBySquad.get(sid.toLowerCase());
-        const selectedName = leader ? leader.name : '';
-        const rowData = {
-          name: dash(r['Squad Name']),
-          category: dash(r['Category']),
-          active: isTrue(r['Active']),
-          objective: dash(r['Objective']),
-          createdBy: dash(r['Created By']),
-          leader: selectedName
-        };
-        return `
-          <tr data-rowid="${sid}"
-              data-original='${JSON.stringify(rowData)}'>
-            <td>${sid}</td>
-            <td contenteditable class="editable name">${rowData.name}</td>
-            <td contenteditable class="editable category">${rowData.category}</td>
-            <td><input type="checkbox" class="active" ${rowData.active ? 'checked' : ''}></td>
-            <td contenteditable class="editable objective">${rowData.objective}</td>
-            <td>
-              <select class="leader-select-single">
-                <option value="">— Select Leader —</option>
-                ${allEmps.map(emp =>
-                  `<option value="${emp.name}" ${emp.name === selectedName ? 'selected' : ''}>${emp.name}</option>`
-                ).join('')}
-              </select>
-            </td>
-            <td contenteditable class="editable created-by">${rowData.createdBy}</td>
-            <td class="actions-cell">
-              <button class="btn-save">Save</button>
-              <button class="btn-cancel">Cancel</button>
-            </td>
-          </tr>`;
-      }).join('')}
-    </tbody>`;
-
-  cardsContainer.innerHTML = '';
-  cardsContainer.appendChild(table);
-
-  // --- table handlers ---
-  table.addEventListener('click', async e => {
-    const tr = e.target.closest('tr[data-rowid]');
-    if (!tr) return;
-    const rowId = tr.dataset.rowid;
-    const original = JSON.parse(tr.dataset.original || '{}');
-
-    // SAVE
-    if (e.target.classList.contains('btn-save')) {
-      const name = tr.querySelector('.name')?.textContent.trim();
-      const category = tr.querySelector('.category')?.textContent.trim();
-      const active = tr.querySelector('.active')?.checked;
-      const objective = tr.querySelector('.objective')?.textContent.trim();
-      const createdBy = tr.querySelector('.created-by')?.textContent.trim();
-      const leaderName = tr.querySelector('.leader-select-single')?.value;
-
-      if (!leaderName) return showToast('Select a leader before saving.', 'warn');
-      const emp = allEmps.find(e => e.name === leaderName);
-
-      try {
-        await P.api.updateRowById(SHEETS.SQUADS, rowId, {
-          'Squad Name': name,
-          'Category': category,
-          'Active': active,
-          'Objective': objective,
-          'Created By': createdBy
-        });
-
-        // Replace leader entries in squad_members
-        const existingLeaders = members.filter(m => m['Squad ID'] === rowId && m['Role'] === 'Leader');
-        for (const old of existingLeaders)
-          await P.api.deleteRowById(SHEETS.SQUAD_MEMBERS, old.id);
-
-        if (emp) {
-          await P.addSquadMember({
-            'Squad ID': rowId,
-            'Employee ID': emp.id,
-            'Employee Name': emp.name,
-            'Role': 'Leader',
-            'Active': true,
-            'Added By': createdBy
-          });
-        }
-
-        const newOriginal = { name, category, active, objective, createdBy, leader: leaderName };
-        tr.dataset.original = JSON.stringify(newOriginal);
-        showToast(`Saved updates for ${name}`, 'success');
-      } catch (err) {
-        console.error(err);
-        showToast('Error saving squad changes.', 'error');
+  async function renderManageTable() {
+    const cardsContainer = document.getElementById('cards');
+    const msg = document.getElementById('s-msg');
+    if (msg) msg.style.display = 'none';
+    cardsContainer.innerHTML = `
+      <div class="overlay">
+        <div class="spinner"></div>
+        <div class="overlay-text">Loading Manage View...</div>
+      </div>`;
+    const [squads, members, employees] = await Promise.all([
+      P.api.getRowsByTitle(SHEETS.SQUADS, { force: true }),
+      P.api.getRowsByTitle(SHEETS.SQUAD_MEMBERS, { force: true }),
+      P.getEmployees()
+    ]);
+    const allEmps = employees.map(e => ({
+      id: e['Employee ID'] || e['Position ID'],
+      name: e['Employee Name'] || e['Display Name']
+    }));
+    const leadersBySquad = new Map();
+    members.forEach(r => {
+      if (!isTrue(pick(r, SM_COL.active, 'true'))) return;
+      const sid = String(pick(r, SM_COL.squadId, '')).trim().toLowerCase();
+      const role = (pick(r, SM_COL.role, '') || '').toLowerCase();
+      if (role === 'leader') {
+        const eid = pick(r, SM_COL.empId, '').trim();
+        const name = pick(r, SM_COL.empName, '').trim();
+        leadersBySquad.set(sid, { id: eid, name });
       }
-    }
+    });
+    const table = document.createElement('table');
+    table.className = 'manage-table';
+    table.innerHTML = `
+      <thead>
+        <tr>
+          <th style="width:7%">ID</th>
+          <th style="width:18%">Squad Name</th>
+          <th style="width:12%">Category</th>
+          <th style="width:7%">Active</th>
+          <th style="width:25%">Objective</th>
+          <th style="width:18%">Leader</th>
+          <th style="width:8%">Created By</th>
+          <th style="width:5%">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${squads.map(r => {
+          const sid = String(r['Squad ID'] || r.id || '').trim();
+          const leader = leadersBySquad.get(sid.toLowerCase());
+          const selectedName = leader ? leader.name : '';
+          const rowData = {
+            name: dash(r['Squad Name']),
+            category: dash(r['Category']),
+            active: isTrue(r['Active']),
+            objective: dash(r['Objective']),
+            createdBy: dash(r['Created By']),
+            leader: selectedName
+          };
+          return `
+            <tr data-rowid="${sid}" data-original='${JSON.stringify(rowData)}'>
+              <td>${sid}</td>
+              <td contenteditable class="editable name">${rowData.name}</td>
+              <td contenteditable class="editable category">${rowData.category}</td>
+              <td><input type="checkbox" class="active" ${rowData.active ? 'checked' : ''}></td>
+              <td contenteditable class="editable objective">${rowData.objective}</td>
+              <td>
+                <select class="leader-select-single">
+                  <option value="">— Select Leader —</option>
+                  ${allEmps.map(emp =>
+                    `<option value="${emp.name}" ${emp.name === selectedName ? 'selected' : ''}>${emp.name}</option>`
+                  ).join('')}
+                </select>
+              </td>
+              <td contenteditable class="editable created-by">${rowData.createdBy}</td>
+              <td class="actions-cell">
+                <button class="btn-save">Save</button>
+                <button class="btn-cancel">Cancel</button>
+              </td>
+            </tr>`;
+        }).join('')}
+      </tbody>`;
+    cardsContainer.innerHTML = '';
+    cardsContainer.appendChild(table);
+    table.addEventListener('click', async e => {
+      const tr = e.target.closest('tr[data-rowid]');
+      if (!tr) return;
+      const rowId = tr.dataset.rowid;
+      const original = JSON.parse(tr.dataset.original || '{}');
+      if (e.target.classList.contains('btn-save')) {
+        const name = tr.querySelector('.name')?.textContent.trim();
+        const category = tr.querySelector('.category')?.textContent.trim();
+        const active = tr.querySelector('.active')?.checked;
+        const objective = tr.querySelector('.objective')?.textContent.trim();
+        const createdBy = tr.querySelector('.created-by')?.textContent.trim();
+        const leaderName = tr.querySelector('.leader-select-single')?.value;
+        if (!leaderName) return showToast('Select a leader before saving.', 'warn');
+        const emp = allEmps.find(e => e.name === leaderName);
+        try {
+          await P.api.updateRowById(SHEETS.SQUADS, rowId, {
+            'Squad Name': name,
+            'Category': category,
+            'Active': active,
+            'Objective': objective,
+            'Created By': createdBy
+          });
+          const existingLeaders = members.filter(m => m['Squad ID'] === rowId && m['Role'] === 'Leader');
+          for (const old of existingLeaders)
+            await P.api.deleteRowById(SHEETS.SQUAD_MEMBERS, old.id);
+          if (emp) {
+            await P.addSquadMember({
+              'Squad ID': rowId,
+              'Employee ID': emp.id,
+              'Employee Name': emp.name,
+              'Role': 'Leader',
+              'Active': true,
+              'Added By': createdBy
+            });
+          }
+          tr.dataset.original = JSON.stringify({ name, category, active, objective, createdBy, leader: leaderName });
+          showToast(`Saved updates for ${name}`, 'success');
+        } catch (err) {
+          console.error(err);
+          showToast('Error saving squad changes.', 'error');
+        }
+      }
+      if (e.target.classList.contains('btn-cancel')) {
+        tr.querySelector('.name').textContent = original.name || '';
+        tr.querySelector('.category').textContent = original.category || '';
+        tr.querySelector('.active').checked = !!original.active;
+        tr.querySelector('.objective').textContent = original.objective || '';
+        tr.querySelector('.created-by').textContent = original.createdBy || '';
+        const sel = tr.querySelector('.leader-select-single');
+        if (sel) sel.value = original.leader || '';
+        tr.style.backgroundColor = 'rgba(255,255,0,0.1)';
+        setTimeout(() => (tr.style.backgroundColor = ''), 700);
+      }
+    });
+  }
 
-    // CANCEL
-    if (e.target.classList.contains('btn-cancel')) {
-      tr.querySelector('.name').textContent = original.name || '';
-      tr.querySelector('.category').textContent = original.category || '';
-      tr.querySelector('.active').checked = !!original.active;
-      tr.querySelector('.objective').textContent = original.objective || '';
-      tr.querySelector('.created-by').textContent = original.createdBy || '';
-      const sel = tr.querySelector('.leader-select-single');
-      if (sel) sel.value = original.leader || '';
-      tr.style.backgroundColor = 'rgba(255,255,0,0.1)';
-      setTimeout(() => (tr.style.backgroundColor = ''), 700);
-    }
-  });
-}
-  
   // =======================
   // Page Init
   // =======================
-document.addEventListener('DOMContentLoaded', async () => {
-  P.session.requireLogin();
-  P.layout.injectLayout();
-  P.layout.setPageTitle('Squads');
-  await P.session.initHeader();
+  document.addEventListener('DOMContentLoaded', async () => {
+    P.session.requireLogin();
+    P.layout.injectLayout();
+    P.layout.setPageTitle('Squads');
+    await P.session.initHeader();
 
-  renderCategoryPills('All');
-  await load();
-  bindFilters();
+    renderCategoryPills('All');
+    await load();
+    bindFilters?.();
 
-  // Auto-enable "My Squads" if the user has squads
-  const myToggle = document.getElementById('myOnly');
-  if (myToggle) {
-    myToggle.checked = true;
-    mySquadsOnly = true;
-  }
-
-  applyFilters();
-
-  const btnManage = document.getElementById('btn-manage');
-  const btnAdd = document.getElementById('btn-add-squad');
-
-  if (btnAdd) {
-    btnAdd.addEventListener('click', () => {
-      if (PowerUp.squadAddForm?.open) PowerUp.squadAddForm.open();
-    });
-  }
-
-  if (btnManage) {
-    btnManage.addEventListener('click', async () => {
-      const isManaging = btnManage.classList.toggle('managing');
-      if (isManaging) {
-        btnManage.textContent = 'View Cards';
-        await renderManageTable();
-      } else {
-        btnManage.textContent = 'Manage Squads';
-        document.getElementById('s-msg').style.display = 'none';
-        // Reapply filters and ensure toggle state reflects view
-        const myToggle = document.getElementById('myOnly');
-        if (myToggle) mySquadsOnly = myToggle.checked;
-        applyFilters();
-      }
-    });
-  }
-
-  // Keep Manage button text synced even if filters are clicked mid-manage
-  document.getElementById('cat-pills')?.addEventListener('click', () => {
-    const btnManage = document.getElementById('btn-manage');
-    if (btnManage?.classList.contains('managing')) {
-      btnManage.classList.remove('managing');
-      btnManage.textContent = 'Manage Squads';
+    // Auto-enable "My Squads"
+    const myToggle = document.getElementById('myOnly');
+    if (myToggle) {
+      myToggle.checked = true;
+      mySquadsOnly = true;
     }
-  });
-});
+    applyFilters();
 
     const btnManage = document.getElementById('btn-manage');
     const btnAdd = document.getElementById('btn-add-squad');
-    if (btnAdd) {
-      btnAdd.addEventListener('click', () => {
-        if (PowerUp.squadAddForm && PowerUp.squadAddForm.open) PowerUp.squadAddForm.open();
+    if (btnAdd) btnAdd.addEventListener('click', () => PowerUp.squadAddForm?.open?.());
+    if (btnManage) {
+      btnManage.addEventListener('click', async () => {
+        const isManaging = btnManage.classList.toggle('managing');
+        if (isManaging) {
+          btnManage.textContent = 'View Cards';
+          await renderManageTable();
+        } else {
+          btnManage.textContent = 'Manage Squads';
+          document.getElementById('s-msg').style.display = 'none';
+          const myToggle = document.getElementById('myOnly');
+          if (myToggle) mySquadsOnly = myToggle.checked;
+          applyFilters();
+        }
       });
     }
+    document.getElementById('cat-pills')?.addEventListener('click', () => {
+      const btnManage = document.getElementById('btn-manage');
+      if (btnManage?.classList.contains('managing')) {
+        btnManage.classList.remove('managing');
+        btnManage.textContent = 'Manage Squads';
+      }
+    });
+  });
 
-if (btnManage) {
-  btnManage.addEventListener('click', async () => {
-    const isManaging = btnManage.classList.toggle('managing');
-    if (isManaging) {
-      btnManage.textContent = 'View Cards';
-      await renderManageTable();
-    } else {
-      btnManage.textContent = 'Manage Squads';
-      document.getElementById('s-msg').style.display = 'none';
-      // ✅ Reapply filters, including MySquads and ActiveOnly
-      applyFilters();
-    }
-  });
-}
-  });
-  
   // =======================
   // Inline Styles
   // =======================
   const style = document.createElement('style');
   style.textContent = `
-  /* === Squad Cards === */
   #cards {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); /* 4-wide cards */
+    grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
     gap: 16px;
     margin-top: 14px;
     width: 100%;
@@ -506,190 +440,35 @@ if (btnManage) {
     box-shadow: 0 0 8px rgba(0,0,0,0.3);
     transition: transform .2s ease, box-shadow .2s ease;
   }
-  .squad-card:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 0 12px rgba(51,255,153,0.4);
-  }
-  .squad-card h4 { margin: 0 0 6px; color: #cde; font-weight: 600; }
+  .squad-card:hover { transform: translateY(-3px); box-shadow: 0 0 12px rgba(51,255,153,0.4); }
   .squad-meta { font-size: 0.85rem; margin: 3px 0; color: #aab; }
-  .status-pill {
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-size: 0.75rem;
-  }
+  .status-pill { padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; }
   .status-on { background: rgba(51,255,153,0.1); color: #33ff99; }
   .status-off { background: rgba(255,80,80,0.1); color: #ff5050; }
-  .member-chip {
-    font-size: 0.8rem;
-    color: #99b;
-    margin-right: auto;
-  }
-  .squad-foot {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-top: 1px solid rgba(255,255,255,0.05);
-    margin-top: 8px;
-    padding-top: 6px;
-  }
-  .squad-link {
-    color: #33ff99;
-    text-decoration: none;
-    font-size: 0.85rem;
-  }
+  .member-chip { font-size: 0.8rem; color: #99b; margin-right: auto; }
+  .squad-foot { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(255,255,255,0.05); margin-top: 8px; padding-top: 6px; }
+  .squad-link { color: #33ff99; text-decoration: none; font-size: 0.85rem; }
   .squad-link:hover { text-decoration: underline; }
-
-  /* === Manage Table === */
-  .manage-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 10px;
-    font-size: 0.9rem;
-  }
-  .manage-table th, .manage-table td {
-    padding: 8px 12px;
-    border-bottom: 1px solid rgba(255,255,255,0.05);
-  }
-  .manage-table th {
-    background: #0f1a1a;
-    position: sticky;
-    top: 0;
-    z-index: 5;
-    text-align: left;
-    color: #9ff;
-  }
-  .manage-table tbody tr:nth-child(even) {
-    background: rgba(255,255,255,0.02);
-  }
-  .manage-table tbody tr:hover {
-    background: rgba(51,255,153,0.06);
-  }
-  .editable {
-    outline: none;
-  }
-  .editable:focus {
-    background: rgba(51,255,153,0.08);
-  }
-  .leader-select {
-    width: 180px;
-    background: #0d1717;
-    color: #bdf;
-    border: 1px solid #2a3d3d;
-    border-radius: 6px;
-    height: 130px;
-  }
-  .actions-cell {
-    white-space: nowrap;
-  }
-  .btn-save, .btn-cancel {
-    padding: 4px 10px;
-    border-radius: 6px;
-    font-size: 0.85rem;
-    cursor: pointer;
-    border: 1px solid transparent;
-    background: transparent;
-    transition: all .2s;
-  }
-  .btn-save {
-    color: #33ff99;
-    border-color: #33ff99;
-  }
-  .btn-save:hover {
-    background: rgba(51,255,153,0.1);
-  }
-  .btn-cancel {
-    color: #ff8080;
-    border-color: #ff5050;
-  }
-  .btn-cancel:hover {
-    background: rgba(255,80,80,0.1);
-  }
-
- /* === Spinner Overlay (Centered) === */
-.overlay {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  color: #9ff;
-  z-index: 50;
-}
-.overlay-text {
-  margin-top: 10px;
-  color: #aefcd8;
-  font-size: 0.9rem;
-  text-align: center;
-}
-
-  .spinner {
-    width: 42px;
-    height: 42px;
-    border: 4px solid #33ff99;
-    border-top-color: transparent;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-  }
+  .manage-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.9rem; }
+  .manage-table th, .manage-table td { padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+  .manage-table th { background: #0f1a1a; position: sticky; top: 0; z-index: 5; text-align: left; color: #9ff; }
+  .manage-table tbody tr:nth-child(even) { background: rgba(255,255,255,0.02); }
+  .manage-table tbody tr:hover { background: rgba(51,255,153,0.06); }
+  .editable:focus { background: rgba(51,255,153,0.08); }
+  .btn-save, .btn-cancel { padding: 4px 10px; border-radius: 6px; font-size: 0.85rem; cursor: pointer; border: 1px solid transparent; background: transparent; transition: all .2s; }
+  .btn-save { color: #33ff99; border-color: #33ff99; }
+  .btn-save:hover { background: rgba(51,255,153,0.1); }
+  .btn-cancel { color: #ff8080; border-color: #ff5050; }
+  .btn-cancel:hover { background: rgba(255,80,80,0.1); }
+  .overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; justify-content: center; color: #9ff; z-index: 50; }
+  .overlay-text { margin-top: 10px; color: #aefcd8; font-size: 0.9rem; text-align: center; }
+  .spinner { width: 42px; height: 42px; border: 4px solid #33ff99; border-top-color: transparent; border-radius: 50%; animation: spin 1s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
-
-  /* === Toasts === */
-  .pu-toast {
-    position: fixed;
-    bottom: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: #0f1a1a;
-    color: #9ff;
-    border: 1px solid #33ff99;
-    padding: 10px 18px;
-    border-radius: 8px;
-    opacity: 0;
-    transition: opacity 0.4s ease;
-    z-index: 10000;
-  }
+  .pu-toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #0f1a1a; color: #9ff; border: 1px solid #33ff99; padding: 10px 18px; border-radius: 8px; opacity: 0; transition: opacity 0.4s ease; z-index: 10000; }
   .pu-toast.show { opacity: 1; }
-  .pu-toast.success { border-left: 5px solid #33ff99; }
-  .pu-toast.warn { border-left: 5px solid #ffb84d; }
-  .pu-toast.error { border-left: 5px solid #ff5050; }
-
-
-  /* Center spinner overlay */
-.overlay {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 260px;
-  position: relative;
-}
-.overlay-text {
-  margin-top: 10px;
-  color: #aefcd8;
-  font-size: 0.9rem;
-}
-
-/* Clean single-select leader */
-.leader-select-single {
-  width: 95%;
-  max-width: 260px;
-  padding: 4px 6px;
-  border-radius: 6px;
-  background: #0f1a1a;
-  color: #cde;
-  border: 1px solid #2a3d3d;
-}
-.leader-select-single:focus {
-  outline: none;
-  border-color: #33ff99;
-  box-shadow: 0 0 4px rgba(51,255,153,0.3);
-}
-
+  .leader-select-single { width: 95%; max-width: 260px; padding: 4px 6px; border-radius: 6px; background: #0f1a1a; color: #cde; border: 1px solid #2a3d3d; }
+  .leader-select-single:focus { outline: none; border-color: #33ff99; box-shadow: 0 0 4px rgba(51,255,153,0.3); }
   `;
   document.head.appendChild(style);
 
 })(window.PowerUp);
-
-
