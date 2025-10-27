@@ -526,23 +526,26 @@
   });
 
   // ---------- Startup ----------
-  document.addEventListener('DOMContentLoaded', async () => {
-    P.session.requireLogin();
-    P.layout.injectLayout();
+document.addEventListener('DOMContentLoaded', async () => {
+  P.session.requireLogin();
 
-    IS_ADMIN = !!(P.auth && P.auth.isAdmin && P.auth.isAdmin());
-    P.layout.setPageTitle(IS_ADMIN ? 'Squads (Admin)' : 'Squads');
+  // Wait for the shared layout to fully inject before touching the DOM
+  await P.layout.injectLayout();
+  await P.session.initHeader();
 
-    await P.session.initHeader();
-    wireUI();
+  IS_ADMIN = !!(P.auth && P.auth.isAdmin && P.auth.isAdmin());
+  P.layout.setPageTitle(IS_ADMIN ? 'Squads (Admin)' : 'Squads');
 
-    const activeOnly = document.getElementById('activeOnly');
-    if (activeOnly) activeOnly.checked = false;
+  // Now safe to wire the page-specific UI
+  wireUI();
 
-    await loadAll();
-    await applyFilters();
-    wireManageToggle();
-  });
+  const activeOnly = document.getElementById('activeOnly');
+  if (activeOnly) activeOnly.checked = false;
+
+  await loadAll();
+  await applyFilters();
+  wireManageToggle();
+});
 
   // ---------- Inline CSS (kept here per your request) ----------
   const style = document.createElement('style');
