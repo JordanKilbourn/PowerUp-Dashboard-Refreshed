@@ -1,38 +1,68 @@
-(function (PowerUp) {
-  const P = PowerUp || (window.PowerUp = {});
-  const { SHEETS, getRowsByTitle, updateRowsByTitle } = P.api;
+// ==========================================================
+// PowerUp — Squads Cards + Manage View
+// Stabilized Initialization (waits for PowerUp.api before loading)
+// ==========================================================
 
-  //────────────────────────────────────────────
-  // Column Maps and Constants
-  //────────────────────────────────────────────
-  const EMP_COL = { id: ['Position ID','Employee ID'], name: ['Display Name','Employee Name','Name'] };
-  const SQUAD_COL = {
-    id: ['Squad ID','ID'],
-    name: ['Squad Name','Squad','Name','Team'],
-    category: ['Category','Squad Category'],
-    leaderId: ['Squad Leader','Leader Employee ID','Leader Position ID'],
-    members: ['Members','Member List'],
-    objective: ['Objective','Focus','Purpose'],
-    active: ['Active','Is Active?'],
-    created: ['Created Date','Start Date','Started'],
-    notes: ['Notes','Description']
-  };
+(async function (PowerUp) {
 
-  const SM_COL = {
-    squadId: ['Squad ID','SquadID','Squad'],
-    empId: ['Employee ID','EmployeeID','Position ID'],
-    empName: ['Employee Name','Name','Display Name'],
-    active: ['Active','Is Active?']
-  };
+  // 🧭 Wait for PowerUp.api to be initialized
+  async function waitForAPI() {
+    const start = performance.now();
+    return new Promise((resolve, reject) => {
+      const check = () => {
+        if (window.PowerUp?.api?.SHEETS) return resolve(window.PowerUp.api);
+        if (performance.now() - start > 5000)
+          return reject("Timeout waiting for PowerUp.api");
+        requestAnimationFrame(check);
+      };
+      check();
+    });
+  }
 
-  const CATS = ['All','CI','Quality','Safety','Training','Other'];
-  const CAT_CLASS = {
-    CI: 'cat-ci',
-    Quality: 'cat-quality',
-    Safety: 'cat-safety',
-    Training: 'cat-training',
-    Other: 'cat-other'
-  };
+  try {
+    const api = await waitForAPI();
+    console.log("[Squads] API ready with sheets:", api.SHEETS);
+
+    // Bind PowerUp reference AFTER the API is confirmed ready
+    const P = window.PowerUp;
+    const { SHEETS, getRowsByTitle, updateRowsByTitle } = P.api;
+
+    //────────────────────────────────────────────
+    // Column Maps and Constants
+    //────────────────────────────────────────────
+    const EMP_COL = {
+      id: ['Position ID', 'Employee ID'],
+      name: ['Display Name', 'Employee Name', 'Name']
+    };
+
+    const SQUAD_COL = {
+      id: ['Squad ID', 'ID'],
+      name: ['Squad Name', 'Squad', 'Name', 'Team'],
+      category: ['Category', 'Squad Category'],
+      leaderId: ['Squad Leader', 'Leader Employee ID', 'Leader Position ID'],
+      members: ['Members', 'Member List'],
+      objective: ['Objective', 'Focus', 'Purpose'],
+      active: ['Active', 'Is Active?'],
+      created: ['Created Date', 'Start Date', 'Started'],
+      notes: ['Notes', 'Description']
+    };
+
+    const SM_COL = {
+      squadId: ['Squad ID', 'SquadID', 'Squad'],
+      empId: ['Employee ID', 'EmployeeID', 'Position ID'],
+      empName: ['Employee Name', 'Name', 'Display Name'],
+      active: ['Active', 'Is Active?']
+    };
+
+    const CATS = ['All', 'CI', 'Quality', 'Safety', 'Training', 'Other'];
+    const CAT_CLASS = {
+      CI: 'cat-ci',
+      Quality: 'cat-quality',
+      Safety: 'cat-safety',
+      Training: 'cat-training',
+      Other: 'cat-other'
+    };
+
 
   //────────────────────────────────────────────
   // Helper functions
@@ -178,6 +208,12 @@
       </div>`;
     }).join('');
   }
+
+     } catch (err) {
+    console.error("[Squads] Failed to initialize:", err);
+  }
+
+})();
 
   //────────────────────────────────────────────
   // Load Data (Employees + Members + Squads)
@@ -438,4 +474,4 @@
     applyFilters();
   });
 
-})(window.PowerUp||{});
+window.PowerUp||{});
