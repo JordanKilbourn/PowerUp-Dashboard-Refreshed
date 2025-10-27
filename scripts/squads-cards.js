@@ -485,5 +485,4 @@ if (api.layout && typeof api.layout.injectLayout === 'function') {
     await loadData();
     applyFilters();
   });
-
-window.PowerUp||{});
+})();
