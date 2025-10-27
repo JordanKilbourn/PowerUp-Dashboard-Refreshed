@@ -23,6 +23,18 @@
     const api = await waitForAPI();
     console.log("[Squads] API ready with sheets:", api.SHEETS);
 
+    // Inject layout (ensures sidebar + header render)
+if (api.layout && typeof api.layout.injectLayout === 'function') {
+  console.log('[Squads] Injecting layout...');
+  try {
+    await api.layout.injectLayout();
+  } catch (e) {
+    console.warn('[Squads] Layout injection failed:', e);
+  }
+} else {
+  console.warn('[Squads] Layout API missing — sidebar/header may not render.');
+}
+
     // Bind PowerUp reference AFTER the API is confirmed ready
     const P = window.PowerUp;
     const { SHEETS, getRowsByTitle, updateRowsByTitle } = P.api;
