@@ -14,8 +14,14 @@
 // ======================================================================
 
 (function (PowerUp) {
-  const P = PowerUp || (window.PowerUp = {});
-  const { SHEETS, getRowsByTitle } = P.api;
+  try {
+    console.log('[Squads] Script starting…');
+    const P = PowerUp || (window.PowerUp = {});
+    if (!P.layout || !P.layout.injectLayout) {
+      console.error('[Squads] Layout API missing — sidebar/header won’t render.');
+    }
+
+    const { SHEETS, getRowsByTitle } = P.api;
 
   // ---------- Column maps (match your main branch) ----------
   const EMP_COL = { id: ['Position ID','Employee ID'], name: ['Display Name','Employee Name','Name'] };
@@ -527,24 +533,54 @@
 
   // ---------- Startup ----------
 document.addEventListener('DOMContentLoaded', async () => {
-  P.session.requireLogin();
+  try {
+    console.log('[Squads] DOM ready');
+    P.session.requireLogin?.();
 
-  // Wait for the shared layout to fully inject before touching the DOM
-  await P.layout.injectLayout();
-  await P.session.initHeader();
+    // Wait for layout to exist before continuing
+    let tries = 0;
+    while ((!P.layout || !P.layout.injectLayout) && tries < 40) {
+      await new Promise(r => setTimeout(r, 250));
+      tries++;
+    }
 
-  IS_ADMIN = !!(P.auth && P.auth.isAdmin && P.auth.isAdmin());
-  P.layout.setPageTitle(IS_ADMIN ? 'Squads (Admin)' : 'Squads');
+    if (P.layout?.injectLayout) {
+      await P.layout.injectLayout();
+      console.log('[Squads] Layout injected.');
+    } else {
+      console.warn('[Squads] Layout module never appeared — forcing minimal shell.');
+      const shell = document.createElement('div');
+      shell.id = 'shell';
+      shell.innerHTML = `
+        <header style="padding:10px;background:#0f1a1a;border-bottom:1px solid #1f2f2f;color:#00ffcc;">
+          <b>PowerUp: Squads</b>
+        </header>
+        <main id="main-content" style="padding:20px;"></main>`;
+      document.body.prepend(shell);
+    }
 
-  // Now safe to wire the page-specific UI
-  wireUI();
+    await P.session?.initHeader?.();
 
-  const activeOnly = document.getElementById('activeOnly');
-  if (activeOnly) activeOnly.checked = false;
+    IS_ADMIN = !!(P.auth && P.auth.isAdmin && P.auth.isAdmin());
+    P.layout?.setPageTitle?.(IS_ADMIN ? 'Squads (Admin)' : 'Squads');
 
-  await loadAll();
-  await applyFilters();
-  wireManageToggle();
+    wireUI();
+
+    const activeOnly = document.getElementById('activeOnly');
+    if (activeOnly) activeOnly.checked = false;
+
+    await loadAll();
+    await applyFilters();
+    wireManageToggle();
+
+    console.log('[Squads] Initialization complete.');
+  } catch (err) {
+    console.error('[Squads] Fatal init error:', err);
+    const fallback = document.createElement('div');
+    fallback.textContent = 'An error occurred while loading the Squads page.';
+    fallback.style = 'color:#ff7575;padding:20px;';
+    document.body.prepend(fallback);
+  }
 });
 
   // ---------- Inline CSS (kept here per your request) ----------
@@ -611,6 +647,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   @keyframes spin{ to{ transform:rotate(360deg);} }
   `;
   document.head.appendChild(style);
+
+      } catch (err) {
+    console.error('[Squads] Top-level init failure:', err);
+  }
+
 
 })(window.PowerUp || {});
 </script>
