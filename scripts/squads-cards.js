@@ -289,6 +289,28 @@ if (api.layout && typeof api.layout.injectLayout === 'function') {
       return {id:targetId,name:sel};
     }catch{return null;}
   }
+ 
+    
+  function userIsMemberOrLeader(s, session) {
+  const norm = v => String(v || '').trim().toLowerCase();
+  const tgtId = norm(session.employeeId || '');
+  const tgtName = norm(session.displayName || '');
+
+  const leaders = LEADERS_BY_SQUAD.get(String(s.id || '').trim()) || [];
+  const leaderHit = leaders.some(x => norm(x.id) === tgtId || norm(x.name) === tgtName);
+
+  const m = MEMBERS_BY_SQUAD.get(String(s.id || '').trim());
+  const memberHit = m ? (m.ids.has(tgtId) || m.names.has(tgtName)) : false;
+
+  let fallback = false;
+  if (!m && s.members) {
+    const toks = String(s.members).split(/[;,\n]+/).map(t => norm(t));
+    fallback = (!!tgtId && toks.includes(tgtId)) || (!!tgtName && toks.includes(tgtName));
+  }
+
+  return leaderHit || memberHit || fallback;
+}
+
   //────────────────────────────────────────────
   // Apply Filters
   //────────────────────────────────────────────
