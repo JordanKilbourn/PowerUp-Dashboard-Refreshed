@@ -473,16 +473,19 @@ if (api.layout && typeof api.layout.injectLayout === 'function') {
     });
   }
 
-  //────────────────────────────────────────────
-  // Initialization
-  //────────────────────────────────────────────
-  document.addEventListener('DOMContentLoaded',async()=>{
-    P.session.requireLogin(); P.layout.injectLayout();
-    IS_ADMIN=!!(P.auth&&P.auth.isAdmin&&P.auth.isAdmin());
-    P.layout.setPageTitle(IS_ADMIN?'Squads (Admin)':'Squads');
-    await P.session.initHeader();
-    wireUI();
-    await loadData();
-    applyFilters();
-  });
-})();
+//────────────────────────────────────────────
+// Initialization
+//────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', async () => {
+  P.session.requireLogin();
+  P.layout.injectLayout();
+  IS_ADMIN = !!(P.auth && P.auth.isAdmin && P.auth.isAdmin());
+  P.layout.setPageTitle(IS_ADMIN ? 'Squads (Admin)' : 'Squads');
+  await P.session.initHeader();
+  wireUI();
+  await loadData();
+  applyFilters();
+});
+
+})();  // ✅ END OF FILE — no more braces after this line
+
