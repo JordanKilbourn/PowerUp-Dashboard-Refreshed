@@ -369,6 +369,44 @@
     });
   }
 
+    // =======================
+  // Filter Binding
+  // =======================
+  function bindFilters() {
+    const catWrap = document.getElementById('cat-pills');
+    const activeToggle = document.getElementById('activeOnly');
+    const myToggle = document.getElementById('myOnly');
+    const searchBox = document.getElementById('search');
+
+    if (catWrap) {
+      catWrap.addEventListener('click', e => {
+        const btn = e.target.closest('button[data-cat]');
+        if (!btn) return;
+        activeCategory = btn.dataset.cat;
+        renderCategoryPills(activeCategory);
+        applyFilters();
+      });
+    }
+
+    if (activeToggle) {
+      activeToggle.addEventListener('change', e => {
+        activeOnly = e.target.checked;
+        applyFilters();
+      });
+    }
+
+    if (myToggle) {
+      myToggle.addEventListener('change', e => {
+        mySquadsOnly = e.target.checked;
+        applyFilters();
+      });
+    }
+
+    if (searchBox) {
+      searchBox.addEventListener('input', applyFilters);
+    }
+  }
+
   // =======================
   // Page Init
   // =======================
