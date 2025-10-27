@@ -1,5 +1,5 @@
 // =============================================
-// PowerUp: Squads Page – Stable Reconciled Build 3 (SRB3)
+// PowerUp: Squads Page – Stable Reconciled Build 4 (SRB4)
 // =============================================
 (function (PowerUp) {
   const P = PowerUp || (window.PowerUp = {});
@@ -64,7 +64,9 @@
     if (!wrap) return;
     wrap.innerHTML = CATS.map(cat => {
       const style = `--cat:${getCatVar(cat)};`;
-      return `<button class="pill-cat${cat === activeCat ? ' active' : ''}" data-cat="${cat}" style="${style}"><span class="dot"></span>${cat}</button>`;
+      return `<button class="pill-cat${cat === activeCat ? ' active' : ''}" data-cat="${cat}" style="${style}">
+                <span class="dot"></span>${cat}
+              </button>`;
     }).join('');
   }
 
@@ -83,8 +85,9 @@
     const cards = document.getElementById('cards');
     const msg = document.getElementById('s-msg');
     if (!cards) return;
-    cards.innerHTML = '';
+
     if (!list.length) {
+      cards.innerHTML = '';
       msg.style.display = 'block';
       msg.innerHTML = `No squads match your filters.<br/>Try clearing search or showing inactive.`;
       return;
@@ -99,8 +102,8 @@
       let leaderLine = dash(sq.leaderName || sq.leaderId);
       if (leaders && leaders.length) leaderLine = leaders.map(x => x.name).filter(Boolean).join(', ');
 
-      const memberCount = MEMBERS_BY_SQUAD.get(String(sq.id || '').trim());
-      const mCount = memberCount ? memberCount.ids.size : 0;
+      const memberEntry = MEMBERS_BY_SQUAD.get(String(sq.id || '').trim());
+      const mCount = memberEntry ? memberEntry.ids.size : 0;
       const memberChip = `<span class="member-chip">👥 ${mCount} member${mCount === 1 ? '' : 's'}</span>`;
 
       const detailsHref = sq.id
@@ -108,17 +111,16 @@
         : `squad-details.html?name=${encodeURIComponent(sq.name)}`;
       const catCls = CAT_CLASS[sq.category] || CAT_CLASS.Other;
 
-      return `
-        <div class="squad-card ${catCls}">
-          <h4>${dash(sq.name)}</h4>
-          <div class="squad-meta"><b>Leader(s):</b> ${leaderLine}</div>
-          <div class="squad-meta"><b>Status:</b> ${status}</div>
-          <div class="squad-meta"><b>Focus:</b> ${dash(sq.objective)}</div>
-          <div class="squad-foot">
-            ${memberChip}
-            <a class="squad-link" href="${detailsHref}">View Details →</a>
-          </div>
-        </div>`;
+      return `<div class="squad-card ${catCls}">
+                <h4>${dash(sq.name)}</h4>
+                <div class="squad-meta"><b>Leader(s):</b> ${leaderLine}</div>
+                <div class="squad-meta"><b>Status:</b> ${status}</div>
+                <div class="squad-meta"><b>Focus:</b> ${dash(sq.objective)}</div>
+                <div class="squad-foot">
+                  ${memberChip}
+                  <a class="squad-link" href="${detailsHref}">View Details →</a>
+                </div>
+              </div>`;
     }).join('');
   }
 
@@ -157,10 +159,15 @@
       const eid = pick(r, SM_COL.empId, '').trim();
       const enm = (pick(r, SM_COL.empName, '') || idToName.get(eid) || '').toString().trim();
       const role = String(r['Role'] || '').toLowerCase();
+
       let entry = MEMBERS_BY_SQUAD.get(sid);
-      if (!entry) entry = { ids: new Set(), names: new Set() }, MEMBERS_BY_SQUAD.set(sid, entry);
+      if (!entry) {
+        entry = { ids: new Set(), names: new Set() };
+        MEMBERS_BY_SQUAD.set(sid, entry);
+      }
       if (eid) entry.ids.add(eid.toLowerCase());
       if (enm) entry.names.add(enm.toLowerCase());
+
       if (role === 'leader') {
         const arr = LEADERS_BY_SQUAD.get(sid) || [];
         arr.push({ id: eid, name: enm });
@@ -228,143 +235,386 @@
     if (myToggle) myToggle.addEventListener('change', e => { mySquadsOnly = e.target.checked; applyFilters(); });
     if (searchBox) searchBox.addEventListener('input', applyFilters);
   }
-
-  // =======================
-  // Manage Table Renderer
+    // =======================
+  // Manage Table Rendering
   // =======================
   async function renderManageTable() {
     const cardsContainer = document.getElementById('cards');
     const msg = document.getElementById('s-msg');
     if (msg) msg.style.display = 'none';
-    const overlay = document.createElement('div');
-    overlay.className = 'overlay';
-    overlay.innerHTML = `<div class="spinner"></div>`;
-    cardsContainer.innerHTML = '';
-    cardsContainer.appendChild(overlay);
+
+    cardsContainer.innerHTML = `
+      <div class="overlay">
+        <div class="spinner"></div>
+        <div style="margin-top:12px;color:#9ff;">Loading Manage View…</div>
+      </div>`;
 
     const [squads, members, employees] = await Promise.all([
-      P.api.getRowsByTitle('SQUADS', { force: true }),
-      P.api.getRowsByTitle('SQUAD_MEMBERS', { force: true }),
+      P.api.getRowsByTitle(SHEETS.SQUADS, { force: true }),
+      P.api.getRowsByTitle(SHEETS.SQUAD_MEMBERS, { force: true }),
       P.getEmployees()
     ]);
-    overlay.remove();
 
     const allEmps = employees.map(e => ({
       id: e['Employee ID'] || e['Position ID'],
       name: e['Employee Name'] || e['Display Name']
     }));
 
+    // Build Leader map
+    const leadersBySquad = new Map();
+    members.forEach(r => {
+      if (!isTrue(pick(r, SM_COL.active, 'true'))) return;
+      const sid = pick(r, SM_COL.squadId, '').trim();
+      const role = (pick(r, SM_COL.role, '') || '').toLowerCase();
+      if (role === 'leader') {
+        const eid = pick(r, SM_COL.empId, '').trim();
+        const name = pick(r, SM_COL.empName, '').trim();
+        const arr = leadersBySquad.get(sid) || [];
+        arr.push({ id: eid, name });
+        leadersBySquad.set(sid, arr);
+      }
+    });
+
+    // Construct table
     const table = document.createElement('table');
     table.className = 'manage-table';
     table.innerHTML = `
       <thead>
         <tr>
-          <th style="width:10%">ID</th>
-          <th style="width:18%">Squad Name</th>
-          <th style="width:12%">Category</th>
-          <th style="width:7%">Active</th>
-          <th style="width:20%">Objective</th>
-          <th style="width:18%">Leaders</th>
-          <th style="width:10%">Created By</th>
-          <th style="width:10%">Actions</th>
+          <th>ID</th>
+          <th>Squad Name</th>
+          <th>Category</th>
+          <th>Active</th>
+          <th>Objective</th>
+          <th>Leaders</th>
+          <th>Created By</th>
+          <th>Actions</th>
         </tr>
       </thead>
       <tbody>
         ${squads.map(r => {
-          const sid = r.id || '';
-          const leaders = members.filter(m => m['Squad ID'] === sid && m['Role'] === 'Leader').map(x => x['Employee Name']);
+          const sid = r['Squad ID'] || r.id || '';
+          const leaders = leadersBySquad.get(sid) || [];
+          const leaderNames = leaders.map(x => x.name);
           return `
-          <tr data-rowid="${sid}">
-            <td>${dash(sid)}</td>
-            <td contenteditable class="editable name">${dash(r['Squad Name'])}</td>
-            <td contenteditable class="editable category">${dash(r['Category'])}</td>
-            <td><input type="checkbox" class="active" ${isTrue(r['Active']) ? 'checked' : ''}></td>
-            <td contenteditable class="editable objective">${dash(r['Objective'])}</td>
-            <td><select multiple class="leader-select">${allEmps.map(emp => `<option value="${emp.name}" ${leaders.includes(emp.name) ? 'selected' : ''}>${emp.name}</option>`).join('')}</select></td>
-            <td contenteditable class="editable created-by">${dash(r['Created By'])}</td>
-            <td class="actions-cell"><button class="btn-save">Save</button><button class="btn-cancel">Cancel</button></td>
-          </tr>`;
+            <tr data-rowid="${sid}">
+              <td>${sid}</td>
+              <td contenteditable class="editable name">${dash(r['Squad Name'])}</td>
+              <td contenteditable class="editable category">${dash(r['Category'])}</td>
+              <td><input type="checkbox" class="active" ${isTrue(r['Active']) ? 'checked' : ''}></td>
+              <td contenteditable class="editable objective">${dash(r['Objective'])}</td>
+              <td>
+                <select multiple class="leader-select">
+                  ${allEmps.map(emp => `
+                    <option value="${emp.name}" ${leaderNames.includes(emp.name) ? 'selected' : ''}>${emp.name}</option>
+                  `).join('')}
+                </select>
+              </td>
+              <td contenteditable class="editable created-by">${dash(r['Created By'])}</td>
+              <td class="actions-cell">
+                <button class="btn-save">Save</button>
+                <button class="btn-cancel">Cancel</button>
+              </td>
+            </tr>`;
         }).join('')}
       </tbody>`;
+
     cardsContainer.innerHTML = '';
     cardsContainer.appendChild(table);
 
+    // Preserve original state
+    table.querySelectorAll('tr[data-rowid]').forEach(tr => {
+      const data = {
+        name: tr.querySelector('.name')?.textContent.trim(),
+        category: tr.querySelector('.category')?.textContent.trim(),
+        active: tr.querySelector('.active')?.checked,
+        objective: tr.querySelector('.objective')?.textContent.trim(),
+        createdBy: tr.querySelector('.created-by')?.textContent.trim(),
+        leaders: Array.from(tr.querySelector('.leader-select')?.selectedOptions || []).map(o => o.value)
+      };
+      tr.dataset.original = JSON.stringify(data);
+    });
+
+    // Handle save / cancel
     table.addEventListener('click', async e => {
       const tr = e.target.closest('tr[data-rowid]');
       if (!tr) return;
+      const rowId = tr.dataset.rowid;
+
+      // ---- Save ----
       if (e.target.classList.contains('btn-save')) {
-        tr.style.background = 'rgba(51,255,153,0.08)';
-        showToast('Changes saved (simulation)', 'success');
-        setTimeout(() => tr.style.background = '', 800);
+        const name = tr.querySelector('.name')?.textContent.trim();
+        const category = tr.querySelector('.category')?.textContent.trim();
+        const active = tr.querySelector('.active')?.checked;
+        const objective = tr.querySelector('.objective')?.textContent.trim();
+        const createdBy = tr.querySelector('.created-by')?.textContent.trim();
+        const leaders = Array.from(tr.querySelector('.leader-select')?.selectedOptions || []).map(o => o.value);
+
+        if (!leaders.length) return showToast('Each squad must have at least one leader.', 'warn');
+
+        try {
+          await P.api.updateRowById(SHEETS.SQUADS, rowId, {
+            'Squad Name': name,
+            'Category': category,
+            'Active': active,
+            'Objective': objective,
+            'Created By': createdBy
+          });
+
+          // Sync leaders
+          const existing = members.filter(m => m['Squad ID'] === rowId && m['Role'] === 'Leader');
+          const existingNames = existing.map(m => m['Employee Name']);
+          const toRemove = existing.filter(m => !leaders.includes(m['Employee Name']));
+          const toAdd = leaders.filter(l => !existingNames.includes(l));
+
+          for (const rem of toRemove) {
+            await P.api.deleteRowById(SHEETS.SQUAD_MEMBERS, rem.id);
+          }
+          for (const leaderName of toAdd) {
+            const emp = allEmps.find(e => e.name === leaderName);
+            if (emp) {
+              await P.addSquadMember({
+                'Squad ID': rowId,
+                'Employee ID': emp.id,
+                'Employee Name': emp.name,
+                'Role': 'Leader',
+                'Active': true,
+                'Added By': createdBy
+              });
+            }
+          }
+
+          showToast(`Saved updates for ${name}`, 'success');
+          tr.style.backgroundColor = 'rgba(51,255,153,0.08)';
+          setTimeout(() => (tr.style.backgroundColor = ''), 800);
+          tr.dataset.original = JSON.stringify({ name, category, active, objective, createdBy, leaders });
+        } catch (err) {
+          console.error(err);
+          showToast('Error saving squad changes.', 'error');
+        }
       }
+
+      // ---- Cancel ----
       if (e.target.classList.contains('btn-cancel')) {
-        tr.style.background = 'rgba(255,255,0,0.08)';
-        setTimeout(() => tr.style.background = '', 800);
+        const orig = JSON.parse(tr.dataset.original || '{}');
+        tr.querySelector('.name').textContent = orig.name || '';
+        tr.querySelector('.category').textContent = orig.category || '';
+        tr.querySelector('.active').checked = !!orig.active;
+        tr.querySelector('.objective').textContent = orig.objective || '';
+        tr.querySelector('.created-by').textContent = orig.createdBy || '';
+        const sel = tr.querySelector('.leader-select');
+        if (sel) {
+          Array.from(sel.options).forEach(opt => {
+            opt.selected = orig.leaders.includes(opt.value);
+          });
+        }
+        tr.style.backgroundColor = 'rgba(255,255,0,0.1)';
+        setTimeout(() => (tr.style.backgroundColor = ''), 800);
       }
     });
   }
 
   // =======================
-  // Init
+  // Page Init
   // =======================
   document.addEventListener('DOMContentLoaded', async () => {
     P.session.requireLogin();
     P.layout.injectLayout();
     P.layout.setPageTitle('Squads');
     await P.session.initHeader();
+
     renderCategoryPills('All');
     await load();
     bindFilters();
-    renderCards(ALL);
+    applyFilters();
 
     const btnManage = document.getElementById('btn-manage');
     const btnAdd = document.getElementById('btn-add-squad');
-    if (btnAdd) btnAdd.addEventListener('click', () => PowerUp.squadAddForm?.open?.());
+    if (btnAdd) {
+      btnAdd.addEventListener('click', () => {
+        if (PowerUp.squadAddForm && PowerUp.squadAddForm.open) PowerUp.squadAddForm.open();
+      });
+    }
+
     if (btnManage) {
       btnManage.addEventListener('click', async () => {
-        const isManage = btnManage.dataset.mode === 'manage';
-        if (isManage) {
+        const isManaging = btnManage.classList.toggle('managing');
+        if (isManaging) {
+          btnManage.textContent = 'View Cards';
+          await renderManageTable();
+        } else {
           btnManage.textContent = 'Manage Squads';
-          btnManage.dataset.mode = 'view';
           document.getElementById('s-msg').style.display = 'none';
           renderCards(ALL);
-        } else {
-          btnManage.textContent = 'View Cards';
-          btnManage.dataset.mode = 'manage';
-          await renderManageTable();
         }
       });
     }
   });
 
-  // =======================
-  // Styles
+    // =======================
+  // Inline Styles
   // =======================
   const style = document.createElement('style');
   style.textContent = `
-  #cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; padding: 12px; }
-  .squad-card { background:#0f1a1a; border-left:5px solid var(--accent); border-radius:10px; padding:14px 18px; box-shadow:0 1px 4px rgba(0,0,0,0.4); transition:all 0.15s ease; }
-  .squad-card:hover { transform:translateY(-2px); box-shadow:0 4px 10px rgba(0,0,0,0.6); }
-  .squad-foot { display:flex; justify-content:space-between; align-items:center; margin-top:10px; }
-  .member-chip { font-size:0.85rem; color:#9ff; opacity:0.85; }
-  .squad-link { color:#33ff99; text-decoration:none; font-weight:500; }
-  .squad-link:hover { text-decoration:underline; }
-  .manage-table { width:100%; border-collapse:collapse; font-size:0.9rem; }
-  .manage-table th, .manage-table td { padding:8px 10px; border-bottom:1px solid rgba(255,255,255,0.07); text-align:left; }
-  .manage-table th { background:#0f1a1a; position:sticky; top:0; z-index:2; }
-  .manage-table tr:nth-child(even) { background:rgba(255,255,255,0.02); }
-  .actions-cell { display:flex; gap:6px; justify-content:center; }
-  .btn-save, .btn-cancel { padding:4px 12px; border-radius:6px; font-size:0.85rem; cursor:pointer; }
-  .btn-save { border:1px solid #33ff99; color:#33ff99; background:transparent; }
-  .btn-save:hover { background:rgba(51,255,153,0.1); }
-  .btn-cancel { border:1px solid #ff5050; color:#ff8080; background:transparent; }
-  .btn-cancel:hover { background:rgba(255,80,80,0.1); }
-  .leader-select { width:200px; height:110px; background:#0d1717; color:#bdf; border:1px solid #1e2a2a; border-radius:6px; }
-  .overlay { display:flex; align-items:center; justify-content:center; height:180px; }
-  .spinner { width:40px; height:40px; border:4px solid #33ff99; border-top-color:transparent; border-radius:50%; animation:spin 1s linear infinite; }
-  @keyframes spin { to { transform:rotate(360deg); } }
-  .pu-toast { position:fixed; bottom:20px; right:20px; background:#0f1a1a; color:#9ff; border:1px solid #33ff99; padding:10px 16px; border-radius:8px; opacity:0; transition:opacity 0.4s; z-index:9999; }
-  .pu-toast.show { opacity:1; }
+  /* === Squad Cards === */
+  #cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 16px;
+    margin-top: 14px;
+    width: 100%;
+  }
+  .squad-card {
+    background: #101a1a;
+    border-left: 5px solid var(--accent, #33ff99);
+    border-radius: 10px;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    box-shadow: 0 0 8px rgba(0,0,0,0.3);
+    transition: transform .2s ease, box-shadow .2s ease;
+  }
+  .squad-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 0 12px rgba(51,255,153,0.4);
+  }
+  .squad-card h4 { margin: 0 0 6px; color: #cde; font-weight: 600; }
+  .squad-meta { font-size: 0.85rem; margin: 3px 0; color: #aab; }
+  .status-pill {
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+  }
+  .status-on { background: rgba(51,255,153,0.1); color: #33ff99; }
+  .status-off { background: rgba(255,80,80,0.1); color: #ff5050; }
+  .member-chip {
+    font-size: 0.8rem;
+    color: #99b;
+    margin-right: auto;
+  }
+  .squad-foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid rgba(255,255,255,0.05);
+    margin-top: 8px;
+    padding-top: 6px;
+  }
+  .squad-link {
+    color: #33ff99;
+    text-decoration: none;
+    font-size: 0.85rem;
+  }
+  .squad-link:hover { text-decoration: underline; }
+
+  /* === Manage Table === */
+  .manage-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+    font-size: 0.9rem;
+  }
+  .manage-table th, .manage-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+  .manage-table th {
+    background: #0f1a1a;
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    text-align: left;
+    color: #9ff;
+  }
+  .manage-table tbody tr:nth-child(even) {
+    background: rgba(255,255,255,0.02);
+  }
+  .manage-table tbody tr:hover {
+    background: rgba(51,255,153,0.06);
+  }
+  .editable {
+    outline: none;
+  }
+  .editable:focus {
+    background: rgba(51,255,153,0.08);
+  }
+  .leader-select {
+    width: 180px;
+    background: #0d1717;
+    color: #bdf;
+    border: 1px solid #2a3d3d;
+    border-radius: 6px;
+    height: 130px;
+  }
+  .actions-cell {
+    white-space: nowrap;
+  }
+  .btn-save, .btn-cancel {
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    border: 1px solid transparent;
+    background: transparent;
+    transition: all .2s;
+  }
+  .btn-save {
+    color: #33ff99;
+    border-color: #33ff99;
+  }
+  .btn-save:hover {
+    background: rgba(51,255,153,0.1);
+  }
+  .btn-cancel {
+    color: #ff8080;
+    border-color: #ff5050;
+  }
+  .btn-cancel:hover {
+    background: rgba(255,80,80,0.1);
+  }
+
+  /* === Spinner Overlay === */
+  .overlay {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 240px;
+    color: #9ff;
+  }
+  .spinner {
+    width: 42px;
+    height: 42px;
+    border: 4px solid #33ff99;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* === Toasts === */
+  .pu-toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #0f1a1a;
+    color: #9ff;
+    border: 1px solid #33ff99;
+    padding: 10px 18px;
+    border-radius: 8px;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+    z-index: 10000;
+  }
+  .pu-toast.show { opacity: 1; }
+  .pu-toast.success { border-left: 5px solid #33ff99; }
+  .pu-toast.warn { border-left: 5px solid #ffb84d; }
+  .pu-toast.error { border-left: 5px solid #ff5050; }
   `;
   document.head.appendChild(style);
+
 })(window.PowerUp);
+
+
