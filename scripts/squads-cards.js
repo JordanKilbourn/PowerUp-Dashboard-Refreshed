@@ -235,184 +235,146 @@
     if (myToggle) myToggle.addEventListener('change', e => { mySquadsOnly = e.target.checked; applyFilters(); });
     if (searchBox) searchBox.addEventListener('input', applyFilters);
   }
-    // =======================
-  // Manage Table Rendering
-  // =======================
-  async function renderManageTable() {
-    const cardsContainer = document.getElementById('cards');
-    const msg = document.getElementById('s-msg');
-    if (msg) msg.style.display = 'none';
 
-    cardsContainer.innerHTML = `
-      <div class="overlay">
-        <div class="spinner"></div>
-        <div style="margin-top:12px;color:#9ff;">Loading Manage View…</div>
-      </div>`;
 
-    const [squads, members, employees] = await Promise.all([
-      P.api.getRowsByTitle(SHEETS.SQUADS, { force: true }),
-      P.api.getRowsByTitle(SHEETS.SQUAD_MEMBERS, { force: true }),
-      P.getEmployees()
-    ]);
+// =======================
+// Manage Table Rendering (Revised)
+// =======================
+async function renderManageTable() {
+  const cardsContainer = document.getElementById('cards');
+  const msg = document.getElementById('s-msg');
+  if (msg) msg.style.display = 'none';
 
-    const allEmps = employees.map(e => ({
-      id: e['Employee ID'] || e['Position ID'],
-      name: e['Employee Name'] || e['Display Name']
-    }));
+  cardsContainer.innerHTML = `
+    <div class="overlay">
+      <div class="spinner"></div>
+      <div class="overlay-text">Loading Manage View...</div>
+    </div>`;
 
-    // Build Leader map
-    const leadersBySquad = new Map();
-    members.forEach(r => {
-      if (!isTrue(pick(r, SM_COL.active, 'true'))) return;
-      const sid = pick(r, SM_COL.squadId, '').trim();
-      const role = (pick(r, SM_COL.role, '') || '').toLowerCase();
-      if (role === 'leader') {
-        const eid = pick(r, SM_COL.empId, '').trim();
-        const name = pick(r, SM_COL.empName, '').trim();
-        const arr = leadersBySquad.get(sid) || [];
-        arr.push({ id: eid, name });
-        leadersBySquad.set(sid, arr);
-      }
-    });
+  const [squads, members, employees] = await Promise.all([
+    P.api.getRowsByTitle(SHEETS.SQUADS, { force: true }),
+    P.api.getRowsByTitle(SHEETS.SQUAD_MEMBERS, { force: true }),
+    P.getEmployees()
+  ]);
 
-    // Construct table
-    const table = document.createElement('table');
-    table.className = 'manage-table';
-    table.innerHTML = `
-      <thead>
-        <tr>
-          <th>ID</th>
-          <th>Squad Name</th>
-          <th>Category</th>
-          <th>Active</th>
-          <th>Objective</th>
-          <th>Leaders</th>
-          <th>Created By</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${squads.map(r => {
-          const sid = r['Squad ID'] || r.id || '';
-          const leaders = leadersBySquad.get(sid) || [];
-          const leaderNames = leaders.map(x => x.name);
-          return `
-            <tr data-rowid="${sid}">
-              <td>${sid}</td>
-              <td contenteditable class="editable name">${dash(r['Squad Name'])}</td>
-              <td contenteditable class="editable category">${dash(r['Category'])}</td>
-              <td><input type="checkbox" class="active" ${isTrue(r['Active']) ? 'checked' : ''}></td>
-              <td contenteditable class="editable objective">${dash(r['Objective'])}</td>
-              <td>
-                <select multiple class="leader-select">
-                  ${allEmps.map(emp => `
-                    <option value="${emp.name}" ${leaderNames.includes(emp.name) ? 'selected' : ''}>${emp.name}</option>
-                  `).join('')}
-                </select>
-              </td>
-              <td contenteditable class="editable created-by">${dash(r['Created By'])}</td>
-              <td class="actions-cell">
-                <button class="btn-save">Save</button>
-                <button class="btn-cancel">Cancel</button>
-              </td>
-            </tr>`;
-        }).join('')}
-      </tbody>`;
+  const allEmps = employees.map(e => ({
+    id: e['Employee ID'] || e['Position ID'],
+    name: e['Employee Name'] || e['Display Name']
+  }));
 
-    cardsContainer.innerHTML = '';
-    cardsContainer.appendChild(table);
+  const leadersBySquad = new Map();
+  members.forEach(r => {
+    if (!isTrue(pick(r, SM_COL.active, 'true'))) return;
+    const sid = pick(r, SM_COL.squadId, '').trim();
+    const role = (pick(r, SM_COL.role, '') || '').toLowerCase();
+    if (role === 'leader') {
+      const eid = pick(r, SM_COL.empId, '').trim();
+      const name = pick(r, SM_COL.empName, '').trim();
+      leadersBySquad.set(sid, { id: eid, name });
+    }
+  });
 
-    // Preserve original state
-    table.querySelectorAll('tr[data-rowid]').forEach(tr => {
-      const data = {
-        name: tr.querySelector('.name')?.textContent.trim(),
-        category: tr.querySelector('.category')?.textContent.trim(),
-        active: tr.querySelector('.active')?.checked,
-        objective: tr.querySelector('.objective')?.textContent.trim(),
-        createdBy: tr.querySelector('.created-by')?.textContent.trim(),
-        leaders: Array.from(tr.querySelector('.leader-select')?.selectedOptions || []).map(o => o.value)
-      };
-      tr.dataset.original = JSON.stringify(data);
-    });
+  const table = document.createElement('table');
+  table.className = 'manage-table';
+  table.innerHTML = `
+    <thead>
+      <tr>
+        <th style="width:6%">ID</th>
+        <th style="width:16%">Squad Name</th>
+        <th style="width:10%">Category</th>
+        <th style="width:7%">Active</th>
+        <th style="width:25%">Objective</th>
+        <th style="width:20%">Leader</th>
+        <th style="width:10%">Created By</th>
+        <th style="width:6%">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${squads.map(r => {
+        const sid = r['Squad ID'] || r.id || '';
+        const leader = leadersBySquad.get(sid);
+        const selectedName = leader ? leader.name : '';
+        return `
+          <tr data-rowid="${sid}">
+            <td>${sid}</td>
+            <td contenteditable class="editable name">${dash(r['Squad Name'])}</td>
+            <td contenteditable class="editable category">${dash(r['Category'])}</td>
+            <td><input type="checkbox" class="active" ${isTrue(r['Active']) ? 'checked' : ''}></td>
+            <td contenteditable class="editable objective">${dash(r['Objective'])}</td>
+            <td>
+              <select class="leader-select-single">
+                <option value="">— Select Leader —</option>
+                ${allEmps.map(emp =>
+                  `<option value="${emp.name}" ${emp.name === selectedName ? 'selected' : ''}>${emp.name}</option>`
+                ).join('')}
+              </select>
+            </td>
+            <td contenteditable class="editable created-by">${dash(r['Created By'])}</td>
+            <td class="actions-cell">
+              <button class="btn-save">Save</button>
+              <button class="btn-cancel">Cancel</button>
+            </td>
+          </tr>`;
+      }).join('')}
+    </tbody>`;
 
-    // Handle save / cancel
-    table.addEventListener('click', async e => {
-      const tr = e.target.closest('tr[data-rowid]');
-      if (!tr) return;
-      const rowId = tr.dataset.rowid;
+  cardsContainer.innerHTML = '';
+  cardsContainer.appendChild(table);
 
-      // ---- Save ----
-      if (e.target.classList.contains('btn-save')) {
-        const name = tr.querySelector('.name')?.textContent.trim();
-        const category = tr.querySelector('.category')?.textContent.trim();
-        const active = tr.querySelector('.active')?.checked;
-        const objective = tr.querySelector('.objective')?.textContent.trim();
-        const createdBy = tr.querySelector('.created-by')?.textContent.trim();
-        const leaders = Array.from(tr.querySelector('.leader-select')?.selectedOptions || []).map(o => o.value);
+  table.addEventListener('click', async e => {
+    const tr = e.target.closest('tr[data-rowid]');
+    if (!tr) return;
+    const rowId = tr.dataset.rowid;
 
-        if (!leaders.length) return showToast('Each squad must have at least one leader.', 'warn');
+    if (e.target.classList.contains('btn-save')) {
+      const name = tr.querySelector('.name')?.textContent.trim();
+      const category = tr.querySelector('.category')?.textContent.trim();
+      const active = tr.querySelector('.active')?.checked;
+      const objective = tr.querySelector('.objective')?.textContent.trim();
+      const createdBy = tr.querySelector('.created-by')?.textContent.trim();
+      const leaderName = tr.querySelector('.leader-select-single')?.value;
 
-        try {
-          await P.api.updateRowById(SHEETS.SQUADS, rowId, {
-            'Squad Name': name,
-            'Category': category,
-            'Active': active,
-            'Objective': objective,
-            'Created By': createdBy
-          });
+      if (!leaderName) return showToast('Select a leader before saving.', 'warn');
+      const emp = allEmps.find(e => e.name === leaderName);
 
-          // Sync leaders
-          const existing = members.filter(m => m['Squad ID'] === rowId && m['Role'] === 'Leader');
-          const existingNames = existing.map(m => m['Employee Name']);
-          const toRemove = existing.filter(m => !leaders.includes(m['Employee Name']));
-          const toAdd = leaders.filter(l => !existingNames.includes(l));
+      try {
+        await P.api.updateRowById(SHEETS.SQUADS, rowId, {
+          'Squad Name': name,
+          'Category': category,
+          'Active': active,
+          'Objective': objective,
+          'Created By': createdBy
+        });
 
-          for (const rem of toRemove) {
-            await P.api.deleteRowById(SHEETS.SQUAD_MEMBERS, rem.id);
-          }
-          for (const leaderName of toAdd) {
-            const emp = allEmps.find(e => e.name === leaderName);
-            if (emp) {
-              await P.addSquadMember({
-                'Squad ID': rowId,
-                'Employee ID': emp.id,
-                'Employee Name': emp.name,
-                'Role': 'Leader',
-                'Active': true,
-                'Added By': createdBy
-              });
-            }
-          }
+        // Remove any previous leader record and replace with selected
+        const currentLeaders = members.filter(m => m['Squad ID'] === rowId && m['Role'] === 'Leader');
+        for (const old of currentLeaders) await P.api.deleteRowById(SHEETS.SQUAD_MEMBERS, old.id);
 
-          showToast(`Saved updates for ${name}`, 'success');
-          tr.style.backgroundColor = 'rgba(51,255,153,0.08)';
-          setTimeout(() => (tr.style.backgroundColor = ''), 800);
-          tr.dataset.original = JSON.stringify({ name, category, active, objective, createdBy, leaders });
-        } catch (err) {
-          console.error(err);
-          showToast('Error saving squad changes.', 'error');
-        }
-      }
-
-      // ---- Cancel ----
-      if (e.target.classList.contains('btn-cancel')) {
-        const orig = JSON.parse(tr.dataset.original || '{}');
-        tr.querySelector('.name').textContent = orig.name || '';
-        tr.querySelector('.category').textContent = orig.category || '';
-        tr.querySelector('.active').checked = !!orig.active;
-        tr.querySelector('.objective').textContent = orig.objective || '';
-        tr.querySelector('.created-by').textContent = orig.createdBy || '';
-        const sel = tr.querySelector('.leader-select');
-        if (sel) {
-          Array.from(sel.options).forEach(opt => {
-            opt.selected = orig.leaders.includes(opt.value);
+        if (emp) {
+          await P.addSquadMember({
+            'Squad ID': rowId,
+            'Employee ID': emp.id,
+            'Employee Name': emp.name,
+            'Role': 'Leader',
+            'Active': true,
+            'Added By': createdBy
           });
         }
-        tr.style.backgroundColor = 'rgba(255,255,0,0.1)';
-        setTimeout(() => (tr.style.backgroundColor = ''), 800);
+
+        showToast(`Saved updates for ${name}`, 'success');
+      } catch (err) {
+        console.error(err);
+        showToast('Error saving squad changes.', 'error');
       }
-    });
-  }
+    }
+
+    if (e.target.classList.contains('btn-cancel')) {
+      tr.style.backgroundColor = 'rgba(255,255,0,0.1)';
+      setTimeout(() => (tr.style.backgroundColor = ''), 800);
+    }
+  });
+}
+
 
   // =======================
   // Page Init
@@ -436,22 +398,23 @@
       });
     }
 
-    if (btnManage) {
-      btnManage.addEventListener('click', async () => {
-        const isManaging = btnManage.classList.toggle('managing');
-        if (isManaging) {
-          btnManage.textContent = 'View Cards';
-          await renderManageTable();
-        } else {
-          btnManage.textContent = 'Manage Squads';
-          document.getElementById('s-msg').style.display = 'none';
-          renderCards(ALL);
-        }
-      });
+if (btnManage) {
+  btnManage.addEventListener('click', async () => {
+    const isManaging = btnManage.classList.toggle('managing');
+    if (isManaging) {
+      btnManage.textContent = 'View Cards';
+      await renderManageTable();
+    } else {
+      btnManage.textContent = 'Manage Squads';
+      document.getElementById('s-msg').style.display = 'none';
+      // ✅ Reapply filters, including MySquads and ActiveOnly
+      applyFilters();
     }
   });
-
-    // =======================
+}
+  });
+  
+  // =======================
   // Inline Styles
   // =======================
   const style = document.createElement('style');
@@ -612,6 +575,39 @@
   .pu-toast.success { border-left: 5px solid #33ff99; }
   .pu-toast.warn { border-left: 5px solid #ffb84d; }
   .pu-toast.error { border-left: 5px solid #ff5050; }
+
+
+  /* Center spinner overlay */
+.overlay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 260px;
+  position: relative;
+}
+.overlay-text {
+  margin-top: 10px;
+  color: #aefcd8;
+  font-size: 0.9rem;
+}
+
+/* Clean single-select leader */
+.leader-select-single {
+  width: 95%;
+  max-width: 260px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  background: #0f1a1a;
+  color: #cde;
+  border: 1px solid #2a3d3d;
+}
+.leader-select-single:focus {
+  outline: none;
+  border-color: #33ff99;
+  box-shadow: 0 0 4px rgba(51,255,153,0.3);
+}
+
   `;
   document.head.appendChild(style);
 
