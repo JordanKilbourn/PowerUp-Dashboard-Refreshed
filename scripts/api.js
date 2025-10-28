@@ -510,12 +510,12 @@
 
     if (!cells.length) throw new Error("updateRowById: No valid writable columns found");
 
-    const payload = { id: rowId, cells };
-    const res = await fetchJSONRetry(`${API_BASE}/sheet/${id}/rows`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ rows: [payload] }),
-    });
+  const payload = { cells };
+const res = await fetchJSONRetry(`${API_BASE}/sheet/${id}/row/${rowId}`, {
+  method: "PUT",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(payload),
+});
 
     // Invalidate cache so fresh data appears next time
     P.api.clearCache(id);
