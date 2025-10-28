@@ -401,7 +401,7 @@ P.api.updateOrReplaceLeader = async function ({ squadId, newLeaderId, newLeaderN
   if (currentLeader) {
     // Update existing leader record
     console.log("🔄 Updating existing leader:", currentLeader["Employee Name"]);
-    return await P.api.updateRowById(sheetId, currentLeader._rowId, {
+    return await P.api.updateRowById(sheetId, currentLeader.__rowId || currentLeader.rowId, {
       "Employee ID": newLeaderId,
       "Employee Name": newLeaderName,
       "Role": "Leader",
