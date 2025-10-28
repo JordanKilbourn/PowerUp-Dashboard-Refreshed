@@ -354,12 +354,13 @@ P.getEmployees = async function () {
 
     if (!cells.length) throw new Error("updateRowById: No valid writable columns found");
 
-    const payload = { id: rowId, cells };
-    const res = await fetchJSONRetry(`${API_BASE}/sheet/${id}/rows`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ rows: [payload] }),
-    });
+const payload = { cells };
+const res = await fetchJSONRetry(`${API_BASE}/sheet/${id}/rows/${rowId}`, {
+  method: "PUT",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(payload),
+});
+
 
     clearCache(id);
     return res;
