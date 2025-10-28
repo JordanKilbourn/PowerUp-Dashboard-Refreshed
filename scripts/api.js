@@ -326,47 +326,66 @@ P.getEmployees = async function () {
     }
   };
 
-  // ✅ Update existing row by Smartsheet internal rowId
-  P.api.updateRowById = async function (sheetIdOrKey, rowId, data) {
-    const id = P.api.resolveSheetId(sheetIdOrKey);
-    assertValidId(id, "updateRowById");
-    if (!rowId) throw new Error("updateRowById: Missing rowId");
+// =====================================================
+// ✅ Update or insert Smartsheet row (proxy-safe)
+// =====================================================
+P.api.updateRowById = async function (sheetIdOrKey, rowId, data) {
+  const id = P.api.resolveSheetId(sheetIdOrKey);
+  assertValidId(id, "updateRowById");
+  if (!rowId) throw new Error("updateRowById: Missing rowId");
 
-    let columns;
-    try {
-      columns = await fetchJSONRetry(`${API_BASE}/sheet/${id}/columns`, { method: "GET" });
-      if (!Array.isArray(columns)) columns = columns?.data || columns?.columns;
-    } catch {
-      const sheet = await fetchSheet(id, { force: true });
-      columns = sheet.columns || [];
-    }
+  // --- 1️⃣ Fetch columns for proper mapping ---
+  let columns;
+  try {
+    columns = await fetchJSONRetry(`${API_BASE}/sheet/${id}/columns`, { method: "GET" });
+    if (!Array.isArray(columns)) columns = columns?.data || columns?.columns;
+  } catch {
+    const sheet = await fetchSheet(id, { force: true });
+    columns = sheet.columns || [];
+  }
 
-    const titleToCol = {};
-    (columns || []).forEach(c => titleToCol[c.title.trim().toLowerCase()] = c);
-    const isFormula = c => !!(c && (c.formula || c.systemColumnType));
+  const titleToCol = {};
+  (columns || []).forEach(c => (titleToCol[c.title.trim().toLowerCase()] = c));
+  const isFormula = c => !!(c && (c.formula || c.systemColumnType));
 
-    const cells = Object.entries(data || {}).map(([title, value]) => {
+  // --- 2️⃣ Build Smartsheet-style cells ---
+  const cells = Object.entries(data || {})
+    .map(([title, value]) => {
       const key = title.trim().toLowerCase();
       const col = titleToCol[key];
       if (!col || isFormula(col)) return null;
       return { columnId: col.id, value };
-    }).filter(Boolean);
+    })
+    .filter(Boolean);
 
-    if (!cells.length) throw new Error("updateRowById: No valid writable columns found");
+  if (!cells.length) throw new Error("updateRowById: No valid writable columns found");
 
-const payload = { cells };
-const res = await fetchJSONRetry(`${API_BASE}/sheet/${id}/rows/${rowId}`, {
-  method: "PUT",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify(payload),
-});
-
-
-    clearCache(id);
-    return res;
+  // --- 3️⃣ Build payload (POST-with-ID trick) ---
+  const payload = {
+    rows: [
+      {
+        id: rowId, // Smartsheet treats this as an update
+        cells
+      }
+    ]
   };
 
-  // =====================================================
+  // --- 4️⃣ Send POST to existing proxy route ---
+  const url = `${API_BASE}/sheet/${id}/rows`;
+  console.log("🔄 Proxy updateRowById via POST:", url, payload);
+
+  const res = await fetchJSONRetry(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+
+  clearCache(id);
+  console.log("✅ Row update successful:", { sheetId: id, rowId, data });
+  return res;
+};
+
+// =====================================================
 // ✅ Update or replace a Squad Leader in Squad Members sheet
 // =====================================================
 P.api.updateOrReplaceLeader = async function ({ squadId, newLeaderId, newLeaderName }) {
@@ -401,6 +420,5 @@ P.api.updateOrReplaceLeader = async function ({ squadId, newLeaderId, newLeaderN
   }
 };
 
-
-  window.PowerUp = P;
+window.PowerUp = P;
 })(window.PowerUp || {});
