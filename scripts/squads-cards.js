@@ -244,10 +244,8 @@ function applyFilters() {
       return haystack.includes(q);
     });
   }
-
   renderCards(list);
 }
-
 
 
 // =======================
@@ -264,10 +262,12 @@ async function renderManageTable() {
       <div class="overlay-text">Loading Manage View...</div>
     </div>`;
 
-const [squads, members] = await Promise.all([
-  P.api.getRowsByTitle(SHEETS.SQUADS, { force: true }),
+const [squadSheet, members] = await Promise.all([
+  P.api.fetchSheet(SHEETS.SQUADS, { force: true }),
   P.api.getRowsByTitle(SHEETS.SQUAD_MEMBERS, { force: true })
 ]);
+
+const squads = P.api.rowsByTitle(squadSheet);
 
 
   // Instead of: const employees = await P.getEmployees();
