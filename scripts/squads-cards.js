@@ -323,7 +323,7 @@ ${squads.map(r => {
         };
         return `
           <tr data-rowid="${sheetRowId}" data-squadid="${squadId}" data-original='${JSON.stringify(rowData)}'>
-            <td>${sid}</td>
+            <td>${squadId}</td>
             <td contenteditable class="editable name">${rowData.name}</td>
             <td contenteditable class="editable category">${rowData.category}</td>
             <td><input type="checkbox" class="active" ${rowData.active ? 'checked' : ''}></td>
