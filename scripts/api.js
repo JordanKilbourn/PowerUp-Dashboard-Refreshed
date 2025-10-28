@@ -386,20 +386,64 @@
   // =====================================================
 
   // Fetch all employees (used to populate leader/member lists)
-  P.getEmployees = async function () {
-    try {
-      const rows = await P.api.getRowsByTitle(P.api.SHEETS.EMPLOYEE_MASTER);
-      return rows.map(r => ({
-        id: r["Employee ID"] || r["ID"] || "",
-        name: r["Name"] || r["Employee Name"] || "",
-        level: r["Level"] || "",
-        dept: r["Department"] || ""
-      })).filter(e => e.name);
-    } catch (err) {
-      console.error("getEmployees error:", err);
-      return [];
+P.getEmployees = async function () {
+  try {
+    // 1️⃣ Fetch both sheet metadata (columns) and rows
+    const [sheet, rows] = await Promise.all([
+      P.api.fetchSheet(P.api.SHEETS.EMPLOYEE_MASTER, { force: false }),
+      P.api.getRowsByTitle(P.api.SHEETS.EMPLOYEE_MASTER)
+    ]);
+
+    // 2️⃣ Build a flexible lookup from column names
+    const cols = (sheet.columns || []).map(c => ({
+      title: c.title.trim().toLowerCase(),
+      id: c.id
+    }));
+
+    function findCol(possibleNames = []) {
+      const match = cols.find(c =>
+        possibleNames.some(n => c.title.includes(n.toLowerCase()))
+      );
+      return match ? match.title : null;
     }
-  };
+
+    // 3️⃣ Dynamically detect likely column names
+    const colId =
+      findCol(["employee id", "position id", "id"]) || "position id";
+    const colName =
+      findCol(["display name", "employee name", "full name", "first name"]) ||
+      "display name";
+    const colDept =
+      findCol(["department", "home department", "business unit"]) ||
+      "home department";
+    const colLevel =
+      findCol(["level", "powerup lvl", "powerup level"]) ||
+      "powerup lvl (calculated)";
+
+    // 4️⃣ Map all rows into normalized employee objects
+    const employees = rows
+      .map(r => ({
+        id: r[colId] || "",
+        name:
+          r[colName] ||
+          `${r["first name"] || ""} ${r["last name"] || ""}`.trim(),
+        dept: r[colDept] || "",
+        level: r[colLevel] || ""
+      }))
+      .filter(e => e.name && e.id);
+
+    console.log(
+      `✅ Loaded ${employees.length} employees (dynamic columns):`,
+      { colId, colName, colDept, colLevel }
+    );
+
+    return employees;
+  } catch (err) {
+    console.error("getEmployees error:", err);
+    return [];
+  }
+};
+
 
   // Lookup one employee by name (case-insensitive)
   P.findEmployeeByName = async function (name) {
