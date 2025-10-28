@@ -301,14 +301,14 @@ members.forEach(r => {
     table.innerHTML = `
       <thead>
         <tr>
-          <th style="width:20%">ID</th>
-          <th style="width:50%">Squad Name</th>
+          <th style="width:8%">ID</th>
+          <th style="width:20%">Squad Name</th>
           <th style="width:12%">Category</th>
-          <th style="width:8%">Active</th>
-          <th style="width:65%">Objective</th>
-          <th style="width:50%">Leader</th>
-          <th style="width:16%">Created By</th>
-          <th style="width:60%">Actions</th>
+          <th style="width:6%">Active</th>
+          <th style="width:26%">Objective</th>
+          <th style="width:17%">Leader</th>
+          <th style="width:11%">Created By</th>
+          <th style="width:10%">Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -362,56 +362,46 @@ members.forEach(r => {
       const rowId = tr.dataset.rowid;
       const original = JSON.parse(tr.dataset.original || "{}");
 
-      if (e.target.classList.contains("btn-save")) {
-        const name = tr.querySelector(".name")?.textContent.trim();
-        const category = tr.querySelector(".category")?.textContent.trim();
-        const active = tr.querySelector(".active")?.checked;
-        const objective = tr.querySelector(".objective")?.textContent.trim();
-        const createdBy = tr.querySelector(".created-by")?.textContent.trim();
-        const leaderName = tr.querySelector(".leader-select-single")?.value;
+if (e.target.classList.contains("btn-save")) {
+  const name = tr.querySelector(".name")?.textContent.trim();
+  const category = tr.querySelector(".category")?.textContent.trim();
+  const active = tr.querySelector(".active")?.checked;
+  const objective = tr.querySelector(".objective")?.textContent.trim();
+  const createdBy = tr.querySelector(".created-by")?.textContent.trim();
+  const leaderName = tr.querySelector(".leader-select-single")?.value;
 
-        if (!leaderName) return showToast("Select a leader before saving.", "warn");
-        const emp = allEmps.find(e => e.name === leaderName);
+  if (!leaderName) return showToast("Select a leader before saving.", "warn");
 
-        try {
-          await P.api.updateRowById(SHEETS.SQUADS, rowId, {
-            "Squad Name": name,
-            "Category": category,
-            "Active": active,
-            "Objective": objective,
-            "Created By": createdBy
-          });
+  const leaderEmp = allEmps.find(e => e.name === leaderName);
+  const squadId = tr.dataset.squadid;
 
-          // Remove old leader rows for this squad
-          const oldLeaders = members.filter(m =>
-            (m["Squad ID"] || "").trim() === squadId && String(m["Role"] || "").toLowerCase() === "leader"
-          );
-          for (const old of oldLeaders) {
-            if (old.id) await P.api.deleteRowById(SHEETS.SQUAD_MEMBERS, old.id);
-          }
+  try {
+    // ✅ 1. Update SQUADS sheet info
+    await P.api.updateRowById(P.api.SHEETS.SQUADS, rowId, {
+      "Squad Name": name,
+      "Category": category,
+      "Active": active,
+      "Objective": objective,
+      "Created By": createdBy
+    });
 
-          // Add the new leader row
-          if (emp) {
-            await P.addSquadMember({
-              "Squad ID": squadId,
-              "Employee ID": emp.id,
-              "Employee Name": emp.name,
-              "Role": "Leader",
-              "Active": true,
-              "Added By": createdBy
-            });
-          }
+    // ✅ 2. Update SQUAD_MEMBERS sheet (Leader)
+    if (leaderEmp && squadId) {
+      await P.api.updateOrReplaceLeader({
+        squadId,
+        newLeaderId: leaderEmp.id,
+        newLeaderName: leaderEmp.name
+      });
+    }
 
-          tr.dataset.original = JSON.stringify({
-            name, category, active, objective, createdBy, leader: leaderName
-          });
+    showToast("✅ Squad saved successfully.", "success");
+  } catch (err) {
+    console.error("Save error:", err);
+    showToast("Error saving squad. Check console.", "error");
+  }
+}
 
-          showToast(`Saved updates for ${name}`, "success");
-        } catch (err) {
-          console.error("Save error:", err);
-          showToast("Error saving squad changes.", "error");
-        }
-      }
+
 
       if (e.target.classList.contains("btn-cancel")) {
         tr.querySelector(".name").textContent = original.name || "";
