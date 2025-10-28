@@ -306,9 +306,12 @@ const [squads, members] = await Promise.all([
       </tr>
     </thead>
     <tbody>
-      ${squads.map(r => {
-        const sid = String(r['Squad ID'] || r.id || '').trim();
-        const leader = leadersBySquad.get(sid.toLowerCase());
+
+${squads.map(r => {
+  const sheetRowId = r.id || r['Row ID'] || ''; // Smartsheet internal ID
+  const squadId = String(r['Squad ID'] || '').trim();
+  const leader = leadersBySquad.get(squadId.toLowerCase());
+
         const selectedName = leader ? leader.name : '';
         const rowData = {
           name: dash(r['Squad Name']),
@@ -319,7 +322,7 @@ const [squads, members] = await Promise.all([
           leader: selectedName
         };
         return `
-          <tr data-rowid="${sid}" data-original='${JSON.stringify(rowData)}'>
+          <tr data-rowid="${sheetRowId}" data-squadid="${squadId}" data-original='${JSON.stringify(rowData)}'>
             <td>${sid}</td>
             <td contenteditable class="editable name">${rowData.name}</td>
             <td contenteditable class="editable category">${rowData.category}</td>
