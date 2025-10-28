@@ -190,186 +190,221 @@
     }));
   }
 
-  // =======================
-  // Filters + Manage Table
-  // =======================
-  let activeCategory = 'All';
-  let activeOnly = false;
-  let mySquadsOnly = false;
+// =======================
+// Filters (fixed MySquads logic)
+// =======================
+// =======================
+// Filter State
+// =======================
+let activeCategory = 'All';
+let activeOnly = false;
+let mySquadsOnly = false;
 
-  function applyFilters() {
-    const searchBox = document.getElementById('search');
-    const q = (searchBox?.value || '').trim().toLowerCase();
-    let list = [...ALL];
-    if (activeCategory !== 'All') list = list.filter(x => x.category === activeCategory);
-    if (activeOnly) list = list.filter(x => isTrue(x.active));
-    if (mySquadsOnly) {
-      const sessionUser = P.session.get?.() || {};
-      const myId = (sessionUser.employeeId || '').toLowerCase();
-      const myName = (sessionUser.displayName || '').toLowerCase();
-      list = list.filter(x => {
-        const sid = String(x.id || '').trim().toLowerCase();
-        const members = MEMBERS_BY_SQUAD.get(sid);
-        const leaders = LEADERS_BY_SQUAD.get(sid) || [];
-        const isMember = members && (members.ids.has(myId) || members.names.has(myName));
-        const isLeader = leaders.some(l =>
+function applyFilters() {
+  const searchBox = document.getElementById('search');
+  const q = (searchBox?.value || '').trim().toLowerCase();
+
+  let list = [...ALL];
+
+  if (activeCategory !== 'All')
+    list = list.filter(x => x.category === activeCategory);
+  if (activeOnly)
+    list = list.filter(x => isTrue(x.active));
+  if (mySquadsOnly) {
+    const user = P.session.current || P.session.get?.() || {};
+    const myId = (user.employeeId || user.positionId || '').trim().toLowerCase();
+    const myName = (user.displayName || user.name || '').trim().toLowerCase();
+
+    list = list.filter(x => {
+      const sid = String(x.id || '').trim().toLowerCase();
+      const members = MEMBERS_BY_SQUAD.get(sid);
+      const leaders = LEADERS_BY_SQUAD.get(sid) || [];
+
+      const isMember =
+        members &&
+        ([...members.ids].some(id => id.toLowerCase() === myId) ||
+         [...members.names].some(n => n.toLowerCase() === myName));
+
+      const isLeader =
+        leaders.some(l =>
           (l.id || '').toLowerCase() === myId ||
           (l.name || '').toLowerCase() === myName
         );
-        return isMember || isLeader;
-      });
-    }
-    if (q) {
-      list = list.filter(x => {
-        const sid = String(x.id || '').trim().toLowerCase();
-        const leaders = LEADERS_BY_SQUAD.get(sid) || [];
-        const leaderNames = leaders.map(l => l.name).join(' ').toLowerCase();
-        const haystack = [x.name, leaderNames, x.objective, x.notes].join(' ').toLowerCase();
-        return haystack.includes(q);
-      });
-    }
-    renderCards(list);
+
+      return isMember || isLeader;
+    });
   }
 
-  async function renderManageTable() {
-    const cardsContainer = document.getElementById('cards');
-    const msg = document.getElementById('s-msg');
-    if (msg) msg.style.display = 'none';
-    cardsContainer.innerHTML = `
-      <div class="overlay">
-        <div class="spinner"></div>
-        <div class="overlay-text">Loading Manage View...</div>
-      </div>`;
-    const [squads, members, employees] = await Promise.all([
-      P.api.getRowsByTitle(SHEETS.SQUADS, { force: true }),
-      P.api.getRowsByTitle(SHEETS.SQUAD_MEMBERS, { force: true }),
-      P.getEmployees()
-    ]);
-    const allEmps = employees.map(e => ({
-      id: e['Employee ID'] || e['Position ID'],
-      name: e['Employee Name'] || e['Display Name']
-    }));
-    const leadersBySquad = new Map();
-    members.forEach(r => {
-      if (!isTrue(pick(r, SM_COL.active, 'true'))) return;
-      const sid = String(pick(r, SM_COL.squadId, '')).trim().toLowerCase();
-      const role = (pick(r, SM_COL.role, '') || '').toLowerCase();
-      if (role === 'leader') {
-        const eid = pick(r, SM_COL.empId, '').trim();
-        const name = pick(r, SM_COL.empName, '').trim();
-        leadersBySquad.set(sid, { id: eid, name });
-      }
+  if (q) {
+    list = list.filter(x => {
+      const sid = String(x.id || '').trim().toLowerCase();
+      const leaders = LEADERS_BY_SQUAD.get(sid) || [];
+      const leaderNames = leaders.map(l => l.name).join(' ').toLowerCase();
+      const haystack = [x.name, leaderNames, x.objective, x.notes].join(' ').toLowerCase();
+      return haystack.includes(q);
     });
-    const table = document.createElement('table');
-    table.className = 'manage-table';
-    table.innerHTML = `
-      <thead>
-        <tr>
-          <th style="width:7%">ID</th>
-          <th style="width:18%">Squad Name</th>
-          <th style="width:12%">Category</th>
-          <th style="width:7%">Active</th>
-          <th style="width:25%">Objective</th>
-          <th style="width:18%">Leader</th>
-          <th style="width:8%">Created By</th>
-          <th style="width:5%">Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${squads.map(r => {
-          const sid = String(r['Squad ID'] || r.id || '').trim();
-          const leader = leadersBySquad.get(sid.toLowerCase());
-          const selectedName = leader ? leader.name : '';
-          const rowData = {
-            name: dash(r['Squad Name']),
-            category: dash(r['Category']),
-            active: isTrue(r['Active']),
-            objective: dash(r['Objective']),
-            createdBy: dash(r['Created By']),
-            leader: selectedName
-          };
-          return `
-            <tr data-rowid="${sid}" data-original='${JSON.stringify(rowData)}'>
-              <td>${sid}</td>
-              <td contenteditable class="editable name">${rowData.name}</td>
-              <td contenteditable class="editable category">${rowData.category}</td>
-              <td><input type="checkbox" class="active" ${rowData.active ? 'checked' : ''}></td>
-              <td contenteditable class="editable objective">${rowData.objective}</td>
-              <td>
-                <select class="leader-select-single">
-                  <option value="">— Select Leader —</option>
-                  ${allEmps.map(emp =>
-                    `<option value="${emp.name}" ${emp.name === selectedName ? 'selected' : ''}>${emp.name}</option>`
-                  ).join('')}
-                </select>
-              </td>
-              <td contenteditable class="editable created-by">${rowData.createdBy}</td>
-              <td class="actions-cell">
-                <button class="btn-save">Save</button>
-                <button class="btn-cancel">Cancel</button>
-              </td>
-            </tr>`;
-        }).join('')}
-      </tbody>`;
-    cardsContainer.innerHTML = '';
-    cardsContainer.appendChild(table);
-    table.addEventListener('click', async e => {
-      const tr = e.target.closest('tr[data-rowid]');
-      if (!tr) return;
-      const rowId = tr.dataset.rowid;
-      const original = JSON.parse(tr.dataset.original || '{}');
-      if (e.target.classList.contains('btn-save')) {
-        const name = tr.querySelector('.name')?.textContent.trim();
-        const category = tr.querySelector('.category')?.textContent.trim();
-        const active = tr.querySelector('.active')?.checked;
-        const objective = tr.querySelector('.objective')?.textContent.trim();
-        const createdBy = tr.querySelector('.created-by')?.textContent.trim();
-        const leaderName = tr.querySelector('.leader-select-single')?.value;
-        if (!leaderName) return showToast('Select a leader before saving.', 'warn');
-        const emp = allEmps.find(e => e.name === leaderName);
-        try {
-          await P.api.updateRowById(SHEETS.SQUADS, rowId, {
-            'Squad Name': name,
-            'Category': category,
-            'Active': active,
-            'Objective': objective,
-            'Created By': createdBy
+  }
+
+  renderCards(list);
+}
+
+
+
+// =======================
+// Manage Table Rendering (wider layout + fixed leader lookup)
+// =======================
+async function renderManageTable() {
+  const cardsContainer = document.getElementById('cards');
+  const msg = document.getElementById('s-msg');
+  if (msg) msg.style.display = 'none';
+
+  cardsContainer.innerHTML = `
+    <div class="overlay">
+      <div class="spinner"></div>
+      <div class="overlay-text">Loading Manage View...</div>
+    </div>`;
+
+  const [squads, members, employees] = await Promise.all([
+    P.api.getRowsByTitle(SHEETS.SQUADS, { force: true }),
+    P.api.getRowsByTitle(SHEETS.SQUAD_MEMBERS, { force: true }),
+    P.getEmployees()
+  ]);
+
+  const allEmps = employees.map(e => ({
+    id: e['Employee ID'] || e['Position ID'],
+    name: e['Employee Name'] || e['Display Name']
+  }));
+
+  const leadersBySquad = new Map();
+  members.forEach(r => {
+    if (!isTrue(pick(r, SM_COL.active, 'true'))) return;
+    const sid = String(pick(r, SM_COL.squadId, '')).trim().toLowerCase();
+    const role = (pick(r, SM_COL.role, '') || '').toLowerCase();
+    if (role === 'leader') {
+      const eid = pick(r, SM_COL.empId, '').trim();
+      const name = pick(r, SM_COL.empName, '').trim();
+      leadersBySquad.set(sid, { id: eid, name });
+    }
+  });
+
+  const table = document.createElement('table');
+  table.className = 'manage-table';
+  table.innerHTML = `
+    <thead>
+      <tr>
+        <th style="width:8%">ID</th>
+        <th style="width:20%">Squad Name</th>
+        <th style="width:12%">Category</th>
+        <th style="width:8%">Active</th>
+        <th style="width:27%">Objective</th>
+        <th style="width:17%">Leader</th>
+        <th style="width:8%">Created By</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${squads.map(r => {
+        const sid = String(r['Squad ID'] || r.id || '').trim();
+        const leader = leadersBySquad.get(sid.toLowerCase());
+        const selectedName = leader ? leader.name : '';
+        const rowData = {
+          name: dash(r['Squad Name']),
+          category: dash(r['Category']),
+          active: isTrue(r['Active']),
+          objective: dash(r['Objective']),
+          createdBy: dash(r['Created By']),
+          leader: selectedName
+        };
+        return `
+          <tr data-rowid="${sid}" data-original='${JSON.stringify(rowData)}'>
+            <td>${sid}</td>
+            <td contenteditable class="editable name">${rowData.name}</td>
+            <td contenteditable class="editable category">${rowData.category}</td>
+            <td><input type="checkbox" class="active" ${rowData.active ? 'checked' : ''}></td>
+            <td contenteditable class="editable objective">${rowData.objective}</td>
+            <td>
+              <select class="leader-select-single">
+                <option value="">— Select Leader —</option>
+                ${allEmps.map(emp =>
+                  `<option value="${emp.name}" ${emp.name === selectedName ? 'selected' : ''}>${emp.name}</option>`
+                ).join('')}
+              </select>
+            </td>
+            <td contenteditable class="editable created-by">${rowData.createdBy}</td>
+            <td class="actions-cell">
+              <button class="btn-save">Save</button>
+              <button class="btn-cancel">Cancel</button>
+            </td>
+          </tr>`;
+      }).join('')}
+    </tbody>`;
+
+  cardsContainer.innerHTML = '';
+  cardsContainer.appendChild(table);
+
+  // Save + Cancel handlers unchanged
+  table.addEventListener('click', async e => {
+    const tr = e.target.closest('tr[data-rowid]');
+    if (!tr) return;
+    const rowId = tr.dataset.rowid;
+    const original = JSON.parse(tr.dataset.original || '{}');
+
+    if (e.target.classList.contains('btn-save')) {
+      const name = tr.querySelector('.name')?.textContent.trim();
+      const category = tr.querySelector('.category')?.textContent.trim();
+      const active = tr.querySelector('.active')?.checked;
+      const objective = tr.querySelector('.objective')?.textContent.trim();
+      const createdBy = tr.querySelector('.created-by')?.textContent.trim();
+      const leaderName = tr.querySelector('.leader-select-single')?.value;
+      if (!leaderName) return showToast('Select a leader before saving.', 'warn');
+      const emp = allEmps.find(e => e.name === leaderName);
+
+      try {
+        await P.api.updateRowById(SHEETS.SQUADS, rowId, {
+          'Squad Name': name,
+          'Category': category,
+          'Active': active,
+          'Objective': objective,
+          'Created By': createdBy
+        });
+
+        const existingLeaders = members.filter(m => m['Squad ID'] === rowId && m['Role'] === 'Leader');
+        for (const old of existingLeaders)
+          await P.api.deleteRowById(SHEETS.SQUAD_MEMBERS, old.id);
+
+        if (emp) {
+          await P.addSquadMember({
+            'Squad ID': rowId,
+            'Employee ID': emp.id,
+            'Employee Name': emp.name,
+            'Role': 'Leader',
+            'Active': true,
+            'Added By': createdBy
           });
-          const existingLeaders = members.filter(m => m['Squad ID'] === rowId && m['Role'] === 'Leader');
-          for (const old of existingLeaders)
-            await P.api.deleteRowById(SHEETS.SQUAD_MEMBERS, old.id);
-          if (emp) {
-            await P.addSquadMember({
-              'Squad ID': rowId,
-              'Employee ID': emp.id,
-              'Employee Name': emp.name,
-              'Role': 'Leader',
-              'Active': true,
-              'Added By': createdBy
-            });
-          }
-          tr.dataset.original = JSON.stringify({ name, category, active, objective, createdBy, leader: leaderName });
-          showToast(`Saved updates for ${name}`, 'success');
-        } catch (err) {
-          console.error(err);
-          showToast('Error saving squad changes.', 'error');
         }
-      }
-      if (e.target.classList.contains('btn-cancel')) {
-        tr.querySelector('.name').textContent = original.name || '';
-        tr.querySelector('.category').textContent = original.category || '';
-        tr.querySelector('.active').checked = !!original.active;
-        tr.querySelector('.objective').textContent = original.objective || '';
-        tr.querySelector('.created-by').textContent = original.createdBy || '';
-        const sel = tr.querySelector('.leader-select-single');
-        if (sel) sel.value = original.leader || '';
-        tr.style.backgroundColor = 'rgba(255,255,0,0.1)';
-        setTimeout(() => (tr.style.backgroundColor = ''), 700);
-      }
-    });
-  }
 
-    // =======================
+        tr.dataset.original = JSON.stringify({ name, category, active, objective, createdBy, leader: leaderName });
+        showToast(`Saved updates for ${name}`, 'success');
+      } catch (err) {
+        console.error(err);
+        showToast('Error saving squad changes.', 'error');
+      }
+    }
+
+    if (e.target.classList.contains('btn-cancel')) {
+      tr.querySelector('.name').textContent = original.name || '';
+      tr.querySelector('.category').textContent = original.category || '';
+      tr.querySelector('.active').checked = !!original.active;
+      tr.querySelector('.objective').textContent = original.objective || '';
+      tr.querySelector('.created-by').textContent = original.createdBy || '';
+      const sel = tr.querySelector('.leader-select-single');
+      if (sel) sel.value = original.leader || '';
+      tr.style.backgroundColor = 'rgba(255,255,0,0.1)';
+      setTimeout(() => (tr.style.backgroundColor = ''), 700);
+    }
+  });
+}
+
+  // =======================
   // Filter Binding
   // =======================
   function bindFilters() {
