@@ -264,11 +264,11 @@ async function renderManageTable() {
       <div class="overlay-text">Loading Manage View...</div>
     </div>`;
 
-  const [squads, members, employees] = await Promise.all([
-    P.api.getRowsByTitle(SHEETS.SQUADS, { force: true }),
-    P.api.getRowsByTitle(SHEETS.SQUAD_MEMBERS, { force: true }),
-    P.getEmployees()
-  ]);
+const [squads, members] = await Promise.all([
+  P.api.getRowsByTitle(SHEETS.SQUADS, { force: true }),
+  P.api.getRowsByTitle(SHEETS.SQUAD_MEMBERS, { force: true })
+]);
+
 
   // Instead of: const employees = await P.getEmployees();
   const employees = await getRowsByTitle(SHEETS.EMPLOYEE_MASTER);
