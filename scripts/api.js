@@ -365,5 +365,41 @@ P.getEmployees = async function () {
     return res;
   };
 
+  // =====================================================
+// ✅ Update or replace a Squad Leader in Squad Members sheet
+// =====================================================
+P.api.updateOrReplaceLeader = async function ({ squadId, newLeaderId, newLeaderName }) {
+  const sheetId = P.api.SHEETS.SQUAD_MEMBERS;
+  if (!squadId || !newLeaderId) throw new Error("updateOrReplaceLeader: Missing squad or leader info");
+
+  const members = await P.api.getRowsByTitle(sheetId);
+  const currentLeader = members.find(
+    m => String(m["Squad ID"]).trim().toUpperCase() === String(squadId).trim().toUpperCase() &&
+         String(m["Role"]).trim().toLowerCase() === "leader"
+  );
+
+  if (currentLeader) {
+    // Update existing leader record
+    console.log("🔄 Updating existing leader:", currentLeader["Employee Name"]);
+    return await P.api.updateRowById(sheetId, currentLeader._rowId, {
+      "Employee ID": newLeaderId,
+      "Employee Name": newLeaderName,
+      "Role": "Leader",
+      "Active": true
+    });
+  } else {
+    // Add new leader record if none exists
+    console.log("➕ Adding new leader for squad:", squadId);
+    return await P.api.addRows(sheetId, [{
+      "Squad ID": squadId,
+      "Employee ID": newLeaderId,
+      "Employee Name": newLeaderName,
+      "Role": "Leader",
+      "Active": true
+    }]);
+  }
+};
+
+
   window.PowerUp = P;
 })(window.PowerUp || {});
