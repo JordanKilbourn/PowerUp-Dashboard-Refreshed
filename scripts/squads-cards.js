@@ -280,20 +280,20 @@ async function renderManageTable() {
 const allEmps = await P.getEmployees();
 
 
-    // Build map of leaders by squad
-    const leadersBySquad = new Map();
-    members.forEach(r => {
-      const active = String(r["Active"] || "").toLowerCase();
-      if (active !== "true" && active !== "yes" && active !== "y" && active !== "1") return;
-      const sid = String(r["Squad ID"] || "").trim().toLowerCase();
-      const role = String(r["Role"] || "").trim().toLowerCase();
-      if (role === "leader") {
-        leadersBySquad.set(sid, {
-          id: String(r["Employee ID"] || "").trim(),
-          name: String(r["Employee Name"] || "").trim()
-        });
-      }
+// Normalize all squad IDs to uppercase for consistent lookups
+const leadersBySquad = new Map();
+members.forEach(r => {
+  const isActive = /^(true|yes|y|1)$/i.test(String(r["Active"] || ""));
+  if (!isActive) return;
+  const sid = String(r["Squad ID"] || "").trim().toUpperCase();
+  const role = String(r["Role"] || "").trim().toLowerCase();
+  if (role === "leader") {
+    leadersBySquad.set(sid, {
+      id: String(r["Employee ID"] || "").trim(),
+      name: String(r["Employee Name"] || "").trim()
     });
+  }
+});
 
     // Create table
     const table = document.createElement('table');
@@ -313,10 +313,11 @@ const allEmps = await P.getEmployees();
       </thead>
       <tbody>
         ${squads.map(r => {
-          const sheetRowId = r.__rowId;
-          const squadId = (r["Squad ID"] || "").trim();
-          const leader = leadersBySquad.get(squadId.toLowerCase());
-          const selectedName = leader ? leader.name : "";
+        const sheetRowId = r.__rowId;
+        const squadId = (r["Squad ID"] || "").trim().toUpperCase();
+        const leader = leadersBySquad.get(squadId);
+        const selectedName = leader ? leader.name : "";
+
 
           const rowData = {
             name: r["Squad Name"] || "",
@@ -540,6 +541,23 @@ const allEmps = await P.getEmployees();
     box-shadow: 0 0 8px rgba(0,0,0,0.3);
     transition: transform .2s ease, box-shadow .2s ease;
   }
+
+  /* Center toast above the manage table */
+.toast {
+  position: fixed;
+  top: 30%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 9999;
+  background: rgba(50, 50, 50, 0.95);
+  color: #fff;
+  padding: 12px 24px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  font-size: 0.95rem;
+  text-align: center;
+  transition: opacity 0.3s ease-in-out;
+}
   .squad-card:hover { transform: translateY(-3px); box-shadow: 0 0 12px rgba(51,255,153,0.4); }
   .squad-meta { font-size: 0.85rem; margin: 3px 0; color: #aab; }
   .status-pill { padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; }
