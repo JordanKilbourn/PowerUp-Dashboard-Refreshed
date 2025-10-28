@@ -270,10 +270,14 @@ async function renderManageTable() {
     P.getEmployees()
   ]);
 
-  const allEmps = employees.map(e => ({
-    id: e['Employee ID'] || e['Position ID'],
-    name: e['Employee Name'] || e['Display Name']
-  }));
+  // Instead of: const employees = await P.getEmployees();
+  const employees = await getRowsByTitle(SHEETS.EMPLOYEE_MASTER);
+
+  const allEmps = employees.map(r => ({
+    id: pick(r, EMP_COL.id, '').trim(),
+    name: pick(r, EMP_COL.name, '').trim()
+  })).filter(e => e.name);
+
 
   const leadersBySquad = new Map();
   members.forEach(r => {
