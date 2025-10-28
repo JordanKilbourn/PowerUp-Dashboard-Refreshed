@@ -218,27 +218,28 @@
   // ---------- export base API ----------
   P.api = { API_BASE, SHEETS, resolveSheetId, fetchSheet, rowsByTitle, getRowsByTitle, clearCache, ready, addRows };
 
-  // =====================================================
-  // ✅ EMPLOYEE + SQUAD HELPERS
-  // =====================================================
-// ✅ Fully Safe + Compatible Employee Loader
+
+// ✅ Dynamically mapped Employee Master reader (using "Display Name" if present)
+  
 P.getEmployees = async function () {
   try {
+    // Fetch both the sheet definition (for column titles) and the row data
     const [sheet, rowsRaw] = await Promise.all([
       P.api.fetchSheet(P.api.SHEETS.EMPLOYEE_MASTER, { force: false }),
       P.api.getRowsByTitle(P.api.SHEETS.EMPLOYEE_MASTER)
     ]);
 
-    // Build column lookup (lowercase titles)
+    // Build a lowercase list of column titles
     const cols = (sheet.columns || []).map(c => c.title.trim().toLowerCase());
     const findCol = names => cols.find(c => names.some(n => c.includes(n.toLowerCase())));
 
+    // Dynamically find the key columns in your sheet
     const colId = findCol(["employee id", "position id", "id"]);
     const colName = findCol(["display name", "employee name", "full name", "first name"]);
     const colDept = findCol(["department", "home department", "business unit"]);
     const colLevel = findCol(["level", "powerup lvl", "powerup level"]);
 
-    // Normalize row keys (to lowercase) before accessing
+    // Normalize all row keys (lowercase) to allow case-insensitive access
     const rows = rowsRaw.map(r => {
       const normalized = {};
       for (const [k, v] of Object.entries(r)) {
@@ -247,13 +248,12 @@ P.getEmployees = async function () {
       return normalized;
     });
 
+    // Map employee rows into a normalized list
     const employees = rows
       .map(r => ({
         id: r[colId] || r["position id"] || r["employee id"] || "",
-        name:
-          r[colName] ||
-          r["display name"] ||
-          `${r["first name"] || ""} ${r["last name"] || ""}`.trim(),
+        // use Display Name directly if available
+        name: r["display name"] || r[colName] || "",
         dept: r[colDept] || r["home department"] || r["business unit"] || "",
         level:
           r[colLevel] ||
@@ -276,6 +276,7 @@ P.getEmployees = async function () {
     return [];
   }
 };
+
 
 
   P.findEmployeeByName = async function (name) {
