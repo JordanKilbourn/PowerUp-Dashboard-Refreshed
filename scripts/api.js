@@ -385,7 +385,7 @@ P.api.updateRowById = async function (sheetIdOrKey, rowId, data) {
   return res;
 };
 
-  // =====================================================
+ // =====================================================
 // ✅ Update or replace a Squad Leader in Squad Members sheet
 // =====================================================
 P.api.updateOrReplaceLeader = async function ({ squadId, newLeaderId, newLeaderName }) {
@@ -435,9 +435,6 @@ P.api.updateOrReplaceLeader = async function ({ squadId, newLeaderId, newLeaderN
     "Active": true,
     "Added By": "System Insert"
   }]);
-};
-
-
 };
 
 window.PowerUp = P;
