@@ -301,14 +301,14 @@ members.forEach(r => {
     table.innerHTML = `
       <thead>
         <tr>
-          <th style="width:8%">ID</th>
-          <th style="width:20%">Squad Name</th>
+          <th style="width:20%">ID</th>
+          <th style="width:50%">Squad Name</th>
           <th style="width:12%">Category</th>
           <th style="width:8%">Active</th>
-          <th style="width:27%">Objective</th>
-          <th style="width:17%">Leader</th>
-          <th style="width:8%">Created By</th>
-          <th style="width:10%">Actions</th>
+          <th style="width:65%">Objective</th>
+          <th style="width:50%">Leader</th>
+          <th style="width:16%">Created By</th>
+          <th style="width:60%">Actions</th>
         </tr>
       </thead>
       <tbody>
