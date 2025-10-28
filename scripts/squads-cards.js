@@ -276,12 +276,9 @@ async function renderManageTable() {
       __rowId: squadSheet.rows[i]?.id || ''
     }));
 
-    // Load employees for leader dropdown
-    const employees = await P.api.getRowsByTitle(SHEETS.EMPLOYEE_MASTER);
-    const allEmps = employees.map(r => ({
-      id: (r["Employee ID"] || "").trim(),
-      name: (r["Employee Name"] || r["Name"] || "").trim()
-    })).filter(e => e.name);
+// Load employees for leader dropdown (use helper for clean mapping)
+const allEmps = await P.getEmployees();
+
 
     // Build map of leaders by squad
     const leadersBySquad = new Map();
