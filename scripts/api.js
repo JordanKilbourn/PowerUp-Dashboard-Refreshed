@@ -385,39 +385,59 @@ P.api.updateRowById = async function (sheetIdOrKey, rowId, data) {
   return res;
 };
 
-// =====================================================
+  // =====================================================
 // ✅ Update or replace a Squad Leader in Squad Members sheet
 // =====================================================
 P.api.updateOrReplaceLeader = async function ({ squadId, newLeaderId, newLeaderName }) {
   const sheetId = P.api.SHEETS.SQUAD_MEMBERS;
   if (!squadId || !newLeaderId) throw new Error("updateOrReplaceLeader: Missing squad or leader info");
 
+  // Fetch all current members for this sheet
   const members = await P.api.getRowsByTitle(sheetId);
-  const currentLeader = members.find(
-    m => String(m["Squad ID"]).trim().toUpperCase() === String(squadId).trim().toUpperCase() &&
-         String(m["Role"]).trim().toLowerCase() === "leader"
+
+  // Normalize helper for safe matching
+  const norm = v => String(v || "").trim().toUpperCase();
+
+  // Find the current leader row for this squad
+  const currentLeader = members.find(m =>
+    norm(m["Squad ID"]) === norm(squadId) &&
+    norm(m["Role"]) === "LEADER"
   );
 
-  if (currentLeader) {
-    // Update existing leader record
-    console.log("🔄 Updating existing leader:", currentLeader["Employee Name"]);
-    return await P.api.updateRowById(sheetId, currentLeader.__rowId || currentLeader.rowId, {
+  // Log what we found for easier debugging
+  console.log("👀 Searching for existing leader row:", {
+    squadId,
+    found: !!currentLeader,
+    rowId: currentLeader ? currentLeader.__rowId || currentLeader._rowId : null,
+    name: currentLeader ? currentLeader["Employee Name"] : null
+  });
+
+  if (currentLeader && (currentLeader.__rowId || currentLeader._rowId)) {
+    // ✅ Update existing leader record in-place
+    const rowId = currentLeader.__rowId || currentLeader._rowId;
+    console.log("🔄 Updating existing leader:", currentLeader["Employee Name"], "→", newLeaderName);
+    return await P.api.updateRowById(sheetId, rowId, {
       "Employee ID": newLeaderId,
       "Employee Name": newLeaderName,
       "Role": "Leader",
-      "Active": true
+      "Active": true,
+      "Added By": "System Update"
     });
-  } else {
-    // Add new leader record if none exists
-    console.log("➕ Adding new leader for squad:", squadId);
-    return await P.api.addRows(sheetId, [{
-      "Squad ID": squadId,
-      "Employee ID": newLeaderId,
-      "Employee Name": newLeaderName,
-      "Role": "Leader",
-      "Active": true
-    }]);
   }
+
+  // 🚨 No existing leader found — add a new record
+  console.log("➕ Adding new leader for squad:", squadId);
+  return await P.api.addRows(sheetId, [{
+    "Squad ID": squadId,
+    "Employee ID": newLeaderId,
+    "Employee Name": newLeaderName,
+    "Role": "Leader",
+    "Active": true,
+    "Added By": "System Insert"
+  }]);
+};
+
+
 };
 
 window.PowerUp = P;
