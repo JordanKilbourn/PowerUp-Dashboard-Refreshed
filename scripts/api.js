@@ -221,39 +221,62 @@
   // =====================================================
   // ✅ EMPLOYEE + SQUAD HELPERS
   // =====================================================
+// ✅ Fully Safe + Compatible Employee Loader
+P.getEmployees = async function () {
+  try {
+    const [sheet, rowsRaw] = await Promise.all([
+      P.api.fetchSheet(P.api.SHEETS.EMPLOYEE_MASTER, { force: false }),
+      P.api.getRowsByTitle(P.api.SHEETS.EMPLOYEE_MASTER)
+    ]);
 
-  // ✅ Dynamically mapped Employee Master reader
-  P.getEmployees = async function () {
-    try {
-      const [sheet, rows] = await Promise.all([
-        P.api.fetchSheet(P.api.SHEETS.EMPLOYEE_MASTER, { force: false }),
-        P.api.getRowsByTitle(P.api.SHEETS.EMPLOYEE_MASTER)
-      ]);
+    // Build column lookup (lowercase titles)
+    const cols = (sheet.columns || []).map(c => c.title.trim().toLowerCase());
+    const findCol = names => cols.find(c => names.some(n => c.includes(n.toLowerCase())));
 
-      const cols = (sheet.columns || []).map(c => c.title.trim().toLowerCase());
-      const findCol = names => cols.find(c => names.some(n => c.includes(n.toLowerCase())));
+    const colId = findCol(["employee id", "position id", "id"]);
+    const colName = findCol(["display name", "employee name", "full name", "first name"]);
+    const colDept = findCol(["department", "home department", "business unit"]);
+    const colLevel = findCol(["level", "powerup lvl", "powerup level"]);
 
-      const colId = findCol(["employee id", "position id", "id"]);
-      const colName = findCol(["display name", "employee name", "full name", "first name"]);
-      const colDept = findCol(["department", "home department", "business unit"]);
-      const colLevel = findCol(["level", "powerup lvl", "powerup level"]);
+    // Normalize row keys (to lowercase) before accessing
+    const rows = rowsRaw.map(r => {
+      const normalized = {};
+      for (const [k, v] of Object.entries(r)) {
+        normalized[k.trim().toLowerCase()] = v;
+      }
+      return normalized;
+    });
 
-      const employees = rows
-        .map(r => ({
-          id: colId ? r[colId] : "",
-          name: colName ? r[colName] : `${r["first name"] || ""} ${r["last name"] || ""}`.trim(),
-          dept: colDept ? r[colDept] : "",
-          level: colLevel ? r[colLevel] : ""
-        }))
-        .filter(e => e.name && e.id);
+    const employees = rows
+      .map(r => ({
+        id: r[colId] || r["position id"] || r["employee id"] || "",
+        name:
+          r[colName] ||
+          r["display name"] ||
+          `${r["first name"] || ""} ${r["last name"] || ""}`.trim(),
+        dept: r[colDept] || r["home department"] || r["business unit"] || "",
+        level:
+          r[colLevel] ||
+          r["powerup lvl (calculated)"] ||
+          r["powerup level (select)"] ||
+          ""
+      }))
+      .filter(e => e.name && e.id);
 
-      console.log(`✅ Loaded ${employees.length} employees (auto-detected columns)`, { colId, colName, colDept, colLevel });
-      return employees;
-    } catch (err) {
-      console.error("getEmployees error:", err);
-      return [];
-    }
-  };
+    console.log(`✅ Loaded ${employees.length} employees (normalized)`, {
+      colId,
+      colName,
+      colDept,
+      colLevel
+    });
+
+    return employees;
+  } catch (err) {
+    console.error("getEmployees error:", err);
+    return [];
+  }
+};
+
 
   P.findEmployeeByName = async function (name) {
     if (!name) return null;
