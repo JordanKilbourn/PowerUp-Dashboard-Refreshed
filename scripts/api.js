@@ -14,8 +14,6 @@
     LEVEL_TRACKER: "8346763116105604",
     SQUADS: "2480892254572420",
     SQUAD_MEMBERS: "2615493107076996",
-
-    // If you have these, leave them; if not, harmless.
     SQUAD_ACTIVITIES: "1315116675977092",
     SQUAD_ACTIVITY_PARTICIPANTS: "4817175027076996",
   };
@@ -25,8 +23,7 @@
   const _inflight  = new Map();
   const _rowsCache = new Map();
 
-  // ---- persistent (session) cache with TTL ----
-  const STORE_KEY    = "pu.sheetCache.v1";
+  const STORE_KEY = "pu.sheetCache.v1";
   const SHEET_TTL_MS = 5 * 60 * 1000;
 
   function loadStore() { try { return JSON.parse(sessionStorage.getItem(STORE_KEY) || "{}"); } catch { return {}; } }
@@ -47,7 +44,6 @@
     }
   }
 
-  // Convert Smartsheet rows into objects keyed by column title
   function rowsByTitle(sheetJson) {
     const colTitleById = {};
     (sheetJson.columns || []).forEach(c => { colTitleById[c.id] = c.title; });
@@ -58,17 +54,18 @@
         if (!t) return;
         o[t] = (cell.displayValue !== undefined ? cell.displayValue : cell.value) ?? "";
       });
+      o.__rowId = r.id; // Keep internal row ID for updates
       return o;
     });
   }
 
-  // ---- robust fetch with timeout + retry/backoff + overall deadline ----
-  const API_RETRY_LIMIT     = 3;
-  const ATTEMPT_TIMEOUT_MS  = 12000;
+  // ---------- fetch with retry ----------
+  const API_RETRY_LIMIT = 3;
+  const ATTEMPT_TIMEOUT_MS = 12000;
   const OVERALL_DEADLINE_MS = 30000;
-  const BACKOFF_BASE_MS     = 300;
+  const BACKOFF_BASE_MS = 300;
 
-  function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
 
   async function fetchOnce(url, init, signal) {
     const res = await fetch(url, { credentials: "omit", cache: "no-store", ...(init||{}), signal });
@@ -76,7 +73,7 @@
       let detail = ""; try { detail = await res.text(); } catch {}
       const err = new Error(`Proxy error ${res.status} for ${url}${detail ? `: ${detail}` : ""}`);
       err.status = res.status;
-      err.body   = detail;
+      err.body = detail;
       throw err;
     }
     const text = await res.text();
@@ -85,14 +82,11 @@
 
   async function fetchJSONRetry(url, init) {
     const start = Date.now();
-    let attempt = 0;
-    let lastErr;
-
+    let attempt = 0, lastErr;
     while (attempt < API_RETRY_LIMIT) {
       attempt++;
       const controller = new AbortController();
       const perAttemptTimeout = setTimeout(() => controller.abort(), ATTEMPT_TIMEOUT_MS);
-
       try {
         const remaining = OVERALL_DEADLINE_MS - (Date.now() - start);
         if (remaining <= 0) throw new Error("deadline");
@@ -105,14 +99,12 @@
         if (!retryable || attempt >= API_RETRY_LIMIT) break;
         const jitter = Math.floor(Math.random() * 250);
         await sleep(BACKOFF_BASE_MS * attempt + jitter);
-      } finally {
-        clearTimeout(perAttemptTimeout);
-      }
+      } finally { clearTimeout(perAttemptTimeout); }
     }
     throw lastErr || new Error("request failed");
   }
 
-  // ---------- READY GATE ----------
+  // ---------- READY ----------
   let _readyPromise = null;
   async function ready({ deadlineMs = 60000 } = {}) {
     if (_readyPromise) return _readyPromise;
@@ -126,39 +118,21 @@
         if (Date.now() - start > deadlineMs) throw new Error("service not ready (deadline)");
         await sleep(600);
       }
-      try { await fetchJSONRetry(`${API_BASE}/sheet/${SHEETS.EMPLOYEE_MASTER}/columns`, { method: "GET" }); } catch {}
       return true;
     })();
     return _readyPromise;
   }
 
-  // ---------- warm proxy ----------
-  const WARM_KEY = "pu.proxy.warmAt";
-  const WARM_TTL = 5 * 60 * 1000;
-  async function warmProxy() {
-    try {
-      const last = Number(sessionStorage.getItem(WARM_KEY) || 0);
-      if (last && (Date.now() - last) < WARM_TTL) return;
-      await ready().catch(() => {});
-      sessionStorage.setItem(WARM_KEY, String(Date.now()));
-    } catch {}
-  }
-
-  // ---------- core fetchers ----------
   async function fetchSheet(sheetIdOrKey, { force = false } = {}) {
     const id = resolveSheetId(sheetIdOrKey);
-    assertValidId(id, `fetchSheet(${String(sheetIdOrKey)})`);
+    assertValidId(id, `fetchSheet(${sheetIdOrKey})`);
 
     if (!force) {
       if (_rawCache.has(id)) return _rawCache.get(id);
       if (_inflight.has(id)) return _inflight.get(id);
-    }
-
-    if (!force) {
       const store = loadStore();
       const hit = store[id];
-      const now = Date.now();
-      if (hit && (now - (hit.ts || 0)) < SHEET_TTL_MS && hit.data) {
+      if (hit && Date.now() - hit.ts < SHEET_TTL_MS) {
         _rawCache.set(id, hit.data);
         return hit.data;
       }
@@ -173,18 +147,15 @@
       _inflight.delete(id);
       return json;
     })();
-
     _inflight.set(id, p);
     return p;
   }
 
   async function getRowsByTitle(sheetIdOrKey, { force = false } = {}) {
     const id = resolveSheetId(sheetIdOrKey);
-    assertValidId(id, `getRowsByTitle(${String(sheetIdOrKey)})`);
-
+    assertValidId(id, `getRowsByTitle(${sheetIdOrKey})`);
     if (!force && _rowsCache.has(id)) return _rowsCache.get(id);
-
-    const raw  = await fetchSheet(id, { force });
+    const raw = await fetchSheet(id, { force });
     const rows = rowsByTitle(raw);
     _rowsCache.set(id, rows);
     return rows;
@@ -197,102 +168,11 @@
     const store = loadStore(); if (store[id]) { delete store[id]; saveStore(store); }
   }
 
-  function toNumber(x) {
-    if (x == null) return 0;
-    if (typeof x === "number") return x;
-    const n = parseFloat(String(x).replace(/[^0-9.\-]/g, ""));
-    return Number.isFinite(n) ? n : 0;
-  }
-
-  // ---------- prefetch ----------
-  async function prefetchEssential() {
-    await ready().catch(() => {});
-    const keys = [
-      'EMPLOYEE_MASTER',
-      'POWER_HOURS', 'POWER_HOUR_GOALS',
-      'CI', 'SAFETY', 'QUALITY',
-      'LEVEL_TRACKER',
-      'SQUADS', 'SQUAD_MEMBERS'
-    ];
-    await Promise.allSettled(keys.map(k => getRowsByTitle(k)));
-  }
-
-  // ---------- READ helpers for activities (if you use them) ----------
-  function _norm(s){ return String(s||'').trim().toLowerCase(); }
-  function _fmtDate(v){
-    if (!v) return '';
-    const d = new Date(v);
-    if (isNaN(d)) return '';
-    return `${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}/${d.getFullYear()}`;
-  }
-  async function _rows(idKey){ return getRowsByTitle(SHEETS[idKey]).catch(()=>[]); }
-
-  const activities = {
-    async listBySquad({ squadId = '', squadName = '' } = {}) {
-      const rows = await _rows('SQUAD_ACTIVITIES');
-      const idLC = _norm(squadId), nameLC = _norm(squadName);
-      return rows
-        .map(r => ({
-          raw: r,
-          id:        r['Activity ID'] || r['ID'] || '',
-          squadId:   r['Squad ID'] || r['Squad'] || '',
-          squadName: r['Squad'] || '',
-          title:     r['Activity Title'] || r['Title'] || '',
-          type:      r['Type'] || '',
-          status:    r['Status'] || '',
-          startDate: _fmtDate(r['Start Date'] || r['Start']),
-          endDate:   _fmtDate(r['End Date'] || r['Due Date'] || r['End']),
-          ownerName: r['Owner (Display Name)'] || r['Owner'] || '',
-          description: r['Description'] || r['Notes'] || ''
-        }))
-        .filter(a => {
-          if (idLC)   return _norm(a.squadId)   === idLC;
-          if (nameLC) return _norm(a.squadName) === nameLC;
-          return true;
-        });
-    },
-    async participantsByActivity() {
-      const rows = await _rows('SQUAD_ACTIVITY_PARTICIPANTS');
-      const map = new Map();
-      rows.forEach(r => {
-        const aid = String(r['Activity ID'] || r['Activity'] || '').trim();
-        if (!aid) return;
-        const id = String(r['Employee ID'] || r['Position ID'] || '').trim();
-        if (!map.has(aid)) map.set(aid, new Set());
-        if (id) map.get(aid).add(id);
-      });
-      return map;
-    },
-    async hoursByActivity() {
-      const ph = await _rows('POWER_HOURS');
-      const map = new Map();
-      ph.forEach(r => {
-        const aid = String(r['Activity ID'] || '').trim();
-        if (!aid) return;
-        const completed = String(r['Completed'] || r['Is Complete'] || '').toLowerCase();
-        const isDone = completed === 'true' || completed === 'yes' || completed === 'y' || completed === '1';
-        if (!isDone) return;
-        const hrsRaw = r['Completed Hours'] ?? r['Hours'] ?? r['PH'] ?? 0;
-        const hrs = parseFloat(String(hrsRaw).replace(/[^0-9.\-]/g,''));
-        if (!Number.isFinite(hrs)) return;
-        map.set(aid, (map.get(aid) || 0) + hrs);
-      });
-      return map;
-    }
-  };
-
-  // ---------- WRITE: add rows (maps titles → columnId, posts to /rows) ----------
-  /**
-   * addRows('SHEET_KEY_OR_ID', [
-   *   { "Squad ID": "SQ-001", "Employee ID": "IX7992604", "Role": "Member", "Active": true, "Start Date": "2025-08-28" }
-   * ], { toTop: true })
-   */
+  // ---------- addRows ----------
   async function addRows(sheetIdOrKey, titleRows, { toTop = true } = {}) {
     const id = resolveSheetId(sheetIdOrKey);
-    assertValidId(id, `addRows(${String(sheetIdOrKey)})`);
-    if (!Array.isArray(titleRows) || !titleRows.length) throw new Error("addRows: 'titleRows' must be a non-empty array");
-
-    // Get columns (try fast endpoint, fall back to full sheet)
+    assertValidId(id, `addRows(${sheetIdOrKey})`);
+    if (!Array.isArray(titleRows) || !titleRows.length) throw new Error("addRows: empty array");
     let columns;
     try {
       columns = await fetchJSONRetry(`${API_BASE}/sheet/${id}/columns`, { method: "GET" });
@@ -303,149 +183,78 @@
     }
 
     const titleToCol = {};
-    (columns || []).forEach(c => {
-      const k = String(c.title).replace(/\s+/g, " ").trim().toLowerCase();
-      titleToCol[k] = c; // keep full column (id, type, formula, systemColumnType, etc.)
-    });
+    (columns || []).forEach(c => titleToCol[c.title.trim().toLowerCase()] = c);
+    const isFormula = c => !!(c && (c.formula || c.systemColumnType));
 
-    const isFormulaCol = (col) => !!(col && (col.formula || col.systemColumnType));
-
-    function coerceValue(title, value, col) {
-      const t = String(title).toLowerCase();
-      let v = value;
-
-      // date columns → YYYY-MM-DD
+    function coerce(title, value, col) {
+      const t = String(title).toLowerCase(); let v = value;
       if (t.includes("date") || (col && String(col.type).toUpperCase() === "DATE")) {
-        if (v instanceof Date) v = v.toISOString().slice(0, 10);
-        else if (typeof v === "string" && !/^\d{4}-\d{2}-\d{2}$/.test(v)) {
-          const d = new Date(v);
-          if (!isNaN(d)) v = d.toISOString().slice(0, 10);
-        }
+        const d = new Date(v); if (!isNaN(d)) v = d.toISOString().slice(0,10);
       }
-
-      // checkbox → boolean
-      if (typeof v === "string" && (t.includes("active") || t.includes("checkbox") || (col && String(col.type).toUpperCase() === "CHECKBOX"))) {
-        const s = v.trim().toLowerCase();
-        if (["true","yes","1","y","on"].includes(s)) v = true;
-        else if (["false","no","0","n","off",""].includes(s)) v = false;
+      if (typeof v === "string" && (t.includes("active") || t.includes("checkbox"))) {
+        const s = v.trim().toLowerCase(); v = ["true","yes","1","y","on"].includes(s);
       }
       return v;
     }
 
-    const rows = titleRows.map(obj => {
-      const cells = [];
-      Object.entries(obj || {}).forEach(([title, value]) => {
-        const key  = String(title).replace(/\s+/g, " ").trim().toLowerCase();
-        const col  = titleToCol[key];
-        if (!col) { console.warn(`[addRows] Unknown column title in sheet ${id}:`, title); return; }
-        if (isFormulaCol(col)) { console.warn(`[addRows] Skipping column with formula/system type:`, col.title); return; }
-        cells.push({ columnId: col.id, value: coerceValue(title, value, col) });
-      });
-      return { toTop, cells };
-    });
+    const rows = titleRows.map(obj => ({
+      toTop,
+      cells: Object.entries(obj).map(([t,v]) => {
+        const col = titleToCol[t.trim().toLowerCase()];
+        if (!col || isFormula(col)) return null;
+        return { columnId: col.id, value: coerce(t,v,col) };
+      }).filter(Boolean)
+    }));
 
-    const nonEmpty = rows.filter(r => r.cells && r.cells.length > 0);
-    if (!nonEmpty.length) {
-      console.error("[addRows] No valid cells matched any writable columns.", { attempted: titleRows, columns });
-      throw new Error("addRows: rows did not contain any writable columns.");
-    }
-
-    const payload = { rows: nonEmpty };
-
-    // This is the same path your older code used:
+    const payload = { rows };
     const res = await fetchJSONRetry(`${API_BASE}/sheet/${id}/rows`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
     });
 
-    // Invalidate caches so fresh data shows after write
     clearCache(id);
     return res;
   }
 
-  // ---------- export ----------
-  P.api = {
-    API_BASE,
-    SHEETS,
-    resolveSheetId,
-    fetchSheet,
-    rowsByTitle,
-    getRowsByTitle,
-    clearCache,
-    toNumber,
-    prefetchEssential,
-    warmProxy,
-    ready,
-    activities,
-    addRows, // 👈 restored
-  };
+  // ---------- export base API ----------
+  P.api = { API_BASE, SHEETS, resolveSheetId, fetchSheet, rowsByTitle, getRowsByTitle, clearCache, ready, addRows };
 
-    // =====================================================
-  // ✅ Squad & Employee Helper Functions for Dashboard
+  // =====================================================
+  // ✅ EMPLOYEE + SQUAD HELPERS
   // =====================================================
 
-  // Fetch all employees (used to populate leader/member lists)
-P.getEmployees = async function () {
-  try {
-    // 1️⃣ Fetch both sheet metadata (columns) and rows
-    const [sheet, rows] = await Promise.all([
-      P.api.fetchSheet(P.api.SHEETS.EMPLOYEE_MASTER, { force: false }),
-      P.api.getRowsByTitle(P.api.SHEETS.EMPLOYEE_MASTER)
-    ]);
+  // ✅ Dynamically mapped Employee Master reader
+  P.getEmployees = async function () {
+    try {
+      const [sheet, rows] = await Promise.all([
+        P.api.fetchSheet(P.api.SHEETS.EMPLOYEE_MASTER, { force: false }),
+        P.api.getRowsByTitle(P.api.SHEETS.EMPLOYEE_MASTER)
+      ]);
 
-    // 2️⃣ Build a flexible lookup from column names
-    const cols = (sheet.columns || []).map(c => ({
-      title: c.title.trim().toLowerCase(),
-      id: c.id
-    }));
+      const cols = (sheet.columns || []).map(c => c.title.trim().toLowerCase());
+      const findCol = names => cols.find(c => names.some(n => c.includes(n.toLowerCase())));
 
-    function findCol(possibleNames = []) {
-      const match = cols.find(c =>
-        possibleNames.some(n => c.title.includes(n.toLowerCase()))
-      );
-      return match ? match.title : null;
+      const colId = findCol(["employee id", "position id", "id"]);
+      const colName = findCol(["display name", "employee name", "full name", "first name"]);
+      const colDept = findCol(["department", "home department", "business unit"]);
+      const colLevel = findCol(["level", "powerup lvl", "powerup level"]);
+
+      const employees = rows
+        .map(r => ({
+          id: colId ? r[colId] : "",
+          name: colName ? r[colName] : `${r["first name"] || ""} ${r["last name"] || ""}`.trim(),
+          dept: colDept ? r[colDept] : "",
+          level: colLevel ? r[colLevel] : ""
+        }))
+        .filter(e => e.name && e.id);
+
+      console.log(`✅ Loaded ${employees.length} employees (auto-detected columns)`, { colId, colName, colDept, colLevel });
+      return employees;
+    } catch (err) {
+      console.error("getEmployees error:", err);
+      return [];
     }
+  };
 
-    // 3️⃣ Dynamically detect likely column names
-    const colId =
-      findCol(["employee id", "position id", "id"]) || "position id";
-    const colName =
-      findCol(["display name", "employee name", "full name", "first name"]) ||
-      "display name";
-    const colDept =
-      findCol(["department", "home department", "business unit"]) ||
-      "home department";
-    const colLevel =
-      findCol(["level", "powerup lvl", "powerup level"]) ||
-      "powerup lvl (calculated)";
-
-    // 4️⃣ Map all rows into normalized employee objects
-    const employees = rows
-      .map(r => ({
-        id: r[colId] || "",
-        name:
-          r[colName] ||
-          `${r["first name"] || ""} ${r["last name"] || ""}`.trim(),
-        dept: r[colDept] || "",
-        level: r[colLevel] || ""
-      }))
-      .filter(e => e.name && e.id);
-
-    console.log(
-      `✅ Loaded ${employees.length} employees (dynamic columns):`,
-      { colId, colName, colDept, colLevel }
-    );
-
-    return employees;
-  } catch (err) {
-    console.error("getEmployees error:", err);
-    return [];
-  }
-};
-
-
-  // Lookup one employee by name (case-insensitive)
   P.findEmployeeByName = async function (name) {
     if (!name) return null;
     const employees = await P.getEmployees();
@@ -453,7 +262,6 @@ P.getEmployees = async function () {
     return employees.find(e => e.name.trim().toLowerCase() === n) || null;
   };
 
-  // Fetch all squads (used for ID auto-increment and reload)
   P.getSquads = async function () {
     try {
       const rows = await P.api.getRowsByTitle(P.api.SHEETS.SQUADS);
@@ -470,7 +278,6 @@ P.getEmployees = async function () {
     }
   };
 
-  // Write a new Squad record
   P.addSquad = async function (rowData) {
     try {
       const res = await P.api.addRows(P.api.SHEETS.SQUADS, [rowData]);
@@ -483,7 +290,6 @@ P.getEmployees = async function () {
     }
   };
 
-  // Write a new Squad Member record
   P.addSquadMember = async function (rowData) {
     try {
       const res = await P.api.addRows(P.api.SHEETS.SQUAD_MEMBERS, [rowData]);
@@ -496,15 +302,12 @@ P.getEmployees = async function () {
     }
   };
 
-// =====================================================
-  // ✅ NEW: Update an existing row by its Smartsheet rowId
-  // =====================================================
+  // ✅ Update existing row by Smartsheet internal rowId
   P.api.updateRowById = async function (sheetIdOrKey, rowId, data) {
     const id = P.api.resolveSheetId(sheetIdOrKey);
-    if (!id) throw new Error("updateRowById: Missing sheetIdOrKey");
+    assertValidId(id, "updateRowById");
     if (!rowId) throw new Error("updateRowById: Missing rowId");
 
-    // Fetch sheet columns
     let columns;
     try {
       columns = await fetchJSONRetry(`${API_BASE}/sheet/${id}/columns`, { method: "GET" });
@@ -515,55 +318,26 @@ P.getEmployees = async function () {
     }
 
     const titleToCol = {};
-    (columns || []).forEach(c => {
-      const k = String(c.title).replace(/\s+/g, " ").trim().toLowerCase();
-      titleToCol[k] = c;
-    });
+    (columns || []).forEach(c => titleToCol[c.title.trim().toLowerCase()] = c);
+    const isFormula = c => !!(c && (c.formula || c.systemColumnType));
 
-    const isFormulaCol = (col) => !!(col && (col.formula || col.systemColumnType));
-
-    function coerceValue(title, value, col) {
-      const t = String(title).toLowerCase();
-      let v = value;
-
-      // date columns → YYYY-MM-DD
-      if (t.includes("date") || (col && String(col.type).toUpperCase() === "DATE")) {
-        if (v instanceof Date) v = v.toISOString().slice(0, 10);
-        else if (typeof v === "string" && !/^\d{4}-\d{2}-\d{2}$/.test(v)) {
-          const d = new Date(v);
-          if (!isNaN(d)) v = d.toISOString().slice(0, 10);
-        }
-      }
-
-      // checkbox → boolean
-      if (typeof v === "string" && (t.includes("active") || t.includes("checkbox") || (col && String(col.type).toUpperCase() === "CHECKBOX"))) {
-        const s = v.trim().toLowerCase();
-        if (["true","yes","1","y","on"].includes(s)) v = true;
-        else if (["false","no","0","n","off",""].includes(s)) v = false;
-      }
-      return v;
-    }
-
-    // Build cell updates
     const cells = Object.entries(data || {}).map(([title, value]) => {
-      const key = String(title).replace(/\s+/g, " ").trim().toLowerCase();
+      const key = title.trim().toLowerCase();
       const col = titleToCol[key];
-      if (!col || isFormulaCol(col)) return null;
-      return { columnId: col.id, value: coerceValue(title, value, col) };
+      if (!col || isFormula(col)) return null;
+      return { columnId: col.id, value };
     }).filter(Boolean);
 
     if (!cells.length) throw new Error("updateRowById: No valid writable columns found");
 
-  const payload = { cells };
-const res = await fetchJSONRetry(`${API_BASE}/sheet/${id}/row/${rowId}`, {
-  method: "PUT",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify(payload),
-});
+    const payload = { id: rowId, cells };
+    const res = await fetchJSONRetry(`${API_BASE}/sheet/${id}/rows`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rows: [payload] }),
+    });
 
-    // Invalidate cache so fresh data appears next time
-    P.api.clearCache(id);
-
+    clearCache(id);
     return res;
   };
 
