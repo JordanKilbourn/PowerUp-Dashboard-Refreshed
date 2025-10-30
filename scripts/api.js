@@ -364,8 +364,71 @@
     return res;
   }
 
+  // ---------- WRITE: update existing row by ID (uses new PUT proxy route) ----------
+  /**
+   * updateRowById('SHEET_KEY_OR_ID', 'ROW_ID', {
+   *   "Employee ID": "IX7992604",
+   *   "Employee Name": "Jordan Kilbourn",
+   *   "Role": "Leader",
+   *   "Active": true
+   * })
+   */
+  async function updateRowById(sheetIdOrKey, rowId, data) {
+    const id = resolveSheetId(sheetIdOrKey);
+    assertValidId(id, `updateRowById(${String(sheetIdOrKey)})`);
+    if (!rowId) throw new Error("updateRowById: Missing rowId");
+
+    // 1️⃣ Fetch columns to map titles → IDs
+    let columns;
+    try {
+      columns = await fetchJSONRetry(`${API_BASE}/sheet/${id}/columns`, { method: "GET" });
+      if (!Array.isArray(columns)) columns = columns?.data || columns?.columns;
+    } catch {
+      const sheet = await fetchSheet(id, { force: true });
+      columns = sheet.columns || [];
+    }
+
+    const titleToCol = {};
+    (columns || []).forEach(c => {
+      const key = String(c.title).trim().toLowerCase();
+      titleToCol[key] = c;
+    });
+
+    const isFormula = c => !!(c && (c.formula || c.systemColumnType));
+
+    // 2️⃣ Build Smartsheet-style cell array
+    const cells = Object.entries(data || {})
+      .map(([title, value]) => {
+        const key = String(title).trim().toLowerCase();
+        const col = titleToCol[key];
+        if (!col || isFormula(col)) return null;
+        return { columnId: col.id, value };
+      })
+      .filter(Boolean);
+
+    if (!cells.length) throw new Error("updateRowById: No valid writable columns found");
+
+    // 3️⃣ Build payload for Smartsheet PUT
+    const payload = { rows: [{ id: rowId, cells }] };
+
+    // 4️⃣ Send PUT request through proxy
+    const url = `${API_BASE}/sheet/${id}/rows`;
+    console.log("🔄 [updateRowById] PUT →", url, payload);
+
+    const res = await fetchJSONRetry(url, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    // 5️⃣ Clear cache + return response
+    clearCache(id);
+    console.log("✅ Row update successful:", { sheetId: id, rowId, data });
+    return res;
+  }
+  
   // ---------- export ----------
-  P.api = {
+   P.api = {
     API_BASE,
     SHEETS,
     resolveSheetId,
@@ -378,7 +441,9 @@
     warmProxy,
     ready,
     activities,
-    addRows, // 👈 restored
+    addRows,
+    updateRowById, // 👈 new!
   };
+
   window.PowerUp = P;
 })(window.PowerUp || {});
