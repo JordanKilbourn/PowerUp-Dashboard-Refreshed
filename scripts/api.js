@@ -370,15 +370,16 @@ P.api.updateRowById = async function (sheetIdOrKey, rowId, data) {
     ]
   };
 
-  // --- 4️⃣ Send POST to existing proxy route ---
-  const url = `${API_BASE}/sheet/${id}/rows`;
-  console.log("🔄 Proxy updateRowById via POST:", url, payload);
+// --- 4️⃣ Send PUT to new proxy route for updates ---
+const url = `${API_BASE}/sheet/${id}/rows`;
+console.log("🔄 Proxy updateRowById via PUT:", url, payload);
 
-  const res = await fetchJSONRetry(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
-  });
+const res = await fetchJSONRetry(url, {
+  method: "PUT",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(payload)
+});
+
 
   clearCache(id);
   console.log("✅ Row update successful:", { sheetId: id, rowId, data });
