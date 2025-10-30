@@ -436,9 +436,22 @@ if (e.target.classList.contains("btn-save")) {
       });
     }
 
-    hideLoadingOverlay();
-    document.querySelectorAll(".btn-save, .btn-cancel, .leader-select-single, .editable").forEach(el => el.disabled = false);
-    showToast("✅ Squad saved successfully.", "success");
+   hideLoadingOverlay();
+document.querySelectorAll(".btn-save, .btn-cancel, .leader-select-single, .editable")
+  .forEach(el => el.disabled = false);
+showToast("✅ Squad saved successfully.", "success");
+
+// 🧠 Update the row's data-original snapshot so Cancel uses the new state
+const newOriginal = {
+  name,
+  category,
+  active,
+  objective,
+  createdBy,
+  leader: leaderEmp ? leaderEmp.name : leaderName
+};
+tr.dataset.original = JSON.stringify(newOriginal);
+
   } catch (err) {
     hideLoadingOverlay();
     document.querySelectorAll(".btn-save, .btn-cancel, .leader-select-single, .editable").forEach(el => el.disabled = false);
