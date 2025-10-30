@@ -105,7 +105,14 @@
 
       const memberEntry = MEMBERS_BY_SQUAD.get(String(sq.id || '').trim());
       const mCount = memberEntry ? memberEntry.ids.size : 0;
-      const memberChip = `<span class="member-chip">👥 ${mCount} member${mCount === 1 ? '' : 's'}</span>`;
+      const memberChip = `
+  <span class="member-chip">
+    <img src="https://playworld.com/wp-content/uploads/2023/09/logo-icon.svg" 
+         alt="Playworld logo" 
+         class="emoji-logo" />
+    ${mCount} member${mCount === 1 ? '' : 's'}
+  </span>`;
+
 
       const detailsHref = sq.id
         ? `squad-details.html?id=${encodeURIComponent(sq.id)}`
@@ -279,10 +286,6 @@ function hideLoadingOverlay() {
   const overlay = document.getElementById("saveOverlay");
   if (overlay) overlay.style.display = "none";
 }
-
-
-
-
 
   
 
@@ -608,12 +611,28 @@ tr.dataset.original = JSON.stringify(newOriginal);
   text-align: center;
   transition: opacity 0.3s ease-in-out;
 }
+
+.member-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9rem;
+}
+
+.emoji-logo {
+  width: 1em; 
+  height: 1em;
+  vertical-align: middle;
+  object-fit: contain;
+  filter: brightness(0) invert(1); /* makes it white on dark backgrounds */
+}
+
   .squad-card:hover { transform: translateY(-3px); box-shadow: 0 0 12px rgba(51,255,153,0.4); }
   .squad-meta { font-size: 0.85rem; margin: 3px 0; color: #aab; }
   .status-pill { padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; }
   .status-on { background: rgba(51,255,153,0.1); color: #33ff99; }
   .status-off { background: rgba(255,80,80,0.1); color: #ff5050; }
-  .member-chip { font-size: 0.8rem; color: #99b; margin-right: auto; }
+  .member-chip { font-size: 0.8rem; color: #ffffff; margin-right: auto; }
   .squad-foot { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(255,255,255,0.05); margin-top: 8px; padding-top: 6px; }
   .squad-link { color: #33ff99; text-decoration: none; font-size: 0.85rem; }
   .squad-link:hover { text-decoration: underline; }
