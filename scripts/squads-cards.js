@@ -248,6 +248,44 @@ function applyFilters() {
 }
 
 
+function showLoadingOverlay(message = "Saving...") {
+  let overlay = document.getElementById("saveOverlay");
+  if (!overlay) {
+    overlay = document.createElement("div");
+    overlay.id = "saveOverlay";
+    overlay.innerHTML = `<div class="spinner"></div><p>${message}</p>`;
+    Object.assign(overlay.style, {
+      position: "fixed",
+      top: 0,
+      left: 0,
+      width: "100%",
+      height: "100%",
+      background: "rgba(0,0,0,0.45)",
+      color: "#aefcd8",
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      justifyContent: "center",
+      fontSize: "1.1rem",
+      zIndex: 9999,
+      backdropFilter: "blur(2px)"
+    });
+    document.body.appendChild(overlay);
+  }
+  overlay.style.display = "flex";
+}
+
+function hideLoadingOverlay() {
+  const overlay = document.getElementById("saveOverlay");
+  if (overlay) overlay.style.display = "none";
+}
+
+
+
+
+
+  
+
 // =======================
 // Manage Table Rendering (wider layout + fixed leader lookup)
 // =======================
@@ -375,7 +413,11 @@ if (e.target.classList.contains("btn-save")) {
   const leaderEmp = allEmps.find(e => e.name === leaderName);
   const squadId = tr.dataset.squadid;
 
-  try {
+ try {
+    // 🔒 Disable UI and show spinner
+    document.querySelectorAll(".btn-save, .btn-cancel, .leader-select-single, .editable").forEach(el => el.disabled = true);
+    showLoadingOverlay("Saving squad changes...");
+
     // ✅ 1. Update SQUADS sheet info
     await P.api.updateRowById(P.api.SHEETS.SQUADS, rowId, {
       "Squad Name": name,
@@ -394,14 +436,16 @@ if (e.target.classList.contains("btn-save")) {
       });
     }
 
+    hideLoadingOverlay();
+    document.querySelectorAll(".btn-save, .btn-cancel, .leader-select-single, .editable").forEach(el => el.disabled = false);
     showToast("✅ Squad saved successfully.", "success");
   } catch (err) {
+    hideLoadingOverlay();
+    document.querySelectorAll(".btn-save, .btn-cancel, .leader-select-single, .editable").forEach(el => el.disabled = false);
     console.error("Save error:", err);
     showToast("Error saving squad. Check console.", "error");
   }
 }
-
-
 
       if (e.target.classList.contains("btn-cancel")) {
         tr.querySelector(".name").textContent = original.name || "";
