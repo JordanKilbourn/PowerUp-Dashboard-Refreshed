@@ -441,6 +441,9 @@ document.querySelectorAll(".btn-save, .btn-cancel, .leader-select-single, .edita
   .forEach(el => el.disabled = false);
 showToast("✅ Squad saved successfully.", "success");
 
+   await renderManageTable();
+return;
+
 // 🧠 Update the row's data-original snapshot so Cancel uses the new state
 const newOriginal = {
   name,
