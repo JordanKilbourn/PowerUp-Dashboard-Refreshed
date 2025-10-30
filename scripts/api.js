@@ -384,6 +384,10 @@ const res = await fetchJSONRetry(url, {
   clearCache(id);
   console.log("✅ Row update successful:", { sheetId: id, rowId, data });
   return res;
+
+  clearCache(id);
+await fetchSheet(id, { force: true });
+
 };
 
  // =====================================================
