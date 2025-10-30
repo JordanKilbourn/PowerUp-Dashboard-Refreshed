@@ -287,9 +287,7 @@ function hideLoadingOverlay() {
   if (overlay) overlay.style.display = "none";
 }
 
-  
-
-// =======================
+  // =======================
 // Manage Table Rendering (wider layout + fixed leader lookup)
 // =======================
 async function renderManageTable() {
@@ -317,24 +315,23 @@ async function renderManageTable() {
       __rowId: squadSheet.rows[i]?.id || ''
     }));
 
-// Load employees for leader dropdown (use helper for clean mapping)
-const allEmps = await P.getEmployees();
+    // Load employees for leader dropdown
+    const allEmps = await P.getEmployees();
 
-
-// Normalize all squad IDs to uppercase for consistent lookups
-const leadersBySquad = new Map();
-members.forEach(r => {
-  const isActive = /^(true|yes|y|1)$/i.test(String(r["Active"] || ""));
-  if (!isActive) return;
-  const sid = String(r["Squad ID"] || "").trim().toUpperCase();
-  const role = String(r["Role"] || "").trim().toLowerCase();
-  if (role === "leader") {
-    leadersBySquad.set(sid, {
-      id: String(r["Employee ID"] || "").trim(),
-      name: String(r["Employee Name"] || "").trim()
+    // Normalize all squad IDs to uppercase for consistent lookups
+    const leadersBySquad = new Map();
+    members.forEach(r => {
+      const isActive = /^(true|yes|y|1)$/i.test(String(r["Active"] || ""));
+      if (!isActive) return;
+      const sid = String(r["Squad ID"] || "").trim().toUpperCase();
+      const role = String(r["Role"] || "").trim().toLowerCase();
+      if (role === "leader") {
+        leadersBySquad.set(sid, {
+          id: String(r["Employee ID"] || "").trim(),
+          name: String(r["Employee Name"] || "").trim()
+        });
+      }
     });
-  }
-});
 
     // Create table
     const table = document.createElement('table');
@@ -354,11 +351,10 @@ members.forEach(r => {
       </thead>
       <tbody>
         ${squads.map(r => {
-        const sheetRowId = r.__rowId;
-        const squadId = (r["Squad ID"] || "").trim().toUpperCase();
-        const leader = leadersBySquad.get(squadId);
-        const selectedName = leader ? leader.name : "";
-
+          const sheetRowId = r.__rowId;
+          const squadId = (r["Squad ID"] || "").trim().toUpperCase();
+          const leader = leadersBySquad.get(squadId);
+          const selectedName = leader ? leader.name : "";
 
           const rowData = {
             name: r["Squad Name"] || "",
@@ -400,72 +396,85 @@ members.forEach(r => {
     table.addEventListener("click", async e => {
       const tr = e.target.closest("tr[data-rowid]");
       if (!tr) return;
+
       const rowId = tr.dataset.rowid;
       const original = JSON.parse(tr.dataset.original || "{}");
 
-if (e.target.classList.contains("btn-save")) {
-  const name = tr.querySelector(".name")?.textContent.trim();
-  const category = tr.querySelector(".category")?.textContent.trim();
-  const active = tr.querySelector(".active")?.checked;
-  const objective = tr.querySelector(".objective")?.textContent.trim();
-  const createdBy = tr.querySelector(".created-by")?.textContent.trim();
-  const leaderName = tr.querySelector(".leader-select-single")?.value;
+      // ===== SAVE =====
+      if (e.target.classList.contains("btn-save")) {
+        const name = tr.querySelector(".name")?.textContent.trim();
+        const category = tr.querySelector(".category")?.textContent.trim();
+        const active = tr.querySelector(".active")?.checked;
+        const objective = tr.querySelector(".objective")?.textContent.trim();
+        const createdBy = tr.querySelector(".created-by")?.textContent.trim();
+        const leaderName = tr.querySelector(".leader-select-single")?.value;
 
-  if (!leaderName) return showToast("Select a leader before saving.", "warn");
+        const leaderEmp = allEmps.find(e => e.name === leaderName);
+        const squadId = tr.dataset.squadid;
+        const currentLeader = leaderEmp ? leaderEmp.name : leaderName;
 
-  const leaderEmp = allEmps.find(e => e.name === leaderName);
-  const squadId = tr.dataset.squadid;
+        // 🧭 Compare current values with the original snapshot
+        const hasChanges =
+          name !== original.name ||
+          category !== original.category ||
+          active !== original.active ||
+          objective !== original.objective ||
+          createdBy !== original.createdBy ||
+          currentLeader !== original.leader;
 
- try {
-    // 🔒 Disable UI and show spinner
-    document.querySelectorAll(".btn-save, .btn-cancel, .leader-select-single, .editable").forEach(el => el.disabled = true);
-    showLoadingOverlay("Saving squad changes...");
+        if (!hasChanges) {
+          showToast("No changes detected — nothing to save.", "info");
+          return;
+        }
 
-    // ✅ 1. Update SQUADS sheet info
-    await P.api.updateRowById(P.api.SHEETS.SQUADS, rowId, {
-      "Squad Name": name,
-      "Category": category,
-      "Active": active,
-      "Objective": objective,
-      "Created By": createdBy
-    });
+        if (!leaderName) {
+          showToast("Select a leader before saving.", "warn");
+          return;
+        }
 
-    // ✅ 2. Update SQUAD_MEMBERS sheet (Leader)
-    if (leaderEmp && squadId) {
-      await P.api.updateOrReplaceLeader({
-        squadId,
-        newLeaderId: leaderEmp.id,
-        newLeaderName: leaderEmp.name
-      });
-    }
+        try {
+          // 🔒 Disable UI and show spinner
+          document.querySelectorAll(".btn-save, .btn-cancel, .leader-select-single, .editable")
+            .forEach(el => el.disabled = true);
+          showLoadingOverlay("Saving squad changes...");
 
-   hideLoadingOverlay();
-document.querySelectorAll(".btn-save, .btn-cancel, .leader-select-single, .editable")
-  .forEach(el => el.disabled = false);
-showToast("✅ Squad saved successfully.", "success");
+          // ✅ 1. Update SQUADS sheet info
+          await P.api.updateRowById(P.api.SHEETS.SQUADS, rowId, {
+            "Squad Name": name,
+            "Category": category,
+            "Active": active,
+            "Objective": objective,
+            "Created By": createdBy
+          });
 
-   await renderManageTable();
-return;
+          // ✅ 2. Update SQUAD_MEMBERS sheet (Leader)
+          if (leaderEmp && squadId) {
+            await P.api.updateOrReplaceLeader({
+              squadId,
+              newLeaderId: leaderEmp.id,
+              newLeaderName: leaderEmp.name
+            });
+          }
 
-// 🧠 Update the row's data-original snapshot so Cancel uses the new state
-const newOriginal = {
-  name,
-  category,
-  active,
-  objective,
-  createdBy,
-  leader: leaderEmp ? leaderEmp.name : leaderName
-};
-tr.dataset.original = JSON.stringify(newOriginal);
+          hideLoadingOverlay();
+          document.querySelectorAll(".btn-save, .btn-cancel, .leader-select-single, .editable")
+            .forEach(el => el.disabled = false);
 
-  } catch (err) {
-    hideLoadingOverlay();
-    document.querySelectorAll(".btn-save, .btn-cancel, .leader-select-single, .editable").forEach(el => el.disabled = false);
-    console.error("Save error:", err);
-    showToast("Error saving squad. Check console.", "error");
-  }
-}
+          showToast("✅ Squad saved successfully.", "success");
 
+          // 🔁 Re-render table to sync new values and snapshots
+          await renderManageTable();
+
+        } catch (err) {
+          hideLoadingOverlay();
+          document.querySelectorAll(".btn-save, .btn-cancel, .leader-select-single, .editable")
+            .forEach(el => el.disabled = false);
+          console.error("Save error:", err);
+          showToast("Error saving squad. Check console.", "error");
+        }
+      }
+
+      // ===== CANCEL =====
       if (e.target.classList.contains("btn-cancel")) {
         tr.querySelector(".name").textContent = original.name || "";
         tr.querySelector(".category").textContent = original.category || "";
@@ -478,6 +487,7 @@ tr.dataset.original = JSON.stringify(newOriginal);
         setTimeout(() => (tr.style.backgroundColor = ""), 700);
       }
     });
+
   } catch (err) {
     console.error("renderManageTable error:", err);
     showToast("Failed to load Manage Squads table.", "error");
@@ -485,91 +495,94 @@ tr.dataset.original = JSON.stringify(newOriginal);
 }
 
 
-  // =======================
-  // Filter Binding
-  // =======================
-  function bindFilters() {
-    const catWrap = document.getElementById('cat-pills');
-    const activeToggle = document.getElementById('activeOnly');
-    const myToggle = document.getElementById('myOnly');
-    const searchBox = document.getElementById('search');
+// =======================
+// Filter Binding
+// =======================
+function bindFilters() {
+  const catWrap = document.getElementById('cat-pills');
+  const activeToggle = document.getElementById('activeOnly');
+  const myToggle = document.getElementById('myOnly');
+  const searchBox = document.getElementById('search');
 
-    if (catWrap) {
-      catWrap.addEventListener('click', e => {
-        const btn = e.target.closest('button[data-cat]');
-        if (!btn) return;
-        activeCategory = btn.dataset.cat;
-        renderCategoryPills(activeCategory);
-        applyFilters();
-      });
-    }
-
-    if (activeToggle) {
-      activeToggle.addEventListener('change', e => {
-        activeOnly = e.target.checked;
-        applyFilters();
-      });
-    }
-
-    if (myToggle) {
-      myToggle.addEventListener('change', e => {
-        mySquadsOnly = e.target.checked;
-        applyFilters();
-      });
-    }
-
-    if (searchBox) {
-      searchBox.addEventListener('input', applyFilters);
-    }
+  if (catWrap) {
+    catWrap.addEventListener('click', e => {
+      const btn = e.target.closest('button[data-cat]');
+      if (!btn) return;
+      activeCategory = btn.dataset.cat;
+      renderCategoryPills(activeCategory);
+      applyFilters();
+    });
   }
 
-  // =======================
-  // Page Init
-  // =======================
-  document.addEventListener('DOMContentLoaded', async () => {
-    P.session.requireLogin();
-    P.layout.injectLayout();
-    P.layout.setPageTitle('Squads');
-    await P.session.initHeader();
+  if (activeToggle) {
+    activeToggle.addEventListener('change', e => {
+      activeOnly = e.target.checked;
+      applyFilters();
+    });
+  }
 
-    renderCategoryPills('All');
-    await load();
-    bindFilters?.();
+  if (myToggle) {
+    myToggle.addEventListener('change', e => {
+      mySquadsOnly = e.target.checked;
+      applyFilters();
+    });
+  }
 
-    // Auto-enable "My Squads"
-    const myToggle = document.getElementById('myOnly');
-    if (myToggle) {
-      myToggle.checked = true;
-      mySquadsOnly = true;
-    }
-    applyFilters();
+  if (searchBox) {
+    searchBox.addEventListener('input', applyFilters);
+  }
+}
 
-    const btnManage = document.getElementById('btn-manage');
-    const btnAdd = document.getElementById('btn-add-squad');
-    if (btnAdd) btnAdd.addEventListener('click', () => PowerUp.squadAddForm?.open?.());
-    if (btnManage) {
-      btnManage.addEventListener('click', async () => {
-        const isManaging = btnManage.classList.toggle('managing');
-        if (isManaging) {
-          btnManage.textContent = 'View Cards';
-          await renderManageTable();
-        } else {
-          btnManage.textContent = 'Manage Squads';
-          document.getElementById('s-msg').style.display = 'none';
-          const myToggle = document.getElementById('myOnly');
-          if (myToggle) mySquadsOnly = myToggle.checked;
-          applyFilters();
-        }
-      });
-    }
-    document.getElementById('cat-pills')?.addEventListener('click', () => {
-      const btnManage = document.getElementById('btn-manage');
-      if (btnManage?.classList.contains('managing')) {
-        btnManage.classList.remove('managing');
+
+// =======================
+// Page Init
+// =======================
+document.addEventListener('DOMContentLoaded', async () => {
+  P.session.requireLogin();
+  P.layout.injectLayout();
+  P.layout.setPageTitle('Squads');
+  await P.session.initHeader();
+
+  renderCategoryPills('All');
+  await load();
+  bindFilters?.();
+
+  // Auto-enable "My Squads"
+  const myToggle = document.getElementById('myOnly');
+  if (myToggle) {
+    myToggle.checked = true;
+    mySquadsOnly = true;
+  }
+  applyFilters();
+
+  const btnManage = document.getElementById('btn-manage');
+  const btnAdd = document.getElementById('btn-add-squad');
+  if (btnAdd) btnAdd.addEventListener('click', () => PowerUp.squadAddForm?.open?.());
+  if (btnManage) {
+    btnManage.addEventListener('click', async () => {
+      const isManaging = btnManage.classList.toggle('managing');
+      if (isManaging) {
+        btnManage.textContent = 'View Cards';
+        await renderManageTable();
+      } else {
         btnManage.textContent = 'Manage Squads';
+        document.getElementById('s-msg').style.display = 'none';
+        const myToggle = document.getElementById('myOnly');
+        if (myToggle) mySquadsOnly = myToggle.checked;
+        applyFilters();
       }
     });
+  }
+
+  document.getElementById('cat-pills')?.addEventListener('click', () => {
+    const btnManage = document.getElementById('btn-manage');
+    if (btnManage?.classList.contains('managing')) {
+      btnManage.classList.remove('managing');
+      btnManage.textContent = 'Manage Squads';
+    }
   });
+});
+
 
   // =======================
   // Inline Styles
