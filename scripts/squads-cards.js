@@ -337,18 +337,19 @@ async function renderManageTable() {
     const table = document.createElement('table');
     table.className = 'manage-table';
     table.innerHTML = `
-      <thead>
-        <tr>
-          <th style="width:8%">ID</th>
-          <th style="width:20%">Squad Name</th>
-          <th style="width:12%">Category</th>
-          <th style="width:6%">Active</th>
-          <th style="width:26%">Objective</th>
-          <th style="width:17%">Leader</th>
-          <th style="width:11%">Created By</th>
-          <th style="width:10%">Actions</th>
-        </tr>
-      </thead>
+<thead>
+  <tr>
+    <th style="width:7%">ID</th>
+    <th style="width:22%">Squad Name</th>
+    <th style="width:14%">Category</th>
+    <th style="width:8%">Active</th>
+    <th style="width:24%">Objective</th>
+    <th style="width:15%">Leader</th>
+    <th style="width:10%">Created By</th>
+    <th style="width:10%">Actions</th>
+  </tr>
+</thead>
+
       <tbody>
         ${squads.map(r => {
           const sheetRowId = r.__rowId;
@@ -608,23 +609,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     transition: transform .2s ease, box-shadow .2s ease;
   }
 
-  /* Center toast above the manage table */
-.toast {
-  position: fixed;
-  top: 30%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 9999;
-  background: rgba(50, 50, 50, 0.95);
-  color: #fff;
-  padding: 12px 24px;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-  font-size: 0.95rem;
-  text-align: center;
-  transition: opacity 0.3s ease-in-out;
-}
-
 .member-chip {
   display: inline-flex;
   align-items: center;
@@ -664,8 +648,36 @@ document.addEventListener('DOMContentLoaded', async () => {
   .overlay-text { margin-top: 10px; color: #aefcd8; font-size: 0.9rem; text-align: center; }
   .spinner { width: 42px; height: 42px; border: 4px solid #33ff99; border-top-color: transparent; border-radius: 50%; animation: spin 1s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
-  .pu-toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #0f1a1a; color: #9ff; border: 1px solid #33ff99; padding: 10px 18px; border-radius: 8px; opacity: 0; transition: opacity 0.4s ease; z-index: 10000; }
-  .pu-toast.show { opacity: 1; }
+  .pu-toast {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(15, 26, 26, 0.95);
+  color: #9ff;
+  border: 1px solid #33ff99;
+  padding: 14px 24px;
+  border-radius: 10px;
+  font-size: 1rem;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  z-index: 10000;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  text-align: center;
+}
+.pu-toast.show {
+  opacity: 1;
+}
+
+@keyframes toast-pop {
+  0% { transform: translate(-50%, -60%) scale(0.95); opacity: 0; }
+  100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+}
+
+.pu-toast.show {
+  animation: toast-pop 0.25s ease forwards;
+}
+
   .leader-select-single { width: 95%; max-width: 260px; padding: 4px 6px; border-radius: 6px; background: #0f1a1a; color: #cde; border: 1px solid #2a3d3d; }
   .leader-select-single:focus { outline: none; border-color: #33ff99; box-shadow: 0 0 4px rgba(51,255,153,0.3); }
   `;
