@@ -232,7 +232,7 @@ function applyFilters() {
 
     
     list = list.filter(x => {
-      const sid = String(x.id || '').trim().toLowerCase();
+      const sid = String(x.id || '').trim().toUpperCase();
       const members = MEMBERS_BY_SQUAD.get(sid);
       const leaders = LEADERS_BY_SQUAD.get(sid) || [];
 
