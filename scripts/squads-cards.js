@@ -222,6 +222,15 @@ function applyFilters() {
     const myId = (user.employeeId || user.positionId || '').trim().toLowerCase();
     const myName = (user.displayName || user.name || '').trim().toLowerCase();
 
+  console.log("🧭 My Squads Debug:", {
+    myId,
+    myName,
+    membersBySquad: MEMBERS_BY_SQUAD,
+    leadersBySquad: LEADERS_BY_SQUAD
+  });
+
+
+    
     list = list.filter(x => {
       const sid = String(x.id || '').trim().toLowerCase();
       const members = MEMBERS_BY_SQUAD.get(sid);
