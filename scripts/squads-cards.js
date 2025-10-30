@@ -695,6 +695,19 @@ style.textContent = `
 .manage-table th:nth-child(7), .manage-table td:nth-child(7) { width: 180px; }                     /* Created By */
 .manage-table th:nth-child(8), .manage-table td:nth-child(8) { width: 160px; text-align: center; } /* Actions */
 
+/* Make table headers sticky within scrollable container */
+#cards {
+  overflow-y: auto;
+  max-height: calc(100vh - 250px); /* adjusts for header, filter bar, etc. */
+}
+
+.manage-table th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #0f1a1a;
+}
+
 .editable:focus { background: rgba(51,255,153,0.08); }
 .btn-save, .btn-cancel { padding: 4px 10px; border-radius: 6px; font-size: 0.85rem; cursor: pointer; border: 1px solid transparent; background: transparent; transition: all .2s; }
 .btn-save { color: #33ff99; border-color: #33ff99; }
