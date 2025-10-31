@@ -217,10 +217,11 @@ function applyFilters() {
     list = list.filter(x => x.category === activeCategory);
   if (activeOnly)
     list = list.filter(x => isTrue(x.active));
-  if (mySquadsOnly) {
-    const user = P.session.current || P.session.get?.() || {};
-    const myId = (user.employeeId || user.positionId || '').trim().toLowerCase();
-    const myName = (user.displayName || user.name || '').trim().toLowerCase();
+ if (mySquadsOnly) {
+  // Use admin-selected user if applicable, otherwise current session user
+  const selectedUser = P.state?.selectedUser || P.session.current || {};
+  const myId = (selectedUser.employeeId || selectedUser.positionId || '').trim().toLowerCase();
+  const myName = (selectedUser.displayName || selectedUser.name || '').trim().toLowerCase();
 
   console.log("🧭 My Squads Debug:", {
     myId,
@@ -721,17 +722,38 @@ style.textContent = `
 .manage-table th:nth-child(7), .manage-table td:nth-child(7) { width: 180px; }                     /* Created By */
 .manage-table th:nth-child(8), .manage-table td:nth-child(8) { width: 160px; text-align: center; } /* Actions */
 
-/* Make table headers sticky within scrollable container */
-#cards {
+/* Make table headers sticky within scrollable manage-table container */
+#cards:has(table.manage-table) {
   overflow-y: auto;
-  max-height: calc(100vh - 250px); /* adjusts for header, filter bar, etc. */
+  max-height: calc(100vh - 250px);
+  position: relative;
 }
 
 .manage-table th {
   position: sticky;
   top: 0;
-  z-index: 10;
-  background: #0f1a1a;
+  background: #122020; /* darker for contrast */
+  z-index: 20;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* Give Manage Table distinct styling */
+.manage-table {
+  background: #0d1616; /* darker contrast base */
+  border: 1px solid rgba(51, 255, 153, 0.1);
+  border-radius: 8px;
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.4);
+}
+
+.manage-table tbody tr:hover {
+  background: rgba(51, 255, 153, 0.08);
+}
+
+.manage-table th {
+  background: #122020;
+  color: #99ffcc;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
 .editable:focus { background: rgba(51,255,153,0.08); }
