@@ -301,12 +301,22 @@ async function applyFilters() {
 if (q) {
   list = list.filter(s => {
     const sid = String(s.id || '').trim();
+
+    // Get leaders for this squad
     const leaders = LEADERS_BY_SQUAD.get(sid) || [];
     const leaderNames = leaders.map(l => l.name || '').join(' ').toLowerCase();
 
+    // Get members for this squad
+    const members = MEMBERS_BY_SQUAD.get(sid);
+    const memberNames = members
+      ? [...members.names].join(' ').toLowerCase()
+      : '';
+
+    // Combine everything searchable
     const hay = [
       s.name,
       leaderNames,
+      memberNames,
       s.leaderId,
       s.objective,
       s.notes
@@ -457,8 +467,11 @@ async function renderManageTable() {
         }).join("")}
       </tbody>`;
 
-    cardsContainer.innerHTML = "";
-    cardsContainer.appendChild(table);
+cardsContainer.innerHTML = "";
+const wrapper = document.createElement('div');
+wrapper.className = 'manage-table-wrapper';
+wrapper.appendChild(table);
+cardsContainer.appendChild(wrapper);
 
     // --- Save + Cancel Handlers ---
     table.addEventListener("click", async e => {
@@ -673,12 +686,15 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 });
 
-
 // =======================
-// Inline Styles
+// Inline Styles (cleaned + fixed)
 // =======================
 const style = document.createElement('style');
 style.textContent = `
+
+/* ================================
+   Layout: Card & Manage Table Views
+   ================================ */
 
 /* Default Card Layout */
 #cards {
@@ -687,25 +703,27 @@ style.textContent = `
   gap: 16px;
   margin-top: 14px;
   width: 100%;
+  overflow-y: visible; /* Default - no scrollbar in card view */
 }
 
-/* When Manage View (table) is active inside #cards */
-#cards table.manage-table {
-  width: 100%;
-  table-layout: fixed;
-  border-collapse: collapse;
-  border-radius: 8px;
-  background: #0f1a1a;
-  overflow: hidden;
-}
-
-/* Only switch to block layout when the manage table exists */
+/* When Manage Table is active */
 #cards:has(table.manage-table) {
   display: block;
-  margin: 0;
   padding: 0;
+  margin: 0;
+  overflow-y: visible; /* no nested scrollbar */
 }
 
+/* Manage Table Wrapper */
+.manage-table-wrapper {
+  overflow-y: auto;
+  max-height: calc(100vh - 250px);
+  position: relative;
+}
+
+/* ================================
+   Squad Cards
+   ================================ */
 .squad-card {
   background: #101a1a;
   border-left: 5px solid var(--accent, #33ff99);
@@ -718,114 +736,135 @@ style.textContent = `
   transition: transform .2s ease, box-shadow .2s ease;
 }
 
-.member-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.9rem;
+.squad-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 0 12px rgba(51,255,153,0.4);
 }
 
-.emoji-logo {
-  width: 1em; 
-  height: 1em;
-  vertical-align: middle;
-  object-fit: contain;
-  filter: brightness(0) invert(1);
-}
-
-.squad-card:hover { transform: translateY(-3px); box-shadow: 0 0 12px rgba(51,255,153,0.4); }
 .squad-meta { font-size: 0.85rem; margin: 3px 0; color: #aab; }
 .status-pill { padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; }
 .status-on { background: rgba(51,255,153,0.1); color: #33ff99; }
 .status-off { background: rgba(255,80,80,0.1); color: #ff5050; }
-.member-chip { font-size: 0.8rem; color: #ffffff; margin-right: auto; }
-.squad-foot { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(255,255,255,0.05); margin-top: 8px; padding-top: 6px; }
-.squad-link { color: #33ff99; text-decoration: none; font-size: 0.85rem; }
+
+.squad-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  margin-top: 8px;
+  padding-top: 6px;
+}
+
+.squad-link {
+  color: #33ff99;
+  text-decoration: none;
+  font-size: 0.85rem;
+}
+
 .squad-link:hover { text-decoration: underline; }
+
+/* ================================
+   Manage Table
+   ================================ */
 
 .manage-table {
   width: 100%;
   border-collapse: collapse;
-  margin-top: 10px;
   font-size: 0.9rem;
-  table-layout: fixed;
-}
-
-.manage-table th, .manage-table td {
-  padding: 8px 12px;
-  border-bottom: 1px solid rgba(255,255,255,0.05);
-}
-
-.manage-table th {
-  background: #0f1a1a;
-  position: sticky;
-  top: 0;
-  z-index: 5;
-  text-align: left;
-  color: #9ff;
-}
-
-.manage-table tbody tr:nth-child(even) { background: rgba(255,255,255,0.02); }
-.manage-table tbody tr:hover { background: rgba(51,255,153,0.06); }
-
-.manage-table th, 
-.manage-table td {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  padding: 10px 14px;
-}
-
-.manage-table th:nth-child(1), .manage-table td:nth-child(1) { width: 90px; text-align: center; }  /* ID */
-.manage-table th:nth-child(2), .manage-table td:nth-child(2) { width: 240px; }                     /* Squad Name */
-.manage-table th:nth-child(3), .manage-table td:nth-child(3) { width: 140px; text-align: center; } /* Category */
-.manage-table th:nth-child(4), .manage-table td:nth-child(4) { width: 90px; text-align: center; }  /* Active */
-.manage-table th:nth-child(5), .manage-table td:nth-child(5) { width: 340px; }                     /* Objective */
-.manage-table th:nth-child(6), .manage-table td:nth-child(6) { width: 220px; }                     /* Leader */
-.manage-table th:nth-child(7), .manage-table td:nth-child(7) { width: 180px; }                     /* Created By */
-.manage-table th:nth-child(8), .manage-table td:nth-child(8) { width: 160px; text-align: center; } /* Actions */
-
-/* Make table headers sticky within scrollable manage-table container */
-#cards:has(table.manage-table) {
-  overflow-y: auto;
-  max-height: calc(100vh - 250px);
-  position: relative;
-}
-
-.manage-table th {
-  position: sticky;
-  top: 0;
-  background: #122020; /* darker for contrast */
-  z-index: 20;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-}
-
-/* Give Manage Table distinct styling */
-.manage-table {
-  background: #0d1616; /* darker contrast base */
-  border: 1px solid rgba(51, 255, 153, 0.1);
+  background: #0d1616;
+  border: 1px solid rgba(51,255,153,0.1);
   border-radius: 8px;
-  box-shadow: 0 0 8px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 0 8px rgba(0,0,0,0.4);
 }
 
-.manage-table tbody tr:hover {
-  background: rgba(51, 255, 153, 0.08);
-}
-
+/* Header Styling (Sticky + Shadow) */
 .manage-table th {
+  position: sticky;
+  top: 0;
   background: #122020;
   color: #99ffcc;
   text-transform: uppercase;
   letter-spacing: 0.03em;
+  z-index: 20;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  text-align: left;
 }
 
-.editable:focus { background: rgba(51,255,153,0.08); }
-.btn-save, .btn-cancel { padding: 4px 10px; border-radius: 6px; font-size: 0.85rem; cursor: pointer; border: 1px solid transparent; background: transparent; transition: all .2s; }
+.manage-table th, .manage-table td {
+  padding: 10px 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+/* Column widths */
+.manage-table th:nth-child(1), .manage-table td:nth-child(1) { width: 80px; text-align: center; }  /* ID */
+.manage-table th:nth-child(2), .manage-table td:nth-child(2) { width: 180px; }                     /* Squad Name */
+.manage-table th:nth-child(3), .manage-table td:nth-child(3) { width: 120px; text-align: center; } /* Category */
+.manage-table th:nth-child(4), .manage-table td:nth-child(4) { width: 80px; text-align: center; }  /* Active */
+.manage-table th:nth-child(5), .manage-table td:nth-child(5) { width: 260px; }                     /* Objective */
+.manage-table th:nth-child(6), .manage-table td:nth-child(6) { width: 200px; }                     /* Leader */
+.manage-table th:nth-child(7), .manage-table td:nth-child(7) { width: 160px; }                     /* Created By */
+.manage-table th:nth-child(8), .manage-table td:nth-child(8) { width: 140px; text-align: center; } /* Actions */
+
+/* Row colors */
+.manage-table tbody tr:nth-child(even) { background: rgba(255,255,255,0.02); }
+.manage-table tbody tr:hover { background: rgba(51,255,153,0.08); }
+
+/* ================================
+   Buttons (Save / Cancel)
+   ================================ */
+.btn-save, .btn-cancel {
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  border: 1px solid transparent;
+  background: transparent;
+  transition: all .2s;
+}
+
 .btn-save { color: #33ff99; border-color: #33ff99; }
 .btn-save:hover { background: rgba(51,255,153,0.1); }
 .btn-cancel { color: #ff8080; border-color: #ff5050; }
 .btn-cancel:hover { background: rgba(255,80,80,0.1); }
 
+/* Responsive fix: stack buttons when narrow */
+@media (max-width: 1300px) {
+  .actions-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .btn-save, .btn-cancel {
+    width: 100%;
+    text-align: center;
+  }
+}
+
+/* ================================
+   Scrollbar styling
+   ================================ */
+#cards::-webkit-scrollbar {
+  width: 10px;
+}
+#cards::-webkit-scrollbar-track {
+  background: #0b1414;
+  border-radius: 10px;
+}
+#cards::-webkit-scrollbar-thumb {
+  background-color: #33ff99;
+  border-radius: 10px;
+  border: 2px solid #0b1414;
+}
+#cards::-webkit-scrollbar-thumb:hover {
+  background-color: #66ffc4;
+}
+
+/* ================================
+   Misc UI
+   ================================ */
 .overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; justify-content: center; color: #9ff; z-index: 50; }
 .overlay-text { margin-top: 10px; color: #aefcd8; font-size: 0.9rem; text-align: center; }
 .spinner { width: 42px; height: 42px; border: 4px solid #33ff99; border-top-color: transparent; border-radius: 50%; animation: spin 1s linear infinite; }
@@ -848,6 +887,7 @@ style.textContent = `
   box-shadow: 0 4px 12px rgba(0,0,0,0.3);
   text-align: center;
 }
+
 .pu-toast.show {
   opacity: 1;
   animation: toast-pop 0.25s ease forwards;
@@ -858,64 +898,13 @@ style.textContent = `
   100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
 }
 
-.leader-select-single {
-  width: 95%;
-  max-width: 260px;
-  padding: 4px 6px;
-  border-radius: 6px;
-  background: #0f1a1a;
-  color: #cde;
-  border: 1px solid #2a3d3d;
-}
-
-.leader-select-single:focus {
-  outline: none;
-  border-color: #33ff99;
-  box-shadow: 0 0 4px rgba(51,255,153,0.3);
-}
-
-/* ==============================================
-   SCROLLBAR FIX — only show one scrollbar at a time
-   ============================================== */
-
-/* Default card view: outer container handles scroll */
-#cards {
-  overflow-y: visible;
-}
-
-/* Only enable scroll when manage table is active */
-#cards:has(table.manage-table) {
-  overflow-y: auto;
-  max-height: calc(100vh - 250px);
-}
-
-/* Make scrollbar match dashboard theme */
-#cards::-webkit-scrollbar {
-  width: 10px;
-}
-#cards::-webkit-scrollbar-track {
-  background: #0b1414;
-  border-radius: 10px;
-}
-#cards::-webkit-scrollbar-thumb {
-  background-color: #33ff99;
-  border-radius: 10px;
-  border: 2px solid #0b1414;
-}
-#cards::-webkit-scrollbar-thumb:hover {
-  background-color: #66ffc4;
-}
-
 .emoji-logo {
-  width: 18px;   /* increase size — tweak to your preference */
+  width: 18px;
   height: 18px;
   filter: invert(52%) sepia(88%) saturate(3789%) hue-rotate(2deg) brightness(102%) contrast(101%);
-  /* The filter above turns white SVGs into #FF6600 (approx). 
-     Adjust hue-rotate if your logo is not pure white. */
   vertical-align: middle;
   margin-right: 6px;
 }
-
 `;
 
 document.head.appendChild(style);
