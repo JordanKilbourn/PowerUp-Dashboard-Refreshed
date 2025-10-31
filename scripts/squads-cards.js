@@ -298,14 +298,25 @@ async function applyFilters() {
   if (activeOnly) list = list.filter(s => isTrue(s.active));
   if (cat !== 'All') list = list.filter(s => s.category === cat);
 
-  if (q) {
-    list = list.filter(s => {
-      const hay = [s.name, s.leaderName, s.leaderId, s.objective, s.notes]
-        .join(' ')
-        .toLowerCase();
-      return hay.includes(q);
-    });
-  }
+if (q) {
+  list = list.filter(s => {
+    const sid = String(s.id || '').trim();
+    const leaders = LEADERS_BY_SQUAD.get(sid) || [];
+    const leaderNames = leaders.map(l => l.name || '').join(' ').toLowerCase();
+
+    const hay = [
+      s.name,
+      leaderNames,
+      s.leaderId,
+      s.objective,
+      s.notes
+    ]
+      .join(' ')
+      .toLowerCase();
+
+    return hay.includes(q);
+  });
+}
 
   renderCards(list);
 }
