@@ -534,35 +534,39 @@ function bindFilters() {
   const myToggle = document.getElementById('myOnly');
   const searchBox = document.getElementById('search');
 
+  // Category filters
   if (catWrap) {
     catWrap.addEventListener('click', e => {
       const btn = e.target.closest('button[data-cat]');
       if (!btn) return;
-      activeCategory = btn.dataset.cat;
-      renderCategoryPills(activeCategory);
+      document.querySelectorAll('.pill-cat').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
       applyFilters();
     });
   }
 
+  // "Active Only" checkbox
   if (activeToggle) {
-    activeToggle.addEventListener('change', e => {
-      activeOnly = e.target.checked;
-      applyFilters();
-    });
+    activeToggle.addEventListener('change', applyFilters);
   }
 
+  // "My Squads" checkbox
   if (myToggle) {
-    myToggle.addEventListener('change', e => {
-      mySquadsOnly = e.target.checked;
-      applyFilters();
+    myToggle.addEventListener('change', applyFilters);
+  }
+
+  // Search box
+  if (searchBox) {
+    searchBox.addEventListener('input', () => {
+      // Slight delay for smoother typing
+      clearTimeout(searchBox._t);
+      searchBox._t = setTimeout(applyFilters, 200);
     });
   }
 
-  if (searchBox) {
-    searchBox.addEventListener('input', applyFilters);
-  }
+  // Admin filter (dropdown) — reapply when changed
+  document.addEventListener('powerup-admin-filter-change', applyFilters);
 }
-
 
 // =======================
 // Page Init
@@ -575,7 +579,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   renderCategoryPills('All');
   await load();
-  bindFilters?.();
+  bindFilters();
 
   // Auto-enable "My Squads"
   const myToggle = document.getElementById('myOnly');
