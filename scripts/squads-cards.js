@@ -593,6 +593,23 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 });
 
+
+  // ==============================
+// Restrict buttons to admins only
+// ==============================
+document.addEventListener("DOMContentLoaded", () => {
+  const isAdmin = P.auth?.isAdmin?.() || false;
+  const addBtn = document.getElementById("btn-add-squad");
+  const manageBtn = document.getElementById("btn-manage");
+
+  if (!isAdmin) {
+    // Hide buttons entirely for non-admin users
+    if (addBtn) addBtn.style.display = "none";
+    if (manageBtn) manageBtn.style.display = "none";
+  }
+});
+
+
 // =======================
 // Inline Styles
 // =======================
