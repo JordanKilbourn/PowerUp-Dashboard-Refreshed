@@ -782,12 +782,58 @@ style.textContent = `
   color: #cde;
   border: 1px solid #2a3d3d;
 }
+
 .leader-select-single:focus {
   outline: none;
   border-color: #33ff99;
   box-shadow: 0 0 4px rgba(51,255,153,0.3);
 }
+
+/* ==============================================
+   SCROLLBAR FIX — only show one scrollbar at a time
+   ============================================== */
+
+/* Default card view: outer container handles scroll */
+#cards {
+  overflow-y: visible;
+}
+
+/* Only enable scroll when manage table is active */
+#cards:has(table.manage-table) {
+  overflow-y: auto;
+  max-height: calc(100vh - 250px);
+}
+
+/* Make scrollbar match dashboard theme */
+#cards::-webkit-scrollbar {
+  width: 10px;
+}
+#cards::-webkit-scrollbar-track {
+  background: #0b1414;
+  border-radius: 10px;
+}
+#cards::-webkit-scrollbar-thumb {
+  background-color: #33ff99;
+  border-radius: 10px;
+  border: 2px solid #0b1414;
+}
+#cards::-webkit-scrollbar-thumb:hover {
+  background-color: #66ffc4;
+}
+
+.emoji-logo {
+  width: 18px;   /* increase size — tweak to your preference */
+  height: 18px;
+  filter: invert(52%) sepia(88%) saturate(3789%) hue-rotate(2deg) brightness(102%) contrast(101%);
+  /* The filter above turns white SVGs into #FF6600 (approx). 
+     Adjust hue-rotate if your logo is not pure white. */
+  vertical-align: middle;
+  margin-right: 6px;
+}
+
 `;
+
 document.head.appendChild(style);
 
 })(window.PowerUp);
+
