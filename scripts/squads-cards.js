@@ -46,6 +46,8 @@
   const LEADERS_BY_SQUAD = new Map();
   let ALL = [];
   let idToName = new Map();
+  let IS_ADMIN = false;
+
 
   function normCategory(v) {
     const t = String(v || '').toLowerCase();
@@ -225,37 +227,59 @@
 // =======================
 // Filters (fixed MySquads logic)
 // =======================
-// =======================
-// Filter State
-// =======================
 let activeCategory = 'All';
 let activeOnly = false;
 let mySquadsOnly = false;
 
   
+function userIsMemberOrLeader(squad, session) {
+  const myId   = String(session.employeeId || '').trim().toLowerCase();
+  const myName = String(session.displayName || '').trim().toLowerCase();
+
+  if (myId && String(squad.leaderId || '').trim().toLowerCase() === myId) return true;
+
+  const sid = String(squad.id || '').trim();
+  const entry = MEMBERS_BY_SQUAD.get(sid);
+  if (entry) {
+    if (myId && entry.ids.has(myId)) return true;
+    if (myName && entry.names.has(myName)) return true;
+  } else {
+    const tokensLC = String(squad.members || '')
+      .split(/[,;\n]+/)
+      .map(s => s.trim().toLowerCase())
+      .filter(Boolean);
+    if (myId && tokensLC.includes(myId)) return true;
+    if (myName && tokensLC.includes(myName)) return true;
+  }
+  return false;
+}
+
 async function applyFilters() {
-  const session   = P.session.get();
-  const cat       = document.querySelector('.pill-cat.active')?.dataset.cat || 'All';
-  let   myOnly    = document.getElementById('myOnly')?.checked;
-  const activeOnly= document.getElementById('activeOnly')?.checked;
-  const q         = (document.getElementById('search')?.value || '').trim().toLowerCase();
+  const session = P.session.get();
+  const cat = document.querySelector('.pill-cat.active')?.dataset.cat || 'All';
+  const myOnly = document.getElementById('myOnly')?.checked;
+  const activeOnly = document.getElementById('activeOnly')?.checked;
+  const q = (document.getElementById('search')?.value || '').trim().toLowerCase();
 
   let list = ALL.slice();
 
   if (myOnly) {
     if (IS_ADMIN) {
       let target = await getAdminTargetFromFilter();
-      if (!target) target = { id: String(session.employeeId||'').trim(), name: String(session.displayName||'').trim() };
+      if (!target) target = { 
+        id: String(session.employeeId || '').trim(), 
+        name: String(session.displayName || '').trim() 
+      };
 
-      const norm = s => String(s||'').trim().toLowerCase();
+      const norm = s => String(s || '').trim().toLowerCase();
       const tgtId = norm(target.id);
       const tgtName = norm(target.name);
 
       list = list.filter(s => {
-        const leaders = LEADERS_BY_SQUAD.get(String(s.id||'').trim()) || [];
+        const leaders = LEADERS_BY_SQUAD.get(String(s.id || '').trim()) || [];
         const leaderHit = leaders.some(x => norm(x.id) === tgtId || norm(x.name) === tgtName);
 
-        const m = MEMBERS_BY_SQUAD.get(String(s.id||'').trim());
+        const m = MEMBERS_BY_SQUAD.get(String(s.id || '').trim());
         const memberHit = m ? (m.ids.has(tgtId) || m.names.has(tgtName)) : false;
 
         let fallbackHit = false;
@@ -263,6 +287,7 @@ async function applyFilters() {
           const toks = String(s.members).split(/[,;\n]+/).map(t => norm(t));
           fallbackHit = (!!tgtId && toks.includes(tgtId)) || (!!tgtName && toks.includes(tgtName));
         }
+
         return leaderHit || memberHit || fallbackHit;
       });
     } else {
@@ -270,12 +295,14 @@ async function applyFilters() {
     }
   }
 
-  if (activeOnly)  list = list.filter(s => isTrue(s.active));
+  if (activeOnly) list = list.filter(s => isTrue(s.active));
   if (cat !== 'All') list = list.filter(s => s.category === cat);
 
   if (q) {
     list = list.filter(s => {
-      const hay = [s.name, s.leaderName, s.leaderId, s.objective, s.notes].join(' ').toLowerCase();
+      const hay = [s.name, s.leaderName, s.leaderId, s.objective, s.notes]
+        .join(' ')
+        .toLowerCase();
       return hay.includes(q);
     });
   }
@@ -576,6 +603,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   P.layout.injectLayout();
   P.layout.setPageTitle('Squads');
   await P.session.initHeader();
+  
+  IS_ADMIN = !!(P.auth && P.auth.isAdmin && P.auth.isAdmin());
 
   renderCategoryPills('All');
   await load();
