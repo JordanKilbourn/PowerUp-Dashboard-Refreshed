@@ -687,34 +687,45 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // =======================
-// Inline Styles — unified scroll + sticky headers + restored styling
+// Inline Styles — Final Unification
 // =======================
 const style = document.createElement('style');
 style.textContent = `
 
 /* ==============================================
-   SCROLL BEHAVIOR — only the big green container scrolls
+   OUTER CONTAINERS — prevent extra scroll
    ============================================== */
-
 #pu-content, .squads-scroll, .page-content {
-  overflow: hidden !important; /* No scrolling outside green zone */
+  overflow: hidden !important;
   height: 100%;
   max-height: 100vh;
 }
 
-/* Green container handles scrolling */
+/* ==============================================
+   MAIN SCROLL AREA — green container
+   ============================================== */
 #cards {
-  display: block;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 16px;
+  margin-top: 14px;
   width: 100%;
   height: calc(100vh - 250px);
   overflow-y: auto;
   overflow-x: hidden;
-  margin-top: 14px;
   padding-bottom: 20px;
+  transition: all 0.3s ease;
+}
+
+/* Switch layout to block when table is active */
+#cards:has(table.manage-table) {
+  display: block;
+  padding: 0;
+  margin: 0;
 }
 
 /* ==============================================
-   SQUAD CARDS
+   SQUAD CARDS — restored grid layout
    ============================================== */
 .squad-card {
   background: #101a1a;
@@ -727,10 +738,35 @@ style.textContent = `
   box-shadow: 0 0 8px rgba(0,0,0,0.3);
   transition: transform .2s ease, box-shadow .2s ease;
 }
-.squad-card:hover { transform: translateY(-3px); box-shadow: 0 0 12px rgba(51,255,153,0.4); }
+
+.squad-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 0 12px rgba(51,255,153,0.4);
+}
+
+.squad-meta { font-size: 0.85rem; margin: 3px 0; color: #aab; }
+.status-pill { padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; }
+.status-on { background: rgba(51,255,153,0.1); color: #33ff99; }
+.status-off { background: rgba(255,80,80,0.1); color: #ff5050; }
+
+.squad-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  margin-top: 8px;
+  padding-top: 6px;
+}
+
+.squad-link {
+  color: #33ff99;
+  text-decoration: none;
+  font-size: 0.85rem;
+}
+.squad-link:hover { text-decoration: underline; }
 
 /* ==============================================
-   MANAGE TABLE
+   MANAGE TABLE — flexing + adaptive scroll
    ============================================== */
 .manage-table {
   width: 100%;
@@ -740,9 +776,10 @@ style.textContent = `
   border: 1px solid rgba(51,255,153,0.1);
   border-radius: 8px;
   box-shadow: 0 0 8px rgba(0,0,0,0.4);
+  table-layout: auto; /* <-- makes columns flex better */
 }
 
-/* Sticky header — sticks inside #cards scrolling */
+/* Sticky header */
 .manage-table th {
   position: sticky;
   top: 0;
@@ -751,32 +788,45 @@ style.textContent = `
   text-transform: uppercase;
   letter-spacing: 0.03em;
   z-index: 20;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
   text-align: left;
 }
 
 /* Table cells */
 .manage-table th, .manage-table td {
   padding: 10px 14px;
-  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   border-bottom: 1px solid rgba(255,255,255,0.05);
   vertical-align: middle;
+  white-space: nowrap;
 }
 
-/* Column widths — reduced slightly for balance */
-.manage-table th:nth-child(1), .manage-table td:nth-child(1) { width: 70px; text-align: center; }  /* ID */
-.manage-table th:nth-child(2), .manage-table td:nth-child(2) { width: 170px; }                     /* Squad Name */
-.manage-table th:nth-child(3), .manage-table td:nth-child(3) { width: 110px; text-align: center; } /* Category */
-.manage-table th:nth-child(4), .manage-table td:nth-child(4) { width: 70px; text-align: center; }  /* Active */
-.manage-table th:nth-child(5), .manage-table td:nth-child(5) { width: 240px; }                     /* Objective */
-.manage-table th:nth-child(6), .manage-table td:nth-child(6) { width: 200px; }                     /* Leader */
-.manage-table th:nth-child(7), .manage-table td:nth-child(7) { width: 140px; }                     /* Created By */
-.manage-table th:nth-child(8), .manage-table td:nth-child(8) { width: 140px; text-align: center; } /* Actions */
+/* Column weight balance (no more hard pixel widths) */
+.manage-table th:nth-child(1), .manage-table td:nth-child(1) { width: 5%; text-align: center; }   /* ID */
+.manage-table th:nth-child(2), .manage-table td:nth-child(2) { width: 18%; }                      /* Squad Name */
+.manage-table th:nth-child(3), .manage-table td:nth-child(3) { width: 10%; text-align: center; }  /* Category */
+.manage-table th:nth-child(4), .manage-table td:nth-child(4) { width: 7%; text-align: center; }   /* Active */
+.manage-table th:nth-child(5), .manage-table td:nth-child(5) { width: 22%; }                      /* Objective */
+.manage-table th:nth-child(6), .manage-table td:nth-child(6) { width: 15%; }                      /* Leader */
+.manage-table th:nth-child(7), .manage-table td:nth-child(7) { width: 13%; }                      /* Created By */
+.manage-table th:nth-child(8), .manage-table td:nth-child(8) { width: 10%; text-align: center; }  /* Actions */
 
 .manage-table tbody tr:nth-child(even) { background: rgba(255,255,255,0.02); }
 .manage-table tbody tr:hover { background: rgba(51,255,153,0.08); }
+
+/* ==============================================
+   RESPONSIVE ADAPTATION
+   ============================================== */
+/* Allow horizontal scroll for small screens */
+@media (max-width: 1100px) {
+  #cards:has(table.manage-table) {
+    overflow-x: auto;
+  }
+  .manage-table {
+    min-width: 1000px;
+  }
+}
 
 /* ==============================================
    BUTTONS (Save / Cancel)
@@ -809,7 +859,7 @@ style.textContent = `
 }
 
 /* ==============================================
-   LEADER DROPDOWN RESTORE
+   LEADER DROPDOWN
    ============================================== */
 .leader-select-single {
   width: 95%;
@@ -829,7 +879,7 @@ style.textContent = `
 /* ==============================================
    SCROLLBAR STYLING
    ============================================== */
-#cards::-webkit-scrollbar { width: 10px; }
+#cards::-webkit-scrollbar { width: 10px; height: 10px; }
 #cards::-webkit-scrollbar-track { background: #0b1414; border-radius: 10px; }
 #cards::-webkit-scrollbar-thumb {
   background-color: #33ff99;
@@ -851,6 +901,7 @@ style.textContent = `
 }
 `;
 document.head.appendChild(style);
+
 
 
 })(window.PowerUp);
