@@ -196,7 +196,32 @@
       notes: pick(r, SQUAD_COL.notes, '')
     }));
   }
+  
+  
+  async function getAdminTargetFromFilter() {
+  try {
+    const sel = (sessionStorage.getItem('pu.adminEmployeeFilter') || '').trim();
+    if (!sel || sel === '__ALL__') return null;
 
+    if (!idToName.size) {
+      const em = await getRowsByTitle(SHEETS.EMPLOYEE_MASTER);
+      em.forEach(r => {
+        const id = String(r['Position ID'] || r['Employee ID'] || '').trim();
+        const nm = String(r['Display Name'] || r['Employee Name'] || r['Name'] || '').trim();
+        if (id) idToName.set(id, nm);
+      });
+    }
+    const norm = s => String(s||'').trim().toLowerCase();
+    let targetId = '';
+    for (const [id, nm] of idToName.entries()) {
+      if (norm(nm) === norm(sel)) { targetId = id; break; }
+    }
+    return { id: targetId, name: sel };
+  } catch { return null; }
+}
+
+
+  
 // =======================
 // Filters (fixed MySquads logic)
 // =======================
@@ -207,60 +232,54 @@ let activeCategory = 'All';
 let activeOnly = false;
 let mySquadsOnly = false;
 
-function applyFilters() {
-  const searchBox = document.getElementById('search');
-  const q = (searchBox?.value || '').trim().toLowerCase();
+  
+async function applyFilters() {
+  const session   = P.session.get();
+  const cat       = document.querySelector('.pill-cat.active')?.dataset.cat || 'All';
+  let   myOnly    = document.getElementById('myOnly')?.checked;
+  const activeOnly= document.getElementById('activeOnly')?.checked;
+  const q         = (document.getElementById('search')?.value || '').trim().toLowerCase();
 
-  let list = [...ALL];
+  let list = ALL.slice();
 
-  if (activeCategory !== 'All')
-    list = list.filter(x => x.category === activeCategory);
-  if (activeOnly)
-    list = list.filter(x => isTrue(x.active));
- if (mySquadsOnly) {
-  // Use admin-selected user if applicable, otherwise current session user
-  const selectedUser = P.state?.selectedUser || P.session.current || {};
-  const myId = (selectedUser.employeeId || selectedUser.positionId || '').trim().toLowerCase();
-  const myName = (selectedUser.displayName || selectedUser.name || '').trim().toLowerCase();
+  if (myOnly) {
+    if (IS_ADMIN) {
+      let target = await getAdminTargetFromFilter();
+      if (!target) target = { id: String(session.employeeId||'').trim(), name: String(session.displayName||'').trim() };
 
-  console.log("🧭 My Squads Debug:", {
-    myId,
-    myName,
-    membersBySquad: MEMBERS_BY_SQUAD,
-    leadersBySquad: LEADERS_BY_SQUAD
-  });
+      const norm = s => String(s||'').trim().toLowerCase();
+      const tgtId = norm(target.id);
+      const tgtName = norm(target.name);
 
+      list = list.filter(s => {
+        const leaders = LEADERS_BY_SQUAD.get(String(s.id||'').trim()) || [];
+        const leaderHit = leaders.some(x => norm(x.id) === tgtId || norm(x.name) === tgtName);
 
-    
-    list = list.filter(x => {
-      const sid = String(x.id || '').trim().toUpperCase();
-      const members = MEMBERS_BY_SQUAD.get(sid);
-      const leaders = LEADERS_BY_SQUAD.get(sid) || [];
+        const m = MEMBERS_BY_SQUAD.get(String(s.id||'').trim());
+        const memberHit = m ? (m.ids.has(tgtId) || m.names.has(tgtName)) : false;
 
-      const isMember =
-        members &&
-        ([...members.ids].some(id => id.toLowerCase() === myId) ||
-         [...members.names].some(n => n.toLowerCase() === myName));
-
-      const isLeader =
-        leaders.some(l =>
-          (l.id || '').toLowerCase() === myId ||
-          (l.name || '').toLowerCase() === myName
-        );
-
-      return isMember || isLeader;
-    });
+        let fallbackHit = false;
+        if (!m && s.members) {
+          const toks = String(s.members).split(/[,;\n]+/).map(t => norm(t));
+          fallbackHit = (!!tgtId && toks.includes(tgtId)) || (!!tgtName && toks.includes(tgtName));
+        }
+        return leaderHit || memberHit || fallbackHit;
+      });
+    } else {
+      list = list.filter(s => userIsMemberOrLeader(s, session));
+    }
   }
+
+  if (activeOnly)  list = list.filter(s => isTrue(s.active));
+  if (cat !== 'All') list = list.filter(s => s.category === cat);
 
   if (q) {
-    list = list.filter(x => {
-      const sid = String(x.id || '').trim().toLowerCase();
-      const leaders = LEADERS_BY_SQUAD.get(sid) || [];
-      const leaderNames = leaders.map(l => l.name).join(' ').toLowerCase();
-      const haystack = [x.name, leaderNames, x.objective, x.notes].join(' ').toLowerCase();
-      return haystack.includes(q);
+    list = list.filter(s => {
+      const hay = [s.name, s.leaderName, s.leaderId, s.objective, s.notes].join(' ').toLowerCase();
+      return hay.includes(q);
     });
   }
+
   renderCards(list);
 }
 
