@@ -687,157 +687,100 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // =======================
-// Inline Styles (Finalized)
+// Inline Styles — unified scroll + sticky headers + restored styling
 // =======================
 const style = document.createElement('style');
 style.textContent = `
 
-/* =======================================
-   GREEN CONTAINER (MAIN SCROLL REGION)
-======================================= */
-.squad-container {
-  flex: 1;
-  background-color: var(--panel-bg, #062a24);
-  border-radius: 12px;
-  padding: 1rem;
-  margin: 0 auto;
-  overflow: auto;
-  max-height: calc(100vh - 220px);
-  display: flex;
-  flex-direction: column;
+/* ==============================================
+   SCROLL BEHAVIOR — only the big green container scrolls
+   ============================================== */
+
+#pu-content, .squads-scroll, .page-content {
+  overflow: hidden !important; /* No scrolling outside green zone */
+  height: 100%;
+  max-height: 100vh;
 }
 
-/* Themed scrollbars */
-.squad-container::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-.squad-container::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 10px;
-}
-.squad-container::-webkit-scrollbar-thumb {
-  background-color: #33FF99;
-  border-radius: 10px;
-  border: 2px solid rgba(0, 0, 0, 0.3);
-}
-.squad-container::-webkit-scrollbar-thumb:hover {
-  background-color: #50FFAA;
-}
-
-/* =======================================
-   CARD GRID LAYOUT
-======================================= */
+/* Green container handles scrolling */
 #cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 1rem;
-  align-content: flex-start;
-  flex: 1;
+  display: block;
+  width: 100%;
+  height: calc(100vh - 250px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  margin-top: 14px;
+  padding-bottom: 20px;
 }
 
-/* Fixed card design */
+/* ==============================================
+   SQUAD CARDS
+   ============================================== */
 .squad-card {
-  background-color: #0f1a1a;
+  background: #101a1a;
+  border-left: 5px solid var(--accent, #33ff99);
   border-radius: 10px;
-  border-left: 5px solid var(--accent, #33FF99);
-  height: 130px;
-  padding: 12px 14px;
+  padding: 14px 16px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  color: #d7fbea;
   box-shadow: 0 0 8px rgba(0,0,0,0.3);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: transform .2s ease, box-shadow .2s ease;
 }
-.squad-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 4px 10px rgba(0,0,0,0.4);
-}
+.squad-card:hover { transform: translateY(-3px); box-shadow: 0 0 12px rgba(51,255,153,0.4); }
 
-.squad-card h4 {
-  font-size: 1rem;
-  color: #ffffff;
-  margin: 0 0 4px 0;
-}
-.squad-meta {
-  font-size: 0.85rem;
-  color: #aab;
-}
-.squad-foot {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 0.85rem;
-  margin-top: 6px;
-  border-top: 1px solid rgba(255,255,255,0.05);
-  padding-top: 4px;
-}
-
-/* Member count + logo */
-.squad-foot .member-chip {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.85rem;
-  color: #ffffff;
-}
-.squad-foot .member-chip img {
-  width: 18px;
-  height: 18px;
-  object-fit: contain;
-  filter: invert(52%) sepia(88%) saturate(3789%) hue-rotate(2deg) brightness(102%) contrast(101%);
-}
-
-/* =======================================
-   MANAGE TABLE VIEW
-======================================= */
+/* ==============================================
+   MANAGE TABLE
+   ============================================== */
 .manage-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.9rem;
-  margin-top: 10px;
-  table-layout: fixed;
-  border: 1px solid rgba(51,255,153,0.1);
   background: #0d1616;
+  border: 1px solid rgba(51,255,153,0.1);
   border-radius: 8px;
   box-shadow: 0 0 8px rgba(0,0,0,0.4);
 }
 
-.manage-table th,
-.manage-table td {
-  padding: 10px 14px;
-  border-bottom: 1px solid rgba(255,255,255,0.05);
-  text-overflow: ellipsis;
-  overflow: hidden;
-  white-space: nowrap;
-}
-
+/* Sticky header — sticks inside #cards scrolling */
 .manage-table th {
   position: sticky;
   top: 0;
-  z-index: 10;
   background: #122020;
   color: #99ffcc;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  font-weight: 600;
+  z-index: 20;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
   text-align: left;
 }
 
-/* Column width ratios */
-.manage-table th:nth-child(1), .manage-table td:nth-child(1) { width: 5%;  text-align: center; }  /* ID */
-.manage-table th:nth-child(2), .manage-table td:nth-child(2) { width: 20%; }                      /* Squad Name */
-.manage-table th:nth-child(3), .manage-table td:nth-child(3) { width: 10%; text-align: center; } /* Category */
-.manage-table th:nth-child(4), .manage-table td:nth-child(4) { width: 5%; text-align: center; }  /* Active */
-.manage-table th:nth-child(5), .manage-table td:nth-child(5) { width: 25%; }                     /* Objective */
-.manage-table th:nth-child(6), .manage-table td:nth-child(6) { width: 15%; }                     /* Leader */
-.manage-table th:nth-child(7), .manage-table td:nth-child(7) { width: 10%; }                     /* Created By */
-.manage-table th:nth-child(8), .manage-table td:nth-child(8) { width: 10%; text-align: center; } /* Actions */
+/* Table cells */
+.manage-table th, .manage-table td {
+  padding: 10px 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  vertical-align: middle;
+}
+
+/* Column widths — reduced slightly for balance */
+.manage-table th:nth-child(1), .manage-table td:nth-child(1) { width: 70px; text-align: center; }  /* ID */
+.manage-table th:nth-child(2), .manage-table td:nth-child(2) { width: 170px; }                     /* Squad Name */
+.manage-table th:nth-child(3), .manage-table td:nth-child(3) { width: 110px; text-align: center; } /* Category */
+.manage-table th:nth-child(4), .manage-table td:nth-child(4) { width: 70px; text-align: center; }  /* Active */
+.manage-table th:nth-child(5), .manage-table td:nth-child(5) { width: 240px; }                     /* Objective */
+.manage-table th:nth-child(6), .manage-table td:nth-child(6) { width: 200px; }                     /* Leader */
+.manage-table th:nth-child(7), .manage-table td:nth-child(7) { width: 140px; }                     /* Created By */
+.manage-table th:nth-child(8), .manage-table td:nth-child(8) { width: 140px; text-align: center; } /* Actions */
 
 .manage-table tbody tr:nth-child(even) { background: rgba(255,255,255,0.02); }
-.manage-table tbody tr:hover { background: rgba(51,255,153,0.06); }
+.manage-table tbody tr:hover { background: rgba(51,255,153,0.08); }
 
+/* ==============================================
+   BUTTONS (Save / Cancel)
+   ============================================== */
 .btn-save, .btn-cancel {
   padding: 4px 10px;
   border-radius: 6px;
@@ -852,21 +795,63 @@ style.textContent = `
 .btn-cancel { color: #ff8080; border-color: #ff5050; }
 .btn-cancel:hover { background: rgba(255,80,80,0.1); }
 
-/* =======================================
-   RESPONSIVE BEHAVIOR
-======================================= */
-@media (max-width: 1200px) {
-  #cards {
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+/* Stack buttons vertically when screen is narrow */
+@media (max-width: 1300px) {
+  .actions-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .btn-save, .btn-cancel {
+    width: 100%;
+    text-align: center;
   }
 }
-@media (max-width: 800px) {
-  #cards {
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  }
+
+/* ==============================================
+   LEADER DROPDOWN RESTORE
+   ============================================== */
+.leader-select-single {
+  width: 95%;
+  max-width: 260px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  background: #0f1a1a;
+  color: #cde;
+  border: 1px solid #2a3d3d;
+}
+.leader-select-single:focus {
+  outline: none;
+  border-color: #33ff99;
+  box-shadow: 0 0 4px rgba(51,255,153,0.3);
+}
+
+/* ==============================================
+   SCROLLBAR STYLING
+   ============================================== */
+#cards::-webkit-scrollbar { width: 10px; }
+#cards::-webkit-scrollbar-track { background: #0b1414; border-radius: 10px; }
+#cards::-webkit-scrollbar-thumb {
+  background-color: #33ff99;
+  border-radius: 10px;
+  border: 2px solid #0b1414;
+}
+#cards::-webkit-scrollbar-thumb:hover { background-color: #66ffc4; }
+
+/* ==============================================
+   MISC
+   ============================================== */
+.emoji-logo {
+  width: 18px;
+  height: 18px;
+  filter: invert(52%) sepia(88%) saturate(3789%) hue-rotate(2deg)
+    brightness(102%) contrast(101%);
+  vertical-align: middle;
+  margin-right: 6px;
 }
 `;
 document.head.appendChild(style);
+
 
 })(window.PowerUp);
 
