@@ -692,130 +692,152 @@ document.addEventListener("DOMContentLoaded", () => {
 const style = document.createElement('style');
 style.textContent = `
 
-/* ================================
-   SQUAD CARDS GRID VIEW
-=================================== */
-#cards {
-  width: 100%;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-  gap: 16px;
-  margin-top: 14px;
-  overflow-y: auto; /* Outer green container scrolls */
-  max-height: calc(100vh - 250px);
-  padding: 8px;
-  background: #0f1a1a;
-  border-radius: 8px;
+/* =======================================
+   GREEN CONTAINER (MAIN SCROLL REGION)
+======================================= */
+.squad-container {
+  flex: 1;
+  background-color: var(--panel-bg, #062a24);
+  border-radius: 12px;
+  padding: 1rem;
+  margin: 0 auto;
+  overflow: auto;
+  max-height: calc(100vh - 220px);
+  display: flex;
+  flex-direction: column;
 }
 
-/* Squad Card */
-.squad-card {
-  background: #101a1a;
-  border-left: 5px solid var(--accent, #33ff99);
+/* Themed scrollbars */
+.squad-container::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.squad-container::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
   border-radius: 10px;
+}
+.squad-container::-webkit-scrollbar-thumb {
+  background-color: #33FF99;
+  border-radius: 10px;
+  border: 2px solid rgba(0, 0, 0, 0.3);
+}
+.squad-container::-webkit-scrollbar-thumb:hover {
+  background-color: #50FFAA;
+}
+
+/* =======================================
+   CARD GRID LAYOUT
+======================================= */
+#cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1rem;
+  align-content: flex-start;
+  flex: 1;
+}
+
+/* Fixed card design */
+.squad-card {
+  background-color: #0f1a1a;
+  border-radius: 10px;
+  border-left: 5px solid var(--accent, #33FF99);
+  height: 130px;
   padding: 12px 14px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  min-height: 130px;   /* fixed height, uniform grid */
-  max-height: 130px;
+  color: #d7fbea;
   box-shadow: 0 0 8px rgba(0,0,0,0.3);
-  transition: transform .2s ease, box-shadow .2s ease;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 .squad-card:hover {
   transform: translateY(-3px);
-  box-shadow: 0 0 12px rgba(51,255,153,0.4);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.4);
 }
-.squad-meta { font-size: 0.85rem; margin: 3px 0; color: #aab; }
-.status-pill { padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; }
-.status-on { background: rgba(51,255,153,0.1); color: #33ff99; }
-.status-off { background: rgba(255,80,80,0.1); color: #ff5050; }
-.member-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 0.8rem; color: #ffffff; }
-.squad-foot { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(255,255,255,0.05); margin-top: 6px; padding-top: 4px; }
-.squad-link { color: #33ff99; text-decoration: none; font-size: 0.85rem; }
-.squad-link:hover { text-decoration: underline; }
 
-/* Emoji icon */
-.emoji-logo {
+.squad-card h4 {
+  font-size: 1rem;
+  color: #ffffff;
+  margin: 0 0 4px 0;
+}
+.squad-meta {
+  font-size: 0.85rem;
+  color: #aab;
+}
+.squad-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+  margin-top: 6px;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  padding-top: 4px;
+}
+
+/* Member count + logo */
+.squad-foot .member-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: #ffffff;
+}
+.squad-foot .member-chip img {
   width: 18px;
   height: 18px;
-  filter: brightness(0) invert(1);
-  vertical-align: middle;
-  margin-right: 6px;
+  object-fit: contain;
+  filter: invert(52%) sepia(88%) saturate(3789%) hue-rotate(2deg) brightness(102%) contrast(101%);
 }
 
-/* ==============================================
+/* =======================================
    MANAGE TABLE VIEW
-   ============================================== */
-#cards:has(table.manage-table) {
-  display: block;
-  overflow-y: auto;
-  overflow-x: hidden;
-  max-height: calc(100vh - 250px);
-  padding: 0;
-}
-
+======================================= */
 .manage-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.9rem;
+  margin-top: 10px;
   table-layout: fixed;
+  border: 1px solid rgba(51,255,153,0.1);
   background: #0d1616;
-  border: 1px solid rgba(51, 255, 153, 0.1);
   border-radius: 8px;
   box-shadow: 0 0 8px rgba(0,0,0,0.4);
 }
 
-.manage-table th, .manage-table td {
-  padding: 8px 12px;
+.manage-table th,
+.manage-table td {
+  padding: 10px 14px;
   border-bottom: 1px solid rgba(255,255,255,0.05);
-  white-space: nowrap;
-  overflow: hidden;
   text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .manage-table th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
   background: #122020;
   color: #99ffcc;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  position: sticky;
-  top: 0;
-  z-index: 10;
+  font-weight: 600;
   text-align: left;
 }
 
-/* Column widths */
-.manage-table th:nth-child(1), .manage-table td:nth-child(1) { width: 80px; text-align: center; }  /* ID */
-.manage-table th:nth-child(2), .manage-table td:nth-child(2) { width: 200px; }                     /* Squad Name */
-.manage-table th:nth-child(3), .manage-table td:nth-child(3) { width: 120px; text-align: center; } /* Category */
-.manage-table th:nth-child(4), .manage-table td:nth-child(4) { width: 80px; text-align: center; }  /* Active */
-.manage-table th:nth-child(5), .manage-table td:nth-child(5) { width: 260px; }                     /* Objective */
-.manage-table th:nth-child(6), .manage-table td:nth-child(6) { width: 180px; }                     /* Leader */
-.manage-table th:nth-child(7), .manage-table td:nth-child(7) { width: 160px; }                     /* Created By */
-.manage-table th:nth-child(8), .manage-table td:nth-child(8) { width: 160px; text-align: center; } /* Actions */
+/* Column width ratios */
+.manage-table th:nth-child(1), .manage-table td:nth-child(1) { width: 5%;  text-align: center; }  /* ID */
+.manage-table th:nth-child(2), .manage-table td:nth-child(2) { width: 20%; }                      /* Squad Name */
+.manage-table th:nth-child(3), .manage-table td:nth-child(3) { width: 10%; text-align: center; } /* Category */
+.manage-table th:nth-child(4), .manage-table td:nth-child(4) { width: 5%; text-align: center; }  /* Active */
+.manage-table th:nth-child(5), .manage-table td:nth-child(5) { width: 25%; }                     /* Objective */
+.manage-table th:nth-child(6), .manage-table td:nth-child(6) { width: 15%; }                     /* Leader */
+.manage-table th:nth-child(7), .manage-table td:nth-child(7) { width: 10%; }                     /* Created By */
+.manage-table th:nth-child(8), .manage-table td:nth-child(8) { width: 10%; text-align: center; } /* Actions */
 
-/* Hover and even row coloring */
 .manage-table tbody tr:nth-child(even) { background: rgba(255,255,255,0.02); }
 .manage-table tbody tr:hover { background: rgba(51,255,153,0.06); }
 
-/* ==============================================
-   RESPONSIVE TABLE HANDLING
-   ============================================== */
-@media (max-width: 1100px) {
-  .manage-table {
-    display: block;
-    overflow-x: auto;
-    white-space: nowrap;
-  }
-  .manage-table th, .manage-table td {
-    min-width: 140px;
-  }
-}
-
-/* ==============================================
-   ACTION BUTTONS
-   ============================================== */
 .btn-save, .btn-cancel {
   padding: 4px 10px;
   border-radius: 6px;
@@ -830,84 +852,21 @@ style.textContent = `
 .btn-cancel { color: #ff8080; border-color: #ff5050; }
 .btn-cancel:hover { background: rgba(255,80,80,0.1); }
 
-/* ==============================================
-   SCROLLBAR THEME
-   ============================================== */
-#cards::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+/* =======================================
+   RESPONSIVE BEHAVIOR
+======================================= */
+@media (max-width: 1200px) {
+  #cards {
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  }
 }
-#cards::-webkit-scrollbar-track {
-  background: #0b1414;
-  border-radius: 10px;
+@media (max-width: 800px) {
+  #cards {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  }
 }
-#cards::-webkit-scrollbar-thumb {
-  background-color: #33ff99;
-  border-radius: 10px;
-  border: 2px solid #0b1414;
-}
-#cards::-webkit-scrollbar-thumb:hover {
-  background-color: #66ffc4;
-}
-
-/* ==============================================
-   SELECT DROPDOWN (Leader)
-   ============================================== */
-.leader-select-single {
-  width: 95%;
-  max-width: 240px;
-  padding: 4px 6px;
-  border-radius: 6px;
-  background: #0f1a1a;
-  color: #cde;
-  border: 1px solid #2a3d3d;
-}
-.leader-select-single:focus {
-  outline: none;
-  border-color: #33ff99;
-  box-shadow: 0 0 4px rgba(51,255,153,0.3);
-}
-
-/* ==============================================
-   LOADING OVERLAY / TOAST (unchanged)
-   ============================================== */
-.overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; justify-content: center; color: #9ff; z-index: 50; }
-.overlay-text { margin-top: 10px; color: #aefcd8; font-size: 0.9rem; text-align: center; }
-.spinner { width: 42px; height: 42px; border: 4px solid #33ff99; border-top-color: transparent; border-radius: 50%; animation: spin 1s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
-
-.pu-toast {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  background: rgba(15, 26, 26, 0.95);
-  color: #9ff;
-  border: 1px solid #33ff99;
-  padding: 14px 24px;
-  border-radius: 10px;
-  font-size: 1rem;
-  opacity: 0;
-  transition: opacity 0.4s ease;
-  z-index: 10000;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-  text-align: center;
-}
-.pu-toast.show {
-  opacity: 1;
-  animation: toast-pop 0.25s ease forwards;
-}
-@keyframes toast-pop {
-  0% { transform: translate(-50%, -60%) scale(0.95); opacity: 0; }
-  100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
-}
-
 `;
 document.head.appendChild(style);
-
-
-
-
 
 })(window.PowerUp);
 
