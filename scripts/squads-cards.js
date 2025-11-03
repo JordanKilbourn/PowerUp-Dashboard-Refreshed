@@ -730,6 +730,27 @@ style.textContent = `
 .squad-card:hover { transform: translateY(-3px); box-shadow: 0 0 12px rgba(51,255,153,0.4); }
 
 /* ==============================================
+   CARD GRID LAYOUT (4 across, fixed height)
+   ============================================== */
+#cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+  align-content: flex-start;
+  justify-items: stretch;
+  width: 100%;
+  overflow-y: auto;
+  padding: 1rem 0;
+}
+
+.squad-card {
+  height: 190px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+/* ==============================================
    MANAGE TABLE
    ============================================== */
 .manage-table {
