@@ -221,10 +221,12 @@
     }
     overlay.style.display = "flex";
     setTimeout(() => (overlay.style.opacity = 1), 50);
-    setTimeout(() => {
-      overlay.style.opacity = 0;
-      setTimeout(() => (overlay.style.display = "none"), 300);
-    }, 800);
+setTimeout(() => {
+  if (overlay.style.display === "flex") {
+    overlay.style.opacity = 0;
+    setTimeout(() => (overlay.style.display = "none"), 300);
+  }
+}, 800);
   }
 
   // =======================
@@ -287,242 +289,260 @@
   let activeOnly = false;
   let mySquadsOnly = false;
 
-  function applyFilters() {
-    const searchBox = document.getElementById('search');
-    const q = (searchBox?.value || '').trim().toLowerCase();
-    let list = [...ALL];
+ // =======================
+// Filters (Admin + MySquads unified logic)
+// =======================
+function applyFilters() {
+  const searchBox = document.getElementById('search');
+  const q = (searchBox?.value || '').trim().toLowerCase();
+  let list = [...ALL];
 
-    if (activeCategory !== 'All')
-      list = list.filter(x => x.category === activeCategory);
-    if (activeOnly)
-      list = list.filter(x => isTrue(x.active));
-    if (mySquadsOnly) {
-      const user = P.session.current || P.session.get?.() || {};
-      const myId = (user.employeeId || user.positionId || '').trim().toLowerCase();
-      const myName = (user.displayName || user.name || '').trim().toLowerCase();
+  if (activeCategory !== 'All')
+    list = list.filter(x => x.category === activeCategory);
+  if (activeOnly)
+    list = list.filter(x => isTrue(x.active));
 
-      list = list.filter(x => {
-        const sid = String(x.id || '').trim().toLowerCase();
-        const members = MEMBERS_BY_SQUAD.get(sid);
-        const leaders = LEADERS_BY_SQUAD.get(sid) || [];
+  const user = P.session.current || P.session.get?.() || {};
+  const myId = (user.employeeId || user.positionId || '').trim().toLowerCase();
+  const myName = (user.displayName || user.name || '').trim().toLowerCase();
 
-        const isMember =
-          members &&
-          ([...members.ids].some(id => id.toLowerCase() === myId) ||
-           [...members.names].some(n => n.toLowerCase() === myName));
+  // Admin Filter — applies only for Admins
+  const adminSelect = document.getElementById('adminFilter');
+  const adminFilterValue = (adminSelect?.value || '').trim().toLowerCase();
 
-        const isLeader =
-          leaders.some(l =>
-            (l.id || '').toLowerCase() === myId ||
-            (l.name || '').toLowerCase() === myName
-          );
 
-        return isMember || isLeader;
-      });
-    }
-
-    if (q) {
-      list = list.filter(x => {
-        const sid = String(x.id || '').trim().toLowerCase();
-        const leaders = LEADERS_BY_SQUAD.get(sid) || [];
-        const leaderNames = leaders.map(l => l.name).join(' ').toLowerCase();
-        const haystack = [x.name, leaderNames, x.objective, x.notes].join(' ').toLowerCase();
-        return haystack.includes(q);
-      });
-    }
-    renderCards(list);
+  if (adminFilterValue && P.auth?.isAdmin?.()) {
+    list = list.filter(x => {
+      const sid = String(x.id || '').trim().toLowerCase();
+      const members = MEMBERS_BY_SQUAD.get(sid);
+      const leaders = LEADERS_BY_SQUAD.get(sid) || [];
+      return (
+        (members && [...members.names].some(n => n.includes(adminFilterValue))) ||
+        leaders.some(l => (l.name || '').toLowerCase().includes(adminFilterValue))
+      );
+    });
   }
 
-  // =======================
-  // Manage Table Rendering
-  // =======================
-  async function renderManageTable() {
-    const cardsContainer = document.getElementById('cards');
-    const msg = document.getElementById('s-msg');
-    if (msg) msg.style.display = 'none';
+  // MySquads — shows squads where user is member or leader
+  if (mySquadsOnly && !adminFilterValue) {
+    list = list.filter(x => {
+      const sid = String(x.id || '').trim().toLowerCase();
+      const members = MEMBERS_BY_SQUAD.get(sid);
+      const leaders = LEADERS_BY_SQUAD.get(sid) || [];
 
-    cardsContainer.innerHTML = `
-      <div class="overlay">
-        <div class="spinner"></div>
-        <div class="overlay-text">Loading Manage View...</div>
-      </div>`;
+      const isMember =
+        members &&
+        ([...members.ids].some(id => id === myId) ||
+         [...members.names].some(n => n === myName));
 
-    try {
-      const [squadSheet, members] = await Promise.all([
-        P.api.fetchSheet(SHEETS.SQUADS, { force: true }),
-        P.api.getRowsByTitle(SHEETS.SQUAD_MEMBERS, { force: true })
-      ]);
+      const isLeader =
+        leaders.some(l =>
+          (l.id || '').toLowerCase() === myId ||
+          (l.name || '').toLowerCase() === myName
+        );
 
-      const squads = P.api.rowsByTitle(squadSheet).map((r, i) => ({
-        ...r,
-        __rowId: squadSheet.rows[i]?.id || ''
-      }));
+      return isMember || isLeader;
+    });
+  }
 
-      const allEmps = await P.getEmployees();
+  // Text search filter
+  if (q) {
+    list = list.filter(x => {
+      const sid = String(x.id || '').trim().toLowerCase();
+      const leaders = LEADERS_BY_SQUAD.get(sid) || [];
+      const leaderNames = leaders.map(l => l.name).join(' ').toLowerCase();
+      const haystack = [x.name, leaderNames, x.objective, x.notes].join(' ').toLowerCase();
+      return haystack.includes(q);
+    });
+  }
 
-      const leadersBySquad = new Map();
-      members.forEach(r => {
-        const isActive = /^(true|yes|y|1)$/i.test(String(r["Active"] || ""));
-        if (!isActive) return;
-        const sid = String(r["Squad ID"] || "").trim().toUpperCase();
-        const role = String(r["Role"] || "").trim().toLowerCase();
-        if (role === "leader") {
-          leadersBySquad.set(sid, {
-            id: String(r["Employee ID"] || "").trim(),
-            name: String(r["Employee Name"] || "").trim()
+  renderCards(list);
+}
+
+// =======================
+// Manage Table Rendering (cleaned + sticky header)
+// =======================
+async function renderManageTable() {
+  const cardsContainer = document.getElementById('cards');
+  const msg = document.getElementById('s-msg');
+  if (msg) msg.style.display = 'none';
+
+  try {
+    const [squadSheet, members] = await Promise.all([
+      P.api.fetchSheet(SHEETS.SQUADS, { force: true }),
+      P.api.getRowsByTitle(SHEETS.SQUAD_MEMBERS, { force: true })
+    ]);
+
+    const squads = P.api.rowsByTitle(squadSheet).map((r, i) => ({
+      ...r,
+      __rowId: squadSheet.rows[i]?.id || ''
+    }));
+
+    const allEmps = await P.getEmployees();
+
+    const leadersBySquad = new Map();
+    members.forEach(r => {
+      const isActive = /^(true|yes|y|1)$/i.test(String(r["Active"] || ""));
+      if (!isActive) return;
+      const sid = String(r["Squad ID"] || "").trim().toUpperCase();
+      const role = String(r["Role"] || "").trim().toLowerCase();
+      if (role === "leader") {
+        leadersBySquad.set(sid, {
+          id: String(r["Employee ID"] || "").trim(),
+          name: String(r["Employee Name"] || "").trim()
+        });
+      }
+    });
+
+    const table = document.createElement('table');
+    table.className = 'manage-table';
+    table.innerHTML = `
+      <thead>
+        <tr>
+          <th style="width:8%">ID</th>
+          <th style="width:20%">Squad Name</th>
+          <th style="width:12%">Category</th>
+          <th style="width:6%">Active</th>
+          <th style="width:24%">Objective</th>
+          <th style="width:20%">Leader</th>
+          <th style="width:10%">Created By</th>
+          <th style="width:10%">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${squads.map(r => {
+          const sheetRowId = r.__rowId;
+          const squadId = (r["Squad ID"] || "").trim().toUpperCase();
+          const leader = leadersBySquad.get(squadId);
+          const selectedName = leader ? leader.name : "";
+          const rowData = {
+            name: r["Squad Name"] || "",
+            category: r["Category"] || "",
+            active: r["Active"] === true || String(r["Active"]).toLowerCase() === "true",
+            objective: r["Objective"] || "",
+            createdBy: r["Created By"] || "",
+            leader: selectedName
+          };
+          return `
+            <tr data-rowid="${sheetRowId}" data-squadid="${squadId}"
+                data-original='${JSON.stringify(rowData)}'>
+              <td>${squadId}</td>
+              <td contenteditable class="editable name">${rowData.name}</td>
+              <td contenteditable class="editable category">${rowData.category}</td>
+              <td><input type="checkbox" class="active" ${rowData.active ? "checked" : ""}></td>
+              <td contenteditable class="editable objective">${rowData.objective}</td>
+              <td>
+                <select class="leader-select-single">
+                  <option value="">— Select Leader —</option>
+                  ${allEmps.map(emp =>
+                    `<option value="${emp.name}" ${emp.name === selectedName ? "selected" : ""}>${emp.name}</option>`
+                  ).join("")}
+                </select>
+              </td>
+              <td contenteditable class="editable created-by">${rowData.createdBy}</td>
+              <td class="actions-cell">
+                <button class="btn-save">Save</button>
+                <button class="btn-cancel">Cancel</button>
+              </td>
+            </tr>`;
+        }).join("")}
+      </tbody>`;
+
+    cardsContainer.innerHTML = "";
+    const wrapper = document.createElement('div');
+    wrapper.className = 'manage-table-wrapper';
+    wrapper.appendChild(table);
+    cardsContainer.appendChild(wrapper);
+
+    // Save + Cancel handlers
+    table.addEventListener("click", async e => {
+      const tr = e.target.closest("tr[data-rowid]");
+      if (!tr) return;
+      const rowId = tr.dataset.rowid;
+      const original = JSON.parse(tr.dataset.original || "{}");
+
+      if (e.target.classList.contains("btn-save")) {
+        const name = tr.querySelector(".name")?.textContent.trim();
+        const category = tr.querySelector(".category")?.textContent.trim();
+        const active = tr.querySelector(".active")?.checked;
+        const objective = tr.querySelector(".objective")?.textContent.trim();
+        const createdBy = tr.querySelector(".created-by")?.textContent.trim();
+        const leaderName = tr.querySelector(".leader-select-single")?.value;
+        const leaderEmp = allEmps.find(e => e.name === leaderName);
+        const squadId = tr.dataset.squadid;
+
+        const hasChanges =
+          name !== original.name ||
+          category !== original.category ||
+          active !== original.active ||
+          objective !== original.objective ||
+          createdBy !== original.createdBy ||
+          (leaderEmp ? leaderEmp.name : leaderName) !== original.leader;
+
+        if (!hasChanges) {
+          showToast("No changes detected — nothing to save.", "info");
+          return;
+        }
+        if (!leaderName) {
+          showToast("Select a leader before saving.", "warn");
+          return;
+        }
+
+        try {
+          document.querySelectorAll(".btn-save, .btn-cancel, .leader-select-single, .editable")
+            .forEach(el => el.disabled = true);
+          showLoadingOverlay("Saving squad changes...");
+
+          await P.api.updateRowById(P.api.SHEETS.SQUADS, rowId, {
+            "Squad Name": name,
+            "Category": category,
+            "Active": active,
+            "Objective": objective,
+            "Created By": createdBy
           });
-        }
-      });
 
-      const table = document.createElement('table');
-      table.className = 'manage-table';
-      table.innerHTML = `
-        <thead>
-          <tr>
-            <th style="width:8%">ID</th>
-            <th style="width:20%">Squad Name</th>
-            <th style="width:12%">Category</th>
-            <th style="width:6%">Active</th>
-            <th style="width:26%">Objective</th>
-            <th style="width:17%">Leader</th>
-            <th style="width:11%">Created By</th>
-            <th style="width:10%">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${squads.map(r => {
-            const sheetRowId = r.__rowId;
-            const squadId = (r["Squad ID"] || "").trim().toUpperCase();
-            const leader = leadersBySquad.get(squadId);
-            const selectedName = leader ? leader.name : "";
-            const rowData = {
-              name: r["Squad Name"] || "",
-              category: r["Category"] || "",
-              active: r["Active"] === true || String(r["Active"]).toLowerCase() === "true",
-              objective: r["Objective"] || "",
-              createdBy: r["Created By"] || "",
-              leader: selectedName
-            };
-            return `
-              <tr data-rowid="${sheetRowId}" data-squadid="${squadId}"
-                  data-original='${JSON.stringify(rowData)}'>
-                <td>${squadId}</td>
-                <td contenteditable class="editable name">${rowData.name}</td>
-                <td contenteditable class="editable category">${rowData.category}</td>
-                <td><input type="checkbox" class="active" ${rowData.active ? "checked" : ""}></td>
-                <td contenteditable class="editable objective">${rowData.objective}</td>
-                <td>
-                  <select class="leader-select-single">
-                    <option value="">— Select Leader —</option>
-                    ${allEmps.map(emp =>
-                      `<option value="${emp.name}" ${emp.name === selectedName ? "selected" : ""}>
-                         ${emp.name}
-                       </option>`
-                    ).join("")}
-                  </select>
-                </td>
-                <td contenteditable class="editable created-by">${rowData.createdBy}</td>
-                <td class="actions-cell">
-                  <button class="btn-save">Save</button>
-                  <button class="btn-cancel">Cancel</button>
-                </td>
-              </tr>`;
-          }).join("")}
-        </tbody>`;
-
-      cardsContainer.innerHTML = "";
-      cardsContainer.appendChild(table);
-
-      // === Save + Cancel Handlers ===
-      table.addEventListener("click", async e => {
-        const tr = e.target.closest("tr[data-rowid]");
-        if (!tr) return;
-        const rowId = tr.dataset.rowid;
-        const original = JSON.parse(tr.dataset.original || "{}");
-
-        // ===== SAVE =====
-        if (e.target.classList.contains("btn-save")) {
-          const name = tr.querySelector(".name")?.textContent.trim();
-          const category = tr.querySelector(".category")?.textContent.trim();
-          const active = tr.querySelector(".active")?.checked;
-          const objective = tr.querySelector(".objective")?.textContent.trim();
-          const createdBy = tr.querySelector(".created-by")?.textContent.trim();
-          const leaderName = tr.querySelector(".leader-select-single")?.value;
-          const leaderEmp = allEmps.find(e => e.name === leaderName);
-          const squadId = tr.dataset.squadid;
-
-          const hasChanges =
-            name !== original.name ||
-            category !== original.category ||
-            active !== original.active ||
-            objective !== original.objective ||
-            createdBy !== original.createdBy ||
-            (leaderEmp ? leaderEmp.name : leaderName) !== original.leader;
-
-          if (!hasChanges) {
-            showToast("No changes detected — nothing to save.", "info");
-            return;
-          }
-          if (!leaderName) {
-            showToast("Select a leader before saving.", "warn");
-            return;
-          }
-
-          try {
-            document.querySelectorAll(".btn-save, .btn-cancel, .leader-select-single, .editable")
-              .forEach(el => el.disabled = true);
-            showLoadingOverlay("Saving squad changes...");
-
-            await P.api.updateRowById(P.api.SHEETS.SQUADS, rowId, {
-              "Squad Name": name,
-              "Category": category,
-              "Active": active,
-              "Objective": objective,
-              "Created By": createdBy
+          if (leaderEmp && squadId) {
+            await P.api.updateOrReplaceLeader({
+              squadId,
+              newLeaderId: leaderEmp.id,
+              newLeaderName: leaderEmp.name
             });
-
-            if (leaderEmp && squadId) {
-              await P.api.updateOrReplaceLeader({
-                squadId,
-                newLeaderId: leaderEmp.id,
-                newLeaderName: leaderEmp.name
-              });
-            }
-
-            hideLoadingOverlay();
-            document.querySelectorAll(".btn-save, .btn-cancel, .leader-select-single, .editable")
-              .forEach(el => el.disabled = false);
-
-            showToast("✅ Squad saved successfully.", "success");
-            await renderManageTable();
-          } catch (err) {
-            hideLoadingOverlay();
-            document.querySelectorAll(".btn-save, .btn-cancel, .leader-select-single, .editable")
-              .forEach(el => el.disabled = false);
-            console.error("Save error:", err);
-            showToast("Error saving squad. Check console.", "error");
           }
-        }
 
-        // ===== CANCEL =====
-        if (e.target.classList.contains("btn-cancel")) {
-          tr.querySelector(".name").textContent = original.name || "";
-          tr.querySelector(".category").textContent = original.category || "";
-          tr.querySelector(".active").checked = !!original.active;
-          tr.querySelector(".objective").textContent = original.objective || "";
-          tr.querySelector(".created-by").textContent = original.createdBy || "";
-          const sel = tr.querySelector(".leader-select-single");
-          if (sel) sel.value = original.leader || "";
-          tr.style.backgroundColor = "rgba(255,255,0,0.1)";
-          setTimeout(() => (tr.style.backgroundColor = ""), 700);
+          hideLoadingOverlay();
+          document.querySelectorAll(".btn-save, .btn-cancel, .leader-select-single, .editable")
+            .forEach(el => el.disabled = false);
+
+          showToast("✅ Squad saved successfully.", "success");
+          await renderManageTable();
+        } catch (err) {
+          hideLoadingOverlay();
+          document.querySelectorAll(".btn-save, .btn-cancel, .leader-select-single, .editable")
+            .forEach(el => el.disabled = false);
+          console.error("Save error:", err);
+          showToast("Error saving squad. Check console.", "error");
         }
-      });
-    } catch (err) {
-      console.error("Render Manage Table error:", err);
-      showToast("⚠️ Failed to load manage view.", "error");
-    }
+      }
+
+      if (e.target.classList.contains("btn-cancel")) {
+        tr.querySelector(".name").textContent = original.name || "";
+        tr.querySelector(".category").textContent = original.category || "";
+        tr.querySelector(".active").checked = !!original.active;
+        tr.querySelector(".objective").textContent = original.objective || "";
+        tr.querySelector(".created-by").textContent = original.createdBy || "";
+        const sel = tr.querySelector(".leader-select-single");
+        if (sel) sel.value = original.leader || "";
+        tr.style.backgroundColor = "rgba(255,255,0,0.1)";
+        setTimeout(() => (tr.style.backgroundColor = ""), 700);
+      }
+    });
+  } catch (err) {
+    console.error("Render Manage Table error:", err);
+    showToast("⚠️ Failed to load manage view.", "error");
   }
+}
 
+ 
   // =======================
   // Filter Bindings
   // =======================
@@ -562,7 +582,7 @@
   // Page Init
   // =======================
   document.addEventListener('DOMContentLoaded', async () => {
-    P.session.requireLogin();
+    P.session?.requireLogin?.();
     P.layout.injectLayout();
     P.layout.setPageTitle('Squads');
     await P.session.initHeader();
@@ -593,7 +613,8 @@
           await renderManageTable();
         } else {
           btnManage.textContent = 'Manage Squads';
-          document.getElementById('s-msg').style.display = 'none';
+          const msg = document.getElementById('s-msg');
+          if (msg) msg.style.display = 'none';
           const myToggle = document.getElementById('myOnly');
           if (myToggle) mySquadsOnly = myToggle.checked;
           applyFilters();
@@ -682,12 +703,18 @@
   box-shadow: 0 4px 10px rgba(0,0,0,0.4);
 }
 
-.squad-meta { font-size: 0.85rem; margin: 3px 0; color: #aab; }
+.squad-meta {
+  font-size: 0.85rem;
+  margin: 1px 0;
+  line-height: 1.2em;
+  color: #aab;
+}
+
 .status-pill { padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; }
 .status-on { background: rgba(51,255,153,0.1); color: #33ff99; }
 .status-off { background: rgba(255,80,80,0.1); color: #ff5050; }
 .member-chip { font-size: 0.8rem; color: #ffffff; margin-right: auto; }
-.squad-foot { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(255,255,255,0.05); margin-top: 8px; padding-top: 6px; }
+.squad-foot { display: flex; justify-content: space-between; align-items: center;border-top: 1px solid rgba(255,255,255,0.1); margin-top: 8px; padding-top: 6px; }
 .squad-link { color: #33ff99; text-decoration: none; font-size: 0.85rem; }
 .squad-link:hover { text-decoration: underline; }
 
