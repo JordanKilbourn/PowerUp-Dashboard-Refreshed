@@ -603,7 +603,7 @@ async function renderManageTable() {
   document.addEventListener('DOMContentLoaded', async () => {
     P.session?.requireLogin?.();
     P.layout.injectLayout();
-    P.layout.setPageTitle('Squads');
+    P.layout.setTitles('Squads');
     await P.session.initHeader();
 
     renderCategoryPills('All');
