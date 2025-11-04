@@ -291,11 +291,11 @@ setTimeout(() => {
 
 
 // =======================
-// Filters (Admin + MySquads unified logic with mode protection)
+// Filters (Admin filter authority model)
 // =======================
 function applyFilters() {
   const manageMode = document.getElementById('btn-manage')?.classList.contains('managing');
-  if (manageMode) return; // 🚫 Don’t re-render cards if we’re in Manage view
+  if (manageMode) return;
 
   const cardsContainer = document.getElementById('cards');
   if (cardsContainer) {
@@ -320,41 +320,64 @@ function applyFilters() {
   const myName = (user.displayName || user.name || '').trim().toLowerCase();
 
   const adminSelect = document.getElementById('adminFilter');
-  let adminFilterValue = adminSelect ? adminSelect.value.trim().toLowerCase() : '';
+  const adminFilterValue = adminSelect ? adminSelect.value.trim().toLowerCase() : '';
+  const isAdmin = P.auth?.isAdmin?.();
 
-  if (adminFilterValue && P.auth?.isAdmin?.()) {
-    list = list.filter(x => {
-      const sid = String(x.id || '').trim().toLowerCase();
-      const members = MEMBERS_BY_SQUAD.get(sid);
-      const leaders = LEADERS_BY_SQUAD.get(sid) || [];
-      return (
-        (members && [...members.names].some(n => n.includes(adminFilterValue))) ||
-        leaders.some(l => (l.name || '').toLowerCase().includes(adminFilterValue))
-      );
-    });
+  // ============================================================
+  // ADMIN FILTER AUTHORITY
+  // ============================================================
+  if (isAdmin) {
+    if (adminFilterValue && adminFilterValue !== 'all employees') {
+      // Filter by the selected employee
+      list = list.filter(x => {
+        const sid = String(x.id || '').trim().toLowerCase();
+        const members = MEMBERS_BY_SQUAD.get(sid);
+        const leaders = LEADERS_BY_SQUAD.get(sid) || [];
+
+        const matchesMember =
+          members &&
+          ([...members.names].some(n => n.includes(adminFilterValue)) ||
+           [...members.ids].some(id => id.includes(adminFilterValue)));
+
+        const matchesLeader =
+          leaders.some(l =>
+            (l.name || '').toLowerCase().includes(adminFilterValue) ||
+            (l.id || '').toLowerCase().includes(adminFilterValue)
+          );
+
+        return matchesMember || matchesLeader;
+      });
+    }
+    // If "All Employees", show everything (no restriction)
+  } else {
+    // ============================================================
+    // NON-ADMIN LOGIC
+    // ============================================================
+    if (mySquadsOnly) {
+      list = list.filter(x => {
+        const sid = String(x.id || '').trim().toLowerCase();
+        const members = MEMBERS_BY_SQUAD.get(sid);
+        const leaders = LEADERS_BY_SQUAD.get(sid) || [];
+
+        const isMember =
+          members &&
+          ([...members.ids].some(id => id === myId) ||
+           [...members.names].some(n => n === myName));
+
+        const isLeader =
+          leaders.some(l =>
+            (l.id || '').toLowerCase() === myId ||
+            (l.name || '').toLowerCase() === myName
+          );
+
+        return isMember || isLeader;
+      });
+    }
   }
 
-  if (mySquadsOnly && !adminFilterValue) {
-    list = list.filter(x => {
-      const sid = String(x.id || '').trim().toLowerCase();
-      const members = MEMBERS_BY_SQUAD.get(sid);
-      const leaders = LEADERS_BY_SQUAD.get(sid) || [];
-
-      const isMember =
-        members &&
-        ([...members.ids].some(id => id === myId) ||
-         [...members.names].some(n => n === myName));
-
-      const isLeader =
-        leaders.some(l =>
-          (l.id || '').toLowerCase() === myId ||
-          (l.name || '').toLowerCase() === myName
-        );
-
-      return isMember || isLeader;
-    });
-  }
-
+  // ============================================================
+  // SEARCH FILTER
+  // ============================================================
   if (q) {
     list = list.filter(x => {
       const sid = String(x.id || '').trim().toLowerCase();
@@ -367,8 +390,6 @@ function applyFilters() {
 
   renderCards(list);
 }
-
-
 
 // =======================
 // Manage Table Rendering (dynamic layout-safe version)
