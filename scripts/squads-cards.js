@@ -609,23 +609,41 @@ async function renderManageTable() {
     if (btnAdd)
       btnAdd.addEventListener('click', () => PowerUp.squadAddForm?.open?.());
 
-    if (btnManage) {
-      btnManage.addEventListener('click', async () => {
-        const isManaging = btnManage.classList.toggle('managing');
-        showViewSwitchOverlay(isManaging ? "Loading Manage View..." : "Loading Card View...");
-        if (isManaging) {
-          btnManage.textContent = 'View Cards';
-          await renderManageTable();
-        } else {
-          btnManage.textContent = 'Manage Squads';
-          const msg = document.getElementById('s-msg');
-          if (msg) msg.style.display = 'none';
-          const myToggle = document.getElementById('myOnly');
-          if (myToggle) mySquadsOnly = myToggle.checked;
-          applyFilters();
-        }
-      });
+// =======================
+// Manage / Cards Toggle (dynamic layout aware)
+// =======================
+if (btnManage) {
+  btnManage.addEventListener('click', async () => {
+    const isManaging = btnManage.classList.toggle('managing');
+    showViewSwitchOverlay(isManaging ? "Loading Manage View..." : "Loading Card View...");
+
+    const cardsContainer = document.getElementById('cards');
+
+    if (isManaging) {
+      // Switch to Manage Table View
+      btnManage.textContent = 'View Cards';
+      if (cardsContainer) {
+        cardsContainer.classList.remove('cards-grid');
+        cardsContainer.classList.add('manage-view');
+      }
+      await renderManageTable();
+    } else {
+      // Switch back to Card Grid View
+      btnManage.textContent = 'Manage Squads';
+      if (cardsContainer) {
+        cardsContainer.classList.remove('manage-view');
+        cardsContainer.classList.add('cards-grid');
+        cardsContainer.innerHTML = ''; // clear any leftover table
+      }
+      const msg = document.getElementById('s-msg');
+      if (msg) msg.style.display = 'none';
+      const myToggle = document.getElementById('myOnly');
+      if (myToggle) mySquadsOnly = myToggle.checked;
+      applyFilters();
     }
+  });
+}
+
 
     document.getElementById('cat-pills')?.addEventListener('click', () => {
       const btnManage = document.getElementById('btn-manage');
