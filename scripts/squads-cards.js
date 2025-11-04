@@ -360,12 +360,16 @@ function applyFilters() {
 }
 
 // =======================
-// Manage Table Rendering (cleaned + sticky header)
+// Manage Table Rendering (dynamic layout-safe version)
 // =======================
 async function renderManageTable() {
   const cardsContainer = document.getElementById('cards');
   const msg = document.getElementById('s-msg');
   if (msg) msg.style.display = 'none';
+
+  // Switch layout to table mode
+  cardsContainer.classList.remove("cards-grid");
+  cardsContainer.classList.add("manage-view");
 
   try {
     const [squadSheet, members] = await Promise.all([
@@ -403,8 +407,8 @@ async function renderManageTable() {
           <th style="width:20%">Squad Name</th>
           <th style="width:12%">Category</th>
           <th style="width:6%">Active</th>
-          <th style="width:24%">Objective</th>
-          <th style="width:20%">Leader</th>
+          <th style="width:26%">Objective</th>
+          <th style="width:18%">Leader</th>
           <th style="width:10%">Created By</th>
           <th style="width:10%">Actions</th>
         </tr>
@@ -541,6 +545,7 @@ async function renderManageTable() {
     showToast("⚠️ Failed to load manage view.", "error");
   }
 }
+
 
  
   // =======================
@@ -869,6 +874,39 @@ async function renderManageTable() {
   border-color: #33ff99;
   box-shadow: 0 0 4px rgba(51,255,153,0.3);
 }
+
+/* =======================================
+   DYNAMIC VIEW SWITCH (Cards vs Manage)
+======================================= */
+#cards.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.2rem;
+  width: 100%;
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem 0;
+  box-sizing: border-box;
+}
+
+#cards.manage-view {
+  display: block;
+  overflow: hidden;
+  padding: 0;
+}
+
+.manage-table-wrapper {
+  height: calc(100vh - 230px);
+  overflow-y: auto;
+  overflow-x: auto;
+  width: 100%;
+}
+
+.manage-table {
+  min-width: 100%;
+}
+
+
 `;
 
   document.head.appendChild(style);
