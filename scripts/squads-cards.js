@@ -287,13 +287,42 @@ setTimeout(() => {
   // =======================
   let activeCategory = 'All';
   let activeOnly = false;
-  let mySquadsOnly = false;
 
 
-// =======================
-// Filters (Admin filter authority model)
-// =======================
-function applyFilters() {
+
+// ============================================================
+// Admin Filter Resolver (restored from working original version)
+// ============================================================
+async function getAdminTargetFromFilter() {
+  try {
+    const sel = (sessionStorage.getItem('pu.adminEmployeeFilter') || '').trim();
+    if (!sel || sel === '__ALL__' || sel.toLowerCase() === 'all employees') return null;
+
+    // Build name map if needed
+    if (!idToName.size) {
+      const em = await getRowsByTitle(SHEETS.EMPLOYEE_MASTER);
+      em.forEach(r => {
+        const id = String(r['Position ID'] || r['Employee ID'] || '').trim();
+        const nm = String(r['Display Name'] || r['Employee Name'] || r['Name'] || '').trim();
+        if (id) idToName.set(id, nm);
+      });
+    }
+
+    const norm = s => String(s || '').trim().toLowerCase();
+    let targetId = '';
+    for (const [id, nm] of idToName.entries()) {
+      if (norm(nm) === norm(sel)) { targetId = id; break; }
+    }
+    return { id: targetId, name: sel };
+  } catch {
+    return null;
+  }
+}
+
+// ============================================================
+// applyFilters (restored admin-driven version)
+// ============================================================
+async function applyFilters() {
   const manageMode = document.getElementById('btn-manage')?.classList.contains('managing');
   if (manageMode) return;
 
@@ -306,90 +335,68 @@ function applyFilters() {
     cardsContainer.style.gap = '1.2rem';
   }
 
-  const searchBox = document.getElementById('search');
-  const q = (searchBox?.value || '').trim().toLowerCase();
+  const session = P.session.get?.() || {};
+  const cat = document.querySelector('.pill-cat.active')?.dataset.cat || activeCategory || 'All';
+  const myOnly = document.getElementById('myOnly')?.checked;
+  const activeOnly = document.getElementById('activeOnly')?.checked;
+  const q = (document.getElementById('search')?.value || '').trim().toLowerCase();
+
   let list = [...ALL];
+  const isAdmin = P.auth?.isAdmin?.() || false;
 
-  if (activeCategory !== 'All')
-    list = list.filter(x => x.category === activeCategory);
-  if (activeOnly)
-    list = list.filter(x => isTrue(x.active));
+  if (myOnly) {
+    if (isAdmin) {
+      let target = await getAdminTargetFromFilter();
+      if (!target) target = { id: String(session.employeeId || ''), name: String(session.displayName || '') };
 
-  const user = P.session.current || P.session.get?.() || {};
-  const myId = (user.employeeId || user.positionId || '').trim().toLowerCase();
-  const myName = (user.displayName || user.name || '').trim().toLowerCase();
+      const norm = s => String(s || '').trim().toLowerCase();
+      const tgtId = norm(target.id);
+      const tgtName = norm(target.name);
 
-  const adminSelect = document.getElementById('adminFilter');
-  const adminFilterValue = adminSelect ? adminSelect.value.trim().toLowerCase() : '';
-  const isAdmin = P.auth?.isAdmin?.();
+      list = list.filter(s => {
+        const leaders = LEADERS_BY_SQUAD.get(String(s.id || '').trim()) || [];
+        const leaderHit = leaders.some(x => norm(x.id) === tgtId || norm(x.name) === tgtName);
 
-  // ============================================================
-  // ADMIN FILTER AUTHORITY
-  // ============================================================
-  if (isAdmin) {
-    if (adminFilterValue && adminFilterValue !== 'all employees') {
-      // Filter by the selected employee
-      list = list.filter(x => {
-        const sid = String(x.id || '').trim().toLowerCase();
-        const members = MEMBERS_BY_SQUAD.get(sid);
-        const leaders = LEADERS_BY_SQUAD.get(sid) || [];
+        const m = MEMBERS_BY_SQUAD.get(String(s.id || '').trim());
+        const memberHit = m ? (m.ids.has(tgtId) || m.names.has(tgtName)) : false;
 
-        const matchesMember =
-          members &&
-          ([...members.names].some(n => n.includes(adminFilterValue)) ||
-           [...members.ids].some(id => id.includes(adminFilterValue)));
-
-        const matchesLeader =
-          leaders.some(l =>
-            (l.name || '').toLowerCase().includes(adminFilterValue) ||
-            (l.id || '').toLowerCase().includes(adminFilterValue)
-          );
-
-        return matchesMember || matchesLeader;
+        let fallbackHit = false;
+        if (!m && s.members) {
+          const toks = String(s.members).split(/[,;\n]+/).map(t => norm(t));
+          fallbackHit = (!!tgtId && toks.includes(tgtId)) || (!!tgtName && toks.includes(tgtName));
+        }
+        return leaderHit || memberHit || fallbackHit;
       });
-    }
-    // If "All Employees", show everything (no restriction)
-  } else {
-    // ============================================================
-    // NON-ADMIN LOGIC
-    // ============================================================
-    if (mySquadsOnly) {
-      list = list.filter(x => {
-        const sid = String(x.id || '').trim().toLowerCase();
-        const members = MEMBERS_BY_SQUAD.get(sid);
+    } else {
+      list = list.filter(s => {
+        const myId = String(session.employeeId || session.positionId || '').trim().toLowerCase();
+        const myName = String(session.displayName || session.name || '').trim().toLowerCase();
+        const sid = String(s.id || '').trim().toLowerCase();
+        const m = MEMBERS_BY_SQUAD.get(sid);
         const leaders = LEADERS_BY_SQUAD.get(sid) || [];
 
-        const isMember =
-          members &&
-          ([...members.ids].some(id => id === myId) ||
-           [...members.names].some(n => n === myName));
-
-        const isLeader =
-          leaders.some(l =>
-            (l.id || '').toLowerCase() === myId ||
-            (l.name || '').toLowerCase() === myName
-          );
-
-        return isMember || isLeader;
+        const memberHit = m && ([...m.ids].has(myId) || [...m.names].has(myName));
+        const leaderHit = leaders.some(l =>
+          (l.id || '').toLowerCase() === myId || (l.name || '').toLowerCase() === myName
+        );
+        return memberHit || leaderHit;
       });
     }
   }
 
-  // ============================================================
-  // SEARCH FILTER
-  // ============================================================
+  if (activeOnly) list = list.filter(s => isTrue(s.active));
+  if (cat !== 'All') list = list.filter(s => s.category === cat);
+
   if (q) {
-    list = list.filter(x => {
-      const sid = String(x.id || '').trim().toLowerCase();
-      const leaders = LEADERS_BY_SQUAD.get(sid) || [];
-      const leaderNames = leaders.map(l => l.name).join(' ').toLowerCase();
-      const haystack = [x.name, leaderNames, x.objective, x.notes].join(' ').toLowerCase();
-      return haystack.includes(q);
+    list = list.filter(s => {
+      const hay = [s.name, s.leaderName, s.leaderId, s.objective, s.notes].join(' ').toLowerCase();
+      return hay.includes(q);
     });
   }
 
   renderCards(list);
 }
+
 
 // =======================
 // Manage Table Rendering (dynamic layout-safe version)
@@ -617,6 +624,10 @@ async function renderManageTable() {
     if (searchBox)
       searchBox.addEventListener('input', applyFilters);
   }
+  
+  // When admin filter changes, reapply filters
+document.addEventListener('powerup-admin-filter-change', applyFilters);
+
 
   // =======================
   // Page Init
@@ -634,7 +645,7 @@ async function renderManageTable() {
     const myToggle = document.getElementById('myOnly');
     if (myToggle) {
       myToggle.checked = true;
-      mySquadsOnly = true;
+      
     }
     applyFilters();
 
