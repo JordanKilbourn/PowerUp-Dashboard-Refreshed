@@ -289,10 +289,16 @@ setTimeout(() => {
   let activeOnly = false;
   let mySquadsOnly = false;
 
- // =======================
-// Filters (Admin + MySquads unified logic)
+// =======================
+// Filters (Admin + MySquads unified logic with layout fix)
 // =======================
 function applyFilters() {
+  const cardsContainer = document.getElementById('cards');
+  if (cardsContainer) {
+    cardsContainer.classList.remove('manage-view');
+    cardsContainer.classList.add('cards-grid');
+  }
+
   const searchBox = document.getElementById('search');
   const q = (searchBox?.value || '').trim().toLowerCase();
   let list = [...ALL];
@@ -306,10 +312,8 @@ function applyFilters() {
   const myId = (user.employeeId || user.positionId || '').trim().toLowerCase();
   const myName = (user.displayName || user.name || '').trim().toLowerCase();
 
-  // Admin Filter — applies only for Admins
   const adminSelect = document.getElementById('adminFilter');
-  const adminFilterValue = (adminSelect?.value || '').trim().toLowerCase();
-
+  let adminFilterValue = adminSelect ? adminSelect.value.trim().toLowerCase() : '';
 
   if (adminFilterValue && P.auth?.isAdmin?.()) {
     list = list.filter(x => {
@@ -323,7 +327,6 @@ function applyFilters() {
     });
   }
 
-  // MySquads — shows squads where user is member or leader
   if (mySquadsOnly && !adminFilterValue) {
     list = list.filter(x => {
       const sid = String(x.id || '').trim().toLowerCase();
@@ -345,7 +348,6 @@ function applyFilters() {
     });
   }
 
-  // Text search filter
   if (q) {
     list = list.filter(x => {
       const sid = String(x.id || '').trim().toLowerCase();
@@ -359,6 +361,8 @@ function applyFilters() {
   renderCards(list);
 }
 
+
+
 // =======================
 // Manage Table Rendering (dynamic layout-safe version)
 // =======================
@@ -370,6 +374,8 @@ async function renderManageTable() {
   // Switch layout to table mode
   cardsContainer.classList.remove("cards-grid");
   cardsContainer.classList.add("manage-view");
+  cardsContainer.style.display = "none";
+
 
   try {
     const [squadSheet, members] = await Promise.all([
@@ -456,6 +462,7 @@ async function renderManageTable() {
     const wrapper = document.createElement('div');
     wrapper.className = 'manage-table-wrapper';
     wrapper.appendChild(table);
+    cardsContainer.style.display = "block";
     cardsContainer.appendChild(wrapper);
 
     // Save + Cancel handlers
@@ -728,8 +735,8 @@ if (btnManage) {
 
 .squad-meta {
   font-size: 0.85rem;
-  margin: 1px 0;
-  line-height: 1.2em;
+  margin: 0;
+  line-height: 1em;
   color: #aab;
 }
 
@@ -749,6 +756,11 @@ if (btnManage) {
   overflow-y: auto;
   overflow-x: hidden;
 }
+
+.squad-container:has(#cards.manage-view) {
+  overflow: hidden !important;
+}
+
 .manage-table {
   width: 100%;
   border-collapse: collapse;
@@ -833,9 +845,9 @@ if (btnManage) {
 ======================================= */
 .pu-toast {
   position: fixed;
-  bottom: 20px;
+  top: 50%;
   left: 50%;
-  transform: translateX(-50%);
+  transform: translate(-50%, -50%);
   background: #0f1a1a;
   color: #9ff;
   border: 1px solid #33ff99;
