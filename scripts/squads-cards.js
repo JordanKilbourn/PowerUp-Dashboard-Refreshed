@@ -289,14 +289,21 @@ setTimeout(() => {
   let activeOnly = false;
   let mySquadsOnly = false;
 
+
 // =======================
-// Filters (Admin + MySquads unified logic with layout fix)
+// Filters (Admin + MySquads unified logic with mode protection)
 // =======================
 function applyFilters() {
+  const manageMode = document.getElementById('btn-manage')?.classList.contains('managing');
+  if (manageMode) return; // 🚫 Don’t re-render cards if we’re in Manage view
+
   const cardsContainer = document.getElementById('cards');
   if (cardsContainer) {
     cardsContainer.classList.remove('manage-view');
     cardsContainer.classList.add('cards-grid');
+    cardsContainer.style.display = 'grid';
+    cardsContainer.style.gridTemplateColumns = 'repeat(4, 1fr)';
+    cardsContainer.style.gap = '1.2rem';
   }
 
   const searchBox = document.getElementById('search');
@@ -617,7 +624,7 @@ async function renderManageTable() {
       btnAdd.addEventListener('click', () => PowerUp.squadAddForm?.open?.());
 
 // =======================
-// Manage / Cards Toggle (dynamic layout aware)
+// Manage / Cards Toggle (stabilized layout switch)
 // =======================
 if (btnManage) {
   btnManage.addEventListener('click', async () => {
@@ -625,32 +632,24 @@ if (btnManage) {
     showViewSwitchOverlay(isManaging ? "Loading Manage View..." : "Loading Card View...");
 
     const cardsContainer = document.getElementById('cards');
+    const msg = document.getElementById('s-msg');
 
     if (isManaging) {
-      // Switch to Manage Table View
       btnManage.textContent = 'View Cards';
-      if (cardsContainer) {
-        cardsContainer.classList.remove('cards-grid');
-        cardsContainer.classList.add('manage-view');
-      }
+      cardsContainer.classList.remove('cards-grid');
+      cardsContainer.classList.add('manage-view');
+      cardsContainer.style.display = 'block';
+      if (msg) msg.style.display = 'none';
       await renderManageTable();
     } else {
-      // Switch back to Card Grid View
       btnManage.textContent = 'Manage Squads';
-      if (cardsContainer) {
-        cardsContainer.classList.remove('manage-view');
-        cardsContainer.classList.add('cards-grid');
-        cardsContainer.innerHTML = ''; // clear any leftover table
-      }
-      const msg = document.getElementById('s-msg');
-      if (msg) msg.style.display = 'none';
-      const myToggle = document.getElementById('myOnly');
-      if (myToggle) mySquadsOnly = myToggle.checked;
-      applyFilters();
+      cardsContainer.classList.remove('manage-view');
+      cardsContainer.classList.add('cards-grid');
+      cardsContainer.style.display = 'grid';
+      applyFilters(); // restore grid layout + filters
     }
   });
 }
-
 
     document.getElementById('cat-pills')?.addEventListener('click', () => {
       const btnManage = document.getElementById('btn-manage');
