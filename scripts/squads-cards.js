@@ -181,33 +181,40 @@
 
     let list = ALL.slice();
 
-    if (myOnly) {
-      if (IS_ADMIN) {
-        let target = await getAdminTargetFromFilter();
-        if (!target) target = { id: String(session.employeeId||'').trim(), name: String(session.displayName||'').trim() };
-
-        const norm = s => String(s||'').trim().toLowerCase();
-        const tgtId = norm(target.id);
-        const tgtName = norm(target.name);
-
-        list = list.filter(s => {
-          const leaders = LEADERS_BY_SQUAD.get(String(s.id||'').trim()) || [];
-          const leaderHit = leaders.some(x => norm(x.id) === tgtId || norm(x.name) === tgtName);
-
-          const m = MEMBERS_BY_SQUAD.get(String(s.id||'').trim());
-          const memberHit = m ? (m.ids.has(tgtId) || m.names.has(tgtName)) : false;
-
-          let fallbackHit = false;
-          if (!m && s.members) {
-            const toks = String(s.members).split(/[,;\n]+/).map(t => norm(t));
-            fallbackHit = (!!tgtId && toks.includes(tgtId)) || (!!tgtName && toks.includes(tgtName));
-          }
-          return leaderHit || memberHit || fallbackHit;
-        });
-      } else {
-        list = list.filter(s => userIsMemberOrLeader(s, session));
-      }
+if (myOnly) {
+  if (IS_ADMIN) {
+    let target = await getAdminTargetFromFilter();
+    if (!target) {
+      target = {
+        id: String(session.employeeId || '').trim(),
+        name: String(session.displayName || '').trim()
+      };
     }
+
+    const norm = s => String(s || '').trim().toLowerCase();
+    const tgtId = norm(target.id);
+    const tgtName = norm(target.name);
+
+    list = list.filter(s => {
+      const leaders = LEADERS_BY_SQUAD.get(String(s.id || '').trim()) || [];
+      const leaderHit = leaders.some(x => norm(x.id) === tgtId || norm(x.name) === tgtName);
+
+      const m = MEMBERS_BY_SQUAD.get(String(s.id || '').trim());
+      const memberHit = m ? (m.ids.has(tgtId) || m.names.has(tgtName)) : false;
+
+      let fallbackHit = false;
+      if (!m && s.members) {
+        const toks = String(s.members).split(/[,;\n]+/).map(t => norm(t));
+        fallbackHit = (!!tgtId && toks.includes(tgtId)) || (!!tgtName && toks.includes(tgtName));
+      }
+
+      return leaderHit || memberHit || fallbackHit;
+    });
+  } else {
+    list = list.filter(s => userIsMemberOrLeader(s, session));
+  }
+}
+
 
     if (activeOnly)  list = list.filter(s => isTrue(s.active));
     if (cat !== 'All') list = list.filter(s => s.category === cat);
