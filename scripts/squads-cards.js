@@ -345,44 +345,59 @@ async function applyFilters() {
   const isAdmin = P.auth?.isAdmin?.() || false;
 
   if (myOnly) {
-    if (isAdmin) {
-      let target = await getAdminTargetFromFilter();
-      if (!target) target = { id: String(session.employeeId || ''), name: String(session.displayName || '') };
+    const isAdminUser = P.auth?.isAdmin?.();
+    const sessionData = P.session.get?.() || {};
+    let targetName = '';
+    let targetId = '';
 
-      const norm = s => String(s || '').trim().toLowerCase();
-      const tgtId = norm(target.id);
-      const tgtName = norm(target.name);
-
-      list = list.filter(s => {
-        const leaders = LEADERS_BY_SQUAD.get(String(s.id || '').trim()) || [];
-        const leaderHit = leaders.some(x => norm(x.id) === tgtId || norm(x.name) === tgtName);
-
-        const m = MEMBERS_BY_SQUAD.get(String(s.id || '').trim());
-        const memberHit = m ? (m.ids.has(tgtId) || m.names.has(tgtName)) : false;
-
-        let fallbackHit = false;
-        if (!m && s.members) {
-          const toks = String(s.members).split(/[,;\n]+/).map(t => norm(t));
-          fallbackHit = (!!tgtId && toks.includes(tgtId)) || (!!tgtName && toks.includes(tgtName));
+    if (isAdminUser) {
+      // Admins filter by the Admin dropdown selection
+      const adminVal = sessionStorage.getItem('pu.adminEmployeeFilter') || '';
+      if (adminVal && adminVal !== '__ALL__' && adminVal.toLowerCase() !== 'all employees') {
+        targetName = adminVal.trim();
+        // Try to resolve ID if we have it in the employee map
+        for (const [id, nm] of idToName.entries()) {
+          if (nm.trim().toLowerCase() === targetName.toLowerCase()) {
+            targetId = id;
+            break;
+          }
         }
-        return leaderHit || memberHit || fallbackHit;
-      });
+      }
+      console.debug('[My Squads] Admin filter:', { targetName, targetId });
     } else {
+      // Normal users filter by their own display name
+      targetName = (sessionData.displayName || sessionData.name || '').trim();
+      targetId = (sessionData.employeeId || sessionData.positionId || '').trim();
+      console.debug('[My Squads] User filter:', { targetName, targetId });
+    }
+
+    // Skip filtering if admin filter is set to "All Employees"
+    if (targetName && targetName.toLowerCase() !== 'all employees') {
+      const norm = s => String(s || '').trim().toLowerCase();
+      const tgtName = norm(targetName);
+      const tgtId = norm(targetId);
+
       list = list.filter(s => {
-        const myId = String(session.employeeId || session.positionId || '').trim().toLowerCase();
-        const myName = String(session.displayName || session.name || '').trim().toLowerCase();
         const sid = String(s.id || '').trim().toLowerCase();
-        const m = MEMBERS_BY_SQUAD.get(sid);
+        const members = MEMBERS_BY_SQUAD.get(sid);
         const leaders = LEADERS_BY_SQUAD.get(sid) || [];
 
-        const memberHit = m && ([...m.ids].has(myId) || [...m.names].has(myName));
-        const leaderHit = leaders.some(l =>
-          (l.id || '').toLowerCase() === myId || (l.name || '').toLowerCase() === myName
+        const memberHit = members && (
+          [...members.names].has(tgtName) ||
+          [...members.ids].has(tgtId)
         );
+
+        const leaderHit = leaders.some(l => {
+          const lid = norm(l.id);
+          const lname = norm(l.name);
+          return lid === tgtId || lname === tgtName;
+        });
+
         return memberHit || leaderHit;
       });
     }
   }
+
 
   if (activeOnly) list = list.filter(s => isTrue(s.active));
   if (cat !== 'All') list = list.filter(s => s.category === cat);
