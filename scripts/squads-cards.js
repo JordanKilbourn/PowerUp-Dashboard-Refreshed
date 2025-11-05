@@ -955,13 +955,6 @@ if (btnManage) {
   padding: 0;
 }
 
-.manage-table-wrapper {
-  height: calc(100vh - 230px);
-  overflow-y: auto;
-  overflow-x: auto;
-  width: 100%;
-}
-
 .manage-table {
   min-width: 100%;
 }
