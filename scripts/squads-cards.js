@@ -788,8 +788,11 @@ if (btnManage) {
    MANAGE TABLE
 ======================================= */
 .manage-table-wrapper {
-  overflow: visible; /* let the parent handle scrolling */
+  overflow-x: auto;  /* ✅ horizontal scroll lives here */
+  overflow-y: visible; /* keep vertical scroll unified in green container */
+  width: 100%;
   height: auto;
+  padding-bottom: 8px; /* avoids scrollbar overlap with shadow */
 }
 
 .squad-container:has(#cards.manage-view) {
@@ -798,15 +801,14 @@ if (btnManage) {
 
 .manage-table {
   width: 100%;
-  min-width: 900px; /* ensures scroll on smaller screens */
+  min-width: 900px;
   border-collapse: collapse;
   background: #0d1616;
   border: 1px solid rgba(51,255,153,0.1);
   border-radius: 8px;
   box-shadow: 0 0 8px rgba(0,0,0,0.4);
-  overflow-x: auto; /* 🟢 horizontal scroll support */
-  display: block; /* 🟢 makes the table behave as a scrollable block */
 }
+
 
 .manage-table td {
   padding: 10px 14px;
@@ -829,6 +831,21 @@ if (btnManage) {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4); /* adds nice separation when scrolling */
 }
 
+.manage-table-wrapper::-webkit-scrollbar {
+  height: 10px;
+}
+.manage-table-wrapper::-webkit-scrollbar-track {
+  background: rgba(255,255,255,0.05);
+  border-radius: 10px;
+}
+.manage-table-wrapper::-webkit-scrollbar-thumb {
+  background-color: #33ff99;
+  border-radius: 10px;
+  border: 2px solid rgba(0,0,0,0.3);
+}
+.manage-table-wrapper::-webkit-scrollbar-thumb:hover {
+  background-color: #50ffaa;
+}
 
 /* Button Styles */
 .btn-save, .btn-cancel {
