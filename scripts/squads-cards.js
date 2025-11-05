@@ -783,9 +783,8 @@ if (btnManage) {
    MANAGE TABLE
 ======================================= */
 .manage-table-wrapper {
-  height: calc(100vh - 230px);
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: visible; /* let the parent handle scrolling */
+  height: auto;
 }
 
 .squad-container:has(#cards.manage-view) {
