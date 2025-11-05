@@ -708,6 +708,7 @@ if (btnManage) {
   padding: 1rem;
   margin: 0 auto;
   overflow: auto;
+  position: relative; /* 🟢 Add this line */
   max-height: calc(100vh - 220px);
   display: flex;
   flex-direction: column;
@@ -729,6 +730,10 @@ if (btnManage) {
 }
 .squad-container::-webkit-scrollbar-thumb:hover {
   background-color: #50FFAA;
+}
+
+.squad-container::-webkit-scrollbar:horizontal {
+  height: 10px;
 }
 
 /* =======================================
@@ -793,14 +798,16 @@ if (btnManage) {
 
 .manage-table {
   width: 100%;
+  min-width: 900px; /* ensures scroll on smaller screens */
   border-collapse: collapse;
   background: #0d1616;
   border: 1px solid rgba(51,255,153,0.1);
   border-radius: 8px;
   box-shadow: 0 0 8px rgba(0,0,0,0.4);
+  overflow-x: auto; /* 🟢 horizontal scroll support */
+  display: block; /* 🟢 makes the table behave as a scrollable block */
 }
 
-.manage-table th,
 .manage-table td {
   padding: 10px 14px;
   border-bottom: 1px solid rgba(255,255,255,0.05);
@@ -819,7 +826,9 @@ if (btnManage) {
   letter-spacing: 0.03em;
   font-weight: 600;
   text-align: left;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4); /* adds nice separation when scrolling */
 }
+
 
 /* Button Styles */
 .btn-save, .btn-cancel {
