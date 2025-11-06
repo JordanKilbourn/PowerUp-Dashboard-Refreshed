@@ -320,87 +320,71 @@ async function getAdminTargetFromFilter() {
 }
 
 // ============================================================
-// applyFilters (restored admin-driven version)
+// applyFilters (restored and corrected for Manage/Table view)
 // ============================================================
 async function applyFilters() {
-  const manageMode = document.getElementById('btn-manage')?.classList.contains('managing');
-  if (manageMode) return;
-
-  const cardsContainer = document.getElementById('cards');
-  if (cardsContainer) {
-    cardsContainer.classList.remove('manage-view');
-    cardsContainer.classList.add('cards-grid');
-    cardsContainer.style.display = 'grid';
-    cardsContainer.style.gridTemplateColumns = 'repeat(4, 1fr)';
-    cardsContainer.style.gap = '1.2rem';
-  }
-
-  const session = P.session.get?.() || {};
-  const cat = document.querySelector('.pill-cat.active')?.dataset.cat || activeCategory || 'All';
+  const session = P.session.get();
+  const cat = document.querySelector('.pill-cat.active')?.dataset.cat || 'All';
   const myOnly = document.getElementById('myOnly')?.checked;
   const activeOnly = document.getElementById('activeOnly')?.checked;
   const q = (document.getElementById('search')?.value || '').trim().toLowerCase();
 
-  let list = [...ALL];
-  const isAdmin = P.auth?.isAdmin?.() || false;
+  let list = ALL.slice();
 
+  // Safety check — make sure data maps are loaded before filtering
+  if (!MEMBERS_BY_SQUAD.size || !LEADERS_BY_SQUAD.size) {
+    await load();
+  }
+
+  // ============================================================
+  // My Squads Filtering Logic
+  // ============================================================
   if (myOnly) {
-    const isAdminUser = P.auth?.isAdmin?.();
-    const sessionData = P.session.get?.() || {};
-    let targetName = '';
-    let targetId = '';
-
-    if (isAdminUser) {
-      // Admins filter by the Admin dropdown selection
-      const adminVal = sessionStorage.getItem('pu.adminEmployeeFilter') || '';
-      if (adminVal && adminVal !== '__ALL__' && adminVal.toLowerCase() !== 'all employees') {
-        targetName = adminVal.trim();
-        // Try to resolve ID if we have it in the employee map
-        for (const [id, nm] of idToName.entries()) {
-          if (nm.trim().toLowerCase() === targetName.toLowerCase()) {
-            targetId = id;
-            break;
-          }
-        }
+    if (IS_ADMIN) {
+      // Admin path: filter based on the admin filter dropdown selection
+      let target = await getAdminTargetFromFilter();
+      if (!target) {
+        target = {
+          id: String(session.employeeId || '').trim(),
+          name: String(session.displayName || '').trim()
+        };
       }
-      console.debug('[My Squads] Admin filter:', { targetName, targetId });
-    } else {
-      // Normal users filter by their own display name
-      targetName = (sessionData.displayName || sessionData.name || '').trim();
-      targetId = (sessionData.employeeId || sessionData.positionId || '').trim();
-      console.debug('[My Squads] User filter:', { targetName, targetId });
-    }
 
-    // Skip filtering if admin filter is set to "All Employees"
-    if (targetName && targetName.toLowerCase() !== 'all employees') {
       const norm = s => String(s || '').trim().toLowerCase();
-      const tgtName = norm(targetName);
-      const tgtId = norm(targetId);
+      const tgtId = norm(target.id);
+      const tgtName = norm(target.name);
 
       list = list.filter(s => {
-        const sid = String(s.id || '').trim().toLowerCase();
-        const members = MEMBERS_BY_SQUAD.get(sid);
-        const leaders = LEADERS_BY_SQUAD.get(sid) || [];
+        const leaders = LEADERS_BY_SQUAD.get(String(s.id || '').trim()) || [];
+        const leaderHit = leaders.some(x => norm(x.id) === tgtId || norm(x.name) === tgtName);
 
-        const memberHit = members && (
-          [...members.names].has(tgtName) ||
-          [...members.ids].has(tgtId)
-        );
+        const m = MEMBERS_BY_SQUAD.get(String(s.id || '').trim());
+        const memberHit = m ? (m.ids.has(tgtId) || m.names.has(tgtName)) : false;
 
-        const leaderHit = leaders.some(l => {
-          const lid = norm(l.id);
-          const lname = norm(l.name);
-          return lid === tgtId || lname === tgtName;
-        });
+        let fallbackHit = false;
+        if (!m && s.members) {
+          const toks = String(s.members).split(/[,;\n]+/).map(t => norm(t));
+          fallbackHit = (!!tgtId && toks.includes(tgtId)) || (!!tgtName && toks.includes(tgtName));
+        }
 
-        return memberHit || leaderHit;
+        return leaderHit || memberHit || fallbackHit;
       });
+    } else {
+      // Normal user path: filter by the user’s session identity
+      list = list.filter(s => userIsMemberOrLeader(s, session));
     }
   }
 
+  // ============================================================
+  // Other Filters (Active, Category, Search)
+  // ============================================================
+  if (activeOnly) {
+    list = list.filter(s => isTrue(s.active));
+  }
 
-  if (activeOnly) list = list.filter(s => isTrue(s.active));
-  if (cat !== 'All') list = list.filter(s => s.category === cat);
+  if (cat !== 'All') {
+    list = list.filter(s => s.category === cat);
+  }
 
   if (q) {
     list = list.filter(s => {
@@ -409,8 +393,12 @@ async function applyFilters() {
     });
   }
 
+  // ============================================================
+  // Render
+  // ============================================================
   renderCards(list);
 }
+
 
 
 // =======================
