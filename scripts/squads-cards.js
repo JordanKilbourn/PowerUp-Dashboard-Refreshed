@@ -1,22 +1,9 @@
 // =============================================
-// PowerUp: Squads Page – Stable Reconciled Build 6 (SRB6)
+// PowerUp: Squads Page – Stable Hybrid Version (Full Corrected Build)
 // =============================================
 (function (PowerUp) {
   const P = PowerUp || (window.PowerUp = {});
   const { SHEETS, getRowsByTitle } = P.api;
-
-  // =======================
-  // Admin-only button visibility
-  // =======================
-  document.addEventListener('DOMContentLoaded', () => {
-    const isAdmin = P.auth?.isAdmin?.() || false;
-    const addBtn = document.getElementById('btn-add-squad');
-    const manageBtn = document.getElementById('btn-manage');
-    if (!isAdmin) {
-      if (addBtn) addBtn.style.display = 'none';
-      if (manageBtn) manageBtn.style.display = 'none';
-    }
-  });
 
   // ==== Column maps ====
   const EMP_COL = { id: ['Position ID', 'Employee ID'], name: ['Display Name', 'Employee Name', 'Name'] };
@@ -48,18 +35,11 @@
     Other: 'cat-other'
   };
 
-  const pick = (r, list, d = '') => {
-    for (const k of list) if (r[k] != null && r[k] !== '') return r[k];
-    return d;
-  };
+  const pick = (r, list, d = '') => { for (const k of list) if (r[k] != null && r[k] !== '') return r[k]; return d; };
   const dash = v => (v == null || String(v).trim() === '' ? '-' : String(v));
   const isTrue = v => v === true || /^(true|yes|y|checked|1)$/i.test(String(v ?? '').trim());
 
-  const MEMBERS_BY_SQUAD = new Map();
-  const LEADERS_BY_SQUAD = new Map();
-  let ALL = [];
-  let idToName = new Map();
-
+  // ==== Category helpers ====
   function normCategory(v) {
     const t = String(v || '').toLowerCase();
     if (/^ci|improve/.test(t)) return 'CI';
@@ -69,9 +49,6 @@
     return 'Other';
   }
 
-  // =======================
-  // UI Rendering
-  // =======================
   function getCatVar(cat) {
     switch (cat) {
       case 'CI': return 'var(--sq-ci)';
@@ -83,6 +60,16 @@
     }
   }
 
+  // ==== Core Data ====
+  const MEMBERS_BY_SQUAD = new Map();
+  const LEADERS_BY_SQUAD = new Map();
+  let ALL = [];
+  let idToName = new Map();
+  let IS_ADMIN = false;
+  let activeCategory = 'All';
+  let activeOnly = false;
+
+  // ==== UI Rendering helpers ====
   function renderCategoryPills(activeCat) {
     const wrap = document.getElementById('cat-pills');
     if (!wrap) return;
@@ -94,62 +81,7 @@
     }).join('');
   }
 
-  // =======================
-  // Card Rendering
-  // =======================
-  function renderCards(list) {
-    const cards = document.getElementById('cards');
-    const msg = document.getElementById('s-msg');
-    if (!cards) return;
-
-    if (!list.length) {
-      cards.innerHTML = '';
-      msg.style.display = 'block';
-      msg.innerHTML = `No squads match your filters.<br/>Try clearing search or showing inactive.`;
-      return;
-    }
-    msg.style.display = 'none';
-
-    cards.innerHTML = list.map(sq => {
-      const status = isTrue(sq.active)
-        ? `<span class="status-pill status-on">Active</span>`
-        : `<span class="status-pill status-off">Inactive</span>`;
-
-      const leaders = LEADERS_BY_SQUAD.get(String(sq.id || '').trim());
-      let leaderLine = dash(sq.leaderName || sq.leaderId);
-      if (leaders && leaders.length) leaderLine = leaders.map(x => x.name).filter(Boolean).join(', ');
-
-      const memberEntry = MEMBERS_BY_SQUAD.get(String(sq.id || '').trim());
-      const mCount = memberEntry ? memberEntry.ids.size : 0;
-      const memberChip = `
-        <span class="member-chip">
-          <img src="https://playworld.com/wp-content/uploads/2023/09/logo-icon.svg" 
-               alt="Playworld logo" 
-               class="emoji-logo" />
-          ${mCount} member${mCount === 1 ? '' : 's'}
-        </span>`;
-
-      const detailsHref = sq.id
-        ? `squad-details.html?id=${encodeURIComponent(sq.id)}`
-        : `squad-details.html?name=${encodeURIComponent(sq.name)}`;
-      const catCls = CAT_CLASS[sq.category] || CAT_CLASS.Other;
-
-      return `<div class="squad-card ${catCls}">
-                <h4>${dash(sq.name)}</h4>
-                <div class="squad-meta"><b>Leader(s):</b> ${leaderLine}</div>
-                <div class="squad-meta"><b>Status:</b> ${status}</div>
-                <div class="squad-meta"><b>Focus:</b> ${dash(sq.objective)}</div>
-                <div class="squad-foot">
-                  ${memberChip}
-                  <a class="squad-link" href="${detailsHref}">View Details →</a>
-                </div>
-              </div>`;
-    }).join('');
-  }
-
-  // =======================
-  // Toast + Loading Helpers
-  // =======================
+  // ==== Toast Helper ====
   function showToast(msg, type = 'info') {
     const existing = document.querySelector('.pu-toast');
     if (existing) existing.remove();
@@ -162,74 +94,7 @@
     setTimeout(() => toast.remove(), 4000);
   }
 
-  function showLoadingOverlay(message = "Saving...") {
-    let overlay = document.getElementById("saveOverlay");
-    if (!overlay) {
-      overlay = document.createElement("div");
-      overlay.id = "saveOverlay";
-      overlay.innerHTML = `<div class="spinner"></div><p>${message}</p>`;
-      Object.assign(overlay.style, {
-        position: "fixed",
-        top: 0,
-        left: 0,
-        width: "100%",
-        height: "100%",
-        background: "rgba(0,0,0,0.45)",
-        color: "#aefcd8",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        fontSize: "1.1rem",
-        zIndex: 9999,
-        backdropFilter: "blur(2px)"
-      });
-      document.body.appendChild(overlay);
-    }
-    overlay.style.display = "flex";
-  }
-
-  function hideLoadingOverlay() {
-    const overlay = document.getElementById("saveOverlay");
-    if (overlay) overlay.style.display = "none";
-  }
-
-  function showViewSwitchOverlay(message = "Loading view...") {
-    let overlay = document.getElementById("viewSwitchOverlay");
-    if (!overlay) {
-      overlay = document.createElement("div");
-      overlay.id = "viewSwitchOverlay";
-      overlay.innerHTML = `<div class="spinner"></div><p>${message}</p>`;
-      Object.assign(overlay.style, {
-        position: "fixed",
-        top: 0,
-        left: 0,
-        width: "100%",
-        height: "100%",
-        background: "rgba(0,0,0,0.45)",
-        color: "#aefcd8",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        fontSize: "1.1rem",
-        zIndex: 9998,
-        transition: "opacity 0.3s ease",
-        opacity: 0
-      });
-      document.body.appendChild(overlay);
-    }
-    overlay.style.display = "flex";
-    setTimeout(() => (overlay.style.opacity = 1), 50);
-setTimeout(() => {
-  if (overlay.style.display === "flex") {
-    overlay.style.opacity = 0;
-    setTimeout(() => (overlay.style.display = "none"), 300);
-  }
-}, 800);
-  }
-
-  // =======================
+    // =======================
   // Data Loading
   // =======================
   async function load() {
@@ -260,6 +125,7 @@ setTimeout(() => {
       }
       if (eid) entry.ids.add(eid.toLowerCase());
       if (enm) entry.names.add(enm.toLowerCase());
+
       if (role === 'leader') {
         const arr = LEADERS_BY_SQUAD.get(sid) || [];
         arr.push({ id: eid, name: enm });
@@ -282,742 +148,532 @@ setTimeout(() => {
     }));
   }
 
-    // =======================
-  // Filters
   // =======================
-  let activeCategory = 'All';
-  let activeOnly = false;
+  // Helper for determining membership
+  // =======================
+  function userIsMemberOrLeader(squad, session) {
+    const myId = String(session.employeeId || session.positionId || '').trim().toLowerCase();
+    const myName = String(session.displayName || session.name || '').trim().toLowerCase();
 
+    if (myId && String(squad.leaderId || '').trim().toLowerCase() === myId) return true;
 
-
-// ============================================================
-// Admin Filter Resolver (restored from working original version)
-// ============================================================
-async function getAdminTargetFromFilter() {
-  try {
-    const sel = (sessionStorage.getItem('pu.adminEmployeeFilter') || '').trim();
-    if (!sel || sel === '__ALL__' || sel.toLowerCase() === 'all employees') return null;
-
-    // Build name map if needed
-    if (!idToName.size) {
-      const em = await getRowsByTitle(SHEETS.EMPLOYEE_MASTER);
-      em.forEach(r => {
-        const id = String(r['Position ID'] || r['Employee ID'] || '').trim();
-        const nm = String(r['Display Name'] || r['Employee Name'] || r['Name'] || '').trim();
-        if (id) idToName.set(id, nm);
-      });
+    const sid = String(squad.id || '').trim();
+    const entry = MEMBERS_BY_SQUAD.get(sid);
+    if (entry) {
+      if (myId && entry.ids.has(myId)) return true;
+      if (myName && entry.names.has(myName)) return true;
+    } else if (squad.members) {
+      const tokens = String(squad.members).split(/[,;\n]+/).map(t => t.trim().toLowerCase());
+      if (myId && tokens.includes(myId)) return true;
+      if (myName && tokens.includes(myName)) return true;
     }
-
-    const norm = s => String(s || '').trim().toLowerCase();
-    let targetId = '';
-    for (const [id, nm] of idToName.entries()) {
-      if (norm(nm) === norm(sel)) { targetId = id; break; }
-    }
-    return { id: targetId, name: sel };
-  } catch {
-    return null;
-  }
-}
-
-// ============================================================
-// applyFilters (restored and corrected for Manage/Table view)
-// ============================================================
-async function applyFilters() {
-  const session = P.session.get();
-  const cat = document.querySelector('.pill-cat.active')?.dataset.cat || 'All';
-  const myOnly = document.getElementById('myOnly')?.checked;
-  const activeOnly = document.getElementById('activeOnly')?.checked;
-  const q = (document.getElementById('search')?.value || '').trim().toLowerCase();
-  // Prevent filters from running while in Manage Table mode
-  const btnManage = document.getElementById('btn-manage');
-  const isManaging = btnManage?.classList.contains('managing');
-  if (isManaging) return;
-
-
-  let list = ALL.slice();
-
-  // Safety check — make sure data maps are loaded before filtering
-  if (!MEMBERS_BY_SQUAD.size || !LEADERS_BY_SQUAD.size) {
-    await load();
+    return false;
   }
 
-  // ============================================================
-  // My Squads Filtering Logic
-  // ============================================================
-  if (myOnly) {
-    if (IS_ADMIN) {
-      // Admin path: filter based on the admin filter dropdown selection
-      let target = await getAdminTargetFromFilter();
-      if (!target) {
-        target = {
-          id: String(session.employeeId || '').trim(),
-          name: String(session.displayName || '').trim()
-        };
+  // =======================
+  // Admin Filter Resolver
+  // =======================
+  async function getAdminTargetFromFilter() {
+    try {
+      const sel = (sessionStorage.getItem('pu.adminEmployeeFilter') || '').trim();
+      if (!sel || sel === '__ALL__' || sel.toLowerCase() === 'all employees') return null;
+
+      if (!idToName.size) {
+        const em = await getRowsByTitle(SHEETS.EMPLOYEE_MASTER);
+        em.forEach(r => {
+          const id = String(r['Position ID'] || r['Employee ID'] || '').trim();
+          const nm = String(r['Display Name'] || r['Employee Name'] || r['Name'] || '').trim();
+          if (id) idToName.set(id, nm);
+        });
       }
 
       const norm = s => String(s || '').trim().toLowerCase();
-      const tgtId = norm(target.id);
-      const tgtName = norm(target.name);
-
-      list = list.filter(s => {
-        const leaders = LEADERS_BY_SQUAD.get(String(s.id || '').trim()) || [];
-        const leaderHit = leaders.some(x => norm(x.id) === tgtId || norm(x.name) === tgtName);
-
-        const m = MEMBERS_BY_SQUAD.get(String(s.id || '').trim());
-        const memberHit = m ? (m.ids.has(tgtId) || m.names.has(tgtName)) : false;
-
-        let fallbackHit = false;
-        if (!m && s.members) {
-          const toks = String(s.members).split(/[,;\n]+/).map(t => norm(t));
-          fallbackHit = (!!tgtId && toks.includes(tgtId)) || (!!tgtName && toks.includes(tgtName));
-        }
-
-        return leaderHit || memberHit || fallbackHit;
-      });
-    } else {
-      // Normal user path: filter by the user’s session identity
-      list = list.filter(s => userIsMemberOrLeader(s, session));
+      let targetId = '';
+      for (const [id, nm] of idToName.entries()) {
+        if (norm(nm) === norm(sel)) { targetId = id; break; }
+      }
+      return { id: targetId, name: sel };
+    } catch {
+      return null;
     }
   }
 
-  // ============================================================
-  // Other Filters (Active, Category, Search)
-  // ============================================================
-  if (activeOnly) {
-    list = list.filter(s => isTrue(s.active));
-  }
+  // =======================
+  // Card Renderer
+  // =======================
+  function renderCards(list) {
+    const cards = document.getElementById('cards');
+    const msg = document.getElementById('s-msg');
+    if (!cards) return;
 
-  if (cat !== 'All') {
-    list = list.filter(s => s.category === cat);
-  }
-
-  if (q) {
-    list = list.filter(s => {
-      const hay = [s.name, s.leaderName, s.leaderId, s.objective, s.notes].join(' ').toLowerCase();
-      return hay.includes(q);
-    });
-  }
-
-  // ============================================================
-  // Render
-  // ============================================================
-  renderCards(list);
-}
-
-
-// =======================
-// Manage Table Rendering (dynamic layout-safe version)
-// =======================
-async function renderManageTable() {
-  const cardsContainer = document.getElementById('cards');
-  const msg = document.getElementById('s-msg');
-  if (msg) msg.style.display = 'none';
-
-  // Switch layout to table mode
-  cardsContainer.classList.remove("cards-grid");
-  cardsContainer.classList.add("manage-view");
-  cardsContainer.style.display = "none";
-
-  try {
-    const [squadSheet, members] = await Promise.all([
-      P.api.fetchSheet(SHEETS.SQUADS, { force: true }),
-      P.api.getRowsByTitle(SHEETS.SQUAD_MEMBERS, { force: true })
-    ]);
-
-    const squads = P.api.rowsByTitle(squadSheet).map((r, i) => ({
-      ...r,
-      __rowId: squadSheet.rows[i]?.id || ''
-    }));
-
-    const allEmps = await P.getEmployees();
-
-    const leadersBySquad = new Map();
-    members.forEach(r => {
-      const isActive = /^(true|yes|y|1)$/i.test(String(r["Active"] || ""));
-      if (!isActive) return;
-      const sid = String(r["Squad ID"] || "").trim().toUpperCase();
-      const role = String(r["Role"] || "").trim().toLowerCase();
-      if (role === "leader") {
-        leadersBySquad.set(sid, {
-          id: String(r["Employee ID"] || "").trim(),
-          name: String(r["Employee Name"] || "").trim()
-        });
+    if (!list.length) {
+      cards.innerHTML = '';
+      if (msg) {
+        msg.style.display = 'block';
+        msg.innerHTML = `No squads match your filters.<br/>Try clearing search or showing inactive.`;
       }
-    });
+      return;
+    }
+    if (msg) msg.style.display = 'none';
 
-    const table = document.createElement('table');
-    table.className = 'manage-table';
-    table.innerHTML = `
-      <thead>
-        <tr>
-          <th style="width:8%">ID</th>
-          <th style="width:20%">Squad Name</th>
-          <th style="width:12%">Category</th>
-          <th style="width:6%">Active</th>
-          <th style="width:26%">Objective</th>
-          <th style="width:18%">Leader</th>
-          <th style="width:10%">Created By</th>
-          <th style="width:10%">Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${squads.map(r => {
-          const sheetRowId = r.__rowId;
-          const squadId = (r["Squad ID"] || "").trim().toUpperCase();
-          const leader = leadersBySquad.get(squadId);
-          const selectedName = leader ? leader.name : "";
-          const rowData = {
-            name: r["Squad Name"] || "",
-            category: r["Category"] || "",
-            active: r["Active"] === true || String(r["Active"]).toLowerCase() === "true",
-            objective: r["Objective"] || "",
-            createdBy: r["Created By"] || "",
-            leader: selectedName
-          };
-          return `
-            <tr data-rowid="${sheetRowId}" data-squadid="${squadId}"
-                data-original='${JSON.stringify(rowData)}'>
-              <td>${squadId}</td>
-              <td contenteditable class="editable name">${rowData.name}</td>
-              <td contenteditable class="editable category">${rowData.category}</td>
-              <td><input type="checkbox" class="active" ${rowData.active ? "checked" : ""}></td>
-              <td contenteditable class="editable objective">${rowData.objective}</td>
-              <td>
-                <select class="leader-select-single">
-                  <option value="">— Select Leader —</option>
-                  ${allEmps.map(emp =>
-                    `<option value="${emp.name}" ${emp.name === selectedName ? "selected" : ""}>${emp.name}</option>`
-                  ).join("")}
-                </select>
-              </td>
-              <td contenteditable class="editable created-by">${rowData.createdBy}</td>
-              <td class="actions-cell">
-                <button class="btn-save">Save</button>
-                <button class="btn-cancel">Cancel</button>
-              </td>
-            </tr>`;
-        }).join("")}
-      </tbody>`;
+    cards.innerHTML = list.map(sq => {
+      const status = isTrue(sq.active)
+        ? `<span class="status-pill status-on">Active</span>`
+        : `<span class="status-pill status-off">Inactive</span>`;
 
-    cardsContainer.innerHTML = "";
-    const wrapper = document.createElement('div');
-    wrapper.className = 'manage-table-wrapper';
-    wrapper.appendChild(table);
-    cardsContainer.style.display = "block";
-    cardsContainer.appendChild(wrapper);
+      let leaderLine = dash(sq.leaderName || sq.leaderId);
+      const leaders = LEADERS_BY_SQUAD.get(String(sq.id || '').trim());
+      if (leaders && leaders.length) {
+        const names = leaders.map(x => (x.name || idToName.get(x.id) || x.id || '').toString().trim())
+          .filter(Boolean)
+          .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+        leaderLine = names.join(', ');
+      }
 
-    // Save + Cancel handlers
-    table.addEventListener("click", async e => {
-      const tr = e.target.closest("tr[data-rowid]");
-      if (!tr) return;
-      const rowId = tr.dataset.rowid;
-      const original = JSON.parse(tr.dataset.original || "{}");
+      const detailsHref = sq.id
+        ? `squad-details.html?id=${encodeURIComponent(sq.id)}`
+        : `squad-details.html?name=${encodeURIComponent(sq.name)}`;
+      const catCls = CAT_CLASS[sq.category] || CAT_CLASS.Other;
 
-      if (e.target.classList.contains("btn-save")) {
-        const name = tr.querySelector(".name")?.textContent.trim();
-        const category = tr.querySelector(".category")?.textContent.trim();
-        const active = tr.querySelector(".active")?.checked;
-        const objective = tr.querySelector(".objective")?.textContent.trim();
-        const createdBy = tr.querySelector(".created-by")?.textContent.trim();
-        const leaderName = tr.querySelector(".leader-select-single")?.value;
-        const leaderEmp = allEmps.find(e => e.name === leaderName);
+      return `<div class="squad-card ${catCls}">
+                <h4>${dash(sq.name)}</h4>
+                <div class="squad-meta"><b>Leader(s):</b> ${leaderLine}</div>
+                <div class="squad-meta"><b>Status:</b> ${status}</div>
+                <div class="squad-meta"><b>Focus:</b> ${dash(sq.objective)}</div>
+                <div class="squad-foot">
+                  <span class="member-chip">${(MEMBERS_BY_SQUAD.get(sq.id)?.ids.size || 0)} Members</span>
+                  <a class="squad-link" href="${detailsHref}">View Details →</a>
+                </div>
+              </div>`;
+    }).join('');
+  }
+
+  // =======================
+  // applyFilters (restored logic)
+  // =======================
+  async function applyFilters() {
+    const session = P.session.get?.() || {};
+    const cat = document.querySelector('.pill-cat.active')?.dataset.cat || activeCategory || 'All';
+    const myOnly = document.getElementById('myOnly')?.checked;
+    const activeOnly = document.getElementById('activeOnly')?.checked;
+    const q = (document.getElementById('search')?.value || '').trim().toLowerCase();
+
+    let list = [...ALL];
+    const isAdmin = P.auth?.isAdmin?.() || false;
+
+    if (myOnly) {
+      if (isAdmin) {
+        let target = await getAdminTargetFromFilter();
+        if (!target) target = { id: String(session.employeeId || ''), name: String(session.displayName || '') };
+
+        const norm = s => String(s || '').trim().toLowerCase();
+        const tgtId = norm(target.id);
+        const tgtName = norm(target.name);
+
+        list = list.filter(s => {
+          const leaders = LEADERS_BY_SQUAD.get(String(s.id || '').trim()) || [];
+          const leaderHit = leaders.some(x => norm(x.id) === tgtId || norm(x.name) === tgtName);
+          const m = MEMBERS_BY_SQUAD.get(String(s.id || '').trim());
+          const memberHit = m ? (m.ids.has(tgtId) || m.names.has(tgtName)) : false;
+          return leaderHit || memberHit;
+        });
+      } else {
+        list = list.filter(s => userIsMemberOrLeader(s, session));
+      }
+    }
+
+    if (activeOnly) list = list.filter(s => isTrue(s.active));
+    if (cat !== 'All') list = list.filter(s => s.category === cat);
+    if (q) {
+      list = list.filter(s => {
+        const hay = [s.name, s.leaderName, s.leaderId, s.objective, s.notes].join(' ').toLowerCase();
+        return hay.includes(q);
+      });
+    }
+
+    renderCards(list);
+  }
+  // =============================================
+  // Manage Table Rendering (Stable + Scroll Safe)
+  // =============================================
+  async function renderManageTable() {
+    const cardsContainer = document.getElementById('cards');
+    const msg = document.getElementById('s-msg');
+    if (msg) msg.style.display = 'none';
+
+    cardsContainer.classList.remove('cards-grid');
+    cardsContainer.classList.add('manage-view');
+    cardsContainer.style.display = 'block';
+    cardsContainer.innerHTML = '';
+
+    try {
+      const [squadSheet, members] = await Promise.all([
+        P.api.fetchSheet(SHEETS.SQUADS, { force: true }),
+        P.api.getRowsByTitle(SHEETS.SQUAD_MEMBERS, { force: true })
+      ]);
+
+      const squads = P.api.rowsByTitle(squadSheet).map((r, i) => ({
+        ...r,
+        __rowId: squadSheet.rows[i]?.id || ''
+      }));
+
+      const allEmps = await P.getEmployees();
+      const leadersBySquad = new Map();
+
+      members.forEach(r => {
+        const active = /^(true|yes|y|1)$/i.test(String(r['Active'] || ''));
+        if (!active) return;
+        const sid = String(r['Squad ID'] || '').trim().toUpperCase();
+        const role = String(r['Role'] || '').trim().toLowerCase();
+        if (role === 'leader') {
+          leadersBySquad.set(sid, {
+            id: String(r['Employee ID'] || '').trim(),
+            name: String(r['Employee Name'] || '').trim()
+          });
+        }
+      });
+
+      const table = document.createElement('table');
+      table.className = 'manage-table';
+      table.innerHTML = `
+        <thead>
+          <tr>
+            <th style="width:8%">ID</th>
+            <th style="width:20%">Name</th>
+            <th style="width:12%">Category</th>
+            <th style="width:7%">Active</th>
+            <th style="width:25%">Objective</th>
+            <th style="width:18%">Leader</th>
+            <th style="width:10%">Created By</th>
+            <th style="width:10%">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${squads.map(r => {
+            const sheetRowId = r.__rowId;
+            const squadId = (r['Squad ID'] || '').trim().toUpperCase();
+            const leader = leadersBySquad.get(squadId);
+            const selectedName = leader ? leader.name : '';
+            const rowData = {
+              name: r['Squad Name'] || '',
+              category: r['Category'] || '',
+              active: isTrue(r['Active']),
+              objective: r['Objective'] || '',
+              createdBy: r['Created By'] || '',
+              leader: selectedName
+            };
+            return `
+              <tr data-rowid="${sheetRowId}" data-squadid="${squadId}"
+                  data-original='${JSON.stringify(rowData)}'>
+                <td>${squadId}</td>
+                <td contenteditable class="editable name">${rowData.name}</td>
+                <td contenteditable class="editable category">${rowData.category}</td>
+                <td><input type="checkbox" class="active" ${rowData.active ? 'checked' : ''}></td>
+                <td contenteditable class="editable objective">${rowData.objective}</td>
+                <td>
+                  <select class="leader-select-single">
+                    <option value="">— Select Leader —</option>
+                    ${allEmps.map(emp =>
+                      `<option value="${emp.name}" ${emp.name === selectedName ? 'selected' : ''}>${emp.name}</option>`
+                    ).join('')}
+                  </select>
+                </td>
+                <td contenteditable class="editable created-by">${rowData.createdBy}</td>
+                <td class="actions-cell">
+                  <button class="btn-save">Save</button>
+                  <button class="btn-cancel">Cancel</button>
+                </td>
+              </tr>`;
+          }).join('')}
+        </tbody>`;
+
+      const wrapper = document.createElement('div');
+      wrapper.className = 'manage-table-wrapper';
+      wrapper.appendChild(table);
+      cardsContainer.appendChild(wrapper);
+
+      // ===== Save & Cancel handlers =====
+      table.addEventListener('click', async e => {
+        const tr = e.target.closest('tr[data-rowid]');
+        if (!tr) return;
+        const original = JSON.parse(tr.dataset.original || '{}');
+        const rowId = tr.dataset.rowid;
         const squadId = tr.dataset.squadid;
 
-        const hasChanges =
-          name !== original.name ||
-          category !== original.category ||
-          active !== original.active ||
-          objective !== original.objective ||
-          createdBy !== original.createdBy ||
-          (leaderEmp ? leaderEmp.name : leaderName) !== original.leader;
+        if (e.target.classList.contains('btn-save')) {
+          const name = tr.querySelector('.name')?.textContent.trim();
+          const category = tr.querySelector('.category')?.textContent.trim();
+          const active = tr.querySelector('.active')?.checked;
+          const objective = tr.querySelector('.objective')?.textContent.trim();
+          const createdBy = tr.querySelector('.created-by')?.textContent.trim();
+          const leaderName = tr.querySelector('.leader-select-single')?.value;
+          const leaderEmp = allEmps.find(emp => emp.name === leaderName);
 
-        if (!hasChanges) {
-          showToast("No changes detected — nothing to save.", "info");
-          return;
-        }
-        if (!leaderName) {
-          showToast("Select a leader before saving.", "warn");
-          return;
-        }
+          const changed =
+            name !== original.name ||
+            category !== original.category ||
+            active !== original.active ||
+            objective !== original.objective ||
+            createdBy !== original.createdBy ||
+            (leaderEmp ? leaderEmp.name : leaderName) !== original.leader;
 
-        try {
-          document.querySelectorAll(".btn-save, .btn-cancel, .leader-select-single, .editable")
-            .forEach(el => el.disabled = true);
-          showLoadingOverlay("Saving squad changes...");
-
-          await P.api.updateRowById(P.api.SHEETS.SQUADS, rowId, {
-            "Squad Name": name,
-            "Category": category,
-            "Active": active,
-            "Objective": objective,
-            "Created By": createdBy
-          });
-
-          if (leaderEmp && squadId) {
-            await P.api.updateOrReplaceLeader({
-              squadId,
-              newLeaderId: leaderEmp.id,
-              newLeaderName: leaderEmp.name
-            });
+          if (!changed) {
+            showToast('No changes detected — nothing to save.', 'info');
+            return;
+          }
+          if (!leaderName) {
+            showToast('Select a leader before saving.', 'warn');
+            return;
           }
 
-          hideLoadingOverlay();
-          document.querySelectorAll(".btn-save, .btn-cancel, .leader-select-single, .editable")
-            .forEach(el => el.disabled = false);
+          try {
+            document.querySelectorAll('.btn-save, .btn-cancel, .editable, .leader-select-single')
+              .forEach(el => el.disabled = true);
+            showLoadingOverlay('Saving squad changes...');
 
-          showToast("✅ Squad saved successfully.", "success");
-          await renderManageTable();
-        } catch (err) {
-          hideLoadingOverlay();
-          document.querySelectorAll(".btn-save, .btn-cancel, .leader-select-single, .editable")
-            .forEach(el => el.disabled = false);
-          console.error("Save error:", err);
-          showToast("Error saving squad. Check console.", "error");
+            await P.api.updateRowById(P.api.SHEETS.SQUADS, rowId, {
+              'Squad Name': name,
+              'Category': category,
+              'Active': active,
+              'Objective': objective,
+              'Created By': createdBy
+            });
+
+            if (leaderEmp && squadId) {
+              await P.api.updateOrReplaceLeader({
+                squadId,
+                newLeaderId: leaderEmp.id,
+                newLeaderName: leaderEmp.name
+              });
+            }
+
+            hideLoadingOverlay();
+            document.querySelectorAll('.btn-save, .btn-cancel, .editable, .leader-select-single')
+              .forEach(el => el.disabled = false);
+            showToast('✅ Squad saved successfully.', 'success');
+            await renderManageTable();
+          } catch (err) {
+            hideLoadingOverlay();
+            document.querySelectorAll('.btn-save, .btn-cancel, .editable, .leader-select-single')
+              .forEach(el => el.disabled = false);
+            console.error('Save error:', err);
+            showToast('Error saving squad. Check console.', 'error');
+          }
         }
-      }
 
-      if (e.target.classList.contains("btn-cancel")) {
-        tr.querySelector(".name").textContent = original.name || "";
-        tr.querySelector(".category").textContent = original.category || "";
-        tr.querySelector(".active").checked = !!original.active;
-        tr.querySelector(".objective").textContent = original.objective || "";
-        tr.querySelector(".created-by").textContent = original.createdBy || "";
-        const sel = tr.querySelector(".leader-select-single");
-        if (sel) sel.value = original.leader || "";
-        tr.style.backgroundColor = "rgba(255,255,0,0.1)";
-        setTimeout(() => (tr.style.backgroundColor = ""), 700);
-      }
-    });
-  } catch (err) {
-    console.error("Render Manage Table error:", err);
-    showToast("⚠️ Failed to load manage view.", "error");
-  }
-}
-
-
-// =======================
-// Filter Bindings
-// =======================
-let activeCategory = 'All';
-let activeOnly = false;
-let mySquadsOnly = false;
-
-function bindFilters() {
-  const catWrap = document.getElementById('cat-pills');
-  const activeToggle = document.getElementById('activeOnly');
-  const myToggle = document.getElementById('myOnly');
-  const searchBox = document.getElementById('search');
-
-  const inManageMode = () => document.getElementById('btn-manage')?.classList.contains('managing');
-
-  if (catWrap) {
-    catWrap.addEventListener('click', e => {
-      if (inManageMode()) return; // prevent filtering in manage mode
-      const btn = e.target.closest('button[data-cat]');
-      if (!btn) return;
-      activeCategory = btn.dataset.cat;
-      renderCategoryPills(activeCategory);
-      applyFilters();
-    });
-  }
-
-  if (activeToggle)
-    activeToggle.addEventListener('change', e => {
-      if (inManageMode()) return;
-      activeOnly = e.target.checked;
-      applyFilters();
-    });
-
-  if (myToggle)
-    myToggle.addEventListener('change', e => {
-      if (inManageMode()) return;
-      mySquadsOnly = e.target.checked;
-      applyFilters();
-    });
-
-  if (searchBox)
-    searchBox.addEventListener('input', e => {
-      if (inManageMode()) return;
-      applyFilters();
-    });
-}
-
-// When admin filter changes, reapply filters
-document.addEventListener('powerup-admin-filter-change', async () => {
-  if (!MEMBERS_BY_SQUAD.size || !LEADERS_BY_SQUAD.size) await load();
-  applyFilters();
-});
-
-
-// =======================
-// Page Init
-// =======================
-document.addEventListener('DOMContentLoaded', async () => {
-  P.session?.requireLogin?.();
-  P.layout.injectLayout();
-  P.layout.setTitles('Squads');
-  await P.session.initHeader();
-
-  renderCategoryPills('All');
-  await load();
-  bindFilters?.();
-
-  const myToggle = document.getElementById('myOnly');
-  if (myToggle) myToggle.checked = true;
-
-  await applyFilters();
-
-  const btnManage = document.getElementById('btn-manage');
-  const btnAdd = document.getElementById('btn-add-squad');
-
-  if (btnAdd)
-    btnAdd.addEventListener('click', () => PowerUp.squadAddForm?.open?.());
-
-  // =======================
-  // Manage / Cards Toggle (stabilized layout switch)
-  // =======================
-  if (btnManage) {
-    btnManage.addEventListener('click', async () => {
-      const isManaging = btnManage.classList.toggle('managing');
-      showViewSwitchOverlay(isManaging ? "Loading Manage View..." : "Loading Card View...");
-
-      const cardsContainer = document.getElementById('cards');
-      const msg = document.getElementById('s-msg');
-
-      if (isManaging) {
-        btnManage.textContent = 'View Cards';
-        cardsContainer.classList.remove('cards-grid');
-        cardsContainer.classList.add('manage-view');
-        cardsContainer.style.display = 'block';
-        if (msg) msg.style.display = 'none';
-        await renderManageTable();
-      } else {
-        btnManage.textContent = 'Manage Squads';
-        cardsContainer.classList.remove('manage-view');
-        cardsContainer.classList.add('cards-grid');
-        cardsContainer.style.display = 'grid';
-        await applyFilters(); // fully await card view rebuild
-      }
-    });
-  }
-
-  document.getElementById('cat-pills')?.addEventListener('click', () => {
-    const btnManage = document.getElementById('btn-manage');
-    if (btnManage?.classList.contains('managing')) {
-      btnManage.classList.remove('managing');
-      btnManage.textContent = 'Manage Squads';
+        if (e.target.classList.contains('btn-cancel')) {
+          tr.querySelector('.name').textContent = original.name;
+          tr.querySelector('.category').textContent = original.category;
+          tr.querySelector('.active').checked = !!original.active;
+          tr.querySelector('.objective').textContent = original.objective;
+          tr.querySelector('.created-by').textContent = original.createdBy;
+          const sel = tr.querySelector('.leader-select-single');
+          if (sel) sel.value = original.leader || '';
+          tr.style.backgroundColor = 'rgba(255,255,0,0.1)';
+          setTimeout(() => (tr.style.backgroundColor = ''), 600);
+        }
+      });
+    } catch (err) {
+      console.error('Render Manage Table error:', err);
+      showToast('⚠️ Failed to load manage view.', 'error');
     }
-  });
-});
+  }
 
-
-
-
-
-
-
-
-
-  
-
-
-
-  // =======================
-  // Inline Styles (Unified Layout + Scroll)
-  // =======================
+  // Custom scrollbar & sticky header CSS injection
   const style = document.createElement('style');
   style.textContent = `
-
-/* =======================================
-   GREEN CONTAINER SCROLL BEHAVIOR
-======================================= */
-.squad-container {
-  flex: 1;
-  background-color: var(--panel-bg, #062a24);
-  border-radius: 12px;
-  padding: 1rem;
-  margin: 0 auto;
-  overflow: auto;
-  position: relative; /* 🟢 Add this line */
-  max-height: calc(100vh - 220px);
-  display: flex;
-  flex-direction: column;
-}
-
-/* Custom scrollbars */
-.squad-container::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-.squad-container::-webkit-scrollbar-track {
-  background: rgba(255,255,255,0.05);
-  border-radius: 10px;
-}
-.squad-container::-webkit-scrollbar-thumb {
-  background-color: #33FF99;
-  border-radius: 10px;
-  border: 2px solid rgba(0,0,0,0.3);
-}
-.squad-container::-webkit-scrollbar-thumb:hover {
-  background-color: #50FFAA;
-}
-
-.squad-container::-webkit-scrollbar:horizontal {
-  height: 10px;
-}
-
-/* =======================================
-   CARD GRID — 4 Across
-======================================= */
-#cards {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 1.2rem;
-  width: 100%;
-  flex: 1;
-  overflow-y: auto;
-  padding: 1rem 0;
-  box-sizing: border-box;
-}
-
-.squad-card {
-  height: 190px;
-  background: #101a1a;
-  border-left: 5px solid var(--accent, #33ff99);
-  border-radius: 10px;
-  padding: 14px 16px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  color: #d7fbea;
-  box-shadow: 0 0 8px rgba(0,0,0,0.3);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.squad-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 4px 10px rgba(0,0,0,0.4);
-}
-
-.squad-meta {
-  font-size: 0.85rem;
-  margin: 0;
-  line-height: 1em;
-  color: #aab;
-}
-
-.status-pill { padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; }
-.status-on { background: rgba(51,255,153,0.1); color: #33ff99; }
-.status-off { background: rgba(255,80,80,0.1); color: #ff5050; }
-.member-chip { font-size: 0.8rem; color: #ffffff; margin-right: auto; }
-.squad-foot { display: flex; justify-content: space-between; align-items: center;border-top: 1px solid rgba(255,255,255,0.1); margin-top: 8px; padding-top: 6px; }
-.squad-link { color: #33ff99; text-decoration: none; font-size: 0.85rem; }
-.squad-link:hover { text-decoration: underline; }
-
-/* =======================================
-   MANAGE TABLE
-======================================= */
-.manage-table-wrapper {
-  overflow-x: auto;  /* ✅ horizontal scroll lives here */
-  overflow-y: visible; /* keep vertical scroll unified in green container */
-  width: 100%;
-  height: auto;
-  padding-bottom: 8px; /* avoids scrollbar overlap with shadow */
-}
-
-.squad-container:has(#cards.manage-view) {
-  overflow: hidden !important;
-}
-
-.manage-table {
-  width: 100%;
-  min-width: 900px;
-  border-collapse: collapse;
-  background: #0d1616;
-  border: 1px solid rgba(51,255,153,0.1);
-  border-radius: 8px;
-  box-shadow: 0 0 8px rgba(0,0,0,0.4);
-}
-
-
-.manage-table td {
-  padding: 10px 14px;
-  border-bottom: 1px solid rgba(255,255,255,0.05);
-  text-overflow: ellipsis;
-  overflow: hidden;
-  white-space: nowrap;
-}
-
-.manage-table th {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  background: #122020;
-  color: #99ffcc;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  font-weight: 600;
-  text-align: left;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4); /* adds nice separation when scrolling */
-}
-
-.manage-table-wrapper::-webkit-scrollbar {
-  height: 10px;
-}
-.manage-table-wrapper::-webkit-scrollbar-track {
-  background: rgba(255,255,255,0.05);
-  border-radius: 10px;
-}
-.manage-table-wrapper::-webkit-scrollbar-thumb {
-  background-color: #33ff99;
-  border-radius: 10px;
-  border: 2px solid rgba(0,0,0,0.3);
-}
-.manage-table-wrapper::-webkit-scrollbar-thumb:hover {
-  background-color: #50ffaa;
-}
-
-/* Button Styles */
-.btn-save, .btn-cancel {
-  padding: 4px 10px;
-  border-radius: 6px;
-  font-size: 0.85rem;
-  cursor: pointer;
-  border: 1px solid transparent;
-  background: transparent;
-  transition: all .2s;
-}
-.btn-save { color: #33ff99; border-color: #33ff99; }
-.btn-save:hover { background: rgba(51,255,153,0.1); }
-.btn-cancel { color: #ff8080; border-color: #ff5050; }
-.btn-cancel:hover { background: rgba(255,80,80,0.1); }
-
-/* =======================================
-   SCROLLBAR STYLING
-======================================= */
-#cards::-webkit-scrollbar { width: 10px; }
-#cards::-webkit-scrollbar-track { background: #0b1414; border-radius: 10px; }
-#cards::-webkit-scrollbar-thumb {
-  background-color: #33ff99;
-  border-radius: 10px;
-  border: 2px solid #0b1414;
-}
-#cards::-webkit-scrollbar-thumb:hover { background-color: #66ffc4; }
-
-/* =======================================
-   LOGO + MEDIA
-======================================= */
-.emoji-logo {
-  width: 18px;
-  height: 18px;
-  filter: invert(52%) sepia(88%) saturate(3789%) hue-rotate(2deg)
-    brightness(102%) contrast(101%);
-  vertical-align: middle;
-  margin-right: 6px;
-}
-
-@media (max-width: 1300px) {
-  #cards { grid-template-columns: repeat(3, 1fr); }
-}
-@media (max-width: 900px) {
-  #cards { grid-template-columns: repeat(2, 1fr); }
-}
-@media (max-width: 600px) {
-  #cards { grid-template-columns: repeat(1, 1fr); }
-}
-
-/* =======================================
-   TOAST + OVERLAYS
-======================================= */
-.pu-toast {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  background: #0f1a1a;
-  color: #9ff;
-  border: 1px solid #33ff99;
-  padding: 10px 18px;
-  border-radius: 8px;
-  opacity: 0;
-  transition: opacity 0.4s ease;
-  z-index: 10000;
-}
-.pu-toast.show { opacity: 1; }
-
-.overlay {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  color: #9ff;
-  z-index: 50;
-}
-.overlay-text {
-  margin-top: 10px;
-  color: #aefcd8;
-  font-size: 0.9rem;
-  text-align: center;
-}
-.spinner {
-  width: 42px;
-  height: 42px;
-  border: 4px solid #33ff99;
-  border-top-color: transparent;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
-
-/* =======================================
-   LEADER SELECT
-======================================= */
-.leader-select-single {
-  width: 95%;
-  max-width: 260px;
-  padding: 4px 6px;
-  border-radius: 6px;
-  background: #0f1a1a;
-  color: #cde;
-  border: 1px solid #2a3d3d;
-}
-.leader-select-single:focus {
-  outline: none;
-  border-color: #33ff99;
-  box-shadow: 0 0 4px rgba(51,255,153,0.3);
-}
-
-/* =======================================
-   DYNAMIC VIEW SWITCH (Cards vs Manage)
-======================================= */
-#cards.cards-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 1.2rem;
-  width: 100%;
-  flex: 1;
-  overflow-y: auto;
-  padding: 1rem 0;
-  box-sizing: border-box;
-}
-
-#cards.manage-view {
-  display: block;
-  overflow: hidden;
-  padding: 0;
-}
-
-.manage-table {
-  min-width: 100%;
-}
-
-
-`;
-
+    .manage-table-wrapper {
+      overflow-x: auto;
+      max-height: calc(100vh - 300px);
+      scrollbar-color: #00ff99 #0e1616;
+      scrollbar-width: thin;
+    }
+    .manage-table th {
+      position: sticky;
+      top: 0;
+      background: #121f20;
+      color: #99ffcc;
+      z-index: 2;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .manage-table::-webkit-scrollbar {
+      height: 8px;
+    }
+    .manage-table::-webkit-scrollbar-thumb {
+      background-color: #00ff99;
+      border-radius: 4px;
+    }
+  `;
   document.head.appendChild(style);
 
-})(window.PowerUp);
+    // =============================================
+  // Filter Bindings & View Management
+  // =============================================
+
+  function bindFilters() {
+    const catWrap = document.getElementById('cat-pills');
+    const activeToggle = document.getElementById('activeOnly');
+    const myToggle = document.getElementById('myOnly');
+    const searchBox = document.getElementById('search');
+
+    if (catWrap) {
+      catWrap.addEventListener('click', e => {
+        const btn = e.target.closest('button[data-cat]');
+        if (!btn) return;
+        activeCategory = btn.dataset.cat;
+        renderCategoryPills(activeCategory);
+        applyFilters();
+      });
+    }
+
+    if (activeToggle)
+      activeToggle.addEventListener('change', e => {
+        activeOnly = e.target.checked;
+        applyFilters();
+      });
+
+    if (myToggle)
+      myToggle.addEventListener('change', () => applyFilters());
+
+    if (searchBox)
+      searchBox.addEventListener('input', applyFilters);
+
+    // Admin filter reapply trigger
+    document.addEventListener('powerup-admin-filter-change', async () => {
+      if (!MEMBERS_BY_SQUAD.size || !LEADERS_BY_SQUAD.size) await load();
+      applyFilters();
+    });
+  }
+
+  // =============================================
+  // Manage / Cards Toggle Logic
+  // =============================================
+  async function toggleManageView() {
+    const btnManage = document.getElementById('btn-manage');
+    const cardsContainer = document.getElementById('cards');
+    const msg = document.getElementById('s-msg');
+
+    if (!btnManage || !cardsContainer) return;
+
+    const isManaging = btnManage.classList.toggle('managing');
+    const loadingOverlay = document.createElement('div');
+    loadingOverlay.className = 'view-switch-overlay';
+    loadingOverlay.textContent = isManaging ? 'Loading Manage View...' : 'Loading Card View...';
+    document.body.appendChild(loadingOverlay);
+
+    setTimeout(() => loadingOverlay.classList.add('show'), 50);
+
+    if (isManaging) {
+      btnManage.textContent = 'View Cards';
+      if (msg) msg.style.display = 'none';
+      cardsContainer.classList.remove('cards-grid');
+      cardsContainer.classList.add('manage-view');
+      await renderManageTable();
+    } else {
+      btnManage.textContent = 'Manage Squads';
+      cardsContainer.classList.remove('manage-view');
+      cardsContainer.classList.add('cards-grid');
+      cardsContainer.style.display = 'grid';
+      await applyFilters();
+    }
+
+    setTimeout(() => {
+      loadingOverlay.classList.remove('show');
+      setTimeout(() => loadingOverlay.remove(), 300);
+    }, 600);
+  }
+
+  // =============================================
+  // Page Initialization
+  // =============================================
+  document.addEventListener('DOMContentLoaded', async () => {
+    try {
+      P.session?.requireLogin?.();
+      P.layout.injectLayout();
+
+      const isAdminFn = P.auth && P.auth.isAdmin;
+      IS_ADMIN = !!(isAdminFn && isAdminFn());
+      P.layout.setPageTitle(IS_ADMIN ? 'Squads (Admin)' : 'Squads');
+
+      await P.session.initHeader();
+      renderCategoryPills('All');
+      bindFilters();
+      await load();
+      applyFilters();
+
+      const btnManage = document.getElementById('btn-manage');
+      const btnAdd = document.getElementById('btn-add-squad');
+      if (btnManage) btnManage.addEventListener('click', toggleManageView);
+      if (btnAdd) btnAdd.addEventListener('click', () => PowerUp.squadAddForm?.open?.());
+
+      document.addEventListener('squad-added', async () => {
+        await load();
+        applyFilters();
+      });
+
+      // Graceful reset if switching categories while managing
+      document.getElementById('cat-pills')?.addEventListener('click', () => {
+        const btnManage = document.getElementById('btn-manage');
+        if (btnManage?.classList.contains('managing')) {
+          btnManage.classList.remove('managing');
+          btnManage.textContent = 'Manage Squads';
+        }
+      });
+
+      console.log('%c✅ squads-cards.js loaded successfully — hybrid version operational.', 'color:#00ffaa');
+    } catch (err) {
+      console.error('Initialization error:', err);
+      showToast('⚠️ Error initializing Squads page.', 'error');
+    }
+  });
+
+  // =============================================
+  // Overlay styling for transitions
+  // =============================================
+  const overlayStyle = document.createElement('style');
+  overlayStyle.textContent = `
+    .view-switch-overlay {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(10, 20, 20, 0.9);
+      padding: 1.2rem 2rem;
+      border: 1px solid #00ff99;
+      border-radius: 10px;
+      color: #99ffcc;
+      font-weight: 600;
+      z-index: 9999;
+      opacity: 0;
+      transition: opacity .3s ease;
+      pointer-events: none;
+    }
+    .view-switch-overlay.show {
+      opacity: 1;
+    }
+    .pu-toast {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(30, 40, 40, 0.95);
+      color: #fff;
+      padding: 10px 18px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      opacity: 0;
+      transition: opacity .3s;
+      z-index: 99999;
+    }
+    .pu-toast.show { opacity: 1; }
+    .pu-toast.success { border-left: 4px solid #00ff99; }
+    .pu-toast.error { border-left: 4px solid #ff3333; }
+    .pu-toast.warn { border-left: 4px solid #ffaa33; }
+  `;
+  document.head.appendChild(overlayStyle);
+
+  window.PowerUp = P;
+})(window.PowerUp || {});
+
+
