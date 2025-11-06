@@ -328,6 +328,11 @@ async function applyFilters() {
   const myOnly = document.getElementById('myOnly')?.checked;
   const activeOnly = document.getElementById('activeOnly')?.checked;
   const q = (document.getElementById('search')?.value || '').trim().toLowerCase();
+  // Prevent filters from running while in Manage Table mode
+  const btnManage = document.getElementById('btn-manage');
+  const isManaging = btnManage?.classList.contains('managing');
+  if (isManaging) return;
+
 
   let list = ALL.slice();
 
@@ -400,7 +405,6 @@ async function applyFilters() {
 }
 
 
-
 // =======================
 // Manage Table Rendering (dynamic layout-safe version)
 // =======================
@@ -413,7 +417,6 @@ async function renderManageTable() {
   cardsContainer.classList.remove("cards-grid");
   cardsContainer.classList.add("manage-view");
   cardsContainer.style.display = "none";
-
 
   try {
     const [squadSheet, members] = await Promise.all([
@@ -592,108 +595,132 @@ async function renderManageTable() {
 }
 
 
- 
-  // =======================
-  // Filter Bindings
-  // =======================
-  function bindFilters() {
-    const catWrap = document.getElementById('cat-pills');
-    const activeToggle = document.getElementById('activeOnly');
-    const myToggle = document.getElementById('myOnly');
-    const searchBox = document.getElementById('search');
+// =======================
+// Filter Bindings
+// =======================
+let activeCategory = 'All';
+let activeOnly = false;
+let mySquadsOnly = false;
 
-    if (catWrap) {
-      catWrap.addEventListener('click', e => {
-        const btn = e.target.closest('button[data-cat]');
-        if (!btn) return;
-        activeCategory = btn.dataset.cat;
-        renderCategoryPills(activeCategory);
-        applyFilters();
-      });
-    }
+function bindFilters() {
+  const catWrap = document.getElementById('cat-pills');
+  const activeToggle = document.getElementById('activeOnly');
+  const myToggle = document.getElementById('myOnly');
+  const searchBox = document.getElementById('search');
 
-    if (activeToggle)
-      activeToggle.addEventListener('change', e => {
-        activeOnly = e.target.checked;
-        applyFilters();
-      });
+  const inManageMode = () => document.getElementById('btn-manage')?.classList.contains('managing');
 
-    if (myToggle)
-      myToggle.addEventListener('change', e => {
-        mySquadsOnly = e.target.checked;
-        applyFilters();
-      });
-
-    if (searchBox)
-      searchBox.addEventListener('input', applyFilters);
+  if (catWrap) {
+    catWrap.addEventListener('click', e => {
+      if (inManageMode()) return; // prevent filtering in manage mode
+      const btn = e.target.closest('button[data-cat]');
+      if (!btn) return;
+      activeCategory = btn.dataset.cat;
+      renderCategoryPills(activeCategory);
+      applyFilters();
+    });
   }
-  
-  // When admin filter changes, reapply filters
-document.addEventListener('powerup-admin-filter-change', applyFilters);
 
+  if (activeToggle)
+    activeToggle.addEventListener('change', e => {
+      if (inManageMode()) return;
+      activeOnly = e.target.checked;
+      applyFilters();
+    });
 
-  // =======================
-  // Page Init
-  // =======================
-  document.addEventListener('DOMContentLoaded', async () => {
-    P.session?.requireLogin?.();
-    P.layout.injectLayout();
-    P.layout.setTitles('Squads');
-    await P.session.initHeader();
+  if (myToggle)
+    myToggle.addEventListener('change', e => {
+      if (inManageMode()) return;
+      mySquadsOnly = e.target.checked;
+      applyFilters();
+    });
 
-    renderCategoryPills('All');
-    await load();
-    bindFilters?.();
-
-    const myToggle = document.getElementById('myOnly');
-    if (myToggle) {
-      myToggle.checked = true;
-      
-    }
-    applyFilters();
-
-    const btnManage = document.getElementById('btn-manage');
-    const btnAdd = document.getElementById('btn-add-squad');
-
-    if (btnAdd)
-      btnAdd.addEventListener('click', () => PowerUp.squadAddForm?.open?.());
-
-// =======================
-// Manage / Cards Toggle (stabilized layout switch)
-// =======================
-if (btnManage) {
-  btnManage.addEventListener('click', async () => {
-    const isManaging = btnManage.classList.toggle('managing');
-    showViewSwitchOverlay(isManaging ? "Loading Manage View..." : "Loading Card View...");
-
-    const cardsContainer = document.getElementById('cards');
-    const msg = document.getElementById('s-msg');
-
-    if (isManaging) {
-      btnManage.textContent = 'View Cards';
-      cardsContainer.classList.remove('cards-grid');
-      cardsContainer.classList.add('manage-view');
-      cardsContainer.style.display = 'block';
-      if (msg) msg.style.display = 'none';
-      await renderManageTable();
-    } else {
-      btnManage.textContent = 'Manage Squads';
-      cardsContainer.classList.remove('manage-view');
-      cardsContainer.classList.add('cards-grid');
-      cardsContainer.style.display = 'grid';
-      applyFilters(); // restore grid layout + filters
-    }
-  });
+  if (searchBox)
+    searchBox.addEventListener('input', e => {
+      if (inManageMode()) return;
+      applyFilters();
+    });
 }
 
-    document.getElementById('cat-pills')?.addEventListener('click', () => {
-      const btnManage = document.getElementById('btn-manage');
-      if (btnManage?.classList.contains('managing')) {
-        btnManage.classList.remove('managing');
+// When admin filter changes, reapply filters
+document.addEventListener('powerup-admin-filter-change', async () => {
+  if (!MEMBERS_BY_SQUAD.size || !LEADERS_BY_SQUAD.size) await load();
+  applyFilters();
+});
+
+
+// =======================
+// Page Init
+// =======================
+document.addEventListener('DOMContentLoaded', async () => {
+  P.session?.requireLogin?.();
+  P.layout.injectLayout();
+  P.layout.setTitles('Squads');
+  await P.session.initHeader();
+
+  renderCategoryPills('All');
+  await load();
+  bindFilters?.();
+
+  const myToggle = document.getElementById('myOnly');
+  if (myToggle) myToggle.checked = true;
+
+  await applyFilters();
+
+  const btnManage = document.getElementById('btn-manage');
+  const btnAdd = document.getElementById('btn-add-squad');
+
+  if (btnAdd)
+    btnAdd.addEventListener('click', () => PowerUp.squadAddForm?.open?.());
+
+  // =======================
+  // Manage / Cards Toggle (stabilized layout switch)
+  // =======================
+  if (btnManage) {
+    btnManage.addEventListener('click', async () => {
+      const isManaging = btnManage.classList.toggle('managing');
+      showViewSwitchOverlay(isManaging ? "Loading Manage View..." : "Loading Card View...");
+
+      const cardsContainer = document.getElementById('cards');
+      const msg = document.getElementById('s-msg');
+
+      if (isManaging) {
+        btnManage.textContent = 'View Cards';
+        cardsContainer.classList.remove('cards-grid');
+        cardsContainer.classList.add('manage-view');
+        cardsContainer.style.display = 'block';
+        if (msg) msg.style.display = 'none';
+        await renderManageTable();
+      } else {
         btnManage.textContent = 'Manage Squads';
+        cardsContainer.classList.remove('manage-view');
+        cardsContainer.classList.add('cards-grid');
+        cardsContainer.style.display = 'grid';
+        await applyFilters(); // fully await card view rebuild
       }
     });
+  }
+
+  document.getElementById('cat-pills')?.addEventListener('click', () => {
+    const btnManage = document.getElementById('btn-manage');
+    if (btnManage?.classList.contains('managing')) {
+      btnManage.classList.remove('managing');
+      btnManage.textContent = 'Manage Squads';
+    }
   });
+});
+
+
+
+
+
+
+
+
+
+  
+
+
 
   // =======================
   // Inline Styles (Unified Layout + Scroll)
