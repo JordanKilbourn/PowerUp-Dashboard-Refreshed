@@ -834,7 +834,7 @@ if (!document.querySelector(".manage-table")) return;
         btnManage.textContent = 'Manage Squads';
       }
     });
-
+  }); // closes DOMContentLoaded
   // =======================
   // Inline Styles (Unified Layout + Scroll)
   // =======================
