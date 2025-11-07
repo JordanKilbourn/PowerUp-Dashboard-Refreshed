@@ -798,34 +798,33 @@ document.addEventListener('powerup-admin-filter-change', applyFilters);
 // Manage / Cards Toggle (stabilized layout switch)
 // =======================
 if (btnManage) {
-btnManage.addEventListener('click', async () => {
-  const isManaging = btnManage.classList.toggle('managing');
-  showViewSwitchOverlay(isManaging ? "Loading Manage View..." : "Loading Card View...");
+  btnManage.addEventListener('click', async () => {
+    const isManaging = btnManage.classList.toggle('managing');
+    showViewSwitchOverlay(isManaging ? "Loading Manage View..." : "Loading Card View...");
 
-  const cardsContainer = document.getElementById('cards');
-  const msg = document.getElementById('s-msg');
+    const cardsContainer = document.getElementById('cards');
+    const msg = document.getElementById('s-msg');
 
-  // 🧹 Revert any unsaved changes before switching view
-  triggerViewSwitch();
-if (!document.querySelector(".manage-table")) return;
+    // 🧹 Revert unsaved changes before switching view
+    triggerViewSwitch();
 
-  if (isManaging) {
-    btnManage.textContent = 'View Cards';
-    cardsContainer.classList.remove('cards-grid');
-    cardsContainer.classList.add('manage-view');
-    cardsContainer.style.display = 'block';
-    if (msg) msg.style.display = 'none';
-    await renderManageTable();
-  } else {
-    btnManage.textContent = 'Manage Squads';
-    cardsContainer.classList.remove('manage-view');
-    cardsContainer.classList.add('cards-grid');
-    cardsContainer.style.display = 'grid';
-    applyFilters(); // restore grid layout + filters
-  }
-});
-
+    if (isManaging) {
+      btnManage.textContent = 'View Cards';
+      cardsContainer.classList.remove('cards-grid');
+      cardsContainer.classList.add('manage-view');
+      cardsContainer.style.display = 'block';
+      if (msg) msg.style.display = 'none';
+      await renderManageTable();  // ✅ now we actually build the table
+    } else {
+      btnManage.textContent = 'Manage Squads';
+      cardsContainer.classList.remove('manage-view');
+      cardsContainer.classList.add('cards-grid');
+      cardsContainer.style.display = 'grid';
+      applyFilters(); // restore grid layout + filters
+    }
+  });
 }
+
 
     document.getElementById('cat-pills')?.addEventListener('click', () => {
       const btnManage = document.getElementById('btn-manage');
