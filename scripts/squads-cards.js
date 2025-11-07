@@ -57,6 +57,34 @@
 
   const MEMBERS_BY_SQUAD = new Map();
   const LEADERS_BY_SQUAD = new Map();
+
+// ============================================================
+// ✅ Helper: check if user is a member or leader of a squad
+// ============================================================
+function userIsMemberOrLeader(squad, session) {
+  const myId   = String(session.employeeId || '').trim().toLowerCase();
+  const myName = String(session.displayName || session.name || '').trim().toLowerCase();
+
+  // Direct leader match
+  if (myId && String(squad.leaderId || '').trim().toLowerCase() === myId) return true;
+
+  const sid = String(squad.id || '').trim();
+  const entry = MEMBERS_BY_SQUAD.get(sid);
+  if (entry) {
+    if (myId && entry.ids.has(myId)) return true;
+    if (myName && entry.names.has(myName)) return true;
+  } else {
+    // fallback: parse text-based member list
+    const toks = String(squad.members || '')
+      .split(/[,;\n]+/)
+      .map(t => t.trim().toLowerCase())
+      .filter(Boolean);
+    if (myId && toks.includes(myId)) return true;
+    if (myName && toks.includes(myName)) return true;
+  }
+  return false;
+}
+  
   let ALL = [];
   let idToName = new Map();
 
@@ -320,21 +348,9 @@ async function getAdminTargetFromFilter() {
 }
 
 // ============================================================
-// applyFilters (restored admin-driven version)
+// ✅ Restored Admin/User-Aware Filtering Logic
 // ============================================================
 async function applyFilters() {
-  const manageMode = document.getElementById('btn-manage')?.classList.contains('managing');
-  if (manageMode) return;
-
-  const cardsContainer = document.getElementById('cards');
-  if (cardsContainer) {
-    cardsContainer.classList.remove('manage-view');
-    cardsContainer.classList.add('cards-grid');
-    cardsContainer.style.display = 'grid';
-    cardsContainer.style.gridTemplateColumns = 'repeat(4, 1fr)';
-    cardsContainer.style.gap = '1.2rem';
-  }
-
   const session = P.session.get?.() || {};
   const cat = document.querySelector('.pill-cat.active')?.dataset.cat || activeCategory || 'All';
   const myOnly = document.getElementById('myOnly')?.checked;
@@ -345,66 +361,60 @@ async function applyFilters() {
   const isAdmin = P.auth?.isAdmin?.() || false;
 
   if (myOnly) {
-    const isAdminUser = P.auth?.isAdmin?.();
-    const sessionData = P.session.get?.() || {};
-    let targetName = '';
-    let targetId = '';
-
-    if (isAdminUser) {
-      // Admins filter by the Admin dropdown selection
-      const adminVal = sessionStorage.getItem('pu.adminEmployeeFilter') || '';
-      if (adminVal && adminVal !== '__ALL__' && adminVal.toLowerCase() !== 'all employees') {
-        targetName = adminVal.trim();
-        // Try to resolve ID if we have it in the employee map
-        for (const [id, nm] of idToName.entries()) {
-          if (nm.trim().toLowerCase() === targetName.toLowerCase()) {
-            targetId = id;
-            break;
-          }
-        }
+    if (isAdmin) {
+      // 🔍 Admin: filter based on dropdown selection
+      let target = await getAdminTargetFromFilter();
+      if (!target) {
+        target = {
+          id: String(session.employeeId || '').trim(),
+          name: String(session.displayName || session.name || '').trim()
+        };
       }
-      console.debug('[My Squads] Admin filter:', { targetName, targetId });
-    } else {
-      // Normal users filter by their own display name
-      targetName = (sessionData.displayName || sessionData.name || '').trim();
-      targetId = (sessionData.employeeId || sessionData.positionId || '').trim();
-      console.debug('[My Squads] User filter:', { targetName, targetId });
-    }
 
-    // Skip filtering if admin filter is set to "All Employees"
-    if (targetName && targetName.toLowerCase() !== 'all employees') {
       const norm = s => String(s || '').trim().toLowerCase();
-      const tgtName = norm(targetName);
-      const tgtId = norm(targetId);
+      const tgtId = norm(target.id);
+      const tgtName = norm(target.name);
 
       list = list.filter(s => {
-        const sid = String(s.id || '').trim().toLowerCase();
-        const members = MEMBERS_BY_SQUAD.get(sid);
+        const sid = String(s.id || '').trim();
         const leaders = LEADERS_BY_SQUAD.get(sid) || [];
+        const leaderHit = leaders.some(x => norm(x.id) === tgtId || norm(x.name) === tgtName);
 
-        const memberHit = members && (
-          [...members.names].has(tgtName) ||
-          [...members.ids].has(tgtId)
-        );
+        const m = MEMBERS_BY_SQUAD.get(sid);
+        const memberHit = m ? (m.ids.has(tgtId) || m.names.has(tgtName)) : false;
 
-        const leaderHit = leaders.some(l => {
-          const lid = norm(l.id);
-          const lname = norm(l.name);
-          return lid === tgtId || lname === tgtName;
-        });
+        let fallbackHit = false;
+        if (!m && s.members) {
+          const toks = String(s.members)
+            .split(/[,;\n]+/)
+            .map(t => norm(t));
+          fallbackHit =
+            (!!tgtId && toks.includes(tgtId)) ||
+            (!!tgtName && toks.includes(tgtName));
+        }
 
-        return memberHit || leaderHit;
+        return leaderHit || memberHit || fallbackHit;
       });
+    } else {
+      // 🧍 Regular user: only their own squads
+      list = list.filter(s => userIsMemberOrLeader(s, session));
     }
   }
-
 
   if (activeOnly) list = list.filter(s => isTrue(s.active));
   if (cat !== 'All') list = list.filter(s => s.category === cat);
 
   if (q) {
     list = list.filter(s => {
-      const hay = [s.name, s.leaderName, s.leaderId, s.objective, s.notes].join(' ').toLowerCase();
+      const hay = [
+        s.name,
+        s.leaderName,
+        s.leaderId,
+        s.objective,
+        s.notes
+      ]
+        .join(' ')
+        .toLowerCase();
       return hay.includes(q);
     });
   }
@@ -638,6 +648,10 @@ async function renderManageTable() {
 
     if (searchBox)
       searchBox.addEventListener('input', applyFilters);
+
+      // ✅ Add this sanity line *right here*, at the end:
+  document.addEventListener('powerup-admin-filter-change', applyFilters);
+    
   }
 
 
