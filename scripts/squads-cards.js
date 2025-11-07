@@ -644,26 +644,33 @@ async function renderManageTable() {
 // ============================================================
 // 🔧 ADMIN FILTER INTEGRATION PATCH
 // ============================================================
-(() => {
+document.addEventListener('DOMContentLoaded', () => {
   const adminSelect = document.getElementById('pu-admin-employee-select');
-  if (!adminSelect) return;
+  if (!adminSelect) {
+    console.warn('[Admin Filter] Dropdown not found at init — waiting...');
+    // Try again after layout injection delay
+    setTimeout(() => {
+      const sel = document.getElementById('pu-admin-employee-select');
+      if (!sel) return;
+      wireAdminFilter(sel);
+    }, 400);
+    return;
+  }
+  wireAdminFilter(adminSelect);
+});
 
-  // 1️⃣ When dropdown changes, store value + notify
-  adminSelect.addEventListener('change', e => {
+function wireAdminFilter(selectEl) {
+  selectEl.addEventListener('change', e => {
     const val = e.target.value || '';
     sessionStorage.setItem('pu.adminEmployeeFilter', val);
-    console.debug('%c[Admin Filter] Changed →', 'color:lime', val);
-
-    // Fire custom event for any listeners (applyFilters etc.)
+    console.debug('%c[Admin Filter] Changed →', 'color:lime; font-weight:bold;', val);
     document.dispatchEvent(new CustomEvent('powerup-admin-filter-change'));
   });
 
-  // 2️⃣ On page load, restore saved selection
   const saved = sessionStorage.getItem('pu.adminEmployeeFilter');
-  if (saved && saved !== adminSelect.value) {
-    adminSelect.value = saved;
-  }
-})();
+  if (saved && saved !== selectEl.value) selectEl.value = saved;
+}
+
 
 
   // When admin filter changes, reapply filters
