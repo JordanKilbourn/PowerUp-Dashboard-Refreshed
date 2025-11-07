@@ -351,6 +351,14 @@ async function getAdminTargetFromFilter() {
 // ✅ Restored Admin/User-Aware Filtering Logic
 // ============================================================
 async function applyFilters() {
+  // Force correct layout before filtering
+const cardsContainer = document.getElementById('cards');
+if (cardsContainer && !cardsContainer.classList.contains('cards-grid')) {
+  cardsContainer.classList.add('cards-grid');
+  cardsContainer.classList.remove('manage-view');
+  cardsContainer.style.display = 'grid';
+}
+
   const session = P.session.get?.() || {};
   const cat = document.querySelector('.pill-cat.active')?.dataset.cat || activeCategory || 'All';
   const myOnly = document.getElementById('myOnly')?.checked;
@@ -422,6 +430,57 @@ async function applyFilters() {
   renderCards(list);
 }
 
+
+  
+  // ============================================================
+// 🧼 Manage Table — Unsaved Change Tracker + Revert Helper
+// ============================================================
+
+// Mark a row dirty when edited
+function markRowDirty(tr) {
+  tr.dataset.dirty = "true";
+  tr.style.backgroundColor = "rgba(255,255,0,0.08)";
+}
+
+// Revert all dirty rows to their original state
+function discardUnsavedTableChanges() {
+  const dirtyRows = document.querySelectorAll(".manage-table tr[data-dirty='true']");
+  dirtyRows.forEach(tr => {
+    const original = JSON.parse(tr.dataset.original || "{}");
+    tr.querySelector(".name").textContent = original.name || "";
+    tr.querySelector(".category").textContent = original.category || "";
+    tr.querySelector(".active").checked = !!original.active;
+    tr.querySelector(".objective").textContent = original.objective || "";
+    tr.querySelector(".created-by").textContent = original.createdBy || "";
+    const sel = tr.querySelector(".leader-select-single");
+    if (sel) sel.value = original.leader || "";
+    tr.dataset.dirty = "false";
+    tr.style.backgroundColor = "";
+  });
+}
+
+  
+
+// ============================================================
+// 🔄 Global View Switch Hook (for cross-view consistency)
+// ============================================================
+
+// Fires whenever any major view switch occurs (Cards <-> Manage <-> Activities)
+function triggerViewSwitch() {
+  const evt = new CustomEvent("powerup-view-switch");
+  document.dispatchEvent(evt);
+}
+
+// Automatically revert dirty rows on any view change, with visual cue
+document.addEventListener("powerup-view-switch", () => {
+  const dirtyCount = document.querySelectorAll(".manage-table tr[data-dirty='true']").length;
+  if (dirtyCount > 0) {
+    showToast(`⚠️ ${dirtyCount} unsaved change${dirtyCount > 1 ? 's' : ''} reverted.`, "warn");
+  }
+  discardUnsavedTableChanges();
+});
+
+  
 
 // =======================
 // Manage Table Rendering (dynamic layout-safe version)
@@ -607,6 +666,17 @@ async function renderManageTable() {
         setTimeout(() => (tr.style.backgroundColor = ""), 700);
       }
     });
+
+      // Detect edits and mark row dirty
+table.addEventListener("input", e => {
+  const tr = e.target.closest("tr[data-rowid]");
+  if (tr) markRowDirty(tr);
+});
+table.addEventListener("change", e => {
+  const tr = e.target.closest("tr[data-rowid]");
+  if (tr) markRowDirty(tr);
+});
+
   } catch (err) {
     console.error("Render Manage Table error:", err);
     showToast("⚠️ Failed to load manage view.", "error");
@@ -728,28 +798,33 @@ document.addEventListener('powerup-admin-filter-change', applyFilters);
 // Manage / Cards Toggle (stabilized layout switch)
 // =======================
 if (btnManage) {
-  btnManage.addEventListener('click', async () => {
-    const isManaging = btnManage.classList.toggle('managing');
-    showViewSwitchOverlay(isManaging ? "Loading Manage View..." : "Loading Card View...");
+btnManage.addEventListener('click', async () => {
+  const isManaging = btnManage.classList.toggle('managing');
+  showViewSwitchOverlay(isManaging ? "Loading Manage View..." : "Loading Card View...");
 
-    const cardsContainer = document.getElementById('cards');
-    const msg = document.getElementById('s-msg');
+  const cardsContainer = document.getElementById('cards');
+  const msg = document.getElementById('s-msg');
 
-    if (isManaging) {
-      btnManage.textContent = 'View Cards';
-      cardsContainer.classList.remove('cards-grid');
-      cardsContainer.classList.add('manage-view');
-      cardsContainer.style.display = 'block';
-      if (msg) msg.style.display = 'none';
-      await renderManageTable();
-    } else {
-      btnManage.textContent = 'Manage Squads';
-      cardsContainer.classList.remove('manage-view');
-      cardsContainer.classList.add('cards-grid');
-      cardsContainer.style.display = 'grid';
-      applyFilters(); // restore grid layout + filters
-    }
-  });
+  // 🧹 Revert any unsaved changes before switching view
+  triggerViewSwitch();
+if (!document.querySelector(".manage-table")) return;
+
+  if (isManaging) {
+    btnManage.textContent = 'View Cards';
+    cardsContainer.classList.remove('cards-grid');
+    cardsContainer.classList.add('manage-view');
+    cardsContainer.style.display = 'block';
+    if (msg) msg.style.display = 'none';
+    await renderManageTable();
+  } else {
+    btnManage.textContent = 'Manage Squads';
+    cardsContainer.classList.remove('manage-view');
+    cardsContainer.classList.add('cards-grid');
+    cardsContainer.style.display = 'grid';
+    applyFilters(); // restore grid layout + filters
+  }
+});
+
 }
 
     document.getElementById('cat-pills')?.addEventListener('click', () => {
