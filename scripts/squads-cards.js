@@ -639,7 +639,33 @@ async function renderManageTable() {
     if (searchBox)
       searchBox.addEventListener('input', applyFilters);
   }
-  
+
+
+// ============================================================
+// 🔧 ADMIN FILTER INTEGRATION PATCH
+// ============================================================
+(() => {
+  const adminSelect = document.getElementById('pu-admin-employee-select');
+  if (!adminSelect) return;
+
+  // 1️⃣ When dropdown changes, store value + notify
+  adminSelect.addEventListener('change', e => {
+    const val = e.target.value || '';
+    sessionStorage.setItem('pu.adminEmployeeFilter', val);
+    console.debug('%c[Admin Filter] Changed →', 'color:lime', val);
+
+    // Fire custom event for any listeners (applyFilters etc.)
+    document.dispatchEvent(new CustomEvent('powerup-admin-filter-change'));
+  });
+
+  // 2️⃣ On page load, restore saved selection
+  const saved = sessionStorage.getItem('pu.adminEmployeeFilter');
+  if (saved && saved !== adminSelect.value) {
+    adminSelect.value = saved;
+  }
+})();
+
+
   // When admin filter changes, reapply filters
 document.addEventListener('powerup-admin-filter-change', applyFilters);
 
