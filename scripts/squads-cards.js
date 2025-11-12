@@ -1382,13 +1382,13 @@ document.getElementById('cat-pills')?.addEventListener('click', () => {
 }
 
 /* ===== COLUMN WIDTHS ===== */
-.activities-table th:nth-child(1), td:nth-child(1) { width: 6%; }
+.activities-table th:nth-child(1), td:nth-child(1) { width: 10%; }
 .activities-table th:nth-child(2), td:nth-child(2) { width: 13%; }
 .activities-table th:nth-child(3), td:nth-child(3) { width: 15%; }
-.activities-table th:nth-child(4), td:nth-child(4) { width: 10%; }
-.activities-table th:nth-child(5), td:nth-child(5) { width: 9%; }
-.activities-table th:nth-child(6), td:nth-child(6),
-.activities-table th:nth-child(7), td:nth-child(7) { width: 8%; }
+.activities-table th:nth-child(4), td:nth-child(4) { width: 8%; }
+.activities-table th:nth-child(5), td:nth-child(5) { width: 6%; }
+.activities-table th:nth-child(6), td:nth-child(6) { width: 6%; }
+.activities-table th:nth-child(7), td:nth-child(7) { width: 6%; }
 .activities-table th:nth-child(8), td:nth-child(8) { width: 10%; }
 .activities-table th:nth-child(9), td:nth-child(9) { width: auto; }
 
