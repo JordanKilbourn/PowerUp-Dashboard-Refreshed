@@ -180,6 +180,7 @@
 })(window.PowerUp || {});
 
 // Show splash for ~1.8s, then fade + redirect.
+/*
 PowerUp.session.playSplashThenGo = function (nextUrl = 'Dashboard-Refresh.html', totalMs = 1800) {
   try {
     let el = document.getElementById('pu-splash');
@@ -201,4 +202,5 @@ PowerUp.session.playSplashThenGo = function (nextUrl = 'Dashboard-Refresh.html',
     location.href = nextUrl;
   }
 };
+*/
 
