@@ -1291,8 +1291,10 @@ document.getElementById('cat-pills')?.addEventListener('click', () => {
 }
 
 /* =======================================
-   ACTIVITIES TABLE — POLISHED VERSION
+   ACTIVITIES TABLE — REFINED VERSION
+   Compact, crisp, readable
 ======================================= */
+
 .activities-table-wrapper {
   overflow-x: auto;
   overflow-y: visible;
@@ -1302,182 +1304,87 @@ document.getElementById('cat-pills')?.addEventListener('click', () => {
 
 .activities-table {
   width: 100%;
-  min-width: 1100px;
   border-collapse: collapse;
-  background: linear-gradient(180deg, #0c1818 0%, #0b1414 100%);
-  border: 1px solid rgba(51,255,153,0.15);
-  border-radius: 10px;
-  box-shadow: 0 0 15px rgba(0,0,0,0.5);
-  font-size: 0.9rem;
-  color: #d8fbe8;
-  transition: all 0.3s ease;
+  background: #0e1a1a;
+  border: 1px solid rgba(51,255,153,0.12);
+  border-radius: 8px;
+  box-shadow: 0 0 10px rgba(0,0,0,0.4);
+  color: #d9fbea;
+  font-family: "Inter", "Segoe UI", Roboto, sans-serif;
+  font-size: 0.85rem;
 }
 
-/* Table header styling */
 .activities-table th {
-  background: linear-gradient(180deg, #132623 0%, #0f1f1d 100%);
+  background: #132322;
   color: #aefcd8;
-  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
+  font-weight: 600;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
   text-align: left;
-  padding: 12px 14px;
+  padding: 8px 10px;
   border-bottom: 1px solid rgba(51,255,153,0.25);
-  box-shadow: 0 1px 3px rgba(0,0,0,0.5);
-  white-space: nowrap;
 }
 
-/* Body rows */
 .activities-table td {
-  padding: 10px 14px;
-  border-bottom: 1px solid rgba(255,255,255,0.04);
+  padding: 6px 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
   white-space: nowrap;
   text-overflow: ellipsis;
   overflow: hidden;
+  text-align: left;
   vertical-align: middle;
 }
 
-/* Row striping */
+/* Compact, alternating row striping */
 .activities-table tbody tr:nth-child(odd) {
   background-color: rgba(255,255,255,0.015);
 }
 .activities-table tbody tr:nth-child(even) {
-  background-color: rgba(51,255,153,0.02);
+  background-color: rgba(0,255,153,0.04);
 }
 
-/* Hover effect */
+/* Hover highlight */
 .activities-table tbody tr:hover {
-  background: rgba(51,255,153,0.10);
-  box-shadow: inset 0 0 0 9999px rgba(51,255,153,0.03);
-  transition: all 0.15s ease;
+  background-color: rgba(51,255,153,0.1);
+  transition: background 0.15s ease;
 }
 
-/* Subtle glow on hover for interactive feeling */
-.activities-table tbody tr:hover td {
-  color: #e3fff3;
-}
-
-/* Column alignment tuning */
-.activities-table td:nth-child(1),
-.activities-table td:nth-child(6),
-.activities-table td:nth-child(7) {
-  text-align: center;
-}
-
-/* Make description text wrap gracefully if needed */
-.activities-table td:last-child {
-  white-space: normal;
-  max-width: 280px;
-  color: #bfffe8;
-}
-
-/* Rounded corners for first/last row */
-.activities-table tr:first-child th:first-child {
-  border-top-left-radius: 10px;
-}
-.activities-table tr:first-child th:last-child {
-  border-top-right-radius: 10px;
-}
-.activities-table tr:last-child td:first-child {
-  border-bottom-left-radius: 10px;
-}
-.activities-table tr:last-child td:last-child {
-  border-bottom-right-radius: 10px;
-}
-
-/* Add subtle neon outline for modern look */
-.activities-table:hover {
-  border-color: rgba(51,255,153,0.3);
-  box-shadow: 0 0 18px rgba(51,255,153,0.2);
-}
-
-/* Column sizing + alignment refinement */
+/* Column width adjustments for compact layout */
 .activities-table th:nth-child(1),
-.activities-table td:nth-child(1) {
-  width: 8%;
-  text-align: center;
-}
-
+.activities-table td:nth-child(1) { width: 6%; }  /* Activity ID */
 .activities-table th:nth-child(2),
-.activities-table td:nth-child(2) {
-  width: 15%;
-  text-align: left;
-}
-
+.activities-table td:nth-child(2) { width: 12%; } /* Squad */
 .activities-table th:nth-child(3),
-.activities-table td:nth-child(3) {
-  width: 20%;
-  text-align: left;
-}
-
+.activities-table td:nth-child(3) { width: 14%; } /* Title */
 .activities-table th:nth-child(4),
-.activities-table td:nth-child(4),
+.activities-table td:nth-child(4) { width: 10%; } /* Type */
 .activities-table th:nth-child(5),
-.activities-table td:nth-child(5),
-.activities-table th:nth-child(8),
-.activities-table td:nth-child(8) {
-  width: 10%;
-  text-align: center;
-}
-
+.activities-table td:nth-child(5) { width: 9%; }  /* Status */
 .activities-table th:nth-child(6),
 .activities-table td:nth-child(6),
 .activities-table th:nth-child(7),
-.activities-table td:nth-child(7) {
-  width: 10%;
-  text-align: center;
-}
-
+.activities-table td:nth-child(7) { width: 8%; }  /* Start, End */
+.activities-table th:nth-child(8),
+.activities-table td:nth-child(8) { width: 10%; } /* Owner */
 .activities-table th:nth-child(9),
-.activities-table td:nth-child(9) {
-  width: 27%;
-  text-align: left;
+.activities-table td:nth-child(9) { width: auto; white-space: normal; } /* Description */
+
+/* Subtle column dividers */
+.activities-table td + td,
+.activities-table th + th {
+  border-left: 1px solid rgba(255,255,255,0.03);
 }
 
-.activities-table {
-  font-family: "Inter", "Segoe UI", Roboto, sans-serif;
-  font-size: 0.88rem;
-  letter-spacing: 0.01em;
-}
-
-.activities-table th {
-  font-size: 0.78rem;
-  text-transform: uppercase;
-  color: #bafee2;
-  letter-spacing: 0.05em;
-}
-
-.activities-table td {
-  font-weight: 400;
-  color: #d8fbe8;
-}
-
+/* On hover, brighten text slightly */
 .activities-table tbody tr:hover td {
   color: #ffffff;
 }
 
-.activities-table td + td,
-.activities-table th + th {
-  border-left: 1px solid rgba(255,255,255,0.04);
-}
+/* Optional: smoother edge corners */
+.activities-table tr:first-child th:first-child { border-top-left-radius: 8px; }
+.activities-table tr:first-child th:last-child { border-top-right-radius: 8px; }
 
-.activities-table td:nth-child(5) {
-  font-weight: 500;
-  text-transform: capitalize;
-}
-
-.activities-table td:nth-child(5):contains("In Progress") {
-  color: #33ff99;
-}
-.activities-table td:nth-child(5):contains("Completed") {
-  color: #66cfff;
-}
-.activities-table td:nth-child(5):contains("Not Started") {
-  color: #ffaa80;
-}
-.activities-table td:nth-child(5):contains("Canceled") {
-  color: #ff6b6b;
-}
 
 
 `;
