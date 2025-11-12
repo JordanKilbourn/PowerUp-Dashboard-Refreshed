@@ -679,3 +679,61 @@ th[data-sort="none"]::after { content: " ⇅"; opacity: .35; }
   0%{ transform: scale(.9); opacity: 0; }
   100%{ transform: scale(1); opacity: 1; }
 }
+
+
+/* --- Squads viewport scrolling (mirrors squad-details tables) --- */
+.squads-main .card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0; /* ensures flexbox lets children shrink */
+}
+
+.squads-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0; /* required for flexbox scrolling */
+  padding-right: 6px; /* avoids overlap with native scrollbar */
+}
+
+/* Optional: add smooth scrollbar styling to match other views */
+.squads-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+.squads-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.2);
+  border-radius: 4px;
+}
+.squads-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(255,255,255,0.35);
+}
+
+.squads-card {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0; /* allows flexbox child to shrink properly */
+  margin: 0;
+  padding: 0;
+  background: var(--card-bg);
+  border: 1px solid #2d3f3f;
+  border-radius: 9px;
+}
+
+.squads-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 420px));
+  gap: 16px;
+  justify-content: start;
+}
+
+
+
