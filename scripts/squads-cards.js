@@ -995,6 +995,8 @@ document.getElementById('cat-pills')?.addEventListener('click', () => {
   }
 });
 
+  });
+
   // =======================
   // Inline Styles (Unified Layout + Scroll)
   // =======================
