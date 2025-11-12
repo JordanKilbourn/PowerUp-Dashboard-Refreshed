@@ -310,13 +310,11 @@ setTimeout(() => {
     }));
   }
 
-    // =======================
+  // =======================
   // Filters
   // =======================
   let activeCategory = 'All';
   let activeOnly = false;
-
-
 
 // ============================================================
 // Admin Filter Resolver (restored from working original version)
@@ -431,8 +429,7 @@ if (cardsContainer && !cardsContainer.classList.contains('cards-grid')) {
 }
 
 
-  
-  // ============================================================
+// ============================================================
 // 🧼 Manage Table — Unsaved Change Tracker + Revert Helper
 // ============================================================
 
@@ -460,7 +457,6 @@ function discardUnsavedTableChanges() {
 }
 
   
-
 // ============================================================
 // 🔄 Global View Switch Hook (for cross-view consistency)
 // ============================================================
@@ -480,7 +476,6 @@ document.addEventListener("powerup-view-switch", () => {
   discardUnsavedTableChanges();
 });
 
-  
 
 // =======================
 // Manage Table Rendering (dynamic layout-safe version)
@@ -682,8 +677,6 @@ table.addEventListener("change", e => {
     showToast("⚠️ Failed to load manage view.", "error");
   }
 }
-
-
  
   // =======================
   // Filter Bindings
@@ -724,7 +717,28 @@ table.addEventListener("change", e => {
     
   }
 
+// ============================================================
+// 🚦 Disable / Enable Filters when switching views
+// ============================================================
+function setFiltersDisabled(disabled) {
+  const selectors = [
+    '#cat-pills button',
+    '#activeOnly',
+    '#myOnly',
+    '#search',
+    '#pu-admin-employee-select'
+  ];
 
+  selectors.forEach(sel => {
+    document.querySelectorAll(sel).forEach(el => {
+      el.disabled = disabled;
+      el.style.opacity = disabled ? '0.5' : '';
+      el.style.pointerEvents = disabled ? 'none' : '';
+    });
+  });
+}
+
+  
 // ============================================================
 // 🔧 ADMIN FILTER INTEGRATION PATCH (resilient async-safe version)
 // ============================================================
@@ -763,10 +777,8 @@ table.addEventListener("change", e => {
   }
 })();
 
-
   // When admin filter changes, reapply filters
 document.addEventListener('powerup-admin-filter-change', applyFilters);
-
 
   // =======================
   // Page Init
@@ -794,8 +806,9 @@ document.addEventListener('powerup-admin-filter-change', applyFilters);
     if (btnAdd)
       btnAdd.addEventListener('click', () => PowerUp.squadAddForm?.open?.());
 
+    
 // =======================
-// Manage / Cards Toggle (stabilized layout switch)
+// Manage / Cards Toggle (with filter lock + manage banner)
 // =======================
 if (btnManage) {
   btnManage.addEventListener('click', async () => {
@@ -808,19 +821,51 @@ if (btnManage) {
     // 🧹 Revert unsaved changes before switching view
     triggerViewSwitch();
 
+    // 🚦 Disable or enable filters depending on mode
+    setFiltersDisabled(isManaging);
+
+    // 🔖 Manage mode banner
+    let banner = document.getElementById('manageModeBanner');
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'manageModeBanner';
+      banner.textContent = '🛠️ Manage Mode Active';
+      Object.assign(banner.style, {
+        position: 'sticky',
+        top: '0',
+        left: '0',
+        width: '100%',
+        textAlign: 'center',
+        background: 'rgba(51,255,153,0.1)',
+        color: '#33ff99',
+        padding: '6px 0',
+        fontSize: '0.9rem',
+        fontWeight: '600',
+        borderBottom: '1px solid rgba(51,255,153,0.3)',
+        zIndex: '50',
+        opacity: '0',
+        transition: 'opacity 0.3s ease'
+      });
+      document.querySelector('.squad-container')?.prepend(banner);
+    }
+
     if (isManaging) {
+      // Enter Manage mode
       btnManage.textContent = 'View Cards';
       cardsContainer.classList.remove('cards-grid');
       cardsContainer.classList.add('manage-view');
       cardsContainer.style.display = 'block';
       if (msg) msg.style.display = 'none';
-      await renderManageTable();  // ✅ now we actually build the table
+      banner.style.opacity = '1';
+      await renderManageTable();
     } else {
+      // Exit Manage mode
       btnManage.textContent = 'Manage Squads';
       cardsContainer.classList.remove('manage-view');
       cardsContainer.classList.add('cards-grid');
       cardsContainer.style.display = 'grid';
-      applyFilters(); // restore grid layout + filters
+      banner.style.opacity = '0';
+      applyFilters();
     }
   });
 }
@@ -834,6 +879,7 @@ if (btnManage) {
       }
     });
   }); // closes DOMContentLoaded
+
   // =======================
   // Inline Styles (Unified Layout + Scroll)
   // =======================
@@ -1126,7 +1172,6 @@ if (btnManage) {
 .manage-table {
   min-width: 100%;
 }
-
 
 `;
 
