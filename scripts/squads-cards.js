@@ -1291,7 +1291,7 @@ document.getElementById('cat-pills')?.addEventListener('click', () => {
 }
 
 /* =======================================
-   ACTIVITIES TABLE VIEW
+   ACTIVITIES TABLE — POLISHED VERSION
 ======================================= */
 .activities-table-wrapper {
   overflow-x: auto;
@@ -1304,34 +1304,92 @@ document.getElementById('cat-pills')?.addEventListener('click', () => {
   width: 100%;
   min-width: 1100px;
   border-collapse: collapse;
-  background: #0d1616;
-  border: 1px solid rgba(51,255,153,0.1);
-  border-radius: 8px;
-  box-shadow: 0 0 8px rgba(0,0,0,0.4);
+  background: linear-gradient(180deg, #0c1818 0%, #0b1414 100%);
+  border: 1px solid rgba(51,255,153,0.15);
+  border-radius: 10px;
+  box-shadow: 0 0 15px rgba(0,0,0,0.5);
+  font-size: 0.9rem;
+  color: #d8fbe8;
+  transition: all 0.3s ease;
 }
 
+/* Table header styling */
 .activities-table th {
-  position: sticky;
-  top: 0;
-  z-index: 5;
-  background: #122020;
-  color: #99ffcc;
-  text-transform: uppercase;
+  background: linear-gradient(180deg, #132623 0%, #0f1f1d 100%);
+  color: #aefcd8;
   font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
   text-align: left;
-  padding: 10px 14px;
-  border-bottom: 1px solid rgba(255,255,255,0.05);
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(51,255,153,0.25);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+  white-space: nowrap;
 }
 
+/* Body rows */
 .activities-table td {
   padding: 10px 14px;
-  border-bottom: 1px solid rgba(255,255,255,0.05);
-  color: #cde;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
   white-space: nowrap;
   text-overflow: ellipsis;
   overflow: hidden;
+  vertical-align: middle;
 }
 
+/* Row striping */
+.activities-table tbody tr:nth-child(odd) {
+  background-color: rgba(255,255,255,0.02);
+}
+.activities-table tbody tr:nth-child(even) {
+  background-color: rgba(255,255,255,0.04);
+}
+
+/* Hover effect */
+.activities-table tbody tr:hover {
+  background: rgba(51,255,153,0.08);
+  box-shadow: inset 0 0 0 9999px rgba(51,255,153,0.03);
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Subtle glow on hover for interactive feeling */
+.activities-table tbody tr:hover td {
+  color: #e3fff3;
+}
+
+/* Column alignment tuning */
+.activities-table td:nth-child(1),
+.activities-table td:nth-child(6),
+.activities-table td:nth-child(7) {
+  text-align: center;
+}
+
+/* Make description text wrap gracefully if needed */
+.activities-table td:last-child {
+  white-space: normal;
+  max-width: 280px;
+  color: #bfffe8;
+}
+
+/* Rounded corners for first/last row */
+.activities-table tr:first-child th:first-child {
+  border-top-left-radius: 10px;
+}
+.activities-table tr:first-child th:last-child {
+  border-top-right-radius: 10px;
+}
+.activities-table tr:last-child td:first-child {
+  border-bottom-left-radius: 10px;
+}
+.activities-table tr:last-child td:last-child {
+  border-bottom-right-radius: 10px;
+}
+
+/* Add subtle neon outline for modern look */
+.activities-table:hover {
+  border-color: rgba(51,255,153,0.3);
+  box-shadow: 0 0 18px rgba(51,255,153,0.2);
+}
 
 
 `;
