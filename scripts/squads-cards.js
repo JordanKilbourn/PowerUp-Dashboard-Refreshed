@@ -1382,7 +1382,7 @@ document.getElementById('cat-pills')?.addEventListener('click', () => {
 }
 
 /* ===== COLUMN WIDTHS ===== */
-.activities-table th:nth-child(1), td:nth-child(1) { width: 10%; }
+.activities-table th:nth-child(1), td:nth-child(1) { width: 8%; }
 .activities-table th:nth-child(2), td:nth-child(2) { width: 13%; }
 .activities-table th:nth-child(3), td:nth-child(3) { width: 15%; }
 .activities-table th:nth-child(4), td:nth-child(4) { width: 8%; }
