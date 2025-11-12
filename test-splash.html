@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Test Splash</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+</head>
+<body style="margin:0; background:black;">
+  <!-- this is just a blank page that loads your cinematic splash -->
+  <script src="scripts/splash.full.js"></script>
+  <script>
+    // Run your cinematic splash right away to test it
+    window.addEventListener("DOMContentLoaded", () => {
+      if (window.Splash && typeof Splash.play === "function") {
+        Splash.play();
+      } else {
+        alert("Splash.full.js not loaded or Splash.play not defined");
+      }
+    });
+  </script>
+</body>
+</html>
