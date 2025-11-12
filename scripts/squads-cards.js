@@ -1339,11 +1339,12 @@ document.getElementById('cat-pills')?.addEventListener('click', () => {
 
 /* Row striping */
 .activities-table tbody tr:nth-child(odd) {
-  background-color: rgba(255,255,255,0.02);
+  background-color: rgba(255,255,255,0.025);
 }
 .activities-table tbody tr:nth-child(even) {
-  background-color: rgba(255,255,255,0.04);
+  background-color: rgba(255,255,255,0.05);
 }
+
 
 /* Hover effect */
 .activities-table tbody tr:hover {
