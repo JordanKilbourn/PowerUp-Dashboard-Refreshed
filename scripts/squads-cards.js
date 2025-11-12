@@ -677,7 +677,79 @@ table.addEventListener("change", e => {
     showToast("⚠️ Failed to load manage view.", "error");
   }
 }
- 
+
+
+// ============================================================
+// 📋 View All Activities Table (read-only)
+// ============================================================
+async function renderActivitiesTable() {
+  const cardsContainer = document.getElementById('cards');
+  const msg = document.getElementById('s-msg');
+  if (msg) msg.style.display = 'none';
+
+  // Switch layout to table mode
+  cardsContainer.classList.remove("cards-grid", "manage-view");
+  cardsContainer.classList.add("activities-view");
+  cardsContainer.style.display = "none";
+
+  try {
+    const rows = await P.api.getRowsByTitle(P.api.SHEETS.SQUAD_ACTIVITIES);
+    if (!rows || !rows.length) {
+      cardsContainer.innerHTML = "<p style='text-align:center;'>No activities found.</p>";
+      cardsContainer.style.display = "block";
+      return;
+    }
+
+    const table = document.createElement("table");
+    table.className = "activities-table";
+    table.innerHTML = `
+      <thead>
+        <tr>
+          <th>Activity ID</th>
+          <th>Squad</th>
+          <th>Activity Title</th>
+          <th>Type</th>
+          <th>Status</th>
+          <th>Start</th>
+          <th>End/Due</th>
+          <th>Owner</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows.map(r => `
+          <tr>
+            <td>${r["Activity ID"] || "-"}</td>
+            <td>${r["Squad"] || "-"}</td>
+            <td>${r["Activity Title"] || "-"}</td>
+            <td>${r["Type"] || "-"}</td>
+            <td>${r["Status"] || "-"}</td>
+            <td>${r["Start Date"] || "-"}</td>
+            <td>${r["End/Due Date"] || "-"}</td>
+            <td>${r["Owner"] || "-"}</td>
+            <td title="${r["Description"] || ""}">
+              ${r["Description"]?.length > 40 
+                ? r["Description"].substring(0, 40) + "..." 
+                : (r["Description"] || "-")}
+            </td>
+          </tr>
+        `).join("")}
+      </tbody>
+    `;
+
+    cardsContainer.innerHTML = "";
+    const wrapper = document.createElement("div");
+    wrapper.className = "activities-table-wrapper";
+    wrapper.appendChild(table);
+    cardsContainer.style.display = "block";
+    cardsContainer.appendChild(wrapper);
+
+  } catch (err) {
+    console.error("Render Activities Table Error:", err);
+    showToast("⚠️ Failed to load activities view.", "error");
+  }
+}
+
   // =======================
   // Filter Bindings
   // =======================
@@ -800,13 +872,12 @@ document.addEventListener('powerup-admin-filter-change', applyFilters);
     }
     applyFilters();
 
-    const btnManage = document.getElementById('btn-manage');
-    const btnAdd = document.getElementById('btn-add-squad');
+const btnManage = document.getElementById('btn-manage');
+const btnAdd = document.getElementById('btn-add-squad');
 
-    if (btnAdd)
-      btnAdd.addEventListener('click', () => PowerUp.squadAddForm?.open?.());
+if (btnAdd)
+  btnAdd.addEventListener('click', () => PowerUp.squadAddForm?.open?.());
 
-    
 // =======================
 // Manage / Cards Toggle (with filter lock + manage banner)
 // =======================
@@ -818,13 +889,9 @@ if (btnManage) {
     const cardsContainer = document.getElementById('cards');
     const msg = document.getElementById('s-msg');
 
-    // 🧹 Revert unsaved changes before switching view
     triggerViewSwitch();
-
-    // 🚦 Disable or enable filters depending on mode
     setFiltersDisabled(isManaging);
 
-    // 🔖 Manage mode banner
     let banner = document.getElementById('manageModeBanner');
     if (!banner) {
       banner = document.createElement('div');
@@ -850,7 +917,6 @@ if (btnManage) {
     }
 
     if (isManaging) {
-      // Enter Manage mode
       btnManage.textContent = 'View Cards';
       cardsContainer.classList.remove('cards-grid');
       cardsContainer.classList.add('manage-view');
@@ -859,7 +925,6 @@ if (btnManage) {
       banner.style.opacity = '1';
       await renderManageTable();
     } else {
-      // Exit Manage mode
       btnManage.textContent = 'Manage Squads';
       cardsContainer.classList.remove('manage-view');
       cardsContainer.classList.add('cards-grid');
@@ -870,15 +935,65 @@ if (btnManage) {
   });
 }
 
+// =======================
+// 🆕 View All Activities Button Setup
+// =======================
+const btnActivities = document.getElementById("btn-activities");
+if (btnActivities) {
+  btnActivities.addEventListener("click", async () => {
+    const isViewing = btnActivities.classList.toggle("viewing");
+    showViewSwitchOverlay(isViewing ? "Loading All Activities..." : "Loading Card View...");
 
-    document.getElementById('cat-pills')?.addEventListener('click', () => {
-      const btnManage = document.getElementById('btn-manage');
-      if (btnManage?.classList.contains('managing')) {
-        btnManage.classList.remove('managing');
-        btnManage.textContent = 'Manage Squads';
-      }
-    });
-  }); // closes DOMContentLoaded
+    const cardsContainer = document.getElementById("cards");
+    const msg = document.getElementById("s-msg");
+
+    triggerViewSwitch();
+    setFiltersDisabled(isViewing);
+
+    let banner = document.getElementById("activitiesModeBanner");
+    if (!banner) {
+      banner = document.createElement("div");
+      banner.id = "activitiesModeBanner";
+      banner.textContent = "📋 Viewing All Activities";
+      Object.assign(banner.style, {
+        position: "sticky",
+        top: "0",
+        width: "100%",
+        textAlign: "center",
+        background: "rgba(51,255,153,0.1)",
+        color: "#33ff99",
+        padding: "6px 0",
+        fontSize: "0.9rem",
+        fontWeight: "600",
+        borderBottom: "1px solid rgba(51,255,153,0.3)",
+        zIndex: "50",
+        opacity: "0",
+        transition: "opacity 0.3s ease"
+      });
+      document.querySelector(".squad-container")?.prepend(banner);
+    }
+
+    if (isViewing) {
+      btnActivities.textContent = "View Squads";
+      if (msg) msg.style.display = "none";
+      banner.style.opacity = "1";
+      await renderActivitiesTable();
+    } else {
+      btnActivities.textContent = "View All Activities";
+      banner.style.opacity = "0";
+      cardsContainer.classList.remove("activities-view");
+      applyFilters();
+    }
+  });
+}
+
+document.getElementById('cat-pills')?.addEventListener('click', () => {
+  const btnManage = document.getElementById('btn-manage');
+  if (btnManage?.classList.contains('managing')) {
+    btnManage.classList.remove('managing');
+    btnManage.textContent = 'Manage Squads';
+  }
+});
 
   // =======================
   // Inline Styles (Unified Layout + Scroll)
@@ -1172,6 +1287,50 @@ if (btnManage) {
 .manage-table {
   min-width: 100%;
 }
+
+/* =======================================
+   ACTIVITIES TABLE VIEW
+======================================= */
+.activities-table-wrapper {
+  overflow-x: auto;
+  overflow-y: visible;
+  width: 100%;
+  padding-bottom: 8px;
+}
+
+.activities-table {
+  width: 100%;
+  min-width: 1100px;
+  border-collapse: collapse;
+  background: #0d1616;
+  border: 1px solid rgba(51,255,153,0.1);
+  border-radius: 8px;
+  box-shadow: 0 0 8px rgba(0,0,0,0.4);
+}
+
+.activities-table th {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: #122020;
+  color: #99ffcc;
+  text-transform: uppercase;
+  font-weight: 600;
+  text-align: left;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.activities-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  color: #cde;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+
 
 `;
 
