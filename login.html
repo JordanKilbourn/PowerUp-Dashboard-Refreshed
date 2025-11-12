@@ -300,6 +300,11 @@
       return EMP_ROWS.find(r => String(r['Position ID'] || r['Employee ID']).trim().toLowerCase() === idLC);
     }
 
+    function playRealSplashThenGo(nextUrl = "Dashboard-Refresh.html") {
+  window.location.href = `splash.html?next=${encodeURIComponent(nextUrl)}`;
+}
+
+
     /* ---------- Login loop (with cinematic splash integration) ---------- */
 async function doLoginLoop(id, overallMs) {
   // show loading overlay + narrator
@@ -343,12 +348,6 @@ async function doLoginLoop(id, overallMs) {
       // update splash text + show skip button
       Splash.status("Loading your dashboard…");
       Splash.showSkip(true);
-
-      // short pause so splash can finish cleanly, then fade out + redirect
-      setTimeout(() => {
-        Splash.end();
-        window.location.href = "Dashboard-Refresh.html";
-      }, 2000);
 
       return;
     } catch (e) {
