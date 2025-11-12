@@ -1339,18 +1339,17 @@ document.getElementById('cat-pills')?.addEventListener('click', () => {
 
 /* Row striping */
 .activities-table tbody tr:nth-child(odd) {
-  background-color: rgba(255,255,255,0.025);
+  background-color: rgba(255,255,255,0.015);
 }
 .activities-table tbody tr:nth-child(even) {
-  background-color: rgba(255,255,255,0.05);
+  background-color: rgba(51,255,153,0.02);
 }
-
 
 /* Hover effect */
 .activities-table tbody tr:hover {
-  background: rgba(51,255,153,0.08);
+  background: rgba(51,255,153,0.10);
   box-shadow: inset 0 0 0 9999px rgba(51,255,153,0.03);
-  transition: background 0.2s ease, box-shadow 0.2s ease;
+  transition: all 0.15s ease;
 }
 
 /* Subtle glow on hover for interactive feeling */
@@ -1390,6 +1389,94 @@ document.getElementById('cat-pills')?.addEventListener('click', () => {
 .activities-table:hover {
   border-color: rgba(51,255,153,0.3);
   box-shadow: 0 0 18px rgba(51,255,153,0.2);
+}
+
+/* Column sizing + alignment refinement */
+.activities-table th:nth-child(1),
+.activities-table td:nth-child(1) {
+  width: 8%;
+  text-align: center;
+}
+
+.activities-table th:nth-child(2),
+.activities-table td:nth-child(2) {
+  width: 15%;
+  text-align: left;
+}
+
+.activities-table th:nth-child(3),
+.activities-table td:nth-child(3) {
+  width: 20%;
+  text-align: left;
+}
+
+.activities-table th:nth-child(4),
+.activities-table td:nth-child(4),
+.activities-table th:nth-child(5),
+.activities-table td:nth-child(5),
+.activities-table th:nth-child(8),
+.activities-table td:nth-child(8) {
+  width: 10%;
+  text-align: center;
+}
+
+.activities-table th:nth-child(6),
+.activities-table td:nth-child(6),
+.activities-table th:nth-child(7),
+.activities-table td:nth-child(7) {
+  width: 10%;
+  text-align: center;
+}
+
+.activities-table th:nth-child(9),
+.activities-table td:nth-child(9) {
+  width: 27%;
+  text-align: left;
+}
+
+.activities-table {
+  font-family: "Inter", "Segoe UI", Roboto, sans-serif;
+  font-size: 0.88rem;
+  letter-spacing: 0.01em;
+}
+
+.activities-table th {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  color: #bafee2;
+  letter-spacing: 0.05em;
+}
+
+.activities-table td {
+  font-weight: 400;
+  color: #d8fbe8;
+}
+
+.activities-table tbody tr:hover td {
+  color: #ffffff;
+}
+
+.activities-table td + td,
+.activities-table th + th {
+  border-left: 1px solid rgba(255,255,255,0.04);
+}
+
+.activities-table td:nth-child(5) {
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.activities-table td:nth-child(5):contains("In Progress") {
+  color: #33ff99;
+}
+.activities-table td:nth-child(5):contains("Completed") {
+  color: #66cfff;
+}
+.activities-table td:nth-child(5):contains("Not Started") {
+  color: #ffaa80;
+}
+.activities-table td:nth-child(5):contains("Canceled") {
+  color: #ff6b6b;
 }
 
 
