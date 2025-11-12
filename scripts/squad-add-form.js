@@ -1,39 +1,64 @@
 // scripts/squad-add-form.js
 (function (P) {
   const { api } = P;
-  const overlayId = "addSquadOverlay";
-  const overlayMsgId = "addSquadOverlayMsg";
-  const modalOverlayId = "addSquadModalOverlay"; // full-screen wrapper for modal
 
   // === Utility Functions ===
+  const modalId = "addSquadModalOverlay";
+
   function showModal() {
-    const overlay = document.getElementById(modalOverlayId);
+    const overlay = document.getElementById(modalId);
     if (overlay) overlay.style.display = "flex";
   }
   function hideModal() {
-    const overlay = document.getElementById(modalOverlayId);
+    const overlay = document.getElementById(modalId);
     if (overlay) overlay.style.display = "none";
   }
 
-  function showOverlay(text = "Saving…") {
-    const overlay = document.getElementById(overlayId);
-    const msg = document.getElementById(overlayMsgId);
-    if (overlay && msg) {
-      msg.textContent = text;
-      msg.style.color = "#e5e7eb";
-      overlay.style.display = "flex";
-    }
+  // --- Standardized Modal UX (shared across all modals) ---
+  function ensureModalUX(modalId) {
+    const modal = document.getElementById(modalId);
+    if (!modal || modal.querySelector(".modal-ux")) return;
+    const ux = document.createElement("div");
+    ux.className = "modal-ux";
+    ux.style.cssText = `
+      position:absolute;inset:0;display:none;
+      align-items:center;justify-content:center;
+      background:rgba(0,0,0,0.45);z-index:999;border-radius:10px;
+    `;
+    ux.innerHTML = `
+      <div class="box" style="
+        background:#0f1a1a;
+        border:1px solid #2d3f3f;
+        padding:14px 16px;
+        border-radius:10px;
+        min-width:220px;
+        text-align:center;
+        color:#e5e7eb;
+        font-weight:700;
+      ">Saving…</div>`;
+    modal.appendChild(ux);
   }
-  async function flashSuccess() {
-    const msg = document.getElementById(overlayMsgId);
+
+  function showBusy(modalId, text = "Saving…") {
+    ensureModalUX(modalId);
+    const el = document.querySelector(`#${modalId} .modal-ux`);
+    if (!el) return;
+    el.style.display = "flex";
+    const msg = el.querySelector(".box");
+    if (msg) msg.textContent = text;
+  }
+
+  async function flashSuccess(modalId) {
+    const msg = document.querySelector(`#${modalId} .modal-ux .box`);
     if (!msg) return;
     msg.textContent = "Saved!";
-    msg.style.color = "#00f08e";
+    msg.style.color = "#20d3a8";
     await new Promise(r => setTimeout(r, 700));
   }
-  function hideOverlay() {
-    const overlay = document.getElementById(overlayId);
-    if (overlay) overlay.style.display = "none";
+
+  function hideBusy(modalId) {
+    const el = document.querySelector(`#${modalId} .modal-ux`);
+    if (el) el.style.display = "none";
   }
 
   // === Toast Notifications ===
@@ -42,17 +67,43 @@
     if (!toast) {
       toast = document.createElement("div");
       toast.id = "pu-toast";
+      toast.style.cssText = `
+        position:fixed;bottom:30px;right:30px;z-index:2000;
+        background:#0f1a1a;border:1px solid var(--accent,#00f08e);
+        color:#9ffbe6;padding:10px 16px;border-radius:10px;
+        box-shadow:0 2px 10px rgba(0,0,0,0.3);
+        opacity:0;transition:opacity 0.3s ease;
+      `;
       document.body.appendChild(toast);
     }
 
     toast.textContent = message;
     toast.style.borderColor = type === "error" ? "#ff7070" : "var(--accent, #00f08e)";
     toast.style.color = type === "error" ? "#ff7070" : "#9ffbe6";
-    toast.classList.add("show");
+    toast.style.opacity = 1;
 
     setTimeout(() => {
-      toast.classList.remove("show");
+      toast.style.opacity = 0;
     }, 3500);
+  }
+
+  // === Reset Form ===
+  function resetAddSquadForm() {
+    const form = document.getElementById("addSquadForm");
+    if (form) form.reset();
+
+    const sel = document.getElementById("squadLeaderSelect");
+    if (sel) sel.selectedIndex = 0;
+
+    const name = document.getElementById("squadName");
+    const category = document.getElementById("squadCategory");
+    const objective = document.getElementById("squadObjective");
+    const active = document.getElementById("squadActive");
+
+    if (name) name.value = "";
+    if (category) category.value = "";
+    if (objective) objective.value = "";
+    if (active) active.checked = true;
   }
 
   // === Load Employee List for Leader Dropdown ===
@@ -71,7 +122,8 @@
         .filter(Boolean)
         .sort((a, b) => a.name.localeCompare(b.name));
 
-      select.innerHTML = `<option value="">-- Select Leader --</option>` +
+      // Add a clearable “None” option at the top
+      select.innerHTML = `<option value="">— None —</option>` +
         options.map(o => `<option value="${o.id}">${o.name}</option>`).join("");
     } catch (err) {
       console.error("Error loading employees:", err);
@@ -90,8 +142,8 @@
     const objective = document.getElementById("squadObjective")?.value.trim();
     const active = document.getElementById("squadActive")?.checked ?? true;
 
-    if (!name || !category || !leaderId || !objective) {
-      alert("Please complete all required fields.");
+    if (!name || !category || !objective) {
+      alert("Please complete all required fields (Leader is optional).");
       return;
     }
 
@@ -106,13 +158,13 @@
     };
     const categoryFixed = categoryMap[category.toLowerCase()] || "Other";
 
-    showOverlay("Saving…");
+    showBusy(modalId, "Saving…");
 
     try {
       const createdBy = (P.session?.get()?.displayName || "System");
       const createdDate = new Date().toISOString().slice(0, 10);
 
-      // === Step 1: Create Squad (Smartsheet will assign auto-number ID) ===
+      // Step 1: Create Squad
       const squadRow = [{
         "Squad Name": name,
         "Category": categoryFixed,
@@ -123,68 +175,61 @@
       }];
       await api.addRows("SQUADS", squadRow, { toTop: true });
 
-      // === Step 2: Wait for Auto-Number "Squad ID" to be assigned ===
+      // Step 2: Wait for Auto-number ID
       let newSquadId = "";
-      const maxTries = 6;
-
-      for (let i = 0; i < maxTries; i++) {
-        await new Promise(r => setTimeout(r, 1500)); // Wait 1.5s per cycle
-
+      for (let i = 0; i < 6; i++) {
+        await new Promise(r => setTimeout(r, 1500));
         const updatedSquads = await api.getRowsByTitle("SQUADS", { force: true });
         const newSquad = updatedSquads.find(r =>
           (r["Squad Name"] || "").trim().toLowerCase() === name.toLowerCase()
         );
-
         newSquadId = (newSquad?.["Squad ID"] || newSquad?.["ID"] || "").toString().trim();
-
-        if (newSquadId) {
-          console.log(`✅ Found Squad ID after ${i + 1} attempt(s): ${newSquadId}`);
-          break;
-        } else {
-          console.log(`⏳ Waiting for Smartsheet auto-number... (${i + 1}/${maxTries})`);
-        }
+        if (newSquadId) break;
       }
 
       if (!newSquadId) {
-        hideOverlay();
+        hideBusy(modalId);
         showToast("Squad created but ID not yet assigned — refresh to link members.", "error");
         return;
       }
 
-      // === Step 3: Add Squad Leader to SQUAD_MEMBERS sheet ===
-      const memberRow = [{
-        "Squad ID": newSquadId,
-        "Squad Name": name,
-        "Employee ID": leaderId,
-        "Employee Name": leaderName,
-        "Role": "Leader",
-        "Active": true,
-        "Added By": createdBy,
-        "Start Date": createdDate
-      }];
-      await api.addRows("SQUAD_MEMBERS", memberRow, { toTop: true });
+      // Step 3: Add Leader if provided
+      if (leaderId) {
+        const memberRow = [{
+          "Squad ID": newSquadId,
+          "Squad Name": name,
+          "Employee ID": leaderId,
+          "Employee Name": leaderName,
+          "Role": "Leader",
+          "Active": true,
+          "Added By": createdBy,
+          "Start Date": createdDate
+        }];
+        await api.addRows("SQUAD_MEMBERS", memberRow, { toTop: true });
+      }
 
       api.clearCache(api.SHEETS.SQUADS);
       api.clearCache(api.SHEETS.SQUAD_MEMBERS);
 
-      // === Step 4: UX Feedback & Cleanup ===
-      await flashSuccess();
-      hideOverlay();
+      await flashSuccess(modalId);
+      hideBusy(modalId);
       hideModal();
-      document.getElementById("addSquadForm").reset();
-
+      resetAddSquadForm();
       showToast(`✅ Squad "${name}" created successfully!`);
       document.dispatchEvent(new Event("squad-added"));
     } catch (err) {
       console.error("❌ Error creating squad:", err);
-      hideOverlay();
+      hideBusy(modalId);
       showToast("Failed to create squad. See console for details.", "error");
     }
   }
 
   // === Init Form Events ===
   function init() {
-    document.getElementById("cancelAddSquad")?.addEventListener("click", hideModal);
+    document.getElementById("cancelAddSquad")?.addEventListener("click", () => {
+      resetAddSquadForm();
+      hideModal();
+    });
     document.getElementById("addSquadForm")?.addEventListener("submit", handleSubmit);
   }
 
