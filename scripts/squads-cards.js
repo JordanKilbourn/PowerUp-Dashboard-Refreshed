@@ -1291,10 +1291,8 @@ document.getElementById('cat-pills')?.addEventListener('click', () => {
 }
 
 /* =======================================
-   ACTIVITIES TABLE — REFINED VERSION
-   Compact, crisp, readable
+   ACTIVITIES TABLE — BALANCED POLISH
 ======================================= */
-
 .activities-table-wrapper {
   overflow-x: auto;
   overflow-y: visible;
@@ -1305,86 +1303,109 @@ document.getElementById('cat-pills')?.addEventListener('click', () => {
 .activities-table {
   width: 100%;
   border-collapse: collapse;
-  background: #0e1a1a;
-  border: 1px solid rgba(51,255,153,0.12);
-  border-radius: 8px;
-  box-shadow: 0 0 10px rgba(0,0,0,0.4);
-  color: #d9fbea;
+  background: #0d1716;
+  border: 1px solid rgba(51,255,153,0.15);
+  border-radius: 10px;
+  box-shadow: 0 0 12px rgba(0,0,0,0.45);
   font-family: "Inter", "Segoe UI", Roboto, sans-serif;
-  font-size: 0.85rem;
+  font-size: 0.88rem;
+  color: #d8fbe8;
 }
 
+/* Header */
 .activities-table th {
-  background: #132322;
-  color: #aefcd8;
-  text-transform: uppercase;
+  background: linear-gradient(180deg, #18332f 0%, #102521 100%);
+  color: #bfffe8;
   font-weight: 600;
-  font-size: 0.75rem;
+  text-transform: uppercase;
+  font-size: 0.78rem;
   letter-spacing: 0.05em;
   text-align: left;
-  padding: 8px 10px;
+  padding: 10px 12px;
   border-bottom: 1px solid rgba(51,255,153,0.25);
+  box-shadow: inset 0 -1px 0 rgba(51,255,153,0.2);
 }
 
+/* Body */
 .activities-table td {
-  padding: 6px 10px;
-  border-bottom: 1px solid rgba(255,255,255,0.05);
+  padding: 9px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
   white-space: nowrap;
   text-overflow: ellipsis;
   overflow: hidden;
-  text-align: left;
   vertical-align: middle;
+  text-align: left;
 }
 
-/* Compact, alternating row striping */
+/* Alternating rows */
 .activities-table tbody tr:nth-child(odd) {
   background-color: rgba(255,255,255,0.015);
 }
 .activities-table tbody tr:nth-child(even) {
-  background-color: rgba(0,255,153,0.04);
+  background-color: rgba(51,255,153,0.025);
 }
 
-/* Hover highlight */
+/* Hover */
 .activities-table tbody tr:hover {
-  background-color: rgba(51,255,153,0.1);
-  transition: background 0.15s ease;
+  background-color: rgba(51,255,153,0.12);
+  color: #ffffff;
+  transition: background 0.2s ease;
 }
 
-/* Column width adjustments for compact layout */
+/* Column widths tuned for balance */
 .activities-table th:nth-child(1),
-.activities-table td:nth-child(1) { width: 6%; }  /* Activity ID */
+.activities-table td:nth-child(1) { width: 7%; }
 .activities-table th:nth-child(2),
-.activities-table td:nth-child(2) { width: 12%; } /* Squad */
+.activities-table td:nth-child(2) { width: 13%; }
 .activities-table th:nth-child(3),
-.activities-table td:nth-child(3) { width: 14%; } /* Title */
+.activities-table td:nth-child(3) { width: 15%; }
 .activities-table th:nth-child(4),
-.activities-table td:nth-child(4) { width: 10%; } /* Type */
+.activities-table td:nth-child(4) { width: 10%; }
 .activities-table th:nth-child(5),
-.activities-table td:nth-child(5) { width: 9%; }  /* Status */
+.activities-table td:nth-child(5) { width: 9%; }
 .activities-table th:nth-child(6),
 .activities-table td:nth-child(6),
 .activities-table th:nth-child(7),
-.activities-table td:nth-child(7) { width: 8%; }  /* Start, End */
+.activities-table td:nth-child(7) { width: 8%; }
 .activities-table th:nth-child(8),
-.activities-table td:nth-child(8) { width: 10%; } /* Owner */
+.activities-table td:nth-child(8) { width: 10%; }
 .activities-table th:nth-child(9),
-.activities-table td:nth-child(9) { width: auto; white-space: normal; } /* Description */
+.activities-table td:nth-child(9) {
+  width: auto;
+  white-space: normal;
+  color: #c8fbea;
+}
 
-/* Subtle column dividers */
+/* Light column dividers */
 .activities-table td + td,
 .activities-table th + th {
   border-left: 1px solid rgba(255,255,255,0.03);
 }
 
-/* On hover, brighten text slightly */
-.activities-table tbody tr:hover td {
-  color: #ffffff;
+/* Slight header glow for separation */
+.activities-table th {
+  text-shadow: 0 0 4px rgba(51,255,153,0.3);
 }
 
-/* Optional: smoother edge corners */
-.activities-table tr:first-child th:first-child { border-top-left-radius: 8px; }
-.activities-table tr:first-child th:last-child { border-top-right-radius: 8px; }
+/* Rounded edges */
+.activities-table tr:first-child th:first-child {
+  border-top-left-radius: 10px;
+}
+.activities-table tr:first-child th:last-child {
+  border-top-right-radius: 10px;
+}
 
+/* Subtle highlight when hovered */
+.activities-table tbody tr:hover td {
+  color: #f2fff9;
+}
+
+/* Smooth column alignment */
+.activities-table td:nth-child(1),
+.activities-table td:nth-child(6),
+.activities-table td:nth-child(7) {
+  text-align: center;
+}
 
 
 `;
