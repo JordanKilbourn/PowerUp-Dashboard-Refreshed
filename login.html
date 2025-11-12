@@ -305,7 +305,7 @@
 }
 
 
-    /* ---------- Login loop (with cinematic splash integration) ---------- */
+/* ---------- Login loop (with cinematic splash integration) ---------- */
 async function doLoginLoop(id, overallMs) {
   // show loading overlay + narrator
   setBusy(true);
@@ -341,16 +341,22 @@ async function doLoginLoop(id, overallMs) {
     try {
       await PowerUp.session.loginWithId(id, { primeBeforeRedirect: true });
 
-      // success!
+      // ✅ Success — show splash, then go to the real cinematic splash page
       stopNarrator();
       setBusy(false);
 
-      // update splash text + show skip button
       Splash.status("Loading your dashboard…");
       Splash.showSkip(true);
 
-      return;
+      // Give splash a second to breathe, then open the actual splash.html
+      setTimeout(() => {
+        Splash.end();
+        window.location.href = "splash.html?next=Dashboard-Refresh.html";
+      }, 800);
+
+      return; // done — exit loop on success
     } catch (e) {
+      // login attempt failed — wait a bit, then retry
       const base = Math.min(5000, 600 * attempt);
       const jitter = Math.floor(Math.random() * 600);
       const wait = Math.max(800, base + jitter);
@@ -367,7 +373,6 @@ async function doLoginLoop(id, overallMs) {
   busySub.textContent = "The server is still waking up. Please try again in a moment.";
   showError("The server is still waking up. Please try again in a moment.");
 }
-
 
 
     async function doLogin() {
