@@ -168,6 +168,12 @@
     const btnHelp       = $('#help');
     const errBox        = $('#error');
 
+    /* Force uppercase in Employee ID field */
+empInput.addEventListener('input', (e) => {
+  e.target.value = e.target.value.toUpperCase();
+});
+
+
     const busy          = $('#busy');
     const busySub       = $('#busySub');
 
@@ -307,17 +313,14 @@
 
 /* ---------- Login loop (with cinematic splash integration) ---------- */
 async function doLoginLoop(id, overallMs) {
-  // show loading overlay + narrator
-  setBusy(true);
-  startNarrator(1);
+setBusy(true);
+startNarrator(1);
 
-  // start cinematic splash animation immediately
-  Splash.play({
-    title: "PLAYWORLD",
-    tag: "PowerUp",
-    onDone: () => console.log("Splash animation finished")
-  });
-  Splash.status("Contacting Playworld systems…");
+// Immediately transition to the dedicated splash.html page
+const empId = (empInput.value || '').trim();
+setTimeout(() => {
+  window.location.href = `splash.html?next=Dashboard-Refresh.html&empId=${encodeURIComponent(empId)}`;
+}, 400);
 
   // make sure Render proxy is awake
   try {
