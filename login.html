@@ -310,19 +310,12 @@ empInput.addEventListener('input', (e) => {
   window.location.href = `splash.html?next=${encodeURIComponent(nextUrl)}`;
 }
 
-
 /* ---------- Login loop (with cinematic splash integration) ---------- */
 async function doLoginLoop(id, overallMs) {
-setBusy(true);
-startNarrator(1);
+  setBusy(true);
+  startNarrator(1);
 
-// Immediately transition to the dedicated splash.html page
-const empId = (empInput.value || '').trim();
-setTimeout(() => {
-  window.location.href = `splash.html?next=Dashboard-Refresh.html&empId=${encodeURIComponent(empId)}`;
-}, 400);
-
-  // make sure Render proxy is awake
+  // Make sure Render proxy is awake before first attempt
   try {
     await PowerUp.api.ready();
   } catch {
@@ -344,22 +337,20 @@ setTimeout(() => {
     try {
       await PowerUp.session.loginWithId(id, { primeBeforeRedirect: true });
 
-      // ✅ Success — show splash, then go to the real cinematic splash page
+      // ✅ Success — cleanup and transition to the cinematic splash
       stopNarrator();
       setBusy(false);
 
-      Splash.status("Loading your dashboard…");
-      Splash.showSkip(true);
+      // Pass the Employee ID along to splash.html (optional)
+      const empId = encodeURIComponent(id);
+      const nextUrl = `Dashboard-Refresh.html`;
+      const splashUrl = `splash.html?next=${encodeURIComponent(nextUrl)}&empId=${empId}`;
 
-      // Give splash a second to breathe, then open the actual splash.html
-      setTimeout(() => {
-        Splash.end();
-        window.location.href = "splash.html?next=Dashboard-Refresh.html";
-      }, 800);
-
-      return; // done — exit loop on success
+      // Redirect immediately to cinematic splash
+      window.location.href = splashUrl;
+      return; // done
     } catch (e) {
-      // login attempt failed — wait a bit, then retry
+      // login attempt failed — wait and retry
       const base = Math.min(5000, 600 * attempt);
       const jitter = Math.floor(Math.random() * 600);
       const wait = Math.max(800, base + jitter);
