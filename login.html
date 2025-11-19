@@ -143,6 +143,7 @@
   <!-- Core libs -->
   <script src="scripts/api.js"></script>
   <script src="scripts/session.js"></script>
+  <script src="scripts/splash.bundle.js"></script>
 
   <script>
   (function () {
@@ -166,6 +167,12 @@
     const btnSignIn     = $('#signin');
     const btnHelp       = $('#help');
     const errBox        = $('#error');
+
+    /* Force uppercase in Employee ID field */
+empInput.addEventListener('input', (e) => {
+  e.target.value = e.target.value.toUpperCase();
+});
+
 
     const busy          = $('#busy');
     const busySub       = $('#busySub');
@@ -299,54 +306,68 @@
       return EMP_ROWS.find(r => String(r['Position ID'] || r['Employee ID']).trim().toLowerCase() === idLC);
     }
 
-    /* ---------- Login loop (restored busy overlay) ---------- */
-    async function doLoginLoop(id, overallMs) {
-      setBusy(true);              // SHOW loading modal now
-      startNarrator(1);
+    function playRealSplashThenGo(nextUrl = "Dashboard-Refresh.html") {
+  window.location.href = `splash.html?next=${encodeURIComponent(nextUrl)}`;
+}
 
-      const deadline = Date.now() + (overallMs || 120000);
-      let attempt = 0;
+/* ---------- Login loop (with cinematic splash integration) ---------- */
+async function doLoginLoop(id, overallMs) {
+  setBusy(true);
+  startNarrator(1);
 
-      while (Date.now() < deadline) {
-        attempt++;
-        bumpNarratorAttempt(attempt);
+  // Make sure Render proxy is awake before first attempt
+  try {
+    await PowerUp.api.ready();
+  } catch {
+    console.warn("Proxy not ready yet, warming…");
+  }
 
-        if (attempt === 1 || attempt % 3 === 0) {
-          try { await PowerUp.api.warmProxy(); } catch {}
-        }
+  const deadline = Date.now() + (overallMs || 120000);
+  let attempt = 0;
 
-        try {
-          // IMPORTANT:
-          // If your session.loginWithId currently auto-redirects,
-          // it will navigate away right here (OK).
-          // If it resolves without redirect, we continue below and play splash.
-          await PowerUp.session.loginWithId(id, { primeBeforeRedirect: true });
+  while (Date.now() < deadline) {
+    attempt++;
+    bumpNarratorAttempt(attempt);
 
-          // If we got here, treat it as success-without-redirect:
-          stopNarrator();
-          setBusy(false);
+    // periodically warm proxy
+    if (attempt === 1 || attempt % 3 === 0) {
+      try { await PowerUp.api.warmProxy(); } catch {}
+    }
 
-          // play splash, then go to dashboard
-          PowerUp.session.playSplashThenGo('Dashboard-Refresh.html', 1800);
-          return;
-        } catch (e) {
-          // backoff with jitter
-          const base = Math.min(5000, 600 * attempt);
-          const jitter = Math.floor(Math.random() * 600);
-          const wait = Math.max(800, base + jitter);
-          const until = Math.min(Date.now() + wait, deadline);
-          while (Date.now() < until) {
-            await new Promise(r => setTimeout(r, 350));
-          }
-        }
-      }
+    try {
+      await PowerUp.session.loginWithId(id, { primeBeforeRedirect: true });
 
-      // timed out
+      // ✅ Success — cleanup and transition to the cinematic splash
       stopNarrator();
       setBusy(false);
-      busySub.textContent = 'The server is still waking up. Please try again in a moment.';
-      showError('The server is still waking up. Please try again in a moment.');
+
+      // Pass the Employee ID along to splash.html (optional)
+      const empId = encodeURIComponent(id);
+      const nextUrl = `Dashboard-Refresh.html`;
+      const splashUrl = `splash.html?next=${encodeURIComponent(nextUrl)}&empId=${empId}`;
+
+      // Redirect immediately to cinematic splash
+      window.location.href = splashUrl;
+      return; // done
+    } catch (e) {
+      // login attempt failed — wait and retry
+      const base = Math.min(5000, 600 * attempt);
+      const jitter = Math.floor(Math.random() * 600);
+      const wait = Math.max(800, base + jitter);
+      const until = Math.min(Date.now() + wait, deadline);
+      while (Date.now() < until) {
+        await new Promise(r => setTimeout(r, 350));
+      }
     }
+  }
+
+  // timeout
+  stopNarrator();
+  setBusy(false);
+  busySub.textContent = "The server is still waking up. Please try again in a moment.";
+  showError("The server is still waking up. Please try again in a moment.");
+}
+
 
     async function doLogin() {
       errBox.style.display = 'none';
@@ -421,5 +442,7 @@
     })();
   }());
   </script>
+
+  
 </body>
 </html>
