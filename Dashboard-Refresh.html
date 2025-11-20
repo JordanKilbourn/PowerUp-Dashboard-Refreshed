@@ -2,6 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <link rel="stylesheet" href="splash.css">
+
 
   <!-- EARLY AUTH GUARD — must be the first thing in <head> -->
   <script>
@@ -517,8 +519,291 @@
     </div>
   </div>
 
+
+
+
+
+
+  <!-- ✅ Integrated Splash Sequence for Dashboard (Option B) -->
+<!-- This block should be added just before the closing </body> tag in Dashboard-Refresh.html -->
+
+<div id="splash" class="splash" aria-hidden="true">
+  <div class="montage" id="montage"></div>
+  <div class="lens" aria-hidden="true"></div>
+  <div class="cardwash" aria-hidden="true"></div>
+  <div class="vignette" aria-hidden="true"></div>
+
+  <div class="lockup" aria-hidden="true">
+    <div class="wordmark-wrap">
+      <div class="wordmark" aria-label="PLAYWORLD">
+        <span class="wordmark-fill">PLAYWORLD</span>
+        <span class="wordmark-stroke" aria-hidden="true">PLAYWORLD</span>
+        <div class="sweep" aria-hidden="true"></div>
+        <div class="sparks" aria-hidden="true">
+          <span class="spark s1"></span>
+          <span class="spark s2"></span>
+          <span class="spark s3"></span>
+          <span class="spark s4"></span>
+        </div>
+      </div>
+      <div class="divider" aria-hidden="true"></div>
+      <div class="subbar">PowerUp</div>
+    </div>
+  </div>
+
+  <div id="finalCard" class="final" aria-hidden="true"></div>
+
+  <button id="skipBtn" class="skip" type="button" aria-label="Skip Intro">Skip Intro</button>
+  <div id="splash-loading" class="splash-loading">Loading your dashboard…</div>
+
+</div>
+
+  <script>
+/* === Curated Playworld set === */
+const IMAGE_SETS = [
+  { name:'playworld', base:'', files: [
+    "https://playworld.com/wp-content/uploads/2024/07/ClarkV_240612__U7A0416-scaled.jpg",
+    "https://playworld.com/wp-content/uploads/2024/07/ClarkV_240612__U7A9136-scaled.jpg",
+    "https://playworld.com/wp-content/uploads/2023/09/tz-2325-web-image-2.png",
+    "https://playworld.com/wp-content/uploads/2025/01/rs-2370-web-image-1.png",
+    "https://playworld.com/wp-content/uploads/2023/09/rs-2315-web-image-1.png",
+    "https://playworld.com/wp-content/uploads/2023/09/zzxx1123-web-image-1-scaled.jpg",
+    "https://playworld.com/wp-content/uploads/2023/09/zzun8771-web-image-2.jpg",
+    "https://playworld.com/wp-content/uploads/2023/09/500-2039-web-image-1.png",
+    "https://secure.viewer.zmags.com/services/resource/pub/4aa2a8e9/pg683x856/5/6?viewerID=cdc7b5af",
+    "https://secure.viewer.zmags.com/services/resource/pub/4aa2a8e9/pg683x856/5/26?viewerID=cdc7b5af",
+    "https://playworld.com/wp-content/uploads/2023/10/LOC-Pirate-Ship-NJ-020_QCC-BackgroundEditforText.jpg",
+    "https://playworld.com/wp-content/uploads/2025/02/PW_2025_Smith-Ranch-Eagle-Mountain-UT_241023__0011741_Edit_SM.jpg",
+    "https://playworld.com/wp-content/uploads/2024/01/PW_2024_Piney-Orchard_Edit_10-940x627.jpeg",
+    "https://playworld.com/wp-content/uploads/2024/07/ClarkV_240612__U7A9125-2048x1366.jpg",
+    "https://playworld.com/wp-content/uploads/2023/10/PW_Rope-Web-Images_09-min-2048x1365.jpg",
+    "https://playworld.com/wp-content/uploads/2024/01/PW_2024_RopeScapes_Lewisburg-PA_42-copy.jpg",
+    "https://playworld.com/wp-content/uploads/2023/10/Cleveland_Elementary_Washington_D.C_201002__96A9723-min-2048x1365.jpg",
+    "https://playworld.com/wp-content/uploads/2025/09/PW_2026_Cook-Family-Park_Pleasant-Grove-UT_250811__0013651.jpg",
+    "https://playworld.com/wp-content/uploads/2023/10/PlayTown_Playhouse_02-2048x1152.jpg"
+  ]}
+];
+
+const SHOTS_PER_RUN = 22;
+const SHUFFLE_WITHIN_SET = true;
+const STORAGE_KEY = 'pw_splash_set_index';
+
+const elSplash  = document.getElementById('splash');
+const elMontage = document.getElementById('montage');
+const elFinal   = document.getElementById('finalCard');
+const elLens    = document.querySelector('.lens');
+const elCard    = document.querySelector('.cardwash');
+const elDivider = document.querySelector('.divider');
+const elSubbar  = document.querySelector('.subbar');
+const btnSkip   = document.getElementById('skipBtn');
+const elText    = document.getElementById('splash-loading');
+
+// Match original cinematic pacing
+const shotHold  = cssMs('--shot-hold', 140);      // duration each image holds
+const xfade     = cssMs('--shot-xfade', 100);     // crossfade between images
+const step      = shotHold + xfade;
+
+// Restore slower, smoother motion
+document.documentElement.style.setProperty('--kenburns-scale', '1.06');
+document.documentElement.style.setProperty('--kenburns-pan-x', '10px');
+document.documentElement.style.setProperty('--kenburns-pan-y', '8px');
+document.documentElement.style.setProperty('--tilt-deg', '4deg');
+
+// Timing constants from original
+document.documentElement.style.setProperty('--sweep-duration', '2600ms');
+document.documentElement.style.setProperty('--sweep-delay', '2400ms');
+document.documentElement.style.setProperty('--stroke-offset', '140ms');
+document.documentElement.style.setProperty('--final-hold', '1400ms');
+document.documentElement.style.setProperty('--brand-hold', '1200ms');
+
+
+const kenScale  = getCss('--kenburns-scale', 1.06);
+const panX      = getCss('--kenburns-pan-x', '10px');
+const panY      = getCss('--kenburns-pan-y', '8px');
+
+const finalHold = cssMs('--final-hold', 1400);
+const brandHold = cssMs('--brand-hold', 1200);
+
+let timers = [];
+function clearTimers(){ timers.forEach(t=>clearTimeout(t)); timers=[]; }
+
+if (btnSkip) btnSkip.addEventListener('click', skipAll, { passive:true });
+
+window.Splash = { play: startSequence, skip: skipAll, end: endSequence };
+
+document.addEventListener('DOMContentLoaded', () => {
+  const alreadyPlayed = sessionStorage.getItem('splashPlayed');
+  if (alreadyPlayed) return;
+  sessionStorage.setItem('splashPlayed', 'true');
+  startSequence();
+});
+
+document.addEventListener('data-hydrated', () => endSequence());
+
+async function startSequence(){
+  if(!IMAGE_SETS.length) return;
+
+  // Show splash and loading text immediately
+  elSplash.style.display = 'block';
+  document.documentElement.style.overflow = 'hidden';
+  if (elText) {
+    elText.style.transition = 'opacity 0.8s ease';
+    elText.style.opacity = '0.8';
+  }
+
+  // Delay skip button visibility
+  if (btnSkip) {
+    btnSkip.style.opacity = '0';
+    setTimeout(()=> {
+      if (elSplash.style.display === 'block') btnSkip.style.opacity = '1';
+    }, 3000);
+  }
+
+  const idx = getNextSetIndex();
+  const set = IMAGE_SETS[idx];
+  let urls = set.files.map(f => set.base + f);
+
+  if(SHUFFLE_WITHIN_SET) urls = shuffle(urls);
+  if(urls.length > SHOTS_PER_RUN) urls = urls.slice(0, SHOTS_PER_RUN);
+
+  await preloadBounded(urls.slice(0,2), 2);
+  buildShots(urls);
+  preloadBounded(urls.slice(2), 6);
+
+  const montageDuration = urls.length * step;
+  document.documentElement.style.setProperty('--montage-duration', montageDuration + 'ms');
+
+  elMontage.style.animation = `montageFadeOut ${montageDuration}ms linear forwards`;
+  elLens.style.animation    = `montageFadeOut ${montageDuration}ms linear forwards`;
+  elCard.style.animation    = `cardwashFadeIn ${montageDuration}ms linear forwards`;
+
+  const sweepDelay = Math.max(0, Math.round(montageDuration - 350));
+  document.documentElement.style.setProperty('--sweep-delay', sweepDelay + 'ms');
+
+  const SUBBAR_DELAY_OFFSET = 180;
+  elSubbar.style.animationDelay = (sweepDelay + SUBBAR_DELAY_OFFSET) + 'ms';
+
+  const showDividerAt = sweepDelay + SUBBAR_DELAY_OFFSET + 90;
+  timers.push(setTimeout(() => {
+    syncDividerWidth();
+    elDivider.classList.add('show');
+    observeSubbar();
+  }, showDividerAt));
+
+  const elStroke = document.querySelector('.wordmark-stroke');
+  const sweepDur = cssMs('--sweep-duration', 2600);
+  const strokeOffset = cssMs('--stroke-offset', 140);
+  timers.push(setTimeout(() => {
+    if (!elStroke) return;
+    elStroke.classList.add('full');
+    elStroke.classList.add('glow');
+    setTimeout(()=> elStroke.classList.remove('glow'), 900);
+  }, sweepDelay + strokeOffset + sweepDur + 20));
+
+  const showFinalAt = Math.max(0, montageDuration - 120);
+  const endAt       = montageDuration + finalHold + brandHold;
+
+  timers.push(setTimeout(()=> {
+    elFinal.classList.add('show');
+    elCard.classList.add('parallax');
+  }, showFinalAt));
+
+  timers.push(setTimeout(endSequence, endAt));
+}
+
+function endSequence(){
+  elSplash.classList.add('fade-out');
+  if (elText) elText.style.opacity = '0';
+  setTimeout(()=>{
+    elSplash.style.display = 'none';
+    elSplash.classList.remove('fade-out');
+    elFinal.classList.remove('show');
+    elCard.classList.remove('parallax');
+    document.documentElement.style.overflow = '';
+    clearTimers();
+    if (ro) { ro.disconnect(); ro = null; }
+  }, 540);
+}
+
+function skipAll(){
+  clearTimers();
+  elFinal.classList.add('show');
+  elCard.classList.add('parallax');
+  endSequence();
+}
+
+function buildShots(images){
+  elMontage.innerHTML = '';
+  images.forEach((src, i)=>{
+    const d = document.createElement('div');
+    d.className = 'shot';
+    d.style.backgroundImage = `url("${src}")`;
+    d.style.setProperty('--kenburns-scale', kenScale);
+    d.style.setProperty('--kenburns-pan-x', panX);
+    d.style.setProperty('--kenburns-pan-y', panY);
+    d.style.setProperty('--tilt-deg', '4deg');
+    const animLen = step + 200;
+    const delay   = i * step;
+    d.style.animation = `shotLife ${animLen}ms ${delay}ms both ease-in-out`;
+    elMontage.appendChild(d);
+  });
+}
+
+function syncDividerWidth(){
+  const w = elSubbar.getBoundingClientRect().width;
+  elDivider.style.width = Math.max(0, Math.round(w)) + 'px';
+}
+let ro = null;
+function observeSubbar(){
+  if (ro) return;
+  ro = new ResizeObserver(() => syncDividerWidth());
+  ro.observe(elSubbar);
+}
+
+function cssMs(varName, fallback){
+  const v = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+  if(!v) return fallback;
+  if(v.endsWith('ms')) return parseFloat(v);
+  if(v.endsWith('s'))  return parseFloat(v)*1000;
+  const n = parseFloat(v); return Number.isFinite(n) ? n : fallback;
+}
+function getCss(varName, fallback){
+  const v = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+  return v || fallback;
+}
+function shuffle(arr){
+  for(let i=arr.length-1;i>0;i--){
+    const j = (Math.random()*(i+1))|0;
+    [arr[i],arr[j]]=[arr[j],arr[i]];
+  }
+  return arr;
+}
+function preloadBounded(urls, concurrency=6){
+  if(!urls || !urls.length) return Promise.resolve();
+  let i=0, inflight=0;
+  return new Promise(resolve=>{
+    const pump=()=>{
+      if(i>=urls.length && inflight===0) return resolve();
+      while(inflight<concurrency && i<urls.length){
+        const img=new Image();
+        img.decoding='async'; img.loading='eager';
+        img.src=urls[i++]; inflight++;
+        img.onload=img.onerror=()=>{ inflight--; pump(); };
+      }
+    };
+    pump();
+  });
+}
+function getNextSetIndex(){
+  const max = IMAGE_SETS.length;
+  const raw = localStorage.getItem(STORAGE_KEY);
+  let idx = parseInt(raw,10); if(!Number.isFinite(idx)) idx = -1;
+  idx = (idx + 1) % max;
+  localStorage.setItem(STORAGE_KEY, String(idx));
+  return idx;
+}
+</script>
+
+
 </body>
 </html>
-
-
-
