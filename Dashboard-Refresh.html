@@ -776,27 +776,41 @@ function getNextSetIndex(){
 (function(){
   const elSplash = document.getElementById('splash');
   const btnSkip = document.getElementById('skipBtn');
+  const elText = document.getElementById('splash-loading');
   let endTimeout;
 
   window.Splash = {
     play(){
       elSplash.style.display = 'block';
       document.documentElement.style.overflow = 'hidden';
-      // Show skip button after 1.5s
-      setTimeout(()=> btnSkip.style.opacity = '1', 1500);
+
+      // Make sure text is visible as soon as splash begins
+      if (elText) {
+        elText.style.transition = 'opacity 0.8s ease';
+        elText.style.opacity = '0.8';
+      }
+
+      // Delay skip button so it doesn’t appear too early
+      btnSkip.style.opacity = '0';
+      setTimeout(() => {
+        if (elSplash.style.display === 'block') btnSkip.style.opacity = '1';
+      }, 3000);
     },
     end(){
       clearTimeout(endTimeout);
       elSplash.classList.add('fade-out');
-setTimeout(()=>{
-  const elText = document.getElementById('splash-loading');
-  if (elText) elText.style.opacity = '0';
-  elSplash.style.display = 'none';
-  elSplash.classList.remove('fade-out');
-  document.documentElement.style.overflow = '';
-}, 540);
 
-      
+      // Fade out loading text slightly before splash exit
+      if (elText) {
+        elText.style.transition = 'opacity 0.5s ease';
+        elText.style.opacity = '0';
+      }
+
+      setTimeout(()=>{
+        elSplash.style.display = 'none';
+        elSplash.classList.remove('fade-out');
+        document.documentElement.style.overflow = '';
+      }, 540);
     }
   };
 
@@ -807,10 +821,9 @@ setTimeout(()=>{
   // === FIX #1: Only play once per session ===
   document.addEventListener('DOMContentLoaded', () => {
     const alreadyPlayed = sessionStorage.getItem('splashPlayed');
-    if (!alreadyPlayed) {
-      window.Splash.play();
-      sessionStorage.setItem('splashPlayed', 'true');
-    }
+    if (alreadyPlayed) return; // prevent double playback
+    sessionStorage.setItem('splashPlayed', 'true');
+    window.Splash.play();
   });
 
   // === FIX #2: End splash when data finishes hydrating ===
@@ -821,5 +834,7 @@ setTimeout(()=>{
 </script>
 
 
+
 </body>
 </html>
+
