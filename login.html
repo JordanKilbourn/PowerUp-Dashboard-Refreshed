@@ -341,6 +341,10 @@ async function doLoginLoop(id, overallMs) {
       stopNarrator();
       setBusy(false);
 
+      // Reset splash playback flag for new session
+try { sessionStorage.removeItem('splashPlayed'); } catch {}
+
+
       // Pass the Employee ID along to splash.html (optional)
       const empId = encodeURIComponent(id);
       const nextUrl = `Dashboard-Refresh.html`;
