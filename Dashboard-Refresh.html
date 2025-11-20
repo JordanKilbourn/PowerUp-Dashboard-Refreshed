@@ -768,6 +768,8 @@ function getNextSetIndex(){
   <div id="finalCard" class="final" aria-hidden="true"></div>
 
   <button id="skipBtn" class="skip" type="button" aria-label="Skip Intro">Skip Intro</button>
+  <div id="splash-loading" class="splash-loading">Loading your dashboard…</div>
+
 </div>
 
 <script>
@@ -786,11 +788,15 @@ function getNextSetIndex(){
     end(){
       clearTimeout(endTimeout);
       elSplash.classList.add('fade-out');
-      setTimeout(()=>{
-        elSplash.style.display = 'none';
-        elSplash.classList.remove('fade-out');
-        document.documentElement.style.overflow = '';
-      }, 540);
+setTimeout(()=>{
+  const elText = document.getElementById('splash-loading');
+  if (elText) elText.style.opacity = '0';
+  elSplash.style.display = 'none';
+  elSplash.classList.remove('fade-out');
+  document.documentElement.style.overflow = '';
+}, 540);
+
+      
     }
   };
 
@@ -815,11 +821,5 @@ function getNextSetIndex(){
 </script>
 
 
-
 </body>
 </html>
-
-
-
-
-
