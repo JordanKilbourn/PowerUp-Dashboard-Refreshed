@@ -1,0 +1,245 @@
+:root{
+  --accent: #00ffc6;
+  --dashboard-bg: #0e1415;
+
+  /* Montage pacing */
+  --shot-hold: 140ms;
+  --shot-xfade: 100ms;
+  --kenburns-scale: 1.06;
+  --kenburns-pan-x: 10px;
+  --kenburns-pan-y: 8px;
+  --tilt-deg: 4deg;
+
+  /* Title timing (JS sets --montage-duration & --sweep-delay) */
+  --montage-duration: 6000ms;
+  --wordmark-delay: 60ms;
+  --wordmark-arrive-frac: 0.95;
+
+  /* Sweep */
+  --sweep-delay: 2400ms;     /* set in JS near montage end */
+  --sweep-duration: 2600ms;
+  --stroke-offset: 140ms;    /* <<< repaint starts AFTER sweep begins */
+
+  /* Final resolve */
+  --final-hold: 1400ms;
+  --brand-hold: 1200ms;      /* extra beat after recolor */
+
+  /* Outline thickness knob */
+  --stroke-width: 2px;       /* thinner border */
+}
+
+html,body{height:100%;margin:0;background:var(--dashboard-bg);color:#fff}
+*{box-sizing:border-box}
+
+.splash{
+  position:fixed; inset:0; z-index:9999;
+  background:#000; overflow:hidden; display:none;
+  opacity:1; transition:opacity 540ms ease-in;
+}
+.splash.fade-out{ opacity:0; pointer-events:none }
+
+/* Layering: montage < lens < vignette < lockup */
+.montage{ position:absolute; inset:0; overflow:hidden; isolation:isolate; opacity:1; z-index:0 }
+.shot{
+  position:absolute; inset:0;
+  background-size:cover; background-position:center;
+  opacity:0; transform:scale(1) translate3d(0,0,0);
+  will-change: opacity, transform;
+}
+@keyframes shotLife{
+  0%   { opacity:0; transform:scale(1) rotate(0deg) translate3d(0,0,0) }
+  12%  { opacity:1 }
+  82%  { opacity:1; transform:scale(var(--kenburns-scale)) rotate(var(--tilt-deg))
+                    translate3d(var(--kenburns-pan-x),var(--kenburns-pan-y),0) }
+  100% { opacity:0; transform:scale(var(--kenburns-scale)) rotate(var(--tilt-deg))
+                    translate3d(var(--kenburns-pan-x),var(--kenburns-pan-y),0) }
+}
+
+.lens{
+  position:absolute; inset:0; pointer-events:none; opacity:1; z-index:1;
+  background:
+    radial-gradient(120% 120% at 50% 50%, rgba(255,0,0,0.18), rgba(255,0,0,0.38)),
+    linear-gradient(to bottom, rgba(180,0,0,0.32), rgba(80,0,0,0.26));
+  mix-blend-mode:multiply;
+  filter:saturate(1.4) contrast(1.18);
+}
+
+.cardwash{ position:absolute; inset:0; pointer-events:none; opacity:0; background: var(--dashboard-bg); z-index:0 }
+.cardwash.parallax{
+  animation: finalParallax var(--brand-hold) ease-out forwards;
+}
+@keyframes finalParallax{
+  0%   { transform: scale(1) translateY(0) }
+  100% { transform: scale(1.012) translateY(-2px) }
+}
+
+.vignette{
+  pointer-events:none; position:absolute; inset:0; z-index:2;
+  background:
+    radial-gradient(ellipse at center, rgba(0,0,0,0) 48%, rgba(0,0,0,.55) 100%),
+    linear-gradient(to top, rgba(0,0,0,.20), rgba(0,0,0,0) 30% 70%, rgba(0,0,0,.26));
+  mix-blend-mode:multiply;
+}
+
+.lockup{ position:absolute; inset:0; display:grid; place-items:center; pointer-events:none; z-index:3 }
+.wordmark-wrap{
+  display:flex; flex-direction:column; align-items:center; gap:.6rem;
+  transform:translateZ(0) scale(3.0);
+  opacity:0;
+  animation: titleArrive calc(var(--montage-duration) * var(--wordmark-arrive-frac)) ease-out forwards;
+  animation-delay: var(--wordmark-delay);
+}
+@keyframes titleArrive{
+  0%   { transform:scale(3.0); opacity:0 }
+  35%  { opacity:.50 }
+  75%  { opacity:.92 }
+  100% { transform:scale(1.02); opacity:1 }
+}
+
+/* === Wordmark stack: white fill + accent outline reveal + sweep + sparks === */
+.wordmark{
+  position:relative; line-height:1;
+  font-family: Impact, Haettenschweiler,'Arial Narrow Bold','Bebas Neue',sans-serif;
+  font-weight:900; text-transform:uppercase;
+  font-size: clamp(52px, 14vw, 184px);
+  letter-spacing:.06em;
+}
+.wordmark-fill{
+  position:relative; z-index:0; display:inline-block;
+  color:#fff; mix-blend-mode:normal; filter:none;
+  text-shadow: 0 4px 10px rgba(0,0,0,.35);
+}
+
+/* Accent outline: reveals L→R just BEHIND the sweep, then persists (outline ONLY) */
+.wordmark-stroke{
+  position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+  color: transparent;                     /* no fill */
+  -webkit-text-fill-color: transparent;   /* ensure no interior fill on webkit */
+  -webkit-text-stroke: var(--stroke-width) var(--accent);
+  paint-order: stroke fill;
+  z-index:1; pointer-events:none;
+
+  /* Reveal from left → right using clip-path */
+  clip-path: inset(0 100% 0 0); /* fully hidden (right = 100%) */
+  animation: strokeFillLTR var(--sweep-duration) ease-in-out forwards;
+  /* start after the sweep starts */
+  animation-delay: calc(var(--sweep-delay) + var(--stroke-offset));
+}
+.wordmark-stroke.full{ clip-path: inset(0 0 0 0); }
+/* one-time, subtle glow settle after the outline locks */
+.wordmark-stroke.glow{ animation: outlineGlow 800ms ease-out 1 both; }
+
+@keyframes strokeFillLTR{
+  from { clip-path: inset(0 100% 0 0); }
+  to   { clip-path: inset(0 0    0 0); }
+}
+@keyframes outlineGlow{
+  0%   { filter: drop-shadow(0 0 0 rgba(0,255,198,0.0)); }
+  40%  { filter: drop-shadow(0 0 14px rgba(0,255,198,0.65)); }
+  100% { filter: drop-shadow(0 0 6px  rgba(0,255,198,0.25)); }
+}
+
+/* Silver sweep visual */
+.sweep{
+  position:absolute; inset:0; overflow:hidden; pointer-events:none; z-index:2;
+  -webkit-mask-image: linear-gradient(to right, transparent 0, black 22%, black 78%, transparent 100%);
+          mask-image: linear-gradient(to right, transparent 0, black 22%, black 78%, transparent 100%);
+}
+.sweep::before{
+  content:""; position:absolute; top:-46%; left:-90%;
+  width:58%; height:230%;
+  transform:rotate(18deg);
+  background:linear-gradient(to right, rgba(255,255,255,0) 0%, rgba(255,255,255,1) 50%, rgba(255,255,255,0) 100%);
+  filter:blur(4px); opacity:0;
+  animation:sweep var(--sweep-duration) ease-in-out forwards;
+  animation-delay: var(--sweep-delay);
+}
+@keyframes sweep{
+  0%   { transform:translateX(0) rotate(18deg);   opacity:0 }
+  15%  { opacity:1 }
+  85%  { opacity:.98 }
+  100% { transform:translateX(320%) rotate(18deg); opacity:0 }
+}
+
+/* Accent sparks riding the sweep edge (subtle) */
+.sparks{ position:absolute; inset:0; pointer-events:none; z-index:2 }
+.spark{
+  position:absolute; width:10px; height:10px; border-radius:50%;
+  background: radial-gradient(circle, rgba(0,255,198,1) 0%, rgba(0,255,198,0.3) 60%, rgba(0,255,198,0) 70%);
+  filter: blur(0.5px) brightness(1.1);
+  opacity:0;
+  transform: translateX(-60%);
+  animation: sparkTravel var(--sweep-duration) ease-in-out forwards;
+  animation-delay: calc(var(--sweep-delay) + var(--stroke-offset));
+}
+.spark::after{ /* tiny tail */
+  content:""; position:absolute; left:-14px; top:4px; width:22px; height:2px; border-radius:2px;
+  background: linear-gradient(90deg, rgba(0,255,198,0), rgba(0,255,198,.6), rgba(0,255,198,0));
+  filter: blur(0.6px);
+}
+
+/* place sparks at slightly different bands across the wordmark height */
+.spark.s1{ top:18% }
+.spark.s2{ top:45% }
+.spark.s3{ top:62% }
+.spark.s4{ top:30% }
+
+@keyframes sparkTravel{
+  0%   { transform: translateX(-60%); opacity:0 }
+  8%   { opacity:1 }
+  18%  { opacity:.0 }
+  100% { transform: translateX(240%); opacity:0 }
+}
+
+/* Divider — hidden by default; revealed & sized in JS after PowerUp appears */
+.divider{
+  height:3px; width:0;
+  background: linear-gradient(90deg, transparent 0, var(--accent) 20%, var(--accent) 80%, transparent 100%);
+  opacity:0; border-radius:2px;
+  align-self:center;
+  transition: width 420ms ease, opacity 240ms ease;
+}
+.divider.show{ opacity:.95 }
+
+/* PowerUp — big + punch-in */
+.subbar{
+  font-family:'Segoe UI', Arial, sans-serif;
+  font-weight:900;
+  letter-spacing:.22em;
+  color: var(--accent);
+  font-size: clamp(22px, 3.8vw, 52px);
+  text-shadow: 0 0 10px rgba(0,255,198,0.10);
+  opacity:0;
+  transform: translateY(10px) scale(0.94);
+  animation: subbarPunch 900ms cubic-bezier(.2,.9,.2,1) forwards;
+}
+@keyframes subbarPunch{
+  0%   { opacity:0; transform: translateY(10px) scale(0.94) }
+  55%  { opacity:1; transform: translateY(0)    scale(1.14) }
+  100% { opacity:1; transform: translateY(0)    scale(1.00) }
+}
+
+@keyframes montageFadeOut { 0%{opacity:1} 92%{opacity:1} 100%{opacity:0} }
+@keyframes cardwashFadeIn { 0%{opacity:0} 60%{opacity:.25} 100%{opacity:1} }
+
+.final{
+  position:absolute; inset:0; background: var(--dashboard-bg);
+  opacity:0; pointer-events:none; transition:opacity 420ms ease-in;
+}
+.final.show{ opacity:1 }
+
+.skip{
+  position:absolute; right:16px; bottom:16px; z-index:4;
+  background: rgba(0,0,0,.45); color:#fff;
+  padding:.55rem .8rem; border-radius:999px; border:1px solid rgba(255,255,255,.25);
+  font: 500 .9rem/1 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+  cursor:pointer; user-select:none; transition: background .2s ease;
+}
+.skip:hover{ background: rgba(0,0,0,.65) }
+
+@media (prefers-reduced-motion: reduce){
+  .shot, .wordmark-wrap, .sweep::before, .subbar, .wordmark-stroke, .spark{
+    animation: none !important; opacity:1 !important; transform:none !important
+  }
+  .wordmark-stroke{ clip-path: none !important }
+}
