@@ -1,31 +1,19 @@
-:root{
+:root {
   --accent: #00ffc6;
   --dashboard-bg: #0e1415;
 
-  /* Montage pacing */
+  /* Match original cinematic pacing */
   --shot-hold: 140ms;
   --shot-xfade: 100ms;
   --kenburns-scale: 1.06;
   --kenburns-pan-x: 10px;
   --kenburns-pan-y: 8px;
   --tilt-deg: 4deg;
-
-  /* Title timing (JS sets --montage-duration & --sweep-delay) */
-  --montage-duration: 6000ms;
-  --wordmark-delay: 60ms;
-  --wordmark-arrive-frac: 0.95;
-
-  /* Sweep */
-  --sweep-delay: 2400ms;     /* set in JS near montage end */
+  --sweep-delay: 2400ms;
   --sweep-duration: 2600ms;
-  --stroke-offset: 140ms;    /* <<< repaint starts AFTER sweep begins */
-
-  /* Final resolve */
+  --stroke-offset: 140ms;
   --final-hold: 1400ms;
-  --brand-hold: 1200ms;      /* extra beat after recolor */
-
-  /* Outline thickness knob */
-  --stroke-width: 2px;       /* thinner border */
+  --brand-hold: 1200ms;
 }
 
 html,body{height:100%;margin:0;background:var(--dashboard-bg);color:#fff}
