@@ -306,9 +306,10 @@ empInput.addEventListener('input', (e) => {
       return EMP_ROWS.find(r => String(r['Position ID'] || r['Employee ID']).trim().toLowerCase() === idLC);
     }
 
-    function playRealSplashThenGo(nextUrl = "Dashboard-Refresh.html") {
-  window.location.href = `splash.html?next=${encodeURIComponent(nextUrl)}`;
+function playRealSplashThenGo(nextUrl = "Dashboard-Refresh.html") {
+  window.location.href = nextUrl;
 }
+
 
 /* ---------- Login loop (with cinematic splash integration) ---------- */
 async function doLoginLoop(id, overallMs) {
@@ -334,22 +335,24 @@ async function doLoginLoop(id, overallMs) {
       try { await PowerUp.api.warmProxy(); } catch {}
     }
 
-    try {
-      await PowerUp.session.loginWithId(id, { primeBeforeRedirect: true });
+try {
+  await PowerUp.session.loginWithId(id, { primeBeforeRedirect: true });
 
-      // ✅ Success — cleanup and transition to the cinematic splash
-      stopNarrator();
-      setBusy(false);
+  // ✅ Success — cleanup and transition to the dashboard splash
+  stopNarrator();
+  setBusy(false);
 
-      // Pass the Employee ID along to splash.html (optional)
-      const empId = encodeURIComponent(id);
-      const nextUrl = `Dashboard-Refresh.html`;
-      const splashUrl = `splash.html?next=${encodeURIComponent(nextUrl)}&empId=${empId}`;
+  // Reset splash playback flag for new session
+  try { sessionStorage.removeItem('splashPlayed'); } catch {}
 
-      // Redirect immediately to cinematic splash
-      window.location.href = splashUrl;
-      return; // done
-    } catch (e) {
+  // Go straight to the dashboard (which now includes the splash)
+  const empId = encodeURIComponent(id);
+  const nextUrl = `Dashboard-Refresh.html?empId=${empId}`;
+  window.location.href = nextUrl;
+  return; // done
+} catch (e) {
+
+
       // login attempt failed — wait and retry
       const base = Math.min(5000, 600 * attempt);
       const jitter = Math.floor(Math.random() * 600);
