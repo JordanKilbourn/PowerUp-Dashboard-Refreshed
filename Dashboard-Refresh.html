@@ -520,7 +520,45 @@
   </div>
 
 
-<script>
+
+
+
+
+  <!-- ✅ Integrated Splash Sequence for Dashboard (Option B) -->
+<!-- This block should be added just before the closing </body> tag in Dashboard-Refresh.html -->
+
+<div id="splash" class="splash" aria-hidden="true">
+  <div class="montage" id="montage"></div>
+  <div class="lens" aria-hidden="true"></div>
+  <div class="cardwash" aria-hidden="true"></div>
+  <div class="vignette" aria-hidden="true"></div>
+
+  <div class="lockup" aria-hidden="true">
+    <div class="wordmark-wrap">
+      <div class="wordmark" aria-label="PLAYWORLD">
+        <span class="wordmark-fill">PLAYWORLD</span>
+        <span class="wordmark-stroke" aria-hidden="true">PLAYWORLD</span>
+        <div class="sweep" aria-hidden="true"></div>
+        <div class="sparks" aria-hidden="true">
+          <span class="spark s1"></span>
+          <span class="spark s2"></span>
+          <span class="spark s3"></span>
+          <span class="spark s4"></span>
+        </div>
+      </div>
+      <div class="divider" aria-hidden="true"></div>
+      <div class="subbar">PowerUp</div>
+    </div>
+  </div>
+
+  <div id="finalCard" class="final" aria-hidden="true"></div>
+
+  <button id="skipBtn" class="skip" type="button" aria-label="Skip Intro">Skip Intro</button>
+  <div id="splash-loading" class="splash-loading">Loading your dashboard…</div>
+
+</div>
+
+  <script>
 /* === Curated Playworld set === */
 const IMAGE_SETS = [
   { name:'playworld', base:'', files: [
@@ -752,44 +790,9 @@ function getNextSetIndex(){
 </script>
 
 
-
-  <!-- ✅ Integrated Splash Sequence for Dashboard (Option B) -->
-<!-- This block should be added just before the closing </body> tag in Dashboard-Refresh.html -->
-
-<div id="splash" class="splash" aria-hidden="true">
-  <div class="montage" id="montage"></div>
-  <div class="lens" aria-hidden="true"></div>
-  <div class="cardwash" aria-hidden="true"></div>
-  <div class="vignette" aria-hidden="true"></div>
-
-  <div class="lockup" aria-hidden="true">
-    <div class="wordmark-wrap">
-      <div class="wordmark" aria-label="PLAYWORLD">
-        <span class="wordmark-fill">PLAYWORLD</span>
-        <span class="wordmark-stroke" aria-hidden="true">PLAYWORLD</span>
-        <div class="sweep" aria-hidden="true"></div>
-        <div class="sparks" aria-hidden="true">
-          <span class="spark s1"></span>
-          <span class="spark s2"></span>
-          <span class="spark s3"></span>
-          <span class="spark s4"></span>
-        </div>
-      </div>
-      <div class="divider" aria-hidden="true"></div>
-      <div class="subbar">PowerUp</div>
-    </div>
-  </div>
-
-  <div id="finalCard" class="final" aria-hidden="true"></div>
-
-  <button id="skipBtn" class="skip" type="button" aria-label="Skip Intro">Skip Intro</button>
-  <div id="splash-loading" class="splash-loading">Loading your dashboard…</div>
-
-</div>
-
-
 </body>
 </html>
+
 
 
 
