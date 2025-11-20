@@ -787,70 +787,9 @@ function getNextSetIndex(){
 
 </div>
 
-<script>
-(function(){
-  const elSplash = document.getElementById('splash');
-  const btnSkip = document.getElementById('skipBtn');
-  const elText = document.getElementById('splash-loading');
-  let endTimeout;
-
-  window.Splash = {
-    play(){
-      elSplash.style.display = 'block';
-      document.documentElement.style.overflow = 'hidden';
-
-      // Make sure text is visible as soon as splash begins
-      if (elText) {
-        elText.style.transition = 'opacity 0.8s ease';
-        elText.style.opacity = '0.8';
-      }
-
-      // Delay skip button so it doesn’t appear too early
-      btnSkip.style.opacity = '0';
-      setTimeout(() => {
-        if (elSplash.style.display === 'block') btnSkip.style.opacity = '1';
-      }, 3000);
-    },
-    end(){
-      clearTimeout(endTimeout);
-      elSplash.classList.add('fade-out');
-
-      // Fade out loading text slightly before splash exit
-      if (elText) {
-        elText.style.transition = 'opacity 0.5s ease';
-        elText.style.opacity = '0';
-      }
-
-      setTimeout(()=>{
-        elSplash.style.display = 'none';
-        elSplash.classList.remove('fade-out');
-        document.documentElement.style.overflow = '';
-      }, 540);
-    }
-  };
-
-  btnSkip.addEventListener('click', () => {
-    window.Splash.end();
-  });
-
-  // === FIX #1: Only play once per session ===
-  document.addEventListener('DOMContentLoaded', () => {
-    const alreadyPlayed = sessionStorage.getItem('splashPlayed');
-    if (alreadyPlayed) return; // prevent double playback
-    sessionStorage.setItem('splashPlayed', 'true');
-    window.Splash.play();
-  });
-
-  // === FIX #2: End splash when data finishes hydrating ===
-  document.addEventListener('data-hydrated', () => {
-    window.Splash.end();
-  });
-})();
-</script>
-
-
 
 </body>
 </html>
+
 
 
