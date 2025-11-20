@@ -306,9 +306,10 @@ empInput.addEventListener('input', (e) => {
       return EMP_ROWS.find(r => String(r['Position ID'] || r['Employee ID']).trim().toLowerCase() === idLC);
     }
 
-    function playRealSplashThenGo(nextUrl = "Dashboard-Refresh.html") {
-  window.location.href = `splash.html?next=${encodeURIComponent(nextUrl)}`;
+function playRealSplashThenGo(nextUrl = "Dashboard-Refresh.html") {
+  window.location.href = nextUrl;
 }
+
 
 /* ---------- Login loop (with cinematic splash integration) ---------- */
 async function doLoginLoop(id, overallMs) {
