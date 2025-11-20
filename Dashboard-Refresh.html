@@ -558,6 +558,7 @@ const elCard    = document.querySelector('.cardwash');
 const elDivider = document.querySelector('.divider');
 const elSubbar  = document.querySelector('.subbar');
 const btnSkip   = document.getElementById('skipBtn');
+const elText    = document.getElementById('splash-loading');
 
 const shotHold  = cssMs('--shot-hold', 140);
 const xfade     = cssMs('--shot-xfade', 100);
@@ -568,18 +569,42 @@ const panX      = getCss('--kenburns-pan-x', '10px');
 const panY      = getCss('--kenburns-pan-y', '8px');
 
 const finalHold = cssMs('--final-hold', 1400);
-const brandHold = cssMs('--brand-hold', 1200);   // extra pause after recolor
+const brandHold = cssMs('--brand-hold', 1200);
 
 let timers = [];
 function clearTimers(){ timers.forEach(t=>clearTimeout(t)); timers=[]; }
 
-btnSkip.addEventListener('click', skipAll, {passive:true});
-window.Splash = { play: startSequence, skip: skipAll };
+if (btnSkip) btnSkip.addEventListener('click', skipAll, { passive:true });
 
-document.addEventListener('DOMContentLoaded', startSequence);
+window.Splash = { play: startSequence, skip: skipAll, end: endSequence };
+
+document.addEventListener('DOMContentLoaded', () => {
+  const alreadyPlayed = sessionStorage.getItem('splashPlayed');
+  if (alreadyPlayed) return;
+  sessionStorage.setItem('splashPlayed', 'true');
+  startSequence();
+});
+
+document.addEventListener('data-hydrated', () => endSequence());
 
 async function startSequence(){
   if(!IMAGE_SETS.length) return;
+
+  // Show splash and loading text immediately
+  elSplash.style.display = 'block';
+  document.documentElement.style.overflow = 'hidden';
+  if (elText) {
+    elText.style.transition = 'opacity 0.8s ease';
+    elText.style.opacity = '0.8';
+  }
+
+  // Delay skip button visibility
+  if (btnSkip) {
+    btnSkip.style.opacity = '0';
+    setTimeout(()=> {
+      if (elSplash.style.display === 'block') btnSkip.style.opacity = '1';
+    }, 3000);
+  }
 
   const idx = getNextSetIndex();
   const set = IMAGE_SETS[idx];
@@ -587,9 +612,6 @@ async function startSequence(){
 
   if(SHUFFLE_WITHIN_SET) urls = shuffle(urls);
   if(urls.length > SHOTS_PER_RUN) urls = urls.slice(0, SHOTS_PER_RUN);
-
-  elSplash.style.display = 'block';
-  document.documentElement.style.overflow = 'hidden';
 
   await preloadBounded(urls.slice(0,2), 2);
   buildShots(urls);
@@ -602,15 +624,12 @@ async function startSequence(){
   elLens.style.animation    = `montageFadeOut ${montageDuration}ms linear forwards`;
   elCard.style.animation    = `cardwashFadeIn ${montageDuration}ms linear forwards`;
 
-  /* Sweep very late so it doesn't fight montage */
   const sweepDelay = Math.max(0, Math.round(montageDuration - 350));
   document.documentElement.style.setProperty('--sweep-delay', sweepDelay + 'ms');
 
-  /* PowerUp timing: start a beat after the sweep kicks in */
-  const SUBBAR_DELAY_OFFSET = 180; // ms after sweep begins
+  const SUBBAR_DELAY_OFFSET = 180;
   elSubbar.style.animationDelay = (sweepDelay + SUBBAR_DELAY_OFFSET) + 'ms';
 
-  /* Reveal & center divider exactly when PowerUp animates */
   const showDividerAt = sweepDelay + SUBBAR_DELAY_OFFSET + 90;
   timers.push(setTimeout(() => {
     syncDividerWidth();
@@ -618,7 +637,6 @@ async function startSequence(){
     observeSubbar();
   }, showDividerAt));
 
-  /* Keep the outline permanently after the stroke reveal finishes + quick glow settle */
   const elStroke = document.querySelector('.wordmark-stroke');
   const sweepDur = cssMs('--sweep-duration', 2600);
   const strokeOffset = cssMs('--stroke-offset', 140);
@@ -627,13 +645,11 @@ async function startSequence(){
     elStroke.classList.add('full');
     elStroke.classList.add('glow');
     setTimeout(()=> elStroke.classList.remove('glow'), 900);
-  }, sweepDelay + strokeOffset + sweepDur + 20)); // wait for stroke animation to complete
+  }, sweepDelay + strokeOffset + sweepDur + 20));
 
-  /* Final resolve timings — add extra brandHold before fade */
   const showFinalAt = Math.max(0, montageDuration - 120);
   const endAt       = montageDuration + finalHold + brandHold;
 
-  // Micro parallax on the flat card during the final hold
   timers.push(setTimeout(()=> {
     elFinal.classList.add('show');
     elCard.classList.add('parallax');
@@ -644,11 +660,12 @@ async function startSequence(){
 
 function endSequence(){
   elSplash.classList.add('fade-out');
+  if (elText) elText.style.opacity = '0';
   setTimeout(()=>{
-    elFinal.classList.remove('show');
-    elCard.classList.remove('parallax');
     elSplash.style.display = 'none';
     elSplash.classList.remove('fade-out');
+    elFinal.classList.remove('show');
+    elCard.classList.remove('parallax');
     document.documentElement.style.overflow = '';
     clearTimers();
     if (ro) { ro.disconnect(); ro = null; }
@@ -659,7 +676,7 @@ function skipAll(){
   clearTimers();
   elFinal.classList.add('show');
   elCard.classList.add('parallax');
-  setTimeout(endSequence, 320);
+  endSequence();
 }
 
 function buildShots(images){
@@ -672,7 +689,6 @@ function buildShots(images){
     d.style.setProperty('--kenburns-pan-x', panX);
     d.style.setProperty('--kenburns-pan-y', panY);
     d.style.setProperty('--tilt-deg', '4deg');
-
     const animLen = step + 200;
     const delay   = i * step;
     d.style.animation = `shotLife ${animLen}ms ${delay}ms both ease-in-out`;
@@ -680,7 +696,6 @@ function buildShots(images){
   });
 }
 
-/* ===== Divider sizing tied to PowerUp width ===== */
 function syncDividerWidth(){
   const w = elSubbar.getBoundingClientRect().width;
   elDivider.style.width = Math.max(0, Math.round(w)) + 'px';
@@ -692,7 +707,6 @@ function observeSubbar(){
   ro.observe(elSubbar);
 }
 
-/* ===== Helpers ===== */
 function cssMs(varName, fallback){
   const v = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
   if(!v) return fallback;
@@ -736,6 +750,7 @@ function getNextSetIndex(){
   return idx;
 }
 </script>
+
 
 
   <!-- ✅ Integrated Splash Sequence for Dashboard (Option B) -->
@@ -837,4 +852,5 @@ function getNextSetIndex(){
 
 </body>
 </html>
+
 
