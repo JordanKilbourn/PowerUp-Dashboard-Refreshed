@@ -576,7 +576,7 @@ function clearTimers(){ timers.forEach(t=>clearTimeout(t)); timers=[]; }
 btnSkip.addEventListener('click', skipAll, {passive:true});
 window.Splash = { play: startSequence, skip: skipAll };
 
-startSequence();
+document.addEventListener('DOMContentLoaded', startSequence);
 
 async function startSequence(){
   if(!IMAGE_SETS.length) return;
@@ -798,12 +798,16 @@ function getNextSetIndex(){
     window.Splash.end();
   });
 
-  // Auto-start when dashboard loads
+  // === FIX #1: Only play once per session ===
   document.addEventListener('DOMContentLoaded', () => {
-    window.Splash.play();
+    const alreadyPlayed = sessionStorage.getItem('splashPlayed');
+    if (!alreadyPlayed) {
+      window.Splash.play();
+      sessionStorage.setItem('splashPlayed', 'true');
+    }
   });
 
-  // Auto-end when dashboard data is hydrated
+  // === FIX #2: End splash when data finishes hydrating ===
   document.addEventListener('data-hydrated', () => {
     window.Splash.end();
   });
@@ -811,8 +815,10 @@ function getNextSetIndex(){
 </script>
 
 
+
 </body>
 </html>
+
 
 
 
