@@ -598,9 +598,24 @@ const elSubbar  = document.querySelector('.subbar');
 const btnSkip   = document.getElementById('skipBtn');
 const elText    = document.getElementById('splash-loading');
 
-const shotHold  = cssMs('--shot-hold', 140);
-const xfade     = cssMs('--shot-xfade', 100);
+// Match original cinematic pacing
+const shotHold  = cssMs('--shot-hold', 140);      // duration each image holds
+const xfade     = cssMs('--shot-xfade', 100);     // crossfade between images
 const step      = shotHold + xfade;
+
+// Restore slower, smoother motion
+document.documentElement.style.setProperty('--kenburns-scale', '1.06');
+document.documentElement.style.setProperty('--kenburns-pan-x', '10px');
+document.documentElement.style.setProperty('--kenburns-pan-y', '8px');
+document.documentElement.style.setProperty('--tilt-deg', '4deg');
+
+// Timing constants from original
+document.documentElement.style.setProperty('--sweep-duration', '2600ms');
+document.documentElement.style.setProperty('--sweep-delay', '2400ms');
+document.documentElement.style.setProperty('--stroke-offset', '140ms');
+document.documentElement.style.setProperty('--final-hold', '1400ms');
+document.documentElement.style.setProperty('--brand-hold', '1200ms');
+
 
 const kenScale  = getCss('--kenburns-scale', 1.06);
 const panX      = getCss('--kenburns-pan-x', '10px');
@@ -792,6 +807,7 @@ function getNextSetIndex(){
 
 </body>
 </html>
+
 
 
 
