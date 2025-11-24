@@ -50,22 +50,6 @@
     .result.ok{border-color:#10b981}
     .result.err{border-color:#b91c1c}
 
-    /* ---- Splash overlay (shows ONLY after success) ---- */
-    #pu-splash{
-      position: fixed; inset: 0; display: grid; place-items: center;
-      background: #081214; z-index: 100000; opacity: 0; pointer-events: none;
-      transition: opacity .5s ease;
-    }
-    #pu-splash.on{ opacity: 1; pointer-events: auto; }
-    #pu-splash.on.fade{ opacity: 0; }
-    #pu-splash .pu-splash-inner{
-      animation: puSplashPop .6s ease both;
-      filter: drop-shadow(0 8px 30px rgba(0,0,0,.45));
-    }
-    @keyframes puSplashPop{
-      0%{ transform: scale(.9); opacity: 0; }
-      100%{ transform: scale(1); opacity: 1; }
-    }
   </style>
 
 <link rel="stylesheet" href="splash.css">
@@ -102,7 +86,6 @@
 
   <button id="skipBtn" class="skip" type="button" aria-label="Skip Intro">Skip Intro</button>
   <div id="splash-loading" class="splash-loading">Loading your dashboard…</div>
-  <div id="splash-status" class="splash-loading">Signing you in...</div>
   <button id="splash-skip" class="skip" type="button" aria-label="Skip Intro" style="display:none;">Skip Intro</button>
 
 </div>
@@ -170,13 +153,6 @@
     </div>
   </div>
 
-  <!-- Splash (shown only AFTER successful login) -->
-  <div id="pu-splash" hidden>
-    <div class="pu-splash-inner">
-      <!-- Replace with your real splash asset if you like -->
-      <img src="assets/favicon.svg" alt="PowerUp" width="120" height="120" />
-    </div>
-  </div>
 
   <!-- Core libs -->
   <script src="scripts/api.js"></script>
@@ -470,21 +446,8 @@ try {
 
     btnClose.addEventListener('click', (e) => { e.preventDefault(); closeLookup(); });
     modal.addEventListener('click', (e) => { if (e.target === modal) closeLookup(); });
-
-/* ---------- Login wiring ---------- */
-// document.addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
-// btnSignIn.addEventListener('click', doLogin);
-
-
-    /* ---------- Minimal splash wiring (in case playSplashThenGo needs the node) ---------- */
-    (function ensureSplashNode(){
-      const el = document.getElementById('pu-splash');
-      if (!el) return;
-      el.hidden = true; // keep hidden; playSplashThenGo will toggle it
-    })();
-  }());
+    
   </script>
-
 
   
 <script>
@@ -733,7 +696,7 @@ function getNextSetIndex(){
 }
 </script>
 
-  <script>
+<script>
 (function() {
   const elSplash  = document.getElementById('splash');
   const elText    = document.getElementById('splash-loading');
@@ -742,22 +705,25 @@ function getNextSetIndex(){
   const empInput  = document.getElementById('empId');
   const busy      = document.getElementById('busy');
 
-  // State tracking
   let narratorTimer = null;
   let narratorDots = 0;
   let narratorStart = 0;
   let attempt = 0;
   let isLoggingIn = false;
   let skipReady = false;
+  let splashHasRun = false;
 
   function setSplashVisible(on) {
     elSplash.style.display = on ? 'block' : 'none';
     document.documentElement.style.overflow = on ? 'hidden' : '';
+    if (on && !splashHasRun && window.Splash) {
+      Splash.play(); // start your actual animation sequence
+      splashHasRun = true;
+    }
   }
 
   function setSplashText(msg) {
-    if (!elText) return;
-    elText.textContent = msg;
+    if (elText) elText.textContent = msg;
   }
 
   function startNarrator() {
@@ -772,16 +738,14 @@ function getNextSetIndex(){
   }
 
   function stopNarrator() {
-    if (narratorTimer) clearInterval(narratorTimer);
+    clearInterval(narratorTimer);
     narratorTimer = null;
   }
 
-  // Splash skip handler (only when ready)
   if (btnSkip) {
     btnSkip.style.display = 'none';
     btnSkip.addEventListener('click', () => {
-      if (!skipReady) return;
-      fadeOutSplashAndGo();
+      if (skipReady) fadeOutSplashAndGo();
     });
   }
 
@@ -791,7 +755,7 @@ function getNextSetIndex(){
     setTimeout(() => {
       setSplashVisible(false);
       window.location.href = 'Dashboard-Refresh.html';
-    }, 700);
+    }, 800);
   }
 
   async function doLoginWithRetries(empId) {
@@ -807,7 +771,6 @@ function getNextSetIndex(){
     while (Date.now() < deadline) {
       attempt++;
       try {
-        // Try warming server and logging in
         if (attempt === 1 || attempt % 3 === 0) {
           try { await PowerUp.api.warmProxy(); } catch {}
         }
@@ -819,21 +782,29 @@ function getNextSetIndex(){
         skipReady = true;
         setSplashText('Dashboard ready! You may skip or wait for the transition.');
 
-        // Show skip button 2s before auto transition
-        setTimeout(() => { if (btnSkip) btnSkip.style.display = 'block'; }, 2000);
+        setTimeout(() => { if (btnSkip) btnSkip.style.display = 'block'; }, 1500);
 
-        // Auto transition after short delay
-        setTimeout(fadeOutSplashAndGo, 4000);
+        // Let the splash animation finish its current run
+        setTimeout(fadeOutSplashAndGo, 6000);
         return;
 
       } catch (err) {
-        // Retry logic
+        // Detect invalid credentials
+        if (err && err.message && /invalid|not found|unauthorized/i.test(err.message)) {
+          stopNarrator();
+          setSplashText('Invalid Employee ID. Please try again.');
+          setTimeout(() => {
+            setSplashVisible(false);
+            isLoggingIn = false;
+          }, 2500);
+          return;
+        }
+
         const wait = Math.min(5000, 1000 + attempt * 400);
         await new Promise(r => setTimeout(r, wait));
       }
     }
 
-    // Timeout handling
     stopNarrator();
     setSplashText('The server is still waking up. Please try again shortly.');
     setTimeout(() => {
@@ -842,7 +813,6 @@ function getNextSetIndex(){
     }, 4000);
   }
 
-  // Attach to login button
   if (loginBtn) {
     loginBtn.addEventListener('click', () => {
       const id = (empInput.value || '').trim();
@@ -852,6 +822,7 @@ function getNextSetIndex(){
   }
 })();
 </script>
+
 
 
   
