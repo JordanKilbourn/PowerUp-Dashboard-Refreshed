@@ -471,9 +471,10 @@ try {
     btnClose.addEventListener('click', (e) => { e.preventDefault(); closeLookup(); });
     modal.addEventListener('click', (e) => { if (e.target === modal) closeLookup(); });
 
-    /* ---------- Login wiring ---------- */
-    document.addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
-    btnSignIn.addEventListener('click', doLogin);
+/* ---------- Login wiring ---------- */
+// document.addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
+// btnSignIn.addEventListener('click', doLogin);
+
 
     /* ---------- Minimal splash wiring (in case playSplashThenGo needs the node) ---------- */
     (function ensureSplashNode(){
@@ -731,6 +732,127 @@ function getNextSetIndex(){
   return idx;
 }
 </script>
+
+  <script>
+(function() {
+  const elSplash  = document.getElementById('splash');
+  const elText    = document.getElementById('splash-loading');
+  const btnSkip   = document.getElementById('skipBtn');
+  const loginBtn  = document.getElementById('signin');
+  const empInput  = document.getElementById('empId');
+  const busy      = document.getElementById('busy');
+
+  // State tracking
+  let narratorTimer = null;
+  let narratorDots = 0;
+  let narratorStart = 0;
+  let attempt = 0;
+  let isLoggingIn = false;
+  let skipReady = false;
+
+  function setSplashVisible(on) {
+    elSplash.style.display = on ? 'block' : 'none';
+    document.documentElement.style.overflow = on ? 'hidden' : '';
+  }
+
+  function setSplashText(msg) {
+    if (!elText) return;
+    elText.textContent = msg;
+  }
+
+  function startNarrator() {
+    narratorStart = Date.now();
+    narratorDots = 0;
+    if (narratorTimer) clearInterval(narratorTimer);
+    narratorTimer = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - narratorStart) / 1000);
+      const dots = '.'.repeat((narratorDots++ % 3) + 1);
+      setSplashText(`Signing you in${dots} • Attempt ${attempt} • ${elapsed}s elapsed`);
+    }, 500);
+  }
+
+  function stopNarrator() {
+    if (narratorTimer) clearInterval(narratorTimer);
+    narratorTimer = null;
+  }
+
+  // Splash skip handler (only when ready)
+  if (btnSkip) {
+    btnSkip.style.display = 'none';
+    btnSkip.addEventListener('click', () => {
+      if (!skipReady) return;
+      fadeOutSplashAndGo();
+    });
+  }
+
+  async function fadeOutSplashAndGo() {
+    stopNarrator();
+    elSplash.classList.add('fade-out');
+    setTimeout(() => {
+      setSplashVisible(false);
+      window.location.href = 'Dashboard-Refresh.html';
+    }, 700);
+  }
+
+  async function doLoginWithRetries(empId) {
+    if (isLoggingIn) return;
+    isLoggingIn = true;
+    attempt = 0;
+    setSplashVisible(true);
+    setSplashText('Contacting server…');
+    if (busy) busy.style.display = 'none';
+    startNarrator();
+
+    const deadline = Date.now() + 2 * 60 * 1000; // 2 min overall
+    while (Date.now() < deadline) {
+      attempt++;
+      try {
+        // Try warming server and logging in
+        if (attempt === 1 || attempt % 3 === 0) {
+          try { await PowerUp.api.warmProxy(); } catch {}
+        }
+
+        await PowerUp.session.loginWithId(empId, { primeBeforeRedirect: true });
+
+        // ✅ Success!
+        stopNarrator();
+        skipReady = true;
+        setSplashText('Dashboard ready! You may skip or wait for the transition.');
+
+        // Show skip button 2s before auto transition
+        setTimeout(() => { if (btnSkip) btnSkip.style.display = 'block'; }, 2000);
+
+        // Auto transition after short delay
+        setTimeout(fadeOutSplashAndGo, 4000);
+        return;
+
+      } catch (err) {
+        // Retry logic
+        const wait = Math.min(5000, 1000 + attempt * 400);
+        await new Promise(r => setTimeout(r, wait));
+      }
+    }
+
+    // Timeout handling
+    stopNarrator();
+    setSplashText('The server is still waking up. Please try again shortly.');
+    setTimeout(() => {
+      setSplashVisible(false);
+      isLoggingIn = false;
+    }, 4000);
+  }
+
+  // Attach to login button
+  if (loginBtn) {
+    loginBtn.addEventListener('click', () => {
+      const id = (empInput.value || '').trim();
+      if (!id) return alert('Please enter your Employee ID.');
+      doLoginWithRetries(id);
+    });
+  }
+})();
+</script>
+
 
   
 </body>
