@@ -378,10 +378,10 @@ function playRealSplashThenGo(nextUrl = "Dashboard-Refresh.html") {
     modal.addEventListener('click', (e) => { if (e.target === modal) closeLookup(); });
 
     })();
-
-    
   </script>
 
+
+  
   
 <script>
 /* === Curated Playworld set === */
@@ -554,15 +554,22 @@ document.addEventListener('data-hydrated', () => endSequence());
     setTimeout(()=> elStroke.classList.remove('glow'), 900);
   }, sweepDelay + strokeOffset + sweepDur + 20));
 
-  const showFinalAt = Math.max(0, montageDuration - 120);
-  const endAt       = montageDuration + finalHold + brandHold;
+ 
+const showFinalAt = Math.max(0, montageDuration - 120);
+const endAt       = montageDuration + finalHold + brandHold;
 
-  timers.push(setTimeout(()=> {
-    elFinal.classList.add('show');
-    elCard.classList.add('parallax');
-  }, showFinalAt));
+timers.push(setTimeout(()=> {
+  elFinal.classList.add('show');
+  elCard.classList.add('parallax');
+}, showFinalAt));
 
-  timers.push(setTimeout(endSequence, endAt));
+// ✅ Fire custom event when one full splash loop has completed
+timers.push(setTimeout(() => {
+  const loopEvent = new CustomEvent('splashLoopCompleted');
+  document.dispatchEvent(loopEvent);
+}, endAt - 200));
+
+timers.push(setTimeout(endSequence, endAt));
 }
 
 function endSequence(){
@@ -773,15 +780,14 @@ function getNextSetIndex(){
     if (errBox) errBox.style.display = 'none';
     startNarrator();
 
-    const ONE_LOOP_DURATION = 7000; // ms; your splash's full cinematic cycle
-    const deadline = Date.now() + 2 * 60 * 1000; // 2-minute max retry window
+  // Listen for splash loop completion from animation module
+document.addEventListener('splashLoopCompleted', () => {
+  hasPlayedAtLeastOneLoop = true;
+  splashReady = true;
+  tryAutoTransition();
+});
 
-    // Track when first splash loop completes
-    setTimeout(() => {
-      hasPlayedAtLeastOneLoop = true;
-      splashReady = true;
-      tryAutoTransition();
-    }, ONE_LOOP_DURATION);
+    const deadline = Date.now() + 2 * 60 * 1000; // 2-minute max retry window
 
     while (Date.now() < deadline) {
       attempt++;
