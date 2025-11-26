@@ -381,6 +381,9 @@ function playRealSplashThenGo(nextUrl = "Dashboard-Refresh.html") {
   </script>
 
 
+
+
+  
   
   
 <script>
@@ -424,8 +427,8 @@ const btnSkip   = document.getElementById('skipBtn');
 const elText    = document.getElementById('splash-loading');
 
 // Match original cinematic pacing
-const shotHold  = cssMs('--shot-hold', 140);      // duration each image holds
-const xfade     = cssMs('--shot-xfade', 100);     // crossfade between images
+const shotHold  = cssMs('--shot-hold', 140);
+const xfade     = cssMs('--shot-xfade', 100);
 const step      = shotHold + xfade;
 
 // Restore slower, smoother motion
@@ -434,13 +437,12 @@ document.documentElement.style.setProperty('--kenburns-pan-x', '10px');
 document.documentElement.style.setProperty('--kenburns-pan-y', '8px');
 document.documentElement.style.setProperty('--tilt-deg', '4deg');
 
-// Timing constants from original
+// Timing constants
 document.documentElement.style.setProperty('--sweep-duration', '2600ms');
 document.documentElement.style.setProperty('--sweep-delay', '2400ms');
 document.documentElement.style.setProperty('--stroke-offset', '140ms');
 document.documentElement.style.setProperty('--final-hold', '1400ms');
 document.documentElement.style.setProperty('--brand-hold', '1200ms');
-
 
 const kenScale  = getCss('--kenburns-scale', 1.06);
 const panX      = getCss('--kenburns-pan-x', '10px');
@@ -450,6 +452,8 @@ const finalHold = cssMs('--final-hold', 1400);
 const brandHold = cssMs('--brand-hold', 1200);
 
 let timers = [];
+let currentSplashRunId = 0; // 🔹 Tracks active splash instance
+
 function clearTimers(){ timers.forEach(t=>clearTimeout(t)); timers=[]; }
 
 if (btnSkip) btnSkip.addEventListener('click', skipAll, { passive:true });
@@ -465,27 +469,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
 document.addEventListener('data-hydrated', () => endSequence());
 
-
-  function resetSplashState() {
+function resetSplashState() {
   clearTimers();
-
-  // Reset visibility + animation classes
   elSplash.classList.remove('fade-out');
   elFinal.classList.remove('show');
   elCard.classList.remove('parallax');
   elDivider.classList.remove('show');
 
-  // Reset wordmark and stroke
   const elStroke = document.querySelector('.wordmark-stroke');
   const elWordmark = document.querySelector('.wordmark');
   if (elStroke) elStroke.classList.remove('full', 'glow');
   if (elWordmark) elWordmark.classList.remove('show');
 
-  // Reset montage shots
   elMontage.innerHTML = '';
   document.documentElement.style.overflow = '';
 
-  // Rebuild initial visual state
   elSplash.style.display = 'none';
   if (elText) {
     elText.style.opacity = '0';
@@ -493,11 +491,13 @@ document.addEventListener('data-hydrated', () => endSequence());
   }
 }
   
-  async function startSequence(){
-    resetSplashState();
+async function startSequence(){
+  resetSplashState();
   if(!IMAGE_SETS.length) return;
 
-  // Show splash and loading text immediately
+  const runId = ++currentSplashRunId; // 🔹 New splash instance ID
+
+  // Show splash
   elSplash.style.display = 'block';
   document.documentElement.style.overflow = 'hidden';
   if (elText) {
@@ -505,7 +505,7 @@ document.addEventListener('data-hydrated', () => endSequence());
     elText.style.opacity = '0.8';
   }
 
-  // Delay skip button visibility
+  // Delay skip visibility
   if (btnSkip) {
     btnSkip.style.opacity = '0';
     setTimeout(()=> {
@@ -539,6 +539,7 @@ document.addEventListener('data-hydrated', () => endSequence());
 
   const showDividerAt = sweepDelay + SUBBAR_DELAY_OFFSET + 90;
   timers.push(setTimeout(() => {
+    if (runId !== currentSplashRunId) return; // 🔹 ignore stale timers
     syncDividerWidth();
     elDivider.classList.add('show');
     observeSubbar();
@@ -548,28 +549,34 @@ document.addEventListener('data-hydrated', () => endSequence());
   const sweepDur = cssMs('--sweep-duration', 2600);
   const strokeOffset = cssMs('--stroke-offset', 140);
   timers.push(setTimeout(() => {
+    if (runId !== currentSplashRunId) return; // 🔹 ignore stale timers
     if (!elStroke) return;
     elStroke.classList.add('full');
     elStroke.classList.add('glow');
     setTimeout(()=> elStroke.classList.remove('glow'), 900);
   }, sweepDelay + strokeOffset + sweepDur + 20));
 
- 
-const showFinalAt = Math.max(0, montageDuration - 120);
-const endAt       = montageDuration + finalHold + brandHold;
+  const showFinalAt = Math.max(0, montageDuration - 120);
+  const endAt       = montageDuration + finalHold + brandHold;
 
-timers.push(setTimeout(()=> {
-  elFinal.classList.add('show');
-  elCard.classList.add('parallax');
-}, showFinalAt));
+  timers.push(setTimeout(()=> {
+    if (runId !== currentSplashRunId) return; // 🔹 ignore stale timers
+    elFinal.classList.add('show');
+    elCard.classList.add('parallax');
+  }, showFinalAt));
 
-// ✅ Fire custom event when one full splash loop has completed
-timers.push(setTimeout(() => {
-  const loopEvent = new CustomEvent('splashLoopCompleted');
-  document.dispatchEvent(loopEvent);
-}, endAt - 200));
+  // ✅ Fire only if still active splash run
+  timers.push(setTimeout(() => {
+    if (runId === currentSplashRunId) {
+      const loopEvent = new CustomEvent('splashLoopCompleted');
+      document.dispatchEvent(loopEvent);
+    }
+  }, endAt - 200));
 
-timers.push(setTimeout(endSequence, endAt));
+  // End gracefully
+  timers.push(setTimeout(() => {
+    if (runId === currentSplashRunId) endSequence();
+  }, endAt));
 }
 
 function endSequence(){
@@ -664,6 +671,11 @@ function getNextSetIndex(){
   return idx;
 }
 </script>
+
+
+
+
+
   
 <script>
 (function() {
