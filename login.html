@@ -86,7 +86,6 @@
 
   <button id="skipBtn" class="skip" type="button" aria-label="Skip Intro">Skip Intro</button>
   <div id="splash-loading" class="splash-loading">Loading your dashboard…</div>
-  <button id="splash-skip" class="skip" type="button" aria-label="Skip Intro" style="display:none;">Skip Intro</button>
 
 </div>
 
@@ -323,75 +322,6 @@ empInput.addEventListener('input', (e) => {
 function playRealSplashThenGo(nextUrl = "Dashboard-Refresh.html") {
   window.location.href = nextUrl;
 }
-
-
-/* ---------- Login loop (with cinematic splash integration) ---------- */
-async function doLoginLoop(id, overallMs) {
-  setBusy(true);
-  startNarrator(1);
-
-  // Make sure Render proxy is awake before first attempt
-  try {
-    await PowerUp.api.ready();
-  } catch {
-    console.warn("Proxy not ready yet, warming…");
-  }
-
-  const deadline = Date.now() + (overallMs || 120000);
-  let attempt = 0;
-
-  while (Date.now() < deadline) {
-    attempt++;
-    bumpNarratorAttempt(attempt);
-
-    // periodically warm proxy
-    if (attempt === 1 || attempt % 3 === 0) {
-      try { await PowerUp.api.warmProxy(); } catch {}
-    }
-
-try {
-  await PowerUp.session.loginWithId(id, { primeBeforeRedirect: true });
-
-  // ✅ Success — cleanup and transition to the dashboard splash
-  stopNarrator();
-  setBusy(false);
-
-  // Reset splash playback flag for new session
-  try { sessionStorage.removeItem('splashPlayed'); } catch {}
-
-  // Go straight to the dashboard (which now includes the splash)
-  const empId = encodeURIComponent(id);
-  const nextUrl = `Dashboard-Refresh.html?empId=${empId}`;
-  window.location.href = nextUrl;
-  return; // done
-} catch (e) {
-
-
-      // login attempt failed — wait and retry
-      const base = Math.min(5000, 600 * attempt);
-      const jitter = Math.floor(Math.random() * 600);
-      const wait = Math.max(800, base + jitter);
-      const until = Math.min(Date.now() + wait, deadline);
-      while (Date.now() < until) {
-        await new Promise(r => setTimeout(r, 350));
-      }
-    }
-  }
-
-  // timeout
-  stopNarrator();
-  setBusy(false);
-  busySub.textContent = "The server is still waking up. Please try again in a moment.";
-  showError("The server is still waking up. Please try again in a moment.");
-}
-
-
-    async function doLogin() {
-      errBox.style.display = 'none';
-      const id = (empInput.value || '').trim();
-      if (!id) { showError('Please enter your Employee ID.'); return; }
-      doLoginLoop(id, 120000);
-    }
 
     /* ---------- Lookup wiring ---------- */
     btnHelp.addEventListener('click', async () => {
@@ -780,16 +710,34 @@ function getNextSetIndex(){
 
         await PowerUp.session.loginWithId(empId, { primeBeforeRedirect: true });
 
-        // ✅ Success!
-        stopNarrator();
-        skipReady = true;
-        setSplashText('Dashboard ready! You may skip or wait for the transition.');
 
-        setTimeout(() => { if (btnSkip) btnSkip.style.display = 'block'; }, 1500);
 
-        // Let the splash animation finish its current run
-        setTimeout(fadeOutSplashAndGo, 6000);
-        return;
+// ✅ Success!
+// Mark system ready but don't leave yet — let the splash play through one full cycle.
+stopNarrator();
+skipReady = true;
+setSplashText('Dashboard ready! You may skip or wait for the transition.');
+
+// Show skip button now that we know everything is loaded
+setTimeout(() => { if (btnSkip) btnSkip.style.display = 'block'; }, 1500);
+
+// ✅ Wait for the real splash animation to finish
+if (window.Splash && typeof Splash.end === 'function') {
+  const originalEnd = Splash.end;
+  Splash.end = function() {
+    // When splash finishes naturally, continue to dashboard
+    if (skipReady) fadeOutSplashAndGo();
+    // Restore the original handler for future sessions
+    Splash.end = originalEnd;
+    originalEnd();
+  };
+} else {
+  // Fallback in case splash API is missing
+  setTimeout(() => { if (skipReady) fadeOutSplashAndGo(); }, 7000);
+}
+
+return;
+
 
       } catch (err) {
         // Detect invalid credentials
@@ -823,10 +771,17 @@ function getNextSetIndex(){
       doLoginWithRetries(id);
     });
   }
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    const id = (empInput.value || '').trim();
+    if (!id) return alert('Please enter your Employee ID.');
+    doLoginWithRetries(id);
+  }
+});
+
 })();
 </script>
-
-
 
   
 </body>
