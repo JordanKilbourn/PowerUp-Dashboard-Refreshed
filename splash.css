@@ -251,14 +251,16 @@ html,body{height:100%;margin:0;background:var(--dashboard-bg);color:#fff}
   left: 50%;
   transform: translateX(-50%);
   font-family: "Inter", system-ui, sans-serif;
-  font-size: 1.1rem;
-  color: #00ffc6;
-  text-shadow: 0 0 12px rgba(0, 255, 198, 0.25);
+  font-size: 1.25rem; /* ~20px for better visibility */
+  font-weight: 600;
+  color: #ffffff; /* bright white for contrast */
+  text-shadow: 0 0 10px rgba(0, 0, 0, 0.5); /* improve legibility over images */
   opacity: 0;
   animation: splashLoadingFade 1.2s ease forwards;
   animation-delay: 1.5s; /* show after animation starts */
   z-index: 10;
 }
+
 
 @keyframes splashLoadingFade {
   0% { opacity: 0; }
