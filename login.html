@@ -465,7 +465,36 @@ document.addEventListener('DOMContentLoaded', () => {
 
 document.addEventListener('data-hydrated', () => endSequence());
 
-async function startSequence(){
+
+  function resetSplashState() {
+  clearTimers();
+
+  // Reset visibility + animation classes
+  elSplash.classList.remove('fade-out');
+  elFinal.classList.remove('show');
+  elCard.classList.remove('parallax');
+  elDivider.classList.remove('show');
+
+  // Reset wordmark and stroke
+  const elStroke = document.querySelector('.wordmark-stroke');
+  const elWordmark = document.querySelector('.wordmark');
+  if (elStroke) elStroke.classList.remove('full', 'glow');
+  if (elWordmark) elWordmark.classList.remove('show');
+
+  // Reset montage shots
+  elMontage.innerHTML = '';
+  document.documentElement.style.overflow = '';
+
+  // Rebuild initial visual state
+  elSplash.style.display = 'none';
+  if (elText) {
+    elText.style.opacity = '0';
+    elText.textContent = 'Loading your dashboard…';
+  }
+}
+  
+  async function startSequence(){
+    resetSplashState();
   if(!IMAGE_SETS.length) return;
 
   // Show splash and loading text immediately
@@ -628,7 +657,7 @@ function getNextSetIndex(){
   return idx;
 }
 </script>
-
+  
 <script>
 (function() {
   const elSplash  = document.getElementById('splash');
@@ -637,7 +666,9 @@ function getNextSetIndex(){
   const loginBtn  = document.getElementById('signin');
   const empInput  = document.getElementById('empId');
   const busy      = document.getElementById('busy');
+  const errBox    = document.getElementById('error');
 
+  // ---- State tracking ----
   let narratorTimer = null;
   let narratorDots = 0;
   let narratorStart = 0;
@@ -645,20 +676,43 @@ function getNextSetIndex(){
   let isLoggingIn = false;
   let skipReady = false;
   let splashHasRun = false;
+  let splashReady = false;
+  let loginReady = false;
+  let hasPlayedAtLeastOneLoop = false;
+  let loginFailed = false;
 
+  // ---- Splash visibility + reset handling ----
   function setSplashVisible(on) {
     elSplash.style.display = on ? 'block' : 'none';
     document.documentElement.style.overflow = on ? 'hidden' : '';
-    if (on && !splashHasRun && window.Splash) {
-      Splash.play(); // start your actual animation sequence
+    if (on && window.Splash && !splashHasRun) {
+      Splash.play();
       splashHasRun = true;
     }
   }
 
-  function setSplashText(msg) {
-    if (elText) elText.textContent = msg;
+  function resetSplashState() {
+    splashHasRun = false;
+    splashReady = false;
+    loginReady = false;
+    hasPlayedAtLeastOneLoop = false;
+    loginFailed = false;
+    skipReady = false;
+    clearInterval(narratorTimer);
+    narratorTimer = null;
+
+    if (elSplash) {
+      elSplash.classList.remove('fade-out');
+      elSplash.style.display = 'none';
+    }
+    if (elText) {
+      elText.style.opacity = '0';
+      elText.textContent = 'Loading your dashboard…';
+    }
+    if (btnSkip) btnSkip.style.display = 'none';
   }
 
+  // ---- Narration for loading status ----
   function startNarrator() {
     narratorStart = Date.now();
     narratorDots = 0;
@@ -675,13 +729,11 @@ function getNextSetIndex(){
     narratorTimer = null;
   }
 
-  if (btnSkip) {
-    btnSkip.style.display = 'none';
-    btnSkip.addEventListener('click', () => {
-      if (skipReady) fadeOutSplashAndGo();
-    });
+  function setSplashText(msg) {
+    if (elText) elText.textContent = msg;
   }
 
+  // ---- Splash fade-out + redirect ----
   async function fadeOutSplashAndGo() {
     stopNarrator();
     elSplash.classList.add('fade-out');
@@ -691,16 +743,46 @@ function getNextSetIndex(){
     }, 800);
   }
 
+  // ---- Skip button logic ----
+  if (btnSkip) {
+    btnSkip.style.display = 'none';
+    btnSkip.addEventListener('click', () => {
+      if (skipReady && loginReady) {
+        fadeOutSplashAndGo();
+      }
+    });
+  }
+
+  // ---- Coordinated transition control ----
+  function tryAutoTransition() {
+    // If both login and splash have completed one loop, transition immediately.
+    if (loginReady && (splashReady || hasPlayedAtLeastOneLoop)) {
+      fadeOutSplashAndGo();
+    }
+  }
+
+  // ---- Main login function with retries ----
   async function doLoginWithRetries(empId) {
     if (isLoggingIn) return;
     isLoggingIn = true;
     attempt = 0;
+    resetSplashState();
     setSplashVisible(true);
     setSplashText('Contacting server…');
     if (busy) busy.style.display = 'none';
+    if (errBox) errBox.style.display = 'none';
     startNarrator();
 
-    const deadline = Date.now() + 2 * 60 * 1000; // 2 min overall
+    const ONE_LOOP_DURATION = 7000; // ms; your splash's full cinematic cycle
+    const deadline = Date.now() + 2 * 60 * 1000; // 2-minute max retry window
+
+    // Track when first splash loop completes
+    setTimeout(() => {
+      hasPlayedAtLeastOneLoop = true;
+      splashReady = true;
+      tryAutoTransition();
+    }, ONE_LOOP_DURATION);
+
     while (Date.now() < deadline) {
       attempt++;
       try {
@@ -710,69 +792,55 @@ function getNextSetIndex(){
 
         await PowerUp.session.loginWithId(empId, { primeBeforeRedirect: true });
 
+        // ---- Success ----
+        stopNarrator();
+        loginReady = true;
+        skipReady = true;
+        setSplashText('Dashboard ready! You may skip or wait for the transition.');
 
+        // Show skip button
+        setTimeout(() => {
+          if (btnSkip) btnSkip.style.display = 'block';
+        }, 1200);
 
-// ✅ Success!
-// Mark system ready but don't leave yet — let the splash play through one full cycle.
-stopNarrator();
-skipReady = true;
-setSplashText('Dashboard ready! You may skip or wait for the transition.');
-
-// Show skip button now that we know everything is loaded
-setTimeout(() => { if (btnSkip) btnSkip.style.display = 'block'; }, 1500);
-
-// ✅ Wait for the real splash animation to finish
-if (window.Splash && typeof Splash.end === 'function') {
-  const originalEnd = Splash.end;
-  Splash.end = function() {
-    // When splash finishes naturally, continue to dashboard
-    if (skipReady) fadeOutSplashAndGo();
-    // Restore the original handler for future sessions
-    Splash.end = originalEnd;
-    originalEnd();
-  };
-} else {
-  // Fallback in case splash API is missing
-  setTimeout(() => { if (skipReady) fadeOutSplashAndGo(); }, 7000);
-}
-
-return;
-
+        tryAutoTransition();
+        return;
 
       } catch (err) {
-        // Detect invalid credentials
-if (err && err.message && /invalid|not found|unauthorized/i.test(err.message)) {
-  stopNarrator();
-  setSplashText('Invalid Employee ID. Please try again.');
+        // ---- Invalid credentials ----
+        if (err && err.message && /invalid|not found|unauthorized/i.test(err.message)) {
+          loginFailed = true;
+          stopNarrator();
+          setSplashText('Invalid Employee ID. Please try again.');
+          setTimeout(() => {
+            setSplashVisible(false);
+            resetSplashState();
+            isLoggingIn = false;
+            if (errBox) {
+              errBox.textContent = 'Invalid Employee ID. Please try again.';
+              errBox.style.display = 'block';
+            }
+          }, 3000);
+          return;
+        }
 
-  // Keep the splash visible for a moment so user can see the message
-  setTimeout(() => {
-    setSplashVisible(false);
-    isLoggingIn = false;
-
-    // ✅ Show a visible red error on the login form
-    const errBox = document.getElementById('error');
-    if (errBox) {
-      errBox.textContent = 'Invalid Employee ID. Please try again.';
-      errBox.style.display = 'block';
-    }
-  }, 3000); // give user ~3s to read splash message
-  return;
-}
-
+        // ---- Retry after a short delay ----
         const wait = Math.min(5000, 1000 + attempt * 400);
         await new Promise(r => setTimeout(r, wait));
       }
     }
 
+    // ---- Timeout (server never responded) ----
     stopNarrator();
     setSplashText('The server is still waking up. Please try again shortly.');
     setTimeout(() => {
       setSplashVisible(false);
+      resetSplashState();
       isLoggingIn = false;
     }, 4000);
   }
 
+  // ---- Login button & Enter key wiring ----
   if (loginBtn) {
     loginBtn.addEventListener('click', () => {
       const id = (empInput.value || '').trim();
@@ -781,17 +849,17 @@ if (err && err.message && /invalid|not found|unauthorized/i.test(err.message)) {
     });
   }
 
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') {
-    const id = (empInput.value || '').trim();
-    if (!id) return alert('Please enter your Employee ID.');
-    doLoginWithRetries(id);
-  }
-});
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      const id = (empInput.value || '').trim();
+      if (!id) return alert('Please enter your Employee ID.');
+      doLoginWithRetries(id);
+    }
+  });
 
 })();
 </script>
 
-  
+
 </body>
 </html>
