@@ -741,15 +741,24 @@ return;
 
       } catch (err) {
         // Detect invalid credentials
-        if (err && err.message && /invalid|not found|unauthorized/i.test(err.message)) {
-          stopNarrator();
-          setSplashText('Invalid Employee ID. Please try again.');
-          setTimeout(() => {
-            setSplashVisible(false);
-            isLoggingIn = false;
-          }, 2500);
-          return;
-        }
+if (err && err.message && /invalid|not found|unauthorized/i.test(err.message)) {
+  stopNarrator();
+  setSplashText('Invalid Employee ID. Please try again.');
+
+  // Keep the splash visible for a moment so user can see the message
+  setTimeout(() => {
+    setSplashVisible(false);
+    isLoggingIn = false;
+
+    // ✅ Show a visible red error on the login form
+    const errBox = document.getElementById('error');
+    if (errBox) {
+      errBox.textContent = 'Invalid Employee ID. Please try again.';
+      errBox.style.display = 'block';
+    }
+  }, 3000); // give user ~3s to read splash message
+  return;
+}
 
         const wait = Math.min(5000, 1000 + attempt * 400);
         await new Promise(r => setTimeout(r, wait));
