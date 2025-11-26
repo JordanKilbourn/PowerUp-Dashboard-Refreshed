@@ -693,11 +693,9 @@ function getNextSetIndex(){
   let narratorStart = 0;
   let attempt = 0;
   let isLoggingIn = false;
-  let skipReady = false;
   let splashHasRun = false;
-  let splashReady = false;
-  let loginReady = false;
   let hasPlayedAtLeastOneLoop = false;
+  let loginReady = false;
   let loginFailed = false;
 
   // ---- Splash visibility + reset handling ----
@@ -712,11 +710,9 @@ function getNextSetIndex(){
 
   function resetSplashState() {
     splashHasRun = false;
-    splashReady = false;
-    loginReady = false;
     hasPlayedAtLeastOneLoop = false;
+    loginReady = false;
     loginFailed = false;
-    skipReady = false;
     clearInterval(narratorTimer);
     narratorTimer = null;
 
@@ -766,21 +762,18 @@ function getNextSetIndex(){
   if (btnSkip) {
     btnSkip.style.display = 'none';
     btnSkip.addEventListener('click', () => {
-      if (skipReady && loginReady) {
-        fadeOutSplashAndGo();
-      }
+      // Skip is only allowed once login is fully ready
+      if (loginReady) fadeOutSplashAndGo();
     });
   }
 
-  // ---- Coordinated transition control ----
-  function tryAutoTransition() {
-    // If both login and splash have completed one loop, transition immediately.
-    if (loginReady && (splashReady || hasPlayedAtLeastOneLoop)) {
-      fadeOutSplashAndGo();
-    }
-  }
+  // ---- Coordination control ----
+  document.addEventListener('splashLoopCompleted', () => {
+    hasPlayedAtLeastOneLoop = true;
+    // If login is done, go now; otherwise start next loop automatically
+    if (loginReady) fadeOutSplashAndGo();
+  });
 
-  // ---- Main login function with retries ----
   async function doLoginWithRetries(empId) {
     if (isLoggingIn) return;
     isLoggingIn = true;
@@ -792,14 +785,7 @@ function getNextSetIndex(){
     if (errBox) errBox.style.display = 'none';
     startNarrator();
 
-  // Listen for splash loop completion from animation module
-document.addEventListener('splashLoopCompleted', () => {
-  hasPlayedAtLeastOneLoop = true;
-  splashReady = true;
-  tryAutoTransition();
-});
-
-    const deadline = Date.now() + 2 * 60 * 1000; // 2-minute max retry window
+    const deadline = Date.now() + 2 * 60 * 1000; // 2-minute retry window
 
     while (Date.now() < deadline) {
       attempt++;
@@ -813,15 +799,18 @@ document.addEventListener('splashLoopCompleted', () => {
         // ---- Success ----
         stopNarrator();
         loginReady = true;
-        skipReady = true;
         setSplashText('Dashboard ready! You may skip or wait for the transition.');
 
-        // Show skip button
+        // Show Skip button (only now that login is done)
         setTimeout(() => {
           if (btnSkip) btnSkip.style.display = 'block';
-        }, 1200);
+        }, 800);
 
-        tryAutoTransition();
+        // If splash has already completed a loop, transition now
+        if (hasPlayedAtLeastOneLoop) {
+          fadeOutSplashAndGo();
+        }
+        // Otherwise, just wait for the splashLoopCompleted event
         return;
 
       } catch (err) {
@@ -842,13 +831,13 @@ document.addEventListener('splashLoopCompleted', () => {
           return;
         }
 
-        // ---- Retry after a short delay ----
+        // ---- Retry delay ----
         const wait = Math.min(5000, 1000 + attempt * 400);
         await new Promise(r => setTimeout(r, wait));
       }
     }
 
-    // ---- Timeout (server never responded) ----
+    // ---- Timeout fallback ----
     stopNarrator();
     setSplashText('The server is still waking up. Please try again shortly.');
     setTimeout(() => {
@@ -874,9 +863,9 @@ document.addEventListener('splashLoopCompleted', () => {
       doLoginWithRetries(id);
     }
   });
-
 })();
 </script>
+
 
 
 </body>
