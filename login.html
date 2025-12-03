@@ -319,9 +319,6 @@ empInput.addEventListener('input', (e) => {
       return EMP_ROWS.find(r => String(r['Position ID'] || r['Employee ID']).trim().toLowerCase() === idLC);
     }
 
-function playRealSplashThenGo(nextUrl = "Dashboard-Refresh.html") {
-  window.location.href = nextUrl;
-}
 
     /* ---------- Lookup wiring ---------- */
     btnHelp.addEventListener('click', async () => {
@@ -726,14 +723,22 @@ function getNextSetIndex(){
     if (window.Splash) Splash.play();
     if (elText) elText.style.opacity = '1';
   }
-  function hideSplash() {
-    elSplash.classList.add('fade-out');
-    setTimeout(() => {
-      elSplash.style.display = 'none';
-      elSplash.classList.remove('fade-out');
-      document.documentElement.style.overflow = '';
-    }, 500);
-  }
+
+  
+function hideSplash() {
+  elSplash.classList.add('fade-out');
+  setTimeout(() => {
+    elSplash.style.display = 'none';
+    elSplash.classList.remove('fade-out');
+    document.documentElement.style.overflow = '';
+
+    // ✅ If login finished successfully, go to dashboard
+    if (loginReady) {
+      window.location.href = 'Dashboard-Refresh.html';
+    }
+  }, 800);
+}
+
 
   /* ---- Skip Button ---- */
   btnSkip.style.display = 'none';
@@ -764,7 +769,14 @@ function getNextSetIndex(){
       attempt++;
       try {
         await PowerUp.api.warmProxy();
-        await PowerUp.session.loginWithId(empId, { primeBeforeRedirect: true });
+       // Non-redirecting login
+const result = await PowerUp.session.loginSilently(empId, { primeBeforeRedirect: true });
+
+if (result.success) {
+  loginReady = true; // or whatever flag your splash uses to know the app is ready
+  setSplashText(`Welcome back, ${result.displayName}!`);
+}
+
         // Success → internal redirect
         stopNarrator();
         loginReady = true;
