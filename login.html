@@ -774,78 +774,101 @@ function getNextSetIndex(){
     if (loginReady) fadeOutSplashAndGo();
   });
 
-  async function doLoginWithRetries(empId) {
-    if (isLoggingIn) return;
-    isLoggingIn = true;
-    attempt = 0;
-    resetSplashState();
-    setSplashVisible(true);
-    setSplashText('Contacting server…');
-    if (busy) busy.style.display = 'none';
-    if (errBox) errBox.style.display = 'none';
-    startNarrator();
 
-    const deadline = Date.now() + 2 * 60 * 1000; // 2-minute retry window
+async function doLoginWithRetries(empId) {
+  if (isLoggingIn) return;
+  isLoggingIn = true;
+  attempt = 0;
+  resetSplashState();
+  setSplashVisible(true);
+  setSplashText('Contacting server…');
+  if (busy) busy.style.display = 'none';
+  if (errBox) errBox.style.display = 'none';
+  startNarrator();
 
-    while (Date.now() < deadline) {
-      attempt++;
-      try {
-        if (attempt === 1 || attempt % 3 === 0) {
-          try { await PowerUp.api.warmProxy(); } catch {}
-        }
+  const deadline = Date.now() + 3 * 60 * 1000; // 3-minute max retry window
+  let serverAwake = false;
 
-        await PowerUp.session.loginWithId(empId, { primeBeforeRedirect: true });
+  // Listen for splash loop completion from animation module
+  document.addEventListener('splashLoopCompleted', () => {
+    hasPlayedAtLeastOneLoop = true;
+    if (loginReady) fadeOutSplashAndGo();
+  }, { once: true });
 
-        // ---- Success ----
-        stopNarrator();
-        loginReady = true;
-        setSplashText('Dashboard ready! You may skip or wait for the transition.');
-
-        // Show Skip button (only now that login is done)
-        setTimeout(() => {
-          if (btnSkip) btnSkip.style.display = 'block';
-        }, 800);
-
-        // If splash has already completed a loop, transition now
-        if (hasPlayedAtLeastOneLoop) {
-          fadeOutSplashAndGo();
-        }
-        // Otherwise, just wait for the splashLoopCompleted event
-        return;
-
-      } catch (err) {
-        // ---- Invalid credentials ----
-        if (err && err.message && /invalid|not found|unauthorized/i.test(err.message)) {
-          loginFailed = true;
-          stopNarrator();
-          setSplashText('Invalid Employee ID. Please try again.');
-          setTimeout(() => {
-            setSplashVisible(false);
-            resetSplashState();
-            isLoggingIn = false;
-            if (errBox) {
-              errBox.textContent = 'Invalid Employee ID. Please try again.';
-              errBox.style.display = 'block';
-            }
-          }, 3000);
-          return;
-        }
-
-        // ---- Retry delay ----
-        const wait = Math.min(5000, 1000 + attempt * 400);
-        await new Promise(r => setTimeout(r, wait));
+  while (Date.now() < deadline) {
+    attempt++;
+    try {
+      // 🔹 Step 1: Warm up the proxy server if it's still sleeping
+      if (!serverAwake) {
+        setSplashText('Warming up the server…');
+        try { await PowerUp.api.warmProxy(); } catch {}
+        serverAwake = true;
+        setSplashText('Server awake. Signing you in…');
       }
-    }
 
-    // ---- Timeout fallback ----
-    stopNarrator();
-    setSplashText('The server is still waking up. Please try again shortly.');
-    setTimeout(() => {
-      setSplashVisible(false);
-      resetSplashState();
-      isLoggingIn = false;
-    }, 4000);
+      // 🔹 Step 2: Attempt login
+      await PowerUp.session.loginWithId(empId, { primeBeforeRedirect: true });
+
+      // ✅ SUCCESS
+      stopNarrator();
+      loginReady = true;
+      setSplashText('Dashboard ready! You may skip or wait for the transition.');
+
+      // Skip button becomes available ONLY after login success
+      setTimeout(() => {
+        if (btnSkip) btnSkip.style.display = 'block';
+      }, 800);
+
+      // If the splash has already finished a full loop, go now
+      if (hasPlayedAtLeastOneLoop) {
+        fadeOutSplashAndGo();
+      }
+      // Otherwise, wait for the splashLoopCompleted event to trigger it
+      return;
+
+    } catch (err) {
+      const msg = (err && err.message || '').toLowerCase();
+
+      // 💤 Handle sleeping/cold server
+      if (msg.includes('timeout') || msg.includes('fetch') || msg.includes('network')) {
+        setSplashText('Server is waking up. Retrying shortly…');
+        await new Promise(r => setTimeout(r, 5000));
+        continue;
+      }
+
+      // 🚫 Invalid credentials
+      if (msg.includes('invalid') || msg.includes('unauthorized') || msg.includes('not found')) {
+        loginFailed = true;
+        stopNarrator();
+        setSplashText('Invalid Employee ID. Please try again.');
+        setTimeout(() => {
+          setSplashVisible(false);
+          resetSplashState();
+          isLoggingIn = false;
+          if (errBox) {
+            errBox.textContent = 'Invalid Employee ID. Please try again.';
+            errBox.style.display = 'block';
+          }
+        }, 3000);
+        return;
+      }
+
+      // 🔁 General retry with short delay
+      setSplashText('Still connecting…');
+      const wait = Math.min(5000, 1000 + attempt * 400);
+      await new Promise(r => setTimeout(r, wait));
+    }
   }
+
+  // ⏱ Timeout — never connected
+  stopNarrator();
+  setSplashText('Server did not respond. Please try again later.');
+  setTimeout(() => {
+    setSplashVisible(false);
+    resetSplashState();
+    isLoggingIn = false;
+  }, 4000);
+}
 
   // ---- Login button & Enter key wiring ----
   if (loginBtn) {
