@@ -175,7 +175,79 @@
     location.href = 'login.html';
   }
 
-  P.session = { get, set, clear, requireLogin, loginWithId, initHeader, logout };
+
+
+
+  
+// --- Non-redirecting login function for splash-controlled flow ---
+P.session.loginSilently = async function (inputId, { primeBeforeRedirect = true } = {}) {
+  const id = String(inputId || '').trim();
+  if (!id) throw new Error('Please enter your Position ID or Employee ID.');
+
+  // ✅ Ensure proxy/server is awake
+  try { await P.api.ready(); } catch {}
+  try { await P.api.warmProxy(); } catch {}
+
+  // ✅ Find employee record by ID
+  let row;
+  try {
+    const rows = await (async () => {
+      const CK = 'pu.cache.EMPLOYEE_MASTER.rows';
+      const cached = sessionStorage.getItem(CK);
+      if (cached) {
+        try { return JSON.parse(cached); } catch {}
+      }
+      const fresh = await P.api.getRowsByTitle(P.api.SHEETS.EMPLOYEE_MASTER)
+        .catch(async () => {
+          const sheet = await P.api.fetchSheet(P.api.SHEETS.EMPLOYEE_MASTER);
+          return P.api.rowsByTitle(sheet);
+        });
+      try { sessionStorage.setItem(CK, JSON.stringify(fresh)); } catch {}
+      return fresh;
+    })();
+
+    const idLC = id.toLowerCase();
+    row = rows.find(r => {
+      const pid = String(r['Position ID'] ?? '').trim().toLowerCase();
+      const eid = String(r['Employee ID'] ?? '').trim().toLowerCase();
+      return pid === idLC || eid === idLC;
+    }) || null;
+  } catch (err) {
+    console.error('loginSilently: error finding employee', err);
+    throw new Error('Login lookup failed. Please try again.');
+  }
+
+  if (!row) throw new Error('ID not found. Double-check your Position ID or Employee ID.');
+
+  // ✅ Build session
+  const displayName = row['Display Name'] || row['Employee Name'] || row['Name'] || id;
+  let level = row['PowerUp Level (Select)'] || row['PowerUp Level'] || row['Level'] || 'Level Unknown';
+  try {
+    if (P.session && typeof P.session.isAdminId === 'function' && P.session.isAdminId(id)) {
+      level = 'Admin';
+    }
+  } catch {}
+
+  P.session.set({ employeeId: id, displayName, level, levelText: level });
+
+  // ✅ Mirror canonical session for downstream pages
+  try {
+    localStorage.setItem('powerup_session', JSON.stringify({ employeeId: id, displayName }));
+  } catch {}
+
+  // Optional pre-fetch of dashboard data
+  if (primeBeforeRedirect && P.api?.prefetchEssential) {
+    try { await P.api.prefetchEssential(); } catch {}
+  }
+
+  // ✅ Return cleanly (no redirect!)
+  return { success: true, employeeId: id, displayName, level };
+};
+
+
+
+  
+  P.session = { get, set, clear, requireLogin, loginWithId, initHeader, logout, loginSilently };
   window.PowerUp = P;
 })(window.PowerUp || {});
 
