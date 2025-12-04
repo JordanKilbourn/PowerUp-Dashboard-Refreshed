@@ -769,13 +769,20 @@ function hideSplash() {
       attempt++;
       try {
         await PowerUp.api.warmProxy();
-       // Non-redirecting login
-const result = await PowerUp.session.loginSilently(empId, { primeBeforeRedirect: true });
 
-if (result.success) {
-  loginReady = true; // or whatever flag your splash uses to know the app is ready
-  setSplashText(`Welcome back, ${result.displayName}!`);
+let result;
+try {
+  result = await PowerUp.session.loginSilently(empId, { primeBeforeRedirect: true });
+} catch (err) {
+  throw new Error(err.message || 'Login failed');
 }
+
+if (!result || !result.success) {
+  throw new Error('Invalid Employee ID');
+}
+
+loginReady = true;
+setSplashText(`Welcome back, ${result.displayName}!`);
 
         // Success → internal redirect
         stopNarrator();
