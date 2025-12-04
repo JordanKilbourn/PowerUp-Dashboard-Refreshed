@@ -175,8 +175,12 @@
     location.href = 'login.html';
   }
 
+
+
+
+  
 // --- Non-redirecting login function for splash-controlled flow ---
-async function loginSilently(inputId, { primeBeforeRedirect = true } = {}) {
+P.session.loginSilently = async function (inputId, { primeBeforeRedirect = true } = {}) {
   const id = String(inputId || '').trim();
   if (!id) throw new Error('Please enter your Position ID or Employee ID.');
 
@@ -236,10 +240,38 @@ async function loginSilently(inputId, { primeBeforeRedirect = true } = {}) {
     try { await P.api.prefetchEssential(); } catch {}
   }
 
+  // ✅ Return cleanly (no redirect!)
   return { success: true, employeeId: id, displayName, level };
-}
+};
 
-// ✅ Attach all functions including loginSilently at once
-P.session = { get, set, clear, requireLogin, loginWithId, initHeader, logout, loginSilently };
-window.PowerUp = P;
+
+
+  
+  P.session = { get, set, clear, requireLogin, loginWithId, initHeader, logout, loginSilently };
+  window.PowerUp = P;
 })(window.PowerUp || {});
+
+// Show splash for ~1.8s, then fade + redirect.
+/*
+PowerUp.session.playSplashThenGo = function (nextUrl = 'Dashboard-Refresh.html', totalMs = 1800) {
+  try {
+    let el = document.getElementById('pu-splash');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'pu-splash';
+      el.innerHTML = '<div class="pu-splash-inner"><img src="assets/favicon.svg" alt="PowerUp" width="120" height="120"></div>';
+      document.body.appendChild(el);
+    }
+    el.hidden = false;
+    // force reflow so the 'on' class transitions
+    void el.offsetWidth;
+    el.classList.add('on');
+
+    // start fade slightly before redirect
+    setTimeout(() => el.classList.add('fade'), Math.max(0, totalMs - 500));
+    setTimeout(() => { location.href = nextUrl; }, totalMs);
+  } catch {
+    location.href = nextUrl;
+  }
+};
+*/
