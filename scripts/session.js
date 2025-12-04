@@ -180,7 +180,9 @@
 
   
 // --- Non-redirecting login function for splash-controlled flow ---
+P.session = P.session || {};
 P.session.loginSilently = async function (inputId, { primeBeforeRedirect = true } = {}) {
+
   const id = String(inputId || '').trim();
   if (!id) throw new Error('Please enter your Position ID or Employee ID.');
 
