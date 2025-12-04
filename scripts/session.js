@@ -176,21 +176,14 @@
   }
 
 
-
-
-  
 // --- Non-redirecting login function for splash-controlled flow ---
-P.session = P.session || {};
-P.session.loginSilently = async function (inputId, { primeBeforeRedirect = true } = {}) {
-
+async function loginSilently(inputId, { primeBeforeRedirect = true } = {}) {
   const id = String(inputId || '').trim();
   if (!id) throw new Error('Please enter your Position ID or Employee ID.');
 
-  // ✅ Ensure proxy/server is awake
   try { await P.api.ready(); } catch {}
   try { await P.api.warmProxy(); } catch {}
 
-  // ✅ Find employee record by ID
   let row;
   try {
     const rows = await (async () => {
@@ -221,7 +214,6 @@ P.session.loginSilently = async function (inputId, { primeBeforeRedirect = true 
 
   if (!row) throw new Error('ID not found. Double-check your Position ID or Employee ID.');
 
-  // ✅ Build session
   const displayName = row['Display Name'] || row['Employee Name'] || row['Name'] || id;
   let level = row['PowerUp Level (Select)'] || row['PowerUp Level'] || row['Level'] || 'Level Unknown';
   try {
@@ -232,26 +224,25 @@ P.session.loginSilently = async function (inputId, { primeBeforeRedirect = true 
 
   P.session.set({ employeeId: id, displayName, level, levelText: level });
 
-  // ✅ Mirror canonical session for downstream pages
   try {
     localStorage.setItem('powerup_session', JSON.stringify({ employeeId: id, displayName }));
   } catch {}
 
-  // Optional pre-fetch of dashboard data
   if (primeBeforeRedirect && P.api?.prefetchEssential) {
     try { await P.api.prefetchEssential(); } catch {}
   }
 
-  // ✅ Return cleanly (no redirect!)
   return { success: true, employeeId: id, displayName, level };
-};
+}
 
+// ✅ Attach all functions, including loginSilently
+P.session = { get, set, clear, requireLogin, loginWithId, initHeader, logout, loginSilently };
+window.PowerUp = P;
+})(window.PowerUp || {});
 
 
   
-  P.session = { get, set, clear, requireLogin, loginWithId, initHeader, logout, loginSilently };
-  window.PowerUp = P;
-})(window.PowerUp || {});
+
 
 // Show splash for ~1.8s, then fade + redirect.
 /*
