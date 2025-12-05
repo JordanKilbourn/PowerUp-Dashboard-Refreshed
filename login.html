@@ -572,12 +572,8 @@ async function startSequence(){
       document.dispatchEvent(new CustomEvent('splash:cycleComplete', { detail: { runId } }));
     }
   }, endAt - 100));
-
-  // End gracefully
-  timers.push(setTimeout(() => {
-    if (runId === currentSplashRunId) endSequence();
-  }, endAt));
 }
+
 
 function endSequence(){
   elSplash.classList.add('fade-out');
@@ -725,10 +721,23 @@ function getNextSetIndex(){
     splashCycleDone = false;
   });
 
-  window.addEventListener('splash:cycleComplete', () => {
-    splashCycleDone = true;
-    if (loginReady) hideSplashAndRedirect();
-  });
+window.addEventListener('splash:cycleComplete', () => {
+  splashCycleDone = true;
+
+  if (loginReady) {
+    console.log('✅ Splash finished and login ready — redirecting to dashboard');
+    hideSplashAndRedirect();
+  } else {
+    console.log('⏳ Splash finished but login still in progress — starting another cycle');
+    splashCycleDone = false; // reset flag for next cycle
+if (window.Splash && typeof Splash.play === 'function') {
+  console.log('🔁 Restarting splash sequence for another cycle');
+  if (typeof resetSplashState === 'function') resetSplashState();
+  Splash.play(); // restart the animation loop
+}
+  }
+});
+
 
   /* ---- Login flow events ---- */
   document.addEventListener('login:start', () => {
