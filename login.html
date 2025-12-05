@@ -673,175 +673,123 @@ function getNextSetIndex(){
 </script>
 
 
-
-  
-
 <script>
 /**
- * PowerUp World-Class Login + Splash Controller
- * Combines retry-safe login logic with cinematic splash sequence coordination.
- * Works with PowerUp.session.loginWithId() — auto-redirects on success.
+ * PowerUp Login + Splash Controller (Event-driven edition)
+ * Works with session.js (loginWithRetry)
  */
 (function () {
-  const elSplash  = document.getElementById('splash');
-  const elText    = document.getElementById('splash-loading');
-  const btnSkip   = document.getElementById('skipBtn');
   const empInput  = document.getElementById('empId');
   const loginBtn  = document.getElementById('signin');
   const errBox    = document.getElementById('error');
+  const elSplash  = document.getElementById('splash');
+  const elText    = document.getElementById('splash-loading');
+  const btnSkip   = document.getElementById('skipBtn');
 
-  let narratorTimer = null;
-  let narratorDots = 0;
-  let narratorStart = 0;
-  let attempt = 0;
-  let isLoggingIn = false;
-  let hasPlayedAtLeastOneLoop = false;
   let loginReady = false;
+  let splashCycleDone = false;
 
-  /* ---- Narrator + Splash Text Handling ---- */
-  function setSplashText(msg) {
-    if (elText) elText.textContent = msg;
-  }
-
-  function startNarrator() {
-    narratorStart = Date.now();
-    narratorDots = 0;
-    if (narratorTimer) clearInterval(narratorTimer);
-    narratorTimer = setInterval(() => {
-      const elapsed = Math.floor((Date.now() - narratorStart) / 1000);
-      const dots = '.'.repeat((narratorDots++ % 3) + 1);
-      let msg = 'Contacting server';
-      if (elapsed > 10) msg = 'Warming up server';
-      if (elapsed > 30) msg = 'Priming data sources';
-      if (elapsed > 60) msg = 'Almost there';
-      setSplashText(`${msg}${dots} • Attempt ${attempt} • ${elapsed}s`);
-    }, 600);
-  }
-  function stopNarrator() { if (narratorTimer) clearInterval(narratorTimer); narratorTimer = null; }
-
-  /* ---- Splash Visibility ---- */
+  /* ---- Splash control ---- */
   function showSplash() {
     elSplash.style.display = 'block';
     document.documentElement.style.overflow = 'hidden';
-    if (window.Splash) Splash.play();
+    if (window.Splash && Splash.play) Splash.play();
     if (elText) elText.style.opacity = '1';
   }
 
-  
-function hideSplash() {
-  elSplash.classList.add('fade-out');
-  setTimeout(() => {
-    elSplash.style.display = 'none';
-    elSplash.classList.remove('fade-out');
-    document.documentElement.style.overflow = '';
-
-    // ✅ If login finished successfully, go to dashboard
-    if (loginReady) {
+  function hideSplashAndRedirect() {
+    elSplash.classList.add('fade-out');
+    setTimeout(() => {
+      elSplash.style.display = 'none';
+      elSplash.classList.remove('fade-out');
+      document.documentElement.style.overflow = '';
       window.location.href = 'Dashboard-Refresh.html';
-    }
-  }, 800);
-}
+    }, 800);
+  }
 
+  function hideSplashAndReturn(msg) {
+    elSplash.classList.add('fade-out');
+    setTimeout(() => {
+      elSplash.style.display = 'none';
+      elSplash.classList.remove('fade-out');
+      document.documentElement.style.overflow = '';
+      errBox.textContent = msg;
+      errBox.style.display = 'block';
+      loginBtn.disabled = false;
+      empInput.disabled = false;
+    }, 800);
+  }
 
-  /* ---- Skip Button ---- */
-  btnSkip.style.display = 'none';
-  btnSkip.addEventListener('click', () => {
-    if (loginReady) hideSplash(); // redirect handled internally by PowerUp
-  });
-
-  /* ---- Splash Event Coordination ---- */
-  let splashCycleDone = false;
-
+  /* ---- Splash event hooks ---- */
   window.addEventListener('splash:cycleStart', () => {
     splashCycleDone = false;
   });
 
   window.addEventListener('splash:cycleComplete', () => {
     splashCycleDone = true;
-    if (loginReady) hideSplash();
+    if (loginReady) hideSplashAndRedirect();
   });
 
-
-  /* ---- Login Core ---- */
-  async function doLogin(empId) {
-    if (isLoggingIn) return;
-    isLoggingIn = true;
-    attempt = 0;
-    hasPlayedAtLeastOneLoop = false;
-    loginReady = false;
+  /* ---- Login flow events ---- */
+  document.addEventListener('login:start', () => {
     errBox.style.display = 'none';
-
+    loginBtn.disabled = true;
+    empInput.disabled = true;
     showSplash();
-    startNarrator();
+    if (elText) elText.textContent = 'Contacting server…';
+  });
 
-    const maxTime = Date.now() + 3 * 60 * 1000; // 3 minutes
-    while (Date.now() < maxTime) {
-      attempt++;
-      try {
-        await PowerUp.api.warmProxy();
+  document.addEventListener('login:progress', (e) => {
+    const { attempt, elapsed, note } = e.detail;
+    if (!elText) return;
+    const seconds = Math.floor(elapsed / 1000);
+    let msg = 'Connecting';
+    if (note === 'offline') msg = 'You appear offline';
+    else if (note === 'retrying') msg = 'Server waking up';
+    else if (seconds > 60) msg = 'Almost there';
+    elText.textContent = `${msg} • Attempt ${attempt} • ${seconds}s`;
+  });
 
-let result;
-try {
-  result = await PowerUp.session.loginSilently(empId, { primeBeforeRedirect: true });
-} catch (err) {
-  throw new Error(err.message || 'Login failed');
-}
+  document.addEventListener('login:success', (e) => {
+    const { displayName } = e.detail;
+    if (elText) elText.textContent = `Welcome back, ${displayName}! Loading dashboard…`;
+    loginReady = true;
+    setTimeout(() => { btnSkip.style.display = 'block'; }, 800);
+    if (splashCycleDone) hideSplashAndRedirect();
+  });
 
-if (!result || !result.success) {
-  throw new Error('Invalid Employee ID');
-}
-
-loginReady = true;
-setSplashText(`Welcome back, ${result.displayName}!`);
-
-        // Success → internal redirect
-        stopNarrator();
-        loginReady = true;
-        setSplashText('Dashboard ready! You may skip or wait.');
-        setTimeout(() => { btnSkip.style.display = 'block'; }, 800);
-        if (splashCycleDone) hideSplash();
-        return;
-      } catch (err) {
-        const msg = (err && err.message || '').toLowerCase();
-        if (msg.includes('invalid') || msg.includes('unauthorized') || msg.includes('not found')) {
-          stopNarrator();
-          hideSplash();
-          isLoggingIn = false;
-          errBox.textContent = 'Invalid Employee ID. Please try again.';
-          errBox.style.display = 'block';
-          return;
-        }
-        if (!navigator.onLine) {
-          setSplashText('You appear offline. Check connection.');
-          await new Promise(r => setTimeout(r, 5000));
-          continue;
-        }
-        setSplashText('Server waking up. Retrying…');
-        await new Promise(r => setTimeout(r, 4000));
-      }
+  document.addEventListener('login:error', (e) => {
+    const { message, fatal } = e.detail;
+    if (fatal) {
+      hideSplashAndReturn(message || 'Login failed. Please try again.');
+    } else if (elText) {
+      elText.textContent = message || 'Retrying login…';
     }
-    stopNarrator();
-    setSplashText('Server did not respond. Please retry later.');
-    setTimeout(() => hideSplash(), 3000);
-    isLoggingIn = false;
+  });
+
+  /* ---- Skip button ---- */
+  btnSkip.style.display = 'none';
+  btnSkip.addEventListener('click', () => {
+    if (loginReady) hideSplashAndRedirect();
+  });
+
+  /* ---- Form handlers ---- */
+  function handleLogin() {
+    const id = (empInput.value || '').trim();
+    if (!id) {
+      errBox.textContent = 'Please enter your Employee ID.';
+      errBox.style.display = 'block';
+      return;
+    }
+    PowerUp.session.loginWithRetry(id);
   }
 
-  /* ---- Wire UI ---- */
-  loginBtn.addEventListener('click', () => {
-    const id = (empInput.value || '').trim();
-    if (!id) return alert('Please enter your Employee ID.');
-    doLogin(id);
-  });
+  loginBtn.addEventListener('click', handleLogin);
   empInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-      const id = (empInput.value || '').trim();
-      if (!id) return alert('Please enter your Employee ID.');
-      doLogin(id);
-    }
+    if (e.key === 'Enter') handleLogin();
   });
 })();
 </script>
-
 
 
 </body>
