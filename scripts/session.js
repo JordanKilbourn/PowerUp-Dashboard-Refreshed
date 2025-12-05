@@ -1,9 +1,11 @@
-// scripts/session.js  (login hardened + warmup + cached employee master)
+// scripts/session.js  — PowerUp unified login engine (retry-safe, event-driven)
 (function (PowerUp) {
   const P = PowerUp || (window.PowerUp = {});
   const SKEY = 'pu.session';
 
-  // ---- storage ----
+  // ────────────────────────────────
+  // ⚙️ Session Storage Helpers
+  // ────────────────────────────────
   function get() {
     try { return JSON.parse(sessionStorage.getItem(SKEY) || '{}'); }
     catch { return {}; }
@@ -11,7 +13,9 @@
   function set(obj) { sessionStorage.setItem(SKEY, JSON.stringify(obj || {})); }
   function clear() { sessionStorage.removeItem(SKEY); }
 
-  // ---- helpers ----
+  // ────────────────────────────────
+  // 🔍 Employee Resolution Helpers
+  // ────────────────────────────────
   function pick(obj, keys, d='') {
     for (const k of keys) {
       const v = obj?.[k];
@@ -19,6 +23,7 @@
     }
     return d;
   }
+
   function resolveLevel(row) {
     return (
       pick(row, [
@@ -67,7 +72,9 @@
     return false;
   }
 
-  // ---- routing guard ----
+  // ────────────────────────────────
+  // 🧭 Routing Guards
+  // ────────────────────────────────
   function requireLogin() {
     const s = get();
     if (!s.employeeId) {
@@ -85,27 +92,35 @@
     } catch {}
   }
 
-  // ---- login (now gated by api.ready) ----
-  async function loginWithId(inputId, { primeBeforeRedirect = true } = {}) {
+  // ────────────────────────────────
+  // 🚀 Core Login (non-redirecting)
+  // ────────────────────────────────
+  async function loginSilently(inputId, { primeBeforeRedirect = true } = {}) {
     const id = String(inputId || '').trim();
     if (!id) throw new Error('Please enter your Position ID or Employee ID.');
 
-    // ✅ Ensure proxy is fully up before the first data call
     try { await P.api.ready(); } catch {}
-
-    // Additional warm (cheap, idempotent)
     try { await P.api.warmProxy(); } catch {}
 
+    const startTime = Date.now();
     let row;
-    try {
-      row = await findEmployeeRowById(id);
-    } catch {
-      try { await P.api.ready(); } catch {}
-      row = await findEmployeeRowById(id);
-    }
-    if (!row) throw new Error('ID not found. Double-check your Position ID or Employee ID.');
 
-    const displayName = pick(row, ['Display Name', 'Employee Name', 'Name'], id);
+    try {
+      const rows = await getEmployeeRowsCachedFirst();
+      const idLC = id.toLowerCase();
+      row = rows.find(r => {
+        const pid = String(r['Position ID'] ?? '').trim().toLowerCase();
+        const eid = String(r['Employee ID'] ?? '').trim().toLowerCase();
+        return pid === idLC || eid === idLC;
+      }) || null;
+    } catch (err) {
+      console.error('loginSilently: error finding employee', err);
+      throw new Error('Login lookup failed. Please try again.');
+    }
+
+    if (!row) throw new Error('Invalid Employee ID.');
+
+    const displayName = row['Display Name'] || row['Employee Name'] || row['Name'] || id;
     let level = resolveLevel(row);
     if (isAdminId(id)) level = 'Admin';
 
@@ -116,12 +131,72 @@
       try { await P.api.prefetchEssential(); } catch {}
     }
 
-    const dest = sessionStorage.getItem('pu.postLoginRedirect') || 'Dashboard-Refresh.html';
-    sessionStorage.removeItem('pu.postLoginRedirect');
-    location.href = dest;
+    const elapsed = Date.now() - startTime;
+    return { success: true, employeeId: id, displayName, level, elapsed };
   }
 
-  // ---- header hydration (name/level + logout) ----
+  // ────────────────────────────────
+  // 🔁 Full Resilient Login Workflow
+  // ────────────────────────────────
+  async function loginWithRetry(empId, { primeBeforeRedirect = true, maxMinutes = 3 } = {}) {
+    const id = String(empId || '').trim();
+    if (!id) throw new Error('Please enter your Employee ID.');
+
+    document.dispatchEvent(new CustomEvent('login:start', { detail: { id } }));
+
+    const startTime = Date.now();
+    const timeoutAt = startTime + maxMinutes * 60 * 1000;
+    let attempt = 0;
+
+    while (Date.now() < timeoutAt) {
+      attempt++;
+      document.dispatchEvent(new CustomEvent('login:progress', { detail: { attempt, elapsed: Date.now() - startTime } }));
+
+      try {
+        const result = await loginSilently(id, { primeBeforeRedirect });
+        if (result && result.success) {
+          document.dispatchEvent(new CustomEvent('login:success', { detail: result }));
+          return result;
+        }
+      } catch (err) {
+        const msg = (err && err.message || '').toLowerCase();
+
+        // 🔴 Fatal: invalid credentials
+        if (msg.includes('invalid') || msg.includes('unauthorized') || msg.includes('not found')) {
+          document.dispatchEvent(new CustomEvent('login:error', {
+            detail: { message: 'Invalid Employee ID. Please try again.', fatal: true }
+          }));
+          throw err;
+        }
+
+        // 🟠 Recoverable: network or cold server
+        if (!navigator.onLine) {
+          document.dispatchEvent(new CustomEvent('login:progress', {
+            detail: { attempt, elapsed: Date.now() - startTime, note: 'offline' }
+          }));
+          await new Promise(r => setTimeout(r, 5000));
+          continue;
+        }
+
+        // Generic retry with exponential backoff
+        const backoff = Math.min(4000 * attempt, 15000);
+        document.dispatchEvent(new CustomEvent('login:progress', {
+          detail: { attempt, elapsed: Date.now() - startTime, note: 'retrying', backoff }
+        }));
+        await new Promise(r => setTimeout(r, backoff));
+      }
+    }
+
+    // ⏳ Timeout reached
+    document.dispatchEvent(new CustomEvent('login:error', {
+      detail: { message: 'Server did not respond within the allowed time.', fatal: true }
+    }));
+    throw new Error('Server timeout after multiple attempts.');
+  }
+
+  // ────────────────────────────────
+  // 🧠 Header hydration + logout
+  // ────────────────────────────────
   async function initHeader() {
     const s = get();
 
@@ -163,8 +238,7 @@
       $logout.addEventListener('click', logout);
     }
 
-    try { document.dispatchEvent(new Event('powerup-auth-ready')); } catch {}
-
+    document.dispatchEvent(new Event('powerup-auth-ready'));
     mirrorCanonicalSession();
   }
 
@@ -175,96 +249,17 @@
     location.href = 'login.html';
   }
 
+  // ────────────────────────────────
+  // ✅ Public API
+  // ────────────────────────────────
+  P.session = {
+    get, set, clear,
+    requireLogin,
+    loginWithRetry, // new robust workflow
+    loginSilently,  // internal fast login
+    initHeader,
+    logout
+  };
 
-// --- Non-redirecting login function for splash-controlled flow ---
-async function loginSilently(inputId, { primeBeforeRedirect = true } = {}) {
-  const id = String(inputId || '').trim();
-  if (!id) throw new Error('Please enter your Position ID or Employee ID.');
-
-  try { await P.api.ready(); } catch {}
-  try { await P.api.warmProxy(); } catch {}
-
-  let row;
-  try {
-    const rows = await (async () => {
-      const CK = 'pu.cache.EMPLOYEE_MASTER.rows';
-      const cached = sessionStorage.getItem(CK);
-      if (cached) {
-        try { return JSON.parse(cached); } catch {}
-      }
-      const fresh = await P.api.getRowsByTitle(P.api.SHEETS.EMPLOYEE_MASTER)
-        .catch(async () => {
-          const sheet = await P.api.fetchSheet(P.api.SHEETS.EMPLOYEE_MASTER);
-          return P.api.rowsByTitle(sheet);
-        });
-      try { sessionStorage.setItem(CK, JSON.stringify(fresh)); } catch {}
-      return fresh;
-    })();
-
-    const idLC = id.toLowerCase();
-    row = rows.find(r => {
-      const pid = String(r['Position ID'] ?? '').trim().toLowerCase();
-      const eid = String(r['Employee ID'] ?? '').trim().toLowerCase();
-      return pid === idLC || eid === idLC;
-    }) || null;
-  } catch (err) {
-    console.error('loginSilently: error finding employee', err);
-    throw new Error('Login lookup failed. Please try again.');
-  }
-
-  if (!row) throw new Error('ID not found. Double-check your Position ID or Employee ID.');
-
-  const displayName = row['Display Name'] || row['Employee Name'] || row['Name'] || id;
-  let level = row['PowerUp Level (Select)'] || row['PowerUp Level'] || row['Level'] || 'Level Unknown';
-  try {
-    if (P.session && typeof P.session.isAdminId === 'function' && P.session.isAdminId(id)) {
-      level = 'Admin';
-    }
-  } catch {}
-
-  P.session.set({ employeeId: id, displayName, level, levelText: level });
-
-  try {
-    localStorage.setItem('powerup_session', JSON.stringify({ employeeId: id, displayName }));
-  } catch {}
-
-  if (primeBeforeRedirect && P.api?.prefetchEssential) {
-    try { await P.api.prefetchEssential(); } catch {}
-  }
-
-  return { success: true, employeeId: id, displayName, level };
-}
-
-// ✅ Attach all functions, including loginSilently
-P.session = { get, set, clear, requireLogin, loginWithId, initHeader, logout, loginSilently };
-window.PowerUp = P;
+  window.PowerUp = P;
 })(window.PowerUp || {});
-
-
-  
-
-
-// Show splash for ~1.8s, then fade + redirect.
-/*
-PowerUp.session.playSplashThenGo = function (nextUrl = 'Dashboard-Refresh.html', totalMs = 1800) {
-  try {
-    let el = document.getElementById('pu-splash');
-    if (!el) {
-      el = document.createElement('div');
-      el.id = 'pu-splash';
-      el.innerHTML = '<div class="pu-splash-inner"><img src="assets/favicon.svg" alt="PowerUp" width="120" height="120"></div>';
-      document.body.appendChild(el);
-    }
-    el.hidden = false;
-    // force reflow so the 'on' class transitions
-    void el.offsetWidth;
-    el.classList.add('on');
-
-    // start fade slightly before redirect
-    setTimeout(() => el.classList.add('fade'), Math.max(0, totalMs - 500));
-    setTimeout(() => { location.href = nextUrl; }, totalMs);
-  } catch {
-    location.href = nextUrl;
-  }
-};
-*/
