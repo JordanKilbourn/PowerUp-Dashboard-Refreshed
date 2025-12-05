@@ -263,3 +263,21 @@
 
   window.PowerUp = P;
 })(window.PowerUp || {});
+
+// --- Auto-restore session on any page load (dashboard guard compatibility) ---
+try {
+  const restored =
+    JSON.parse(sessionStorage.getItem('pu.session') || 'null') ||
+    JSON.parse(localStorage.getItem('powerup_session') || 'null');
+
+  if (restored && restored.employeeId) {
+    // Rehydrate in-memory session so dashboard and guards can detect it
+    if (window.PowerUp && PowerUp.session && typeof PowerUp.session.set === 'function') {
+      PowerUp.session.set(restored);
+      console.log('[PowerUp] Session restored for', restored.displayName || restored.employeeId);
+    }
+  }
+} catch (err) {
+  console.warn('[PowerUp] Session restore skipped:', err);
+}
+
