@@ -494,6 +494,10 @@ async function startSequence(){
 
   const runId = ++currentSplashRunId; // 🔹 New splash instance ID
 
+    // 🔸 Fire an event whenever a new splash cycle starts
+  document.dispatchEvent(new CustomEvent('splash:cycleStart', { detail: { runId } }));
+
+
   // Show splash
   elSplash.style.display = 'block';
   document.documentElement.style.overflow = 'hidden';
@@ -562,13 +566,12 @@ async function startSequence(){
     elCard.classList.add('parallax');
   }, showFinalAt));
 
-  // ✅ Fire only if still active splash run
+  // 🔸 Fire an event when one full visible cycle finishes (just before fade-out)
   timers.push(setTimeout(() => {
     if (runId === currentSplashRunId) {
-      const loopEvent = new CustomEvent('splashLoopCompleted');
-      document.dispatchEvent(loopEvent);
+      document.dispatchEvent(new CustomEvent('splash:cycleComplete', { detail: { runId } }));
     }
-  }, endAt - 200));
+  }, endAt - 100));
 
   // End gracefully
   timers.push(setTimeout(() => {
@@ -746,11 +749,18 @@ function hideSplash() {
     if (loginReady) hideSplash(); // redirect handled internally by PowerUp
   });
 
-  /* ---- Splash Loop Event ---- */
-  document.addEventListener('splashLoopCompleted', () => {
-    hasPlayedAtLeastOneLoop = true;
+  /* ---- Splash Event Coordination ---- */
+  let splashCycleDone = false;
+
+  window.addEventListener('splash:cycleStart', () => {
+    splashCycleDone = false;
+  });
+
+  window.addEventListener('splash:cycleComplete', () => {
+    splashCycleDone = true;
     if (loginReady) hideSplash();
   });
+
 
   /* ---- Login Core ---- */
   async function doLogin(empId) {
@@ -789,7 +799,7 @@ setSplashText(`Welcome back, ${result.displayName}!`);
         loginReady = true;
         setSplashText('Dashboard ready! You may skip or wait.');
         setTimeout(() => { btnSkip.style.display = 'block'; }, 800);
-        if (hasPlayedAtLeastOneLoop) hideSplash();
+        if (splashCycleDone) hideSplash();
         return;
       } catch (err) {
         const msg = (err && err.message || '').toLowerCase();
