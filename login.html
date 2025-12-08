@@ -668,11 +668,18 @@ function getNextSetIndex(){
 }
 </script>
 
-
 <script>
 /**
- * PowerUp Login + Splash Controller (Event-driven edition)
+ * PowerUp Login + Splash Controller (State-machine edition)
  * Works with session.js (loginWithRetry)
+ *
+ * Behavior:
+ * - Click Sign In → splash starts immediately, login runs in background
+ * - Splash loops until login is ready
+ * - When login is ready:
+ *   - If a cycle is already done → fade out, go to dashboard
+ *   - If a cycle is still running → wait for end or allow Skip
+ * - Skip only works AFTER login is ready
  */
 (function () {
   const empInput  = document.getElementById('empId');
@@ -682,123 +689,240 @@ function getNextSetIndex(){
   const elText    = document.getElementById('splash-loading');
   const btnSkip   = document.getElementById('skipBtn');
 
-  let loginReady = false;
-  let splashCycleDone = false;
+  const state = {
+    loginStarted:    false,
+    loginReady:      false,
+    splashCycleDone: false,
+    fatalError:      false,
+    redirecting:     false
+  };
 
-  /* ---- Splash control ---- */
+  function resetError() {
+    if (!errBox) return;
+    errBox.textContent = '';
+    errBox.style.display = 'none';
+  }
+
+  function fadeOutSplash(callback) {
+    if (!elSplash) {
+      if (callback) callback();
+      return;
+    }
+    elSplash.classList.add('fade-out');
+    setTimeout(() => {
+      elSplash.style.display = 'none';
+      elSplash.classList.remove('fade-out');
+      document.documentElement.style.overflow = '';
+      if (callback) callback();
+    }, 800);
+  }
+
   function showSplash() {
+    if (!elSplash) return;
+
     elSplash.style.display = 'block';
     document.documentElement.style.overflow = 'hidden';
-    if (window.Splash && Splash.play) Splash.play();
-    if (elText) elText.style.opacity = '1';
+
+    if (elText) {
+      elText.style.opacity = '1';
+      elText.textContent = 'Contacting server…';
+    }
+    if (btnSkip) {
+      btnSkip.style.display = 'none';
+    }
+
+    if (window.Splash && typeof window.Splash.play === 'function') {
+      if (typeof window.resetSplashState === 'function') {
+        window.resetSplashState();
+      }
+      window.Splash.play();
+    }
   }
 
   function hideSplashAndRedirect() {
-    elSplash.classList.add('fade-out');
-    setTimeout(() => {
-      elSplash.style.display = 'none';
-      elSplash.classList.remove('fade-out');
-      document.documentElement.style.overflow = '';
+    if (state.redirecting) return;
+    state.redirecting = true;
+
+    fadeOutSplash(() => {
       window.location.href = 'Dashboard-Refresh.html';
-    }, 800);
+    });
   }
 
-  function hideSplashAndReturn(msg) {
-    elSplash.classList.add('fade-out');
-    setTimeout(() => {
-      elSplash.style.display = 'none';
-      elSplash.classList.remove('fade-out');
-      document.documentElement.style.overflow = '';
-      errBox.textContent = msg;
-      errBox.style.display = 'block';
-      loginBtn.disabled = false;
-      empInput.disabled = false;
-    }, 800);
+  function hideSplashAndReturn(message) {
+    fadeOutSplash(() => {
+      state.loginStarted    = false;
+      state.loginReady      = false;
+      state.splashCycleDone = false;
+      state.redirecting     = false;
+      state.fatalError      = false;
+
+      if (errBox) {
+        errBox.textContent = message || 'Login failed. Please try again.';
+        errBox.style.display = 'block';
+      }
+      if (loginBtn) loginBtn.disabled = false;
+      if (empInput) {
+        empInput.disabled = false;
+        empInput.focus();
+        empInput.select();
+      }
+    });
   }
 
-  /* ---- Splash event hooks ---- */
+  function updateFlow() {
+    if (!state.loginStarted) return;
+    if (state.fatalError)    return;
+
+    // Only one place decides redirect
+    if (state.loginReady && state.splashCycleDone && !state.redirecting) {
+      hideSplashAndRedirect();
+    }
+  }
+
+  /* ---- Splash events from the animation engine ---- */
   window.addEventListener('splash:cycleStart', () => {
-    splashCycleDone = false;
+    state.splashCycleDone = false;
   });
 
-window.addEventListener('splash:cycleComplete', () => {
-  splashCycleDone = true;
+  window.addEventListener('splash:cycleComplete', () => {
+    // One full visible cycle just finished
+    if (!state.loginReady && !state.fatalError) {
+      // Login not ready yet → loop another cycle
+      state.splashCycleDone = false;
+      if (window.Splash && typeof window.Splash.play === 'function') {
+        if (typeof window.resetSplashState === 'function') {
+          window.resetSplashState();
+        }
+        window.Splash.play();
+      }
+    } else {
+      // Mark cycle complete so updateFlow can redirect if loginReady
+      state.splashCycleDone = true;
+    }
+    updateFlow();
+  });
 
-  if (loginReady) {
-    console.log('✅ Splash finished and login ready — redirecting to dashboard');
-    hideSplashAndRedirect();
-  } else {
-    console.log('⏳ Splash finished but login still in progress — starting another cycle');
-    splashCycleDone = false; // reset flag for next cycle
-if (window.Splash && typeof Splash.play === 'function') {
-  console.log('🔁 Restarting splash sequence for another cycle');
-  if (typeof resetSplashState === 'function') resetSplashState();
-  Splash.play(); // restart the animation loop
-}
-  }
-});
-
-
-  /* ---- Login flow events ---- */
+  /* ---- Login lifecycle events from session.js ---- */
   document.addEventListener('login:start', () => {
-    errBox.style.display = 'none';
-    loginBtn.disabled = true;
-    empInput.disabled = true;
+    resetError();
+
+    state.loginStarted    = true;
+    state.loginReady      = false;
+    state.splashCycleDone = false;
+    state.fatalError      = false;
+    state.redirecting     = false;
+
+    if (loginBtn) loginBtn.disabled = true;
+    if (empInput) empInput.disabled = true;
+
     showSplash();
-    if (elText) elText.textContent = 'Contacting server…';
   });
 
   document.addEventListener('login:progress', (e) => {
-    const { attempt, elapsed, note } = e.detail;
+    const detail  = e.detail || {};
+    const attempt = detail.attempt ?? 0;
+    const elapsed = detail.elapsed ?? 0;
+    const note    = detail.note || '';
+
     if (!elText) return;
     const seconds = Math.floor(elapsed / 1000);
+
     let msg = 'Connecting';
-    if (note === 'offline') msg = 'You appear offline';
-    else if (note === 'retrying') msg = 'Server waking up';
-    else if (seconds > 60) msg = 'Almost there';
+    if (note === 'offline')        msg = 'You appear offline';
+    else if (note === 'retrying')  msg = 'Server waking up';
+    else if (seconds > 60)         msg = 'Almost there';
+
     elText.textContent = `${msg} • Attempt ${attempt} • ${seconds}s`;
   });
 
   document.addEventListener('login:success', (e) => {
-    const { displayName } = e.detail;
-    if (elText) elText.textContent = `Welcome back, ${displayName}! Loading dashboard…`;
-    loginReady = true;
-    setTimeout(() => { btnSkip.style.display = 'block'; }, 800);
-    if (splashCycleDone) hideSplashAndRedirect();
+    const detail      = e.detail || {};
+    const displayName = detail.displayName || '';
+
+    if (elText) {
+      elText.textContent = displayName
+        ? `Welcome back, ${displayName}! Loading dashboard…`
+        : 'Welcome back! Loading dashboard…';
+    }
+
+    state.loginReady = true;
+
+    // Show Skip after a short delay if we're not already redirecting
+    if (btnSkip) {
+      setTimeout(() => {
+        if (!state.redirecting && !state.fatalError) {
+          btnSkip.style.display = 'block';
+        }
+      }, 800);
+    }
+
+    updateFlow();
   });
 
   document.addEventListener('login:error', (e) => {
-    const { message, fatal } = e.detail;
-    if (fatal) {
-      hideSplashAndReturn(message || 'Login failed. Please try again.');
+    const detail   = e.detail || {};
+    const message  = detail.message || 'Login failed. Please try again.';
+    const isFatal  = !!detail.fatal;
+
+    if (isFatal) {
+      state.fatalError = true;
+      hideSplashAndReturn(message);
     } else if (elText) {
       elText.textContent = message || 'Retrying login…';
     }
   });
 
   /* ---- Skip button ---- */
-  btnSkip.style.display = 'none';
-  btnSkip.addEventListener('click', () => {
-    if (loginReady) hideSplashAndRedirect();
-  });
+  if (btnSkip) {
+    btnSkip.addEventListener('click', () => {
+      if (!state.loginStarted) return;
 
-  /* ---- Form handlers ---- */
-  function handleLogin() {
-    const id = (empInput.value || '').trim();
-    if (!id) {
-      errBox.textContent = 'Please enter your Employee ID.';
-      errBox.style.display = 'block';
-      return;
-    }
-    PowerUp.session.loginWithRetry(id);
+      if (!state.loginReady) {
+        // Login isn't ready yet; don’t let them drop out of splash
+        if (elText && !state.fatalError) {
+          elText.textContent = 'Still signing you in…';
+        }
+        return;
+      }
+
+      // Treat skip as "cycle is effectively done"
+      state.splashCycleDone = true;
+      updateFlow();
+    });
   }
 
-  loginBtn.addEventListener('click', handleLogin);
-  empInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') handleLogin();
-  });
+  /* ---- Sign-in button / Enter key ---- */
+  function handleLogin() {
+    const id = (empInput && empInput.value || '').trim();
+    if (!id) {
+      if (errBox) {
+        errBox.textContent = 'Please enter your Employee ID.';
+        errBox.style.display = 'block';
+      }
+      return;
+    }
+
+    try {
+      // This fires login:start / progress / success / error events
+      PowerUp.session.loginWithRetry(id);
+    } catch (err) {
+      // Only catches truly synchronous failures (rare)
+      hideSplashAndReturn(err && err.message || 'Login failed. Please try again.');
+    }
+  }
+
+  if (loginBtn) {
+    loginBtn.addEventListener('click', handleLogin);
+  }
+  if (empInput) {
+    empInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') handleLogin();
+    });
+  }
 })();
 </script>
+
+
 
 
 </body>
