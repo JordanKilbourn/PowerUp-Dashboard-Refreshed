@@ -150,6 +150,7 @@
 
     while (Date.now() < timeoutAt) {
       attempt++;
+
       document.dispatchEvent(
         new CustomEvent('login:progress', {
           detail: { attempt, elapsed: Date.now() - startTime }
@@ -169,13 +170,13 @@
         const rawMsg = (err && err.message) || '';
         const msg = rawMsg.toLowerCase();
 
-        // 🔴 Fatal: truly invalid ID
+        // 🔴 Fatal: invalid ID
         const isInvalidId =
           msg.includes('invalid employee id') ||
           msg.includes('id not found') ||
           msg.includes('employee not found');
 
-        // 🔴 Fatal: real auth issue (not retryable)
+        // 🔴 Fatal: real auth/config error
         const isAuthError =
           msg.includes('unauthorized') ||
           msg.includes('forbidden') ||
@@ -203,35 +204,25 @@
           throw err;
         }
 
-        // 🟠 Network or offline: retry
+        // 🟠 Recoverable: offline
         if (!navigator.onLine) {
           document.dispatchEvent(
             new CustomEvent('login:progress', {
-              detail: {
-                attempt,
-                elapsed: Date.now() - startTime,
-                note: 'offline'
-              }
+              detail: { attempt, elapsed: Date.now() - startTime, note: 'offline' }
             })
           );
-          await new Promise((r) => setTimeout(r, 5000));
+          await new Promise(r => setTimeout(r, 5000));
           continue;
         }
 
-        // Generic retry with exponential backoff
+        // 🔁 Backoff retry
         const backoff = Math.min(4000 * attempt, 15000);
         document.dispatchEvent(
           new CustomEvent('login:progress', {
-            detail: {
-              attempt,
-              elapsed: Date.now() - startTime,
-              note: 'retrying',
-              backoff
-            }
+            detail: { attempt, elapsed: Date.now() - startTime, note: 'retrying', backoff }
           })
         );
-
-        await new Promise((r) => setTimeout(r, backoff));
+        await new Promise(r => setTimeout(r, backoff));
         continue;
       }
     }
@@ -247,8 +238,8 @@
     );
 
     throw new Error('Server timeout after multiple attempts.');
-  }
-}
+  }   // <-- THIS closes async function loginWithRetry
+
 
   // ────────────────────────────────
   // 🧠 Header hydration + logout
