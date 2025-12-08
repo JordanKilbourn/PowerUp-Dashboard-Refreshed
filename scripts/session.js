@@ -150,69 +150,105 @@
 
     while (Date.now() < timeoutAt) {
       attempt++;
-      document.dispatchEvent(new CustomEvent('login:progress', { detail: { attempt, elapsed: Date.now() - startTime } }));
+      document.dispatchEvent(
+        new CustomEvent('login:progress', {
+          detail: { attempt, elapsed: Date.now() - startTime }
+        })
+      );
 
       try {
         const result = await loginSilently(id, { primeBeforeRedirect });
         if (result && result.success) {
-          document.dispatchEvent(new CustomEvent('login:success', { detail: result }));
+          document.dispatchEvent(
+            new CustomEvent('login:success', { detail: result })
+          );
           return result;
         }
 
-} catch (err) {
-  const rawMsg = (err && err.message) || '';
-  const msg = rawMsg.toLowerCase();
+      } catch (err) {
+        const rawMsg = (err && err.message) || '';
+        const msg = rawMsg.toLowerCase();
 
-  // 🔴 Fatal: truly invalid ID (our own explicit error)
-  const isInvalidId =
-    msg.includes('invalid employee id') ||
-    msg.includes('id not found') ||
-    msg.includes('employee not found');
+        // 🔴 Fatal: truly invalid ID
+        const isInvalidId =
+          msg.includes('invalid employee id') ||
+          msg.includes('id not found') ||
+          msg.includes('employee not found');
 
-  // 🔴 Fatal: real auth/config issue (not recoverable by retrying)
-  const isAuthError =
-    msg.includes('unauthorized') ||
-    msg.includes('forbidden') ||
-    msg.includes('api key') ||
-    msg.includes('auth token');
+        // 🔴 Fatal: real auth issue (not retryable)
+        const isAuthError =
+          msg.includes('unauthorized') ||
+          msg.includes('forbidden') ||
+          msg.includes('api key') ||
+          msg.includes('auth token');
 
-  if (isInvalidId) {
-    document.dispatchEvent(new CustomEvent('login:error', {
-      detail: { message: 'Invalid Employee ID. Please try again.', fatal: true }
-    }));
-    throw err;
-  }
+        if (isInvalidId) {
+          document.dispatchEvent(
+            new CustomEvent('login:error', {
+              detail: { message: 'Invalid Employee ID. Please try again.', fatal: true }
+            })
+          );
+          throw err;
+        }
 
-  if (isAuthError) {
-    document.dispatchEvent(new CustomEvent('login:error', {
-      detail: { message: 'Authorization error. Please contact a system administrator.', fatal: true }
-    }));
-    throw err;
-  }
+        if (isAuthError) {
+          document.dispatchEvent(
+            new CustomEvent('login:error', {
+              detail: {
+                message: 'Authorization error. Please contact a system administrator.',
+                fatal: true
+              }
+            })
+          );
+          throw err;
+        }
 
-  // 🟠 Recoverable: network or cold server / transient failure
-  if (!navigator.onLine) {
-    document.dispatchEvent(new CustomEvent('login:progress', {
-      detail: { attempt, elapsed: Date.now() - startTime, note: 'offline' }
-    }));
-    await new Promise(r => setTimeout(r, 5000));
-    continue;
-  }
+        // 🟠 Network or offline: retry
+        if (!navigator.onLine) {
+          document.dispatchEvent(
+            new CustomEvent('login:progress', {
+              detail: {
+                attempt,
+                elapsed: Date.now() - startTime,
+                note: 'offline'
+              }
+            })
+          );
+          await new Promise((r) => setTimeout(r, 5000));
+          continue;
+        }
 
-  // Generic retry with exponential backoff
-  const backoff = Math.min(4000 * attempt, 15000);
-  document.dispatchEvent(new CustomEvent('login:progress', {
-    detail: { attempt, elapsed: Date.now() - startTime, note: 'retrying', backoff }
-  }));
-  await new Promise(r => setTimeout(r, backoff));
-}
+        // Generic retry with exponential backoff
+        const backoff = Math.min(4000 * attempt, 15000);
+        document.dispatchEvent(
+          new CustomEvent('login:progress', {
+            detail: {
+              attempt,
+              elapsed: Date.now() - startTime,
+              note: 'retrying',
+              backoff
+            }
+          })
+        );
+
+        await new Promise((r) => setTimeout(r, backoff));
+        continue;
+      }
+    }
 
     // ⏳ Timeout reached
-    document.dispatchEvent(new CustomEvent('login:error', {
-      detail: { message: 'Server did not respond within the allowed time.', fatal: true }
-    }));
+    document.dispatchEvent(
+      new CustomEvent('login:error', {
+        detail: {
+          message: 'Server did not respond within the allowed time.',
+          fatal: true
+        }
+      })
+    );
+
     throw new Error('Server timeout after multiple attempts.');
   }
+}
 
   // ────────────────────────────────
   // 🧠 Header hydration + logout
