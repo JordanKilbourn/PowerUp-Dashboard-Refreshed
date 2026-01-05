@@ -36,29 +36,31 @@
     );
   }
 
-  async function getEmployeeRowsCachedFirst() {
+  async function getEmployeeRowsCachedFirst({ net = null } = {}) {
     const CK = 'pu.cache.EMPLOYEE_MASTER.rows';
     const cached = sessionStorage.getItem(CK);
     if (cached) {
       try { return JSON.parse(cached); } catch {}
     }
-    const rows = await P.api.getRowsByTitle(P.api.SHEETS.EMPLOYEE_MASTER)
+
+    const rows = await P.api.getRowsByTitle(P.api.SHEETS.EMPLOYEE_MASTER, { net })
       .catch(async () => {
-        const sheet = await P.api.fetchSheet(P.api.SHEETS.EMPLOYEE_MASTER);
+        const sheet = await P.api.fetchSheet(P.api.SHEETS.EMPLOYEE_MASTER, { force: true, net });
         return P.api.rowsByTitle(sheet);
       });
+
     try { sessionStorage.setItem(CK, JSON.stringify(rows)); } catch {}
     return rows;
   }
 
-  async function findEmployeeRowById(id) {
-    const rows = await getEmployeeRowsCachedFirst();
+  async function findEmployeeRowById(id, { net = null } = {}) {
+    const rows = await getEmployeeRowsCachedFirst({ net });
     const idLC = String(id || '').trim().toLowerCase();
     return rows.find(r => {
       const pid = String(r['Position ID'] ?? '').trim().toLowerCase();
       const eid = String(r['Employee ID'] ?? '').trim().toLowerCase();
       return pid === idLC || eid === idLC;
-    }) || null;
+    });
   }
 
   function isAdminId(rawId) {
@@ -95,28 +97,27 @@
   // ────────────────────────────────
   // 🚀 Core Login (non-redirecting)
   // ────────────────────────────────
-  async function loginSilently(inputId, { primeBeforeRedirect = true } = {}) {
+  async function loginSilently(
+    inputId,
+    {
+      primeBeforeRedirect = true,
+      net = null,
+      warmDeadlineMs = 60000,
+      forceWarm = false,
+      onStage = null
+    } = {}
+  ) {
     const id = String(inputId || '').trim();
     if (!id) throw new Error('Please enter your Position ID or Employee ID.');
 
-    try { await P.api.ready(); } catch {}
-    try { await P.api.warmProxy(); } catch {}
+    // Warm proxy (cold-start tolerant). Let failures bubble so loginWithRetry can handle.
+    if (onStage) onStage('warming');
+    await P.api.warmProxy({ deadlineMs: warmDeadlineMs, net, force: forceWarm });
 
     const startTime = Date.now();
-    let row;
 
-    try {
-      const rows = await getEmployeeRowsCachedFirst();
-      const idLC = id.toLowerCase();
-      row = rows.find(r => {
-        const pid = String(r['Position ID'] ?? '').trim().toLowerCase();
-        const eid = String(r['Employee ID'] ?? '').trim().toLowerCase();
-        return pid === idLC || eid === idLC;
-      }) || null;
-    } catch (err) {
-      console.error('loginSilently: error finding employee', err);
-      throw new Error('Login lookup failed. Please try again.');
-    }
+    if (onStage) onStage('fetching');
+    const row = await findEmployeeRowById(id, { net });
 
     if (!row) throw new Error('Invalid Employee ID.');
 
@@ -128,6 +129,7 @@
     mirrorCanonicalSession();
 
     if (primeBeforeRedirect && P.api?.prefetchEssential) {
+      if (onStage) onStage('priming');
       try { await P.api.prefetchEssential(); } catch {}
     }
 
@@ -135,17 +137,25 @@
     return { success: true, employeeId: id, displayName, level, elapsed };
   }
 
+
   // ────────────────────────────────
   // 🔁 Full Resilient Login Workflow
   // ────────────────────────────────
-  async function loginWithRetry(empId, { primeBeforeRedirect = true, maxMinutes = 3 } = {}) {
+  async function loginWithRetry(
+    empId,
+    { primeBeforeRedirect = true, maxMinutes = null, maxMs = 90000 } = {}
+  ) {
     const id = String(empId || '').trim();
     if (!id) throw new Error('Please enter your Employee ID.');
 
     document.dispatchEvent(new CustomEvent('login:start', { detail: { id } }));
 
     const startTime = Date.now();
-    const timeoutAt = startTime + maxMinutes * 60 * 1000;
+    const resolvedMaxMs = (typeof maxMinutes === 'number' && isFinite(maxMinutes))
+      ? maxMinutes * 60 * 1000
+      : maxMs;
+
+    const timeoutAt = startTime + Math.max(5000, resolvedMaxMs);
     let attempt = 0;
 
     while (Date.now() < timeoutAt) {
@@ -157,12 +167,37 @@
         })
       );
 
+      const remainingMs = Math.max(0, timeoutAt - Date.now());
+      // Keep each individual call patient, but keep nested retries low.
+      const loginNet = {
+        retryLimit: 2,
+        attemptTimeoutMs: Math.min(15000, Math.max(5000, remainingMs)),
+        overallTimeoutMs: Math.min(30000, Math.max(8000, remainingMs)),
+        backoffBaseMs: 400,
+        backoffCapMs: 2500
+      };
+
+      const warmDeadlineMs = Math.min(60000, Math.max(10000, remainingMs));
+
+      const onStage = (note) => {
+        document.dispatchEvent(
+          new CustomEvent('login:progress', {
+            detail: { attempt, elapsed: Date.now() - startTime, note }
+          })
+        );
+      };
+
       try {
-        const result = await loginSilently(id, { primeBeforeRedirect });
+        const result = await loginSilently(id, {
+          primeBeforeRedirect,
+          net: loginNet,
+          warmDeadlineMs,
+          forceWarm: attempt === 1,
+          onStage
+        });
+
         if (result && result.success) {
-          document.dispatchEvent(
-            new CustomEvent('login:success', { detail: result })
-          );
+          document.dispatchEvent(new CustomEvent('login:success', { detail: result }));
           return result;
         }
 
@@ -195,28 +230,23 @@
         if (isAuthError) {
           document.dispatchEvent(
             new CustomEvent('login:error', {
-              detail: {
-                message: 'Authorization error. Please contact a system administrator.',
-                fatal: true
-              }
+              detail: { message: 'Login service is misconfigured. Contact an admin.', fatal: true }
             })
           );
           throw err;
         }
 
-        // 🟠 Recoverable: offline
+        // 🟡 Retryable: network / timeout / cold-start
         if (!navigator.onLine) {
           document.dispatchEvent(
             new CustomEvent('login:progress', {
               detail: { attempt, elapsed: Date.now() - startTime, note: 'offline' }
             })
           );
-          await new Promise(r => setTimeout(r, 5000));
-          continue;
         }
 
-        // 🔁 Backoff retry
-        const backoff = Math.min(4000 * attempt, 15000);
+        const jitter = Math.floor(Math.random() * 250);
+        const backoff = Math.min(800 * Math.pow(2, attempt - 1), 8000) + jitter;
         document.dispatchEvent(
           new CustomEvent('login:progress', {
             detail: { attempt, elapsed: Date.now() - startTime, note: 'retrying', backoff }
@@ -231,15 +261,13 @@
     document.dispatchEvent(
       new CustomEvent('login:error', {
         detail: {
-          message: 'Server did not respond within the allowed time.',
-          fatal: true
+          message: 'Login is taking longer than expected (server waking up). Please try again.',
+          fatal: false
         }
       })
     );
-
-    throw new Error('Server timeout after multiple attempts.');
-  }   // <-- THIS closes async function loginWithRetry
-
+    throw new Error('Login timeout');
+  }
 
   // ────────────────────────────────
   // 🧠 Header hydration + logout
