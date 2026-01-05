@@ -495,7 +495,7 @@ async function startSequence(){
   const runId = ++currentSplashRunId; // 🔹 New splash instance ID
 
     // 🔸 Fire an event whenever a new splash cycle starts
-  document.dispatchEvent(new CustomEvent('splash:cycleStart', { detail: { runId } }));
+    window.dispatchEvent(new CustomEvent('splash:cycleStart', { detail: { runId }, bubbles: true }));
 
 
   // Show splash
@@ -569,7 +569,7 @@ async function startSequence(){
   // 🔸 Fire an event when one full visible cycle finishes (just before fade-out)
   timers.push(setTimeout(() => {
     if (runId === currentSplashRunId) {
-      document.dispatchEvent(new CustomEvent('splash:cycleComplete', { detail: { runId } }));
+            window.dispatchEvent(new CustomEvent('splash:cycleComplete', { detail: { runId }, bubbles: true }));
     }
   }, endAt - 100));
 }
@@ -818,7 +818,7 @@ function getNextSetIndex(){
     showSplash();
   });
 
-  document.addEventListener('login:progress', (e) => {
+document.addEventListener('login:progress', (e) => {
     const detail  = e.detail || {};
     const attempt = detail.attempt ?? 0;
     const elapsed = detail.elapsed ?? 0;
@@ -828,14 +828,19 @@ function getNextSetIndex(){
     const seconds = Math.floor(elapsed / 1000);
 
     let msg = 'Connecting';
-    if (note === 'offline')        msg = 'You appear offline';
-    else if (note === 'retrying')  msg = 'Server waking up';
-    else if (seconds > 60)         msg = 'Almost there';
+
+    // Stage-aware status messages (driven by session.js)
+    if (note === 'offline')               msg = 'You appear offline';
+    else if (note === 'warming')          msg = 'Warming the proxy';
+    else if (note === 'fetching')         msg = 'Fetching employee data';
+    else if (note === 'priming')          msg = 'Loading dashboard';
+    else if (note === 'retrying')         msg = 'Server waking up';
+    else if (seconds > 60)                msg = 'Almost there';
 
     elText.textContent = `${msg} • Attempt ${attempt} • ${seconds}s`;
   });
 
-  document.addEventListener('login:success', (e) => {
+document.addEventListener('login:success', (e) => {
     const detail      = e.detail || {};
     const displayName = detail.displayName || '';
 
@@ -846,17 +851,15 @@ function getNextSetIndex(){
     }
 
     state.loginReady = true;
-
-    // Show Skip after a short delay if we're not already redirecting
-    if (btnSkip) {
-      setTimeout(() => {
-        if (!state.redirecting && !state.fatalError) {
-          btnSkip.style.display = 'block';
-        }
-      }, 800);
-    }
-
     updateFlow();
+
+    // Safety net: if splash cycle events fail, do not strand the user on the splash.
+    setTimeout(() => {
+      if (state.loginReady && !state.redirecting && !state.fatalError) {
+        state.splashCycleDone = true;
+        updateFlow();
+      }
+    }, 2500);
   });
 
   document.addEventListener('login:error', (e) => {
