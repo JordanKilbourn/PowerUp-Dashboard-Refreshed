@@ -11,7 +11,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
 
   <style>
-     ---- Card + form ---- */
+     /* ---- Card + form ---- */
     .auth-wrap { min-height: 100vh; display: grid; place-items: center; background: linear-gradient(180deg,#0f172a,#111827);}
     .auth-card { width: 100%; max-width: 460px; background:#0b1020; border:1px solid #00ffc6; border-radius:16px; padding:28px; box-shadow: 0 10px 30px rgba(0,0,0,.25);}
     .brand { display:flex; align-items:center; gap:10px; margin-bottom:18px;}
@@ -162,12 +162,12 @@
   (function () {
     const $ = (s) => document.querySelector(s);
 
-     ---- Clean state on login page ---- */
+    // ---- Clean state on login page ----
     try { window.P && P.api && P.api.clearCache && P.api.clearCache(); } catch {}
     try { sessionStorage.removeItem('pu.sheetCache.v1'); } catch {}
     try { localStorage.removeItem('powerup_session'); } catch {}
 
-     ---- Warm-up + prefetch employee cache (non-blocking) ---- */
+     // ---- Warm-up + prefetch employee cache (non-blocking) ----
     (async function warmup() {
       try { await PowerUp.api.warmProxy(); } catch {}
       try {
@@ -181,7 +181,7 @@
     const btnHelp       = $('#help');
     const errBox        = $('#error');
 
-     Force uppercase in Employee ID field */
+     // Force uppercase in Employee ID field
 empInput.addEventListener('input', (e) => {
   e.target.value = e.target.value.toUpperCase();
 });
@@ -200,7 +200,7 @@ empInput.addEventListener('input', (e) => {
 
     let EMP_ROWS = [];
 
-     ---------- Busy overlay helpers + narration ---------- */
+     // ---------- Busy overlay helpers + narration ----------
     let narratorTimer = null;
     let narratorStart = 0;
     let narratorDots  = 0;
@@ -250,7 +250,7 @@ empInput.addEventListener('input', (e) => {
     function bumpNarratorAttempt(a){ narratorData.attempt = a; narratorLine(); }
     function stopNarrator(){ if (narratorTimer) { clearInterval(narratorTimer); narratorTimer = null; } }
 
-     ---------- ID Lookup helpers ---------- */
+     // ---------- ID Lookup helpers ----------
     function showError(msg) { errBox.textContent = msg; errBox.style.display = 'block'; }
     function showLookupLoading(on) {
       if (lookupLoading) lookupLoading.style.display = on ? 'flex' : 'none';
@@ -320,7 +320,7 @@ empInput.addEventListener('input', (e) => {
     }
 
 
-     ---------- Lookup wiring ---------- */
+     // ---------- Lookup wiring ----------
     btnHelp.addEventListener('click', async () => {
       openLookup({ loading: true });
       btnHelp.disabled = true;
@@ -378,13 +378,9 @@ empInput.addEventListener('input', (e) => {
   </script>
 
 
-
-
-  
-  
   
 <script>
- === Curated Playworld set === */
+ // === Curated Playworld set ===
 const IMAGE_SETS = [
   { name:'playworld', base:'', files: [
     "https://playworld.com/wp-content/uploads/2024/07/ClarkV_240612__U7A0416-scaled.jpg",
