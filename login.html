@@ -11,7 +11,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
 
   <style>
-    /* ---- Card + form ---- */
+     ---- Card + form ---- */
     .auth-wrap { min-height: 100vh; display: grid; place-items: center; background: linear-gradient(180deg,#0f172a,#111827);}
     .auth-card { width: 100%; max-width: 460px; background:#0b1020; border:1px solid #00ffc6; border-radius:16px; padding:28px; box-shadow: 0 10px 30px rgba(0,0,0,.25);}
     .brand { display:flex; align-items:center; gap:10px; margin-bottom:18px;}
@@ -162,12 +162,12 @@
   (function () {
     const $ = (s) => document.querySelector(s);
 
-    /* ---- Clean state on login page ---- */
+     ---- Clean state on login page ---- */
     try { window.P && P.api && P.api.clearCache && P.api.clearCache(); } catch {}
     try { sessionStorage.removeItem('pu.sheetCache.v1'); } catch {}
     try { localStorage.removeItem('powerup_session'); } catch {}
 
-    /* ---- Warm-up + prefetch employee cache (non-blocking) ---- */
+     ---- Warm-up + prefetch employee cache (non-blocking) ---- */
     (async function warmup() {
       try { await PowerUp.api.warmProxy(); } catch {}
       try {
@@ -181,7 +181,7 @@
     const btnHelp       = $('#help');
     const errBox        = $('#error');
 
-    /* Force uppercase in Employee ID field */
+     Force uppercase in Employee ID field */
 empInput.addEventListener('input', (e) => {
   e.target.value = e.target.value.toUpperCase();
 });
@@ -200,7 +200,7 @@ empInput.addEventListener('input', (e) => {
 
     let EMP_ROWS = [];
 
-    /* ---------- Busy overlay helpers + narration ---------- */
+     ---------- Busy overlay helpers + narration ---------- */
     let narratorTimer = null;
     let narratorStart = 0;
     let narratorDots  = 0;
@@ -250,7 +250,7 @@ empInput.addEventListener('input', (e) => {
     function bumpNarratorAttempt(a){ narratorData.attempt = a; narratorLine(); }
     function stopNarrator(){ if (narratorTimer) { clearInterval(narratorTimer); narratorTimer = null; } }
 
-    /* ---------- ID Lookup helpers ---------- */
+     ---------- ID Lookup helpers ---------- */
     function showError(msg) { errBox.textContent = msg; errBox.style.display = 'block'; }
     function showLookupLoading(on) {
       if (lookupLoading) lookupLoading.style.display = on ? 'flex' : 'none';
@@ -320,7 +320,7 @@ empInput.addEventListener('input', (e) => {
     }
 
 
-    /* ---------- Lookup wiring ---------- */
+     ---------- Lookup wiring ---------- */
     btnHelp.addEventListener('click', async () => {
       openLookup({ loading: true });
       btnHelp.disabled = true;
@@ -384,7 +384,7 @@ empInput.addEventListener('input', (e) => {
   
   
 <script>
-/* === Curated Playworld set === */
+ === Curated Playworld set === */
 const IMAGE_SETS = [
   { name:'playworld', base:'', files: [
     "https://playworld.com/wp-content/uploads/2024/07/ClarkV_240612__U7A0416-scaled.jpg",
@@ -670,16 +670,18 @@ function getNextSetIndex(){
 
 <script>
 /**
- * PowerUp Login + Splash Controller (State-machine edition)
- * Works with session.js (loginWithRetry)
+ * PowerUp Login + Splash Controller (Cycle-gated redirect + skip)
  *
- * Behavior:
- * - Click Sign In → splash starts immediately, login runs in background
- * - Splash loops until login is ready
- * - When login is ready:
- *   - If a cycle is already done → fade out, go to dashboard
- *   - If a cycle is still running → wait for end or allow Skip
- * - Skip only works AFTER login is ready
+ * Target behavior:
+ *  - Always show AT LEAST 1 full splash cycle after user clicks Sign In
+ *  - If login becomes ready during the FIRST cycle:
+ *      - show Skip button
+ *      - redirect only when cycle ends (unless user clicks Skip)
+ *  - If login is NOT ready when the first cycle ends:
+ *      - restart the splash cycle
+ *      - after that, redirect immediately as soon as login becomes ready
+ *  - Prevent blank-login flash by NOT hiding splash before navigation
+ *  - Prevent double-submit by disabling inputs while login runs
  */
 (function () {
   const empInput  = document.getElementById('empId');
@@ -692,10 +694,25 @@ function getNextSetIndex(){
   const state = {
     loginStarted:    false,
     loginReady:      false,
-    splashCycleDone: false,
+    splashCycleDone: false,   // current cycle finished
+    cyclesCompleted: 0,       // how many full cycles the user has already seen
+    skipRequested:   false,   // user clicked skip (only honored when loginReady)
     fatalError:      false,
-    redirecting:     false
+    redirecting:     false,
+
+    // runId lets us ignore stale splash events when cycles restart
+    activeRunId:     0,
+
+    // fallback in case cycleComplete event ever fails (should be rare)
+    cycleFallbackTimer: null
   };
+
+  function clearCycleFallback() {
+    if (state.cycleFallbackTimer) {
+      clearTimeout(state.cycleFallbackTimer);
+      state.cycleFallbackTimer = null;
+    }
+  }
 
   function resetError() {
     if (!errBox) return;
@@ -703,7 +720,7 @@ function getNextSetIndex(){
     errBox.style.display = 'none';
   }
 
-  function fadeOutSplash(callback) {
+  function fadeOutSplashToForm(callback) {
     if (!elSplash) {
       if (callback) callback();
       return;
@@ -717,6 +734,21 @@ function getNextSetIndex(){
     }, 800);
   }
 
+  function redirectToDashboard() {
+    if (state.redirecting) return;
+    state.redirecting = true;
+
+    if (elText) elText.textContent = 'Entering dashboard…';
+
+    // IMPORTANT:
+    // Do NOT set display:none before navigation (that causes the blank-login flash).
+    if (elSplash) elSplash.classList.add('fade-out');
+
+    setTimeout(() => {
+      window.location.href = 'Dashboard-Refresh.html';
+    }, 180);
+  }
+
   function showSplash() {
     if (!elSplash) return;
 
@@ -727,9 +759,9 @@ function getNextSetIndex(){
       elText.style.opacity = '1';
       elText.textContent = 'Contacting server…';
     }
-    if (btnSkip) {
-      btnSkip.style.display = 'none';
-    }
+
+    // Skip is only shown when login is ready (controlled by updateFlow)
+    if (btnSkip) btnSkip.style.display = 'none';
 
     if (window.Splash && typeof window.Splash.play === 'function') {
       if (typeof window.resetSplashState === 'function') {
@@ -739,27 +771,24 @@ function getNextSetIndex(){
     }
   }
 
-  function hideSplashAndRedirect() {
-    if (state.redirecting) return;
-    state.redirecting = true;
-
-    fadeOutSplash(() => {
-      window.location.href = 'Dashboard-Refresh.html';
-    });
-  }
-
   function hideSplashAndReturn(message) {
-    fadeOutSplash(() => {
+    fadeOutSplashToForm(() => {
+      // Reset state so user can try again
       state.loginStarted    = false;
       state.loginReady      = false;
       state.splashCycleDone = false;
+      state.cyclesCompleted = 0;
+      state.skipRequested   = false;
       state.redirecting     = false;
       state.fatalError      = false;
+      state.activeRunId     = 0;
+      clearCycleFallback();
 
       if (errBox) {
         errBox.textContent = message || 'Login failed. Please try again.';
         errBox.style.display = 'block';
       }
+
       if (loginBtn) loginBtn.disabled = false;
       if (empInput) {
         empInput.disabled = false;
@@ -769,25 +798,70 @@ function getNextSetIndex(){
     });
   }
 
+  function shouldShowSkip() {
+    // Skip only matters in the FIRST cycle, after login is ready
+    return !!(btnSkip && state.loginReady && state.cyclesCompleted === 0 && !state.redirecting && !state.fatalError);
+  }
+
+  function shouldRedirectNow() {
+    if (!state.loginStarted) return false;
+    if (state.fatalError)    return false;
+    if (state.redirecting)   return false;
+    if (!state.loginReady)   return false;
+
+    // User clicked Skip (only honored after loginReady)
+    if (state.skipRequested) return true;
+
+    // After the user has already watched 1 full cycle, redirect immediately when ready
+    if (state.cyclesCompleted >= 1) return true;
+
+    // Otherwise (first cycle), only redirect when that cycle ends
+    return state.splashCycleDone;
+  }
+
   function updateFlow() {
     if (!state.loginStarted) return;
     if (state.fatalError)    return;
 
-    // Only one place decides redirect
-    if (state.loginReady && state.splashCycleDone && !state.redirecting) {
-      hideSplashAndRedirect();
+    if (btnSkip) {
+      btnSkip.style.display = shouldShowSkip() ? 'block' : 'none';
+    }
+
+    if (shouldRedirectNow()) {
+      redirectToDashboard();
     }
   }
 
   /* ---- Splash events from the animation engine ---- */
-  window.addEventListener('splash:cycleStart', () => {
+  window.addEventListener('splash:cycleStart', (e) => {
+    const runId = e && e.detail && e.detail.runId ? e.detail.runId : 0;
+    state.activeRunId = runId;
     state.splashCycleDone = false;
+
+    // Fallback: if cycleComplete never arrives (rare), force it after a generous window
+    clearCycleFallback();
+    state.cycleFallbackTimer = setTimeout(() => {
+      if (!state.loginStarted || state.redirecting || state.fatalError) return;
+      if (state.activeRunId !== runId) return;
+      if (state.splashCycleDone) return;
+
+      window.dispatchEvent(new CustomEvent('splash:cycleComplete', { detail: { runId, synthetic: true }, bubbles: true }));
+    }, 15000);
+
+    updateFlow();
   });
 
-  window.addEventListener('splash:cycleComplete', () => {
-    // One full visible cycle just finished
+  window.addEventListener('splash:cycleComplete', (e) => {
+    const runId = e && e.detail && e.detail.runId ? e.detail.runId : 0;
+    if (state.activeRunId && runId && runId !== state.activeRunId) return;
+
+    clearCycleFallback();
+
+    state.cyclesCompleted += 1;
+    state.splashCycleDone = true;
+
     if (!state.loginReady && !state.fatalError) {
-      // Login not ready yet → loop another cycle
+      // Not ready yet → loop another full cycle
       state.splashCycleDone = false;
       if (window.Splash && typeof window.Splash.play === 'function') {
         if (typeof window.resetSplashState === 'function') {
@@ -795,10 +869,8 @@ function getNextSetIndex(){
         }
         window.Splash.play();
       }
-    } else {
-      // Mark cycle complete so updateFlow can redirect if loginReady
-      state.splashCycleDone = true;
     }
+
     updateFlow();
   });
 
@@ -809,16 +881,21 @@ function getNextSetIndex(){
     state.loginStarted    = true;
     state.loginReady      = false;
     state.splashCycleDone = false;
+    state.cyclesCompleted = 0;
+    state.skipRequested   = false;
     state.fatalError      = false;
     state.redirecting     = false;
+    state.activeRunId     = 0;
+    clearCycleFallback();
 
     if (loginBtn) loginBtn.disabled = true;
     if (empInput) empInput.disabled = true;
 
     showSplash();
+    updateFlow();
   });
 
-document.addEventListener('login:progress', (e) => {
+  document.addEventListener('login:progress', (e) => {
     const detail  = e.detail || {};
     const attempt = detail.attempt ?? 0;
     const elapsed = detail.elapsed ?? 0;
@@ -828,8 +905,6 @@ document.addEventListener('login:progress', (e) => {
     const seconds = Math.floor(elapsed / 1000);
 
     let msg = 'Connecting';
-
-    // Stage-aware status messages (driven by session.js)
     if (note === 'offline')               msg = 'You appear offline';
     else if (note === 'warming')          msg = 'Warming the proxy';
     else if (note === 'fetching')         msg = 'Fetching employee data';
@@ -840,9 +915,11 @@ document.addEventListener('login:progress', (e) => {
     elText.textContent = `${msg} • Attempt ${attempt} • ${seconds}s`;
   });
 
-document.addEventListener('login:success', (e) => {
+  document.addEventListener('login:success', (e) => {
     const detail      = e.detail || {};
     const displayName = detail.displayName || '';
+
+    state.loginReady = true;
 
     if (elText) {
       elText.textContent = displayName
@@ -850,16 +927,8 @@ document.addEventListener('login:success', (e) => {
         : 'Welcome back! Loading dashboard…';
     }
 
-    state.loginReady = true;
+    // NO 2.5s safety-net here — that was forcing early redirects
     updateFlow();
-
-    // Safety net: if splash cycle events fail, do not strand the user on the splash.
-    setTimeout(() => {
-      if (state.loginReady && !state.redirecting && !state.fatalError) {
-        state.splashCycleDone = true;
-        updateFlow();
-      }
-    }, 2500);
   });
 
   document.addEventListener('login:error', (e) => {
@@ -875,26 +944,27 @@ document.addEventListener('login:success', (e) => {
     }
   });
 
-  /* ---- Skip button ---- */
+  /* ---- Skip button ----
+     IMPORTANT: The splash engine already attached a click handler.
+     We capture + stopImmediatePropagation so ONLY this handler runs. */
   if (btnSkip) {
-    btnSkip.addEventListener('click', () => {
+    btnSkip.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      ev.stopImmediatePropagation();
+
       if (!state.loginStarted) return;
 
       if (!state.loginReady) {
-        // Login isn't ready yet; don’t let them drop out of splash
-        if (elText && !state.fatalError) {
-          elText.textContent = 'Still signing you in…';
-        }
+        if (elText && !state.fatalError) elText.textContent = 'Still signing you in…';
         return;
       }
 
-      // Treat skip as "cycle is effectively done"
-      state.splashCycleDone = true;
+      state.skipRequested = true;
       updateFlow();
-    });
+    }, { capture: true });
   }
 
-  /* ---- Sign-in button / Enter key ---- */
+  /* ---- Sign-in button wiring ---- */
   function handleLogin() {
     const id = (empInput && empInput.value || '').trim();
     if (!id) {
@@ -906,10 +976,8 @@ document.addEventListener('login:success', (e) => {
     }
 
     try {
-      // This fires login:start / progress / success / error events
       PowerUp.session.loginWithRetry(id);
     } catch (err) {
-      // Only catches truly synchronous failures (rare)
       hideSplashAndReturn(err && err.message || 'Login failed. Please try again.');
     }
   }
@@ -923,6 +991,7 @@ document.addEventListener('login:success', (e) => {
     });
   }
 })();
+
 </script>
 
 
