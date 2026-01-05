@@ -274,8 +274,20 @@
     return res;
   }
 
-  // ---------- export base API ----------
-  P.api = { API_BASE, SHEETS, resolveSheetId, fetchSheet, rowsByTitle, getRowsByTitle, clearCache, ready, warmProxy, addRows };
+  // Prefetch the core dashboard sheets so Dashboard-Refresh loads fast after login.
+async function prefetchEssential({ net = null } = {}) {
+  const n = net || { retryLimit: 2, attemptTimeoutMs: 15000, overallTimeoutMs: 45000 };
+
+  await Promise.allSettled([
+    fetchSheet(SHEETS.EMPLOYEE_MASTER, { net: n }),
+    fetchSheet(SHEETS.CI,             { net: n }),
+    fetchSheet(SHEETS.SAFETY,         { net: n }),
+    fetchSheet(SHEETS.QUALITY,        { net: n }),
+  ]);
+}
+
+P.api = { API_BASE, SHEETS, resolveSheetId, fetchSheet, rowsByTitle, getRowsByTitle, clearCache, ready, warmProxy, prefetchEssential, addRows };
+
 
 
 // ✅ Dynamically mapped Employee Master reader (using "Display Name" if present)
