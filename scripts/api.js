@@ -60,12 +60,42 @@
   }
 
   // ---------- fetch with retry ----------
-  const API_RETRY_LIMIT = 3;
-  const ATTEMPT_TIMEOUT_MS = 12000;
-  const OVERALL_DEADLINE_MS = 30000;
-  const BACKOFF_BASE_MS = 300;
+  // Note: "cold start" on Render can make the first requests slow (or return transient 5xx).
+  // These defaults are intentionally modest for normal app usage.
+  // For login / warm-up, callers can pass per-call overrides via the `net` option.
+  const DEFAULT_NET = Object.freeze({
+    retryLimit: 3,
+    attemptTimeoutMs: 12000,
+    overallTimeoutMs: 30000,
+    backoffBaseMs: 300,
+    backoffCapMs: 4000
+  });
 
   const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+  function normalizeNet(net) {
+    const n = { ...DEFAULT_NET, ...(net || {}) };
+    // Basic guards
+    n.retryLimit = Math.max(1, Math.min(10, Number(n.retryLimit) || DEFAULT_NET.retryLimit));
+    n.attemptTimeoutMs = Math.max(1000, Number(n.attemptTimeoutMs) || DEFAULT_NET.attemptTimeoutMs);
+    n.overallTimeoutMs = Math.max(1000, Number(n.overallTimeoutMs) || DEFAULT_NET.overallTimeoutMs);
+    n.backoffBaseMs = Math.max(0, Number(n.backoffBaseMs) || DEFAULT_NET.backoffBaseMs);
+    n.backoffCapMs = Math.max(0, Number(n.backoffCapMs) || DEFAULT_NET.backoffCapMs);
+    return n;
+  }
+
+  function isRetryableError(err) {
+    const status = err && err.status;
+    if (status === 429) return true;
+    if (status === 502 || status === 503 || status === 504) return true;
+    if (typeof status === "number" && status >= 500) return true;
+
+    // AbortController timeout or browser network error
+    if (err && (err.name === "AbortError" || /aborted|timeout/i.test(err.message || ""))) return true;
+    if (err instanceof TypeError) return true; // fetch network failures often surface as TypeError
+    return false;
+  }
+
 
   async function fetchOnce(url, init, signal) {
     const res = await fetch(url, { credentials: "omit", cache: "no-store", ...(init||{}), signal });
@@ -80,50 +110,80 @@
     try { return JSON.parse(text); } catch { return text; }
   }
 
-  async function fetchJSONRetry(url, init) {
+  async function fetchJSONRetry(url, init, net) {
+    const n = normalizeNet(net);
     const start = Date.now();
     let attempt = 0, lastErr;
-    while (attempt < API_RETRY_LIMIT) {
+
+    while (attempt < n.retryLimit) {
       attempt++;
+
+      const elapsed = Date.now() - start;
+      const remainingOverall = n.overallTimeoutMs - elapsed;
+      if (remainingOverall <= 0) {
+        const e = new Error("deadline");
+        e.code = "DEADLINE";
+        throw e;
+      }
+
       const controller = new AbortController();
-      const perAttemptTimeout = setTimeout(() => controller.abort(), ATTEMPT_TIMEOUT_MS);
+      const perAttemptTimeout = setTimeout(() => controller.abort(), Math.min(n.attemptTimeoutMs, remainingOverall));
+
       try {
-        const remaining = OVERALL_DEADLINE_MS - (Date.now() - start);
-        if (remaining <= 0) throw new Error("deadline");
-        return await fetchOnce(url, init, controller.signal);
+        const json = await fetchOnce(url, init, controller.signal);
+        return json;
       } catch (err) {
         lastErr = err;
-        const status = err && err.status;
-        const retryable = err.name === "AbortError" || err.message === "deadline" ||
-                          !status || status === 429 || (status >= 500 && status < 600);
-        if (!retryable || attempt >= API_RETRY_LIMIT) break;
+        const elapsedNow = Date.now() - start;
+        const remainingAfter = n.overallTimeoutMs - elapsedNow;
+        const retryable = isRetryableError(err);
+        if (!retryable || attempt >= n.retryLimit || remainingAfter <= 0) break;
+
+        // Exponential backoff + jitter
+        const exp = n.backoffBaseMs * Math.pow(2, attempt - 1);
+        const backoff = Math.min(exp, n.backoffCapMs);
         const jitter = Math.floor(Math.random() * 250);
-        await sleep(BACKOFF_BASE_MS * attempt + jitter);
-      } finally { clearTimeout(perAttemptTimeout); }
+        await sleep(backoff + jitter);
+      } finally {
+        clearTimeout(perAttemptTimeout);
+      }
     }
+
     throw lastErr || new Error("request failed");
   }
 
+
   // ---------- READY ----------
   let _readyPromise = null;
-  async function ready({ deadlineMs = 60000 } = {}) {
+  async function ready({ deadlineMs = 60000, net = null, force = false } = {}) {
+    if (force) _readyPromise = null;
     if (_readyPromise) return _readyPromise;
+
     _readyPromise = (async () => {
       const start = Date.now();
       while (true) {
         try {
-          const h = await fetchJSONRetry(`${API_BASE}/health`, { method: "GET" });
-          if (h && (h.ok === true || h.status === "ok" || h === "ok")) break;
+          const h = await fetchJSONRetry(`${API_BASE}/health`, { method: "GET" }, net);
+          if (h && (h.ok === true || h.status === "ok" || h === "ok")) return true;
         } catch {}
         if (Date.now() - start > deadlineMs) throw new Error("service not ready (deadline)");
         await sleep(600);
       }
-      return true;
-    })();
+    })().catch(err => {
+      // If the warm-up fails, allow future calls to retry.
+      _readyPromise = null;
+      throw err;
+    });
+
     return _readyPromise;
   }
 
-  async function fetchSheet(sheetIdOrKey, { force = false } = {}) {
+  async function warmProxy({ deadlineMs = 90000, net = null, force = false } = {}) {
+    return ready({ deadlineMs, net, force });
+  }
+
+
+  async function fetchSheet(sheetIdOrKey, { force = false, net = null } = {}) {
     const id = resolveSheetId(sheetIdOrKey);
     assertValidId(id, `fetchSheet(${sheetIdOrKey})`);
 
@@ -132,30 +192,29 @@
       if (_inflight.has(id)) return _inflight.get(id);
       const store = loadStore();
       const hit = store[id];
-      if (hit && Date.now() - hit.ts < SHEET_TTL_MS) {
+      if (hit && Date.now() - hit.ts < CACHE_TTL_MS) {
         _rawCache.set(id, hit.data);
         return hit.data;
       }
     }
 
     const p = (async () => {
-      const json = await fetchJSONRetry(`${API_BASE}/sheet/${id}`);
-      _rawCache.set(id, json);
-      const store = loadStore();
-      store[id] = { ts: Date.now(), data: json };
-      saveStore(store);
-      _inflight.delete(id);
-      return json;
+      const data = await fetchJSONRetry(`${API_BASE}/sheet/${id}`, { method: "GET" }, net);
+      _rawCache.set(id, data);
+      saveStore(id, data);
+      return data;
     })();
+
     _inflight.set(id, p);
-    return p;
+    try { return await p; } finally { _inflight.delete(id); }
   }
 
-  async function getRowsByTitle(sheetIdOrKey, { force = false } = {}) {
+
+  async function getRowsByTitle(sheetIdOrKey, { force = false, net = null } = {}) {
     const id = resolveSheetId(sheetIdOrKey);
     assertValidId(id, `getRowsByTitle(${sheetIdOrKey})`);
     if (!force && _rowsCache.has(id)) return _rowsCache.get(id);
-    const raw = await fetchSheet(id, { force });
+    const raw = await fetchSheet(id, { force, net });
     const rows = rowsByTitle(raw);
     _rowsCache.set(id, rows);
     return rows;
@@ -216,7 +275,7 @@
   }
 
   // ---------- export base API ----------
-  P.api = { API_BASE, SHEETS, resolveSheetId, fetchSheet, rowsByTitle, getRowsByTitle, clearCache, ready, addRows };
+  P.api = { API_BASE, SHEETS, resolveSheetId, fetchSheet, rowsByTitle, getRowsByTitle, clearCache, ready, warmProxy, addRows };
 
 
 // ✅ Dynamically mapped Employee Master reader (using "Display Name" if present)
