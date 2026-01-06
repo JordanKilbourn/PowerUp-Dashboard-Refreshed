@@ -205,11 +205,54 @@
     .pu-kv{ grid-template-columns: 1fr; }
     .pu-kv dt{ margin-top:6px; }
   }
+
+
+
+  /* ---- Dashboard Loading Gate (covers page until hydrated) ---- */
+.dash-gate{
+  position:fixed; inset:0;
+  display:grid; place-items:center;
+  background: linear-gradient(180deg,#0f172a,#111827);
+  z-index:12000;
+}
+.dash-gate.fade-out{ opacity:0; transition:opacity .35s ease; }
+
+.dash-gate__card{
+  background:#0b1020;
+  border:1px solid rgba(0,255,198,.45);
+  border-radius:16px;
+  padding:18px 20px;
+  min-width:280px;
+  max-width:420px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.35);
+  text-align:center;
+}
+.dash-gate__spinner{
+  width:28px;height:28px;
+  border:3px solid rgba(255,255,255,.2);
+  border-top-color:#00ffc6;
+  border-radius:50%;
+  margin:0 auto 10px;
+  animation:dashGateSpin .9s linear infinite;
+}
+@keyframes dashGateSpin{ to{ transform:rotate(360deg) } }
+.dash-gate__title{ color:#e5e7eb; font-weight:700; margin-bottom:4px }
+.dash-gate__sub{ color:#9ca3af; font-size:12px; min-height:18px }
+
 </style>
 
 </head>
 
 <body class="dashboard">
+    <!-- Dashboard Loading Gate -->
+  <div id="dashGate" class="dash-gate" aria-hidden="false">
+    <div class="dash-gate__card">
+      <div class="dash-gate__spinner" aria-hidden="true"></div>
+      <div class="dash-gate__title">Loading your dashboard…</div>
+      <div class="dash-gate__sub" data-gate-msg>Fetching tables and metrics.</div>
+    </div>
+  </div>
+
   <!-- Top cards (restored) -->
   <div class="top-cards">
     <!-- Power Hours -->
@@ -368,19 +411,51 @@
   <script src="scripts/tokens.js"></script>
   <script src="scripts/tables.js?v=2025-09-11-a"></script>
 
-  <!-- Initialize -->
+  <!-- Initialize (gated + parallel) -->
   <script>
-    (async function () {
-      try {
-        PowerUp.session.requireLogin();
-        PowerUp.layout.injectLayout();
-        PowerUp.layout.setPageTitle(document.title || 'PowerUp — Dashboard');
-        await PowerUp.session.initHeader();
-        await PowerUp.renderDashboardPowerHours();
-        await PowerUp.renderTokenCard();
-        await PowerUp.tables.hydrateDashboardTables();
-        document.dispatchEvent(new Event('data-hydrated'));
-      } catch (e) { console.error(e); }
+    (function () {
+      const gate = document.getElementById('dashGate');
+
+      function hideGate() {
+        if (!gate) return;
+        gate.classList.add('fade-out');
+        setTimeout(() => {
+          gate.style.display = 'none';
+          gate.setAttribute('aria-hidden', 'true');
+          gate.classList.remove('fade-out');
+        }, 350);
+      }
+
+      function setGateMessage(msg) {
+        const el = gate && gate.querySelector('[data-gate-msg]');
+        if (el) el.textContent = msg;
+      }
+
+      (async function () {
+        try {
+          PowerUp.session.requireLogin();
+          PowerUp.layout.injectLayout();
+          PowerUp.layout.setPageTitle(document.title || 'PowerUp — Dashboard');
+
+          await PowerUp.session.initHeader();
+
+          // Run the heavy work in parallel to minimize total wait
+          await Promise.all([
+            PowerUp.renderDashboardPowerHours(),
+            PowerUp.renderTokenCard(),
+            PowerUp.tables.hydrateDashboardTables()
+          ]);
+
+          // Fire ONCE, after everything is ready, on the next tick
+          setTimeout(() => document.dispatchEvent(new Event('data-hydrated')), 0);
+
+          hideGate();
+        } catch (e) {
+          console.error(e);
+          setGateMessage('Load failed. Refresh to try again.');
+          // keep gate visible so user never sees a broken half-rendered dashboard
+        }
+      })();
     })();
   </script>
 
@@ -522,6 +597,7 @@
   
 </body>
 </html>
+
 
 
 
