@@ -750,7 +750,7 @@ window.PowerUp = window.PowerUp || {};
     installDualFilters('safety');
     installDualFilters('quality');
 
-    document.dispatchEvent(new Event('data-hydrated'));
+    
   };
 
   // Back-compat (no-op): callers may still invoke this symbol
