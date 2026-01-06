@@ -288,6 +288,26 @@ async function prefetchEssential({ net = null } = {}) {
 
 P.api = { API_BASE, SHEETS, resolveSheetId, fetchSheet, rowsByTitle, getRowsByTitle, clearCache, ready, warmProxy, prefetchEssential, addRows };
 
+  // Prefetch: warm the proxy + prime the dashboard sheets into sessionStorage cache
+P.api.prefetchEssential = async function prefetchEssential({ net = null } = {}) {
+  // Warm the proxy to avoid first-hit latency
+  try { await P.api.warmProxy({ net }); } catch {}
+
+  // Prime the main sheets the dashboard needs
+  const sheets = [
+    P.api.SHEETS.EMPLOYEE_MASTER,
+    P.api.SHEETS.CI,
+    P.api.SHEETS.SAFETY,
+    P.api.SHEETS.QUALITY,
+    P.api.SHEETS.POWER_HOURS,
+    P.api.SHEETS.POWER_HOUR_GOALS,
+  ];
+
+  // Best-effort: don’t block login if one fetch fails
+  await Promise.allSettled(
+    sheets.map(k => P.api.fetchSheet(k, { net }))
+  );
+};
 
 
 // ✅ Dynamically mapped Employee Master reader (using "Display Name" if present)
