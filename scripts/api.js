@@ -190,9 +190,10 @@
     if (!force) {
       if (_rawCache.has(id)) return _rawCache.get(id);
       if (_inflight.has(id)) return _inflight.get(id);
+      
       const store = loadStore();
       const hit = store[id];
-      if (hit && Date.now() - hit.ts < CACHE_TTL_MS) {
+      if (hit && Date.now() - hit.ts < SHEET_TTL_MS) {
         _rawCache.set(id, hit.data);
         return hit.data;
       }
@@ -201,8 +202,14 @@
     const p = (async () => {
       const data = await fetchJSONRetry(`${API_BASE}/sheet/${id}`, { method: "GET" }, net);
       _rawCache.set(id, data);
-      saveStore(id, data);
+
+      // Save into sessionStorage (STORE_KEY) as: { [sheetId]: { ts, data } }
+      const store = loadStore();
+      store[id] = { ts: Date.now(), data };
+      saveStore(store);
+
       return data;
+
     })();
 
     _inflight.set(id, p);
@@ -274,19 +281,20 @@
     return res;
   }
 
-  // Prefetch the core dashboard sheets so Dashboard-Refresh loads fast after login.
-async function prefetchEssential({ net = null } = {}) {
-  const n = net || { retryLimit: 2, attemptTimeoutMs: 15000, overallTimeoutMs: 45000 };
+// Build the public API object (prefetchEssential is attached just below)
+P.api = {
+  API_BASE,
+  SHEETS,
+  resolveSheetId,
+  fetchSheet,
+  rowsByTitle,
+  getRowsByTitle,
+  clearCache,
+  ready,
+  warmProxy,
+  addRows
+};
 
-  await Promise.allSettled([
-    fetchSheet(SHEETS.EMPLOYEE_MASTER, { net: n }),
-    fetchSheet(SHEETS.CI,             { net: n }),
-    fetchSheet(SHEETS.SAFETY,         { net: n }),
-    fetchSheet(SHEETS.QUALITY,        { net: n }),
-  ]);
-}
-
-P.api = { API_BASE, SHEETS, resolveSheetId, fetchSheet, rowsByTitle, getRowsByTitle, clearCache, ready, warmProxy, prefetchEssential, addRows };
 
   // Prefetch: warm the proxy + prime the dashboard sheets into sessionStorage cache
 P.api.prefetchEssential = async function prefetchEssential({ net = null } = {}) {
@@ -294,14 +302,13 @@ P.api.prefetchEssential = async function prefetchEssential({ net = null } = {}) 
   try { await P.api.warmProxy({ net }); } catch {}
 
   // Prime the main sheets the dashboard needs
-  const sheets = [
-    P.api.SHEETS.EMPLOYEE_MASTER,
-    P.api.SHEETS.CI,
-    P.api.SHEETS.SAFETY,
-    P.api.SHEETS.QUALITY,
-    P.api.SHEETS.POWER_HOURS,
-    P.api.SHEETS.POWER_HOUR_GOALS,
-  ];
+const sheets = [
+  P.api.SHEETS.CI,
+  P.api.SHEETS.SAFETY,
+  P.api.SHEETS.QUALITY,
+  P.api.SHEETS.POWER_HOURS,
+  P.api.SHEETS.POWER_HOUR_GOALS,
+];
 
   // Best-effort: don’t block login if one fetch fails
   await Promise.allSettled(
@@ -475,11 +482,8 @@ const res = await fetchJSONRetry(url, {
   clearCache(id);
   console.log("✅ Row update successful:", { sheetId: id, rowId, data });
   return res;
-
-  clearCache(id);
-await fetchSheet(id, { force: true });
-
 };
+
 
  // =====================================================
 // ✅ Update or replace a Squad Leader in Squad Members sheet
