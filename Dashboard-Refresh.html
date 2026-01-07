@@ -22,6 +22,16 @@
   }();
   </script>
 
+  <!-- EARLY DASH GATE — prevent blank dashboard paint before hydration -->
+  <style>
+    html.pu-dash-hold body { visibility: hidden !important; }
+    html.pu-dash-hold #dashGate { display: grid !important; }
+  </style>
+  <script>
+    // Hold rendering until we explicitly release it (prevents blank flash).
+    document.documentElement.classList.add('pu-dash-hold');
+  </script>
+
   <title>PowerUp — Dashboard</title>
 
   <!-- Fonts / Icons / Base styles -->
@@ -412,81 +422,88 @@
   <script src="scripts/tables.js?v=2025-09-11-a"></script>
 
   <!-- Initialize (gated + parallel) -->
- <script>
-  (function () {
-    const gate = document.getElementById('dashGate');
+  <!-- Initialize (gated + parallel) -->
+  <script>
+    (function () {
+      const gate = document.getElementById('dashGate');
+      const HOLD_CLASS = 'pu-dash-hold';
 
-    // ✅ Only show the gate the FIRST time the dashboard hydrates in this browser tab/session
-    const alreadyHydrated = sessionStorage.getItem('pu.dashboardHydratedOnce') === '1';
+      const startedAt = performance.now();
+      const MIN_GATE_MS = 250; // prevents quick “flash” gate on fast returns
 
-    function hideGateImmediate() {
-      if (!gate) return;
-      gate.style.display = 'none';
-      gate.setAttribute('aria-hidden', 'true');
-      gate.classList.remove('fade-out');
-    }
-
-    function hideGateAnimated() {
-      if (!gate) return;
-      gate.classList.add('fade-out');
-      setTimeout(() => {
-        gate.style.display = 'none';
-        gate.setAttribute('aria-hidden', 'true');
-        gate.classList.remove('fade-out');
-      }, 350);
-    }
-
-    function setGateMessage(msg) {
-      const el = gate && gate.querySelector('[data-gate-msg]');
-      if (el) el.textContent = msg;
-    }
-
-    // ✅ If we’ve already hydrated once this session, never show the gate again
-    if (alreadyHydrated) {
-      hideGateImmediate();
-    }
-
-    // ✅ BFCache safety: if user navigates away and back, ensure gate stays hidden
-    window.addEventListener('pageshow', () => {
-      if (sessionStorage.getItem('pu.dashboardHydratedOnce') === '1') hideGateImmediate();
-    });
-
-    (async function () {
-      try {
-        PowerUp.session.requireLogin();
-        PowerUp.layout.injectLayout();
-        PowerUp.layout.setPageTitle(document.title || 'PowerUp — Dashboard');
-
-        await PowerUp.session.initHeader();
-
-        // Run the heavy work in parallel to minimize total wait
-        await Promise.all([
-          PowerUp.renderDashboardPowerHours(),
-          PowerUp.renderTokenCard(),
-          PowerUp.tables.hydrateDashboardTables()
-        ]);
-
-        // Mark session as hydrated BEFORE firing the event (so listeners can read it)
-        sessionStorage.setItem('pu.dashboardHydratedOnce', '1');
-
-        // Fire ONCE, after everything is ready, on the next tick
-        setTimeout(() => document.dispatchEvent(new Event('data-hydrated')), 0);
-
-        // Only animate the gate away on the first run
-        if (!alreadyHydrated) hideGateAnimated();
-        else hideGateImmediate();
-
-      } catch (e) {
-        console.error(e);
-        setGateMessage('Load failed. Refresh to try again.');
-
-        // Keep gate visible only if this is the first load;
-        // on repeat visits, don’t block the page with a gate
-        if (alreadyHydrated) hideGateImmediate();
+      function showGate() {
+        if (!gate) return;
+        gate.style.display = 'grid';
+        gate.setAttribute('aria-hidden', 'false');
       }
+
+      function hideGate() {
+        if (!gate) return;
+        gate.classList.add('fade-out');
+        setTimeout(() => {
+          gate.style.display = 'none';
+          gate.setAttribute('aria-hidden', 'true');
+          gate.classList.remove('fade-out');
+        }, 350);
+      }
+
+      function releasePaint() {
+        document.documentElement.classList.remove(HOLD_CLASS);
+      }
+
+      function setGateMessage(msg) {
+        const el = gate && gate.querySelector('[data-gate-msg]');
+        if (el) el.textContent = msg;
+      }
+
+      async function waitMinGate() {
+        const elapsed = performance.now() - startedAt;
+        const remaining = MIN_GATE_MS - elapsed;
+        if (remaining > 0) await new Promise(r => setTimeout(r, remaining));
+      }
+
+      // Ensure gate is visible while we hold paint
+      showGate();
+
+      // BFCache safety
+      window.addEventListener('pageshow', () => {
+        if (document.documentElement.classList.contains(HOLD_CLASS)) showGate();
+      });
+
+      (async function () {
+        try {
+          PowerUp.session.requireLogin();
+          PowerUp.layout.injectLayout();
+          PowerUp.layout.setPageTitle(document.title || 'PowerUp — Dashboard');
+
+          await PowerUp.session.initHeader();
+
+          await Promise.all([
+            PowerUp.renderDashboardPowerHours(),
+            PowerUp.renderTokenCard(),
+            PowerUp.tables.hydrateDashboardTables()
+          ]);
+
+          sessionStorage.setItem('pu.dashboardHydratedOnce', '1');
+          setTimeout(() => document.dispatchEvent(new Event('data-hydrated')), 0);
+
+          await waitMinGate();
+
+          // Release paint FIRST, then fade gate out
+          releasePaint();
+          hideGate();
+
+        } catch (e) {
+          console.error(e);
+          setGateMessage('Load failed. Refresh to try again.');
+
+          // Release paint so user isn't stuck on a hidden page
+          releasePaint();
+          showGate();
+        }
+      })();
     })();
-  })();
-</script>
+  </script>
 
 
   <!-- Pre-fill "Submitted By" on Smartsheet forms (unchanged) -->
@@ -627,3 +644,4 @@
   
 </body>
 </html>
+
